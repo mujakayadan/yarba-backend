@@ -1,0 +1,202 @@
+[{
+  "_id": {
+    "$oid": "672d2488fe73f583d4f73c22"
+  },
+  "user_id": "example_user",
+  "career_summary": {
+    "job_titles": ["Job Title 1", "Job Title 2", "Job Title 3"],
+    "years_of_experience": "3",
+    "default_summary": "Example career summary text."
+  },
+  "work_experience": [
+    {
+      "job_title": "Example Job Title",
+      "time": "01/2024 - Present", 
+      "company": "Example Company",
+      "location": "City, State, Country",
+      "responsibilities": [
+        "Example responsibility 1",
+        "Example responsibility 2",
+        "Example responsibility 3"
+      ]
+    },
+    {
+      "job_title": "Example Job Title 2",
+      "time": "01/2023 - 12/2023",
+      "company": "Example Company 2", 
+      "location": "City, State, Country",
+      "responsibilities": [
+        "Example responsibility 1",
+        "Example responsibility 2",
+        "Example responsibility 3"
+      ]
+    },
+    {
+      "job_title": "Example Job Title 3",
+      "time": "01/2022 - 12/2022",
+      "company": "Example Company 3",
+      "location": "City, State, Country", 
+      "responsibilities": [
+        "Example responsibility 1",
+        "Example responsibility 2",
+        "Example responsibility 3"
+      ]
+    }
+  ],
+  "skills": [
+    {
+      "Category 1": [
+        "Skill 1",
+        "Skill 2", 
+        "Skill 3"
+      ]
+    },
+    {
+      "Category 2": [
+        "Skill 1",
+        "Skill 2",
+        "Skill 3" 
+      ]
+    },
+    {
+      "Category 3": [
+        "Skill 1",
+        "Skill 2",
+        "Skill 3"
+      ]
+    }
+  ],
+  "education": [
+    {
+      "degree_type": "Example Degree",
+      "degree": "Example Field",
+      "university_name": "Example University",
+      "time": "2021 - 2023",
+      "location": "City, Country",
+      "GPA": "4.00",
+      "transcript": [
+        "Course 1",
+        "Course 2",
+        "Course 3"
+      ]
+    },
+    {
+      "degree_type": "Example Degree 2",
+      "degree": "Example Field 2", 
+      "university_name": "Example University 2",
+      "time": "2019 - 2021",
+      "location": "City, Country",
+      "GPA": "4.00",
+      "transcript": [
+        "Course 1",
+        "Course 2",
+        "Course 3"
+      ]
+    },
+    {
+      "degree_type": "Example Degree 3",
+      "degree": "Example Field 3",
+      "university_name": "Example University 3", 
+      "time": "2015 - 2019",
+      "location": "City, Country",
+      "GPA": "4.00",
+      "transcript": [
+        "Course 1",
+        "Course 2",
+        "Course 3"
+      ]
+    }
+  ],
+  "awards": [
+    {
+      "name": "Example Award 1",
+      "explanation": "Example award explanation 1"
+    },
+    {
+      "name": "Example Award 2", 
+      "explanation": "Example award explanation 2"
+    },
+    {
+      "name": "Example Award 3",
+      "explanation": "Example award explanation 3"
+    }
+  ],
+  "publications": [
+    {
+      "name": "Example Publication 1",
+      "publisher": "Example Publisher",
+      "link": "https://example.com/publication1",
+      "time": "2023"
+    },
+    {
+      "name": "Example Publication 2",
+      "publisher": "Example Publisher",
+      "link": "https://example.com/publication2", 
+      "time": "2022"
+    },
+    {
+      "name": "Example Publication 3",
+      "publisher": "Example Publisher",
+      "link": "https://example.com/publication3",
+      "time": "2021"
+    }
+  ],
+  "projects": [
+    {
+      "name": "Example Project 1",
+      "bullet_points": [
+        "Example bullet point 1",
+        "Example bullet point 2",
+        "Example bullet point 3"
+      ],
+      "date": "2024"
+    },
+    {
+      "name": "Example Project 2",
+      "bullet_points": [
+        "Example bullet point 1",
+        "Example bullet point 2",
+        "Example bullet point 3"
+      ],
+      "date": "2023"
+    },
+    {
+      "name": "Example Project 3",
+      "bullet_points": [
+        "Example bullet point 1",
+        "Example bullet point 2",
+        "Example bullet point 3"
+      ],
+      "date": "2022"
+    }
+  ],
+  "certifications": [],
+  "created_at": {
+    "$date": "2024-01-01T00:00:00.000Z"
+  },
+  "updated_at": {
+    "$date": "2024-01-01T00:00:00.000Z"
+  },
+  "custom_sections": {
+    "enabled": [
+      "Section 1",
+      "Section 2",
+      "Section 3"
+    ],
+    "order": [
+      "Section 1",
+      "Section 2",
+      "Section 3"
+    ]
+  },
+  "is_active": true,
+  "profile_id": {
+    "$oid": "example_oid"
+  },
+  "template_preferences": {
+    "style": "modern",
+    "font": "calibri",
+    "spacing": "compact"
+  },
+  "version": "1.0"
+}]

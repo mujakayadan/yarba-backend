@@ -1,0 +1,185 @@
+"""Rate limiting middleware for FastAPI."""
+
+import time
+from collections import defaultdict
+from typing import Callable, Dict, Optional, Tuple
+
+from fastapi import FastAPI, HTTPException, Request, Response, status
+
+from config import get_logger, settings
+
+logger = get_logger(__name__)
+
+# In-memory store for rate limiting
+# Format: {ip_address: [(timestamp1, count1), (timestamp2, count2), ...]}
+RATE_LIMIT_STORE: Dict[str, list] = defaultdict(list)
+
+# Default rate limits
+DEFAULT_RATE_LIMIT = 60  # requests per minute
+DEFAULT_RATE_LIMIT_WINDOW = 60  # seconds
+
+
+class RateLimitMiddleware:
+    """Rate limiting middleware for FastAPI."""
+
+    def __init__(
+        self,
+        app: FastAPI,
+        rate_limit: int = DEFAULT_RATE_LIMIT,
+        window: int = DEFAULT_RATE_LIMIT_WINDOW,
+        exclude_paths: Optional[list] = None,
+        get_key: Optional[Callable] = None,
+    ):
+        """
+        Initialize rate limiting middleware.
+
+        Args:
+            app: FastAPI application
+            rate_limit: Maximum number of requests per window
+            window: Time window in seconds
+            exclude_paths: List of paths to exclude from rate limiting
+            get_key: Function to get the rate limit key (defaults to client IP)
+        """
+        self.app = app
+        self.rate_limit = rate_limit
+        self.window = window
+        self.exclude_paths = exclude_paths or ["/docs", "/redoc", "/openapi.json", "/"]
+        self.get_key = get_key or self._get_client_ip
+
+        logger.info(
+            f"Rate limiting middleware initialized: {rate_limit} requests per {window} seconds"
+        )
+
+    async def __call__(self, request: Request, call_next):
+        """
+        Process the request with rate limiting.
+
+        Args:
+            request: FastAPI request
+            call_next: Next middleware in the chain
+
+        Returns:
+            Response: FastAPI response
+        """
+        # Skip rate limiting for excluded paths
+        if any(request.url.path.startswith(path) for path in self.exclude_paths):
+            return await call_next(request)
+
+        # Get rate limit key (usually client IP)
+        key = self.get_key(request)
+
+        # Check rate limit
+        is_rate_limited, headers = self._check_rate_limit(key)
+
+        if is_rate_limited:
+            logger.warning(f"Rate limit exceeded for {key} on {request.url.path}")
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Rate limit exceeded. Please try again later.",
+                headers=headers,
+            )
+
+        # Process the request
+        response = await call_next(request)
+
+        # Add rate limit headers to the response
+        for header_name, header_value in headers.items():
+            response.headers[header_name] = str(header_value)
+
+        return response
+
+    def _get_client_ip(self, request: Request) -> str:
+        """
+        Get the client IP address from the request.
+
+        Args:
+            request: FastAPI request
+
+        Returns:
+            str: Client IP address
+        """
+        # Try to get the real IP from headers (if behind a proxy)
+        forwarded_for = request.headers.get("X-Forwarded-For")
+        if forwarded_for:
+            return forwarded_for.split(",")[0].strip()
+
+        # Fall back to the client's direct IP
+        return request.client.host if request.client else "unknown"
+
+    def _check_rate_limit(self, key: str) -> Tuple[bool, Dict[str, str]]:
+        """
+        Check if the rate limit has been exceeded.
+
+        Args:
+            key: Rate limit key (usually client IP)
+
+        Returns:
+            Tuple[bool, Dict[str, str]]: (is_rate_limited, headers)
+        """
+        current_time = time.time()
+        time_window_start = current_time - self.window
+
+        # Clean up old entries
+        RATE_LIMIT_STORE[key] = [
+            (timestamp, count)
+            for timestamp, count in RATE_LIMIT_STORE[key]
+            if timestamp > time_window_start
+        ]
+
+        # Count requests in the current window
+        request_count = sum(count for _, count in RATE_LIMIT_STORE[key])
+
+        # Update the store
+        if not RATE_LIMIT_STORE[key]:
+            RATE_LIMIT_STORE[key].append((current_time, 1))
+        else:
+            timestamp, count = RATE_LIMIT_STORE[key][-1]
+            if timestamp == int(current_time):
+                RATE_LIMIT_STORE[key][-1] = (timestamp, count + 1)
+            else:
+                RATE_LIMIT_STORE[key].append((int(current_time), 1))
+
+        # Calculate remaining requests
+        remaining = max(0, self.rate_limit - request_count)
+
+        # Calculate reset time
+        if RATE_LIMIT_STORE[key]:
+            oldest_timestamp = min(timestamp for timestamp, _ in RATE_LIMIT_STORE[key])
+            reset_time = int(oldest_timestamp + self.window - current_time)
+        else:
+            reset_time = self.window
+
+        # Prepare headers
+        headers = {
+            "X-RateLimit-Limit": str(self.rate_limit),
+            "X-RateLimit-Remaining": str(remaining),
+            "X-RateLimit-Reset": str(reset_time),
+        }
+
+        # Check if rate limit exceeded
+        is_rate_limited = request_count >= self.rate_limit
+
+        return is_rate_limited, headers
+
+
+def add_rate_limit_middleware(
+    app: FastAPI,
+    rate_limit: int = DEFAULT_RATE_LIMIT,
+    window: int = DEFAULT_RATE_LIMIT_WINDOW,
+    exclude_paths: Optional[list] = None,
+):
+    """
+    Add rate limiting middleware to a FastAPI application.
+
+    Args:
+        app: FastAPI application
+        rate_limit: Maximum number of requests per window
+        window: Time window in seconds
+        exclude_paths: List of paths to exclude from rate limiting
+    """
+    app.add_middleware(
+        RateLimitMiddleware,
+        rate_limit=rate_limit,
+        window=window,
+        exclude_paths=exclude_paths,
+    )

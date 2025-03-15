@@ -1,0 +1,9 @@
+# Environment
+- I am using Windows 11 x64, Powershell for command line.
+- I am using Python 3.13 with Poetry for dependency management.
+- I am using Pydantic v2.9.0+ with proper type hints.
+- I am using MongoDB as the primary database.
+- I am using LaTeX for document generation.
+
+This project is a migration from an older project. 
+Code is run with poetry run streamlit run main.py command

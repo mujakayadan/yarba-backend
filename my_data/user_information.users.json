@@ -1,0 +1,78 @@
+[{
+  "_id": {
+    "$oid": "672fd4b8138a51bb2a78d47d"
+  },
+  "email": "mujakayadan@outlook.com",
+  "hashed_password": "$2b$12$JHIqIUZyyNPWSu5IRKYR8eTFYc16mY5QYA0bK.sMywlO98Noyt1su",
+  "is_active": true,
+  "is_superuser": false,
+  "preferences": {
+    "project_details": {
+      "max_projects": 4,
+      "bullet_points_per_project": 3
+    },
+    "work_experience_details": {
+      "max_jobs": 4,
+      "bullet_points_per_job": 3
+    },
+    "skills_details": {
+      "max_categories": 5,
+      "min_skills_per_category": 7,
+      "max_skills_per_category": 15
+    },
+    "career_summary_details": {
+      "min_words": 15,
+      "max_words": 25
+    },
+    "education_details": {
+      "max_entries": 3,
+      "max_courses": 4
+    },
+    "cover_letter_details": {},
+    "awards_details": {},
+    "publications_details": {},
+    "feature_preferences": {
+      "check_clearance": true,
+      "auto_save": true,
+      "dark_mode": false
+    },
+    "notifications": {},
+    "privacy": {},
+    "llm_preferences": {
+      "model_type": "Claude",
+      "model_name": "claude-3-5-sonnet-20240620",
+      "temperature": 0.1
+    },
+    "section_preferences": {
+      "personal_information": "Hardcode",
+      "career_summary": "Process",
+      "skills": "Process",
+      "work_experience": "Process",
+      "education": "Process",
+      "projects": "Process",
+      "awards": "Hardcode",
+      "publications": "Hardcode"
+    }
+  },
+  "last_login": {
+    "$date": "2025-01-09T23:58:59.191Z"
+  },
+  "created_at": {
+    "$date": "2024-11-09T21:31:36.524Z"
+  },
+  "updated_at": {
+    "$date": "2025-02-12T17:26:37.577Z"
+  },
+  "user_id": "mujakayadan",
+  "account_locked_until": null,
+  "email_verified": false,
+  "last_active": {
+    "$date": "2025-01-07T18:13:26.464Z"
+  },
+  "login_attempts": 0,
+  "reset_password_expires": null,
+  "reset_password_token": null,
+  "subscription_expires": null,
+  "subscription_status": "free",
+  "verification_token": null
+}]

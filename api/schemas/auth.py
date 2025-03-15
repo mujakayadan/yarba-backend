@@ -1,0 +1,86 @@
+"""Authentication schemas."""
+
+import re
+from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, EmailStr, Field, field_validator
+
+
+class TokenResponse(BaseModel):
+    """Token response schema."""
+
+    access_token: str
+    token_type: str = "bearer"
+
+
+class LoginRequest(BaseModel):
+    """Login request schema."""
+
+    email: EmailStr = Field(..., description="User's email address")
+    password: str = Field(..., min_length=8, description="User's password")
+
+
+class RegisterRequest(BaseModel):
+    """Register request schema."""
+
+    email: EmailStr = Field(..., description="User's email address")
+    password: str = Field(
+        ...,
+        min_length=8,
+        max_length=64,
+        description="Password must be between 8 and 64 characters and contain at least one uppercase letter, one lowercase letter, and one number",
+    )
+    full_name: str = Field(
+        ..., min_length=2, max_length=100, description="User's full name"
+    )
+
+    @field_validator("password")
+    def validate_password(cls, v: str) -> str:
+        """Validate password complexity.
+
+        Args:
+            v: Password to validate
+
+        Returns:
+            str: Validated password
+
+        Raises:
+            ValueError: If password doesn't meet complexity requirements
+        """
+        if not re.match(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d.@$!%*?&#]{8,}$", v):
+            raise ValueError(
+                "Password must contain at least one uppercase letter, "
+                "one lowercase letter, and one number"
+            )
+        return v
+
+    @field_validator("full_name")
+    def validate_full_name(cls, v: str) -> str:
+        """Validate full name format.
+
+        Args:
+            v: Full name to validate
+
+        Returns:
+            str: Validated and stripped full name
+
+        Raises:
+            ValueError: If full name contains invalid characters
+        """
+        if not re.match(r"^[a-zA-Z\s\'-]+$", v):
+            raise ValueError(
+                "Full name can only contain letters, spaces, hyphens, and apostrophes"
+            )
+        return v.strip()
+
+
+class UserResponse(BaseModel):
+    """User response schema."""
+
+    email: EmailStr
+    full_name: str
+    is_active: bool
+    is_verified: bool
+    created_at: datetime
+    last_login: Optional[datetime] = None
