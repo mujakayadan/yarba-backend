@@ -46,7 +46,9 @@ class TexHeaderRepository(BeanieRepository[TexHeader]):
             {"name": name, "category": category, "is_default": True}
         )
 
-    async def get_all_by_category(self, category: str = "resume_section") -> List[TexHeader]:
+    async def get_all_by_category(
+        self, category: str = "resume_section"
+    ) -> List[TexHeader]:
         """
         Get all TeX headers for a specific category.
 
@@ -88,9 +90,7 @@ class TexHeaderRepository(BeanieRepository[TexHeader]):
         await header.create()
         return header
 
-    async def update_content(
-        self, header_id: str, content: str
-    ) -> Optional[TexHeader]:
+    async def update_content(self, header_id: str, content: str) -> Optional[TexHeader]:
         """
         Update the content of a TeX header.
 

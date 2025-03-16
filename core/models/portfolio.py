@@ -1,4 +1,4 @@
-"""Portfolio and PortfolioItem models for the RBT database."""
+"""Portfolio models for the RBT database."""
 
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
@@ -114,8 +114,6 @@ class Portfolio(Document):
     user: Optional[Link[User]] = None
     profile: Optional[Link[Profile]] = None
 
-    title: str = Field(default="", description="Title of the portfolio.")
-    description: str = Field(default="", description="Description of the portfolio.")
     professional_title: Optional[str] = Field(
         default=None,
         description="Professional title to use. If None, the LLM will choose from job_titles.",
@@ -168,73 +166,12 @@ class Portfolio(Document):
         description="When the portfolio was last updated.",
     )
 
-    model_config = {
-        "validate_assignment": True,
-        "json_encoders": {datetime: lambda v: v.isoformat()},
-        "collection": "portfolios",
-    }
+    class Settings:
+        """Beanie document settings."""
 
-
-class PortfolioItem(Document):
-    """Portfolio item model for showcasing specific items in a portfolio."""
-
-    portfolio_id: PydanticObjectId = Field(
-        description="ID of the portfolio this item belongs to."
-    )
-    portfolio: Optional[Link[Portfolio]] = None
-
-    title: str = Field(description="Title of the portfolio item.")
-    description: str = Field(
-        default="", description="Description of the portfolio item."
-    )
-    type: str = Field(
-        description="Type of portfolio item (e.g., project, work, education)."
-    )
-    url: str = Field(default="", description="URL associated with the portfolio item.")
-    bullet_points: List[str] = Field(
-        default=[], description="List of bullet points describing the portfolio item."
-    )
-    tags: List[str] = Field(
-        default=[], description="Tags associated with the portfolio item."
-    )
-    date: str = Field(
-        default="", description="Date associated with the portfolio item."
-    )
-    order: int = Field(
-        default=0, description="Order of the portfolio item in the portfolio."
-    )
-    is_featured: bool = Field(
-        default=False, description="Whether this item is featured in the portfolio."
-    )
-    company: str = Field(
-        default="", description="Company associated with the portfolio item."
-    )
-    location: str = Field(
-        default="", description="Location associated with the portfolio item."
-    )
-    created_at: datetime = Field(
-        default_factory=datetime.utcnow,
-        description="When the portfolio item was created.",
-    )
-    updated_at: datetime = Field(
-        default_factory=datetime.utcnow,
-        description="When the portfolio item was last updated.",
-    )
-
-    async def get_portfolio(self) -> Optional[Portfolio]:
-        """Get the portfolio this item belongs to."""
-        if not self.portfolio:
-            self.portfolio = await Portfolio.get(self.portfolio_id)
-        return self.portfolio
-
-    model_config = {
-        "validate_assignment": True,
-        "json_encoders": {datetime: lambda v: v.isoformat()},
-        "collection": "portfolio_items",
-        "indexes": [
-            "portfolio_id",
-            "type",
-            ("portfolio_id", "type"),
-            ("portfolio_id", "is_featured"),
-        ],
-    }
+        name = "portfolios"
+        use_state_management = True
+        indexes = ["user_id", "profile_id"]
+        bson_encoders = {
+            datetime: lambda x: x,
+        }

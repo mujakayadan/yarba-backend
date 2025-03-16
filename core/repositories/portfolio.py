@@ -3,19 +3,20 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from bson.objectid import ObjectId
+
 from core.models.profile import Profile
 
 from ..models.portfolio import (
     Award,
     CareerSummary,
+    CustomSections,
     Education,
     Portfolio,
-    PortfolioItem,
     Project,
     Publication,
     Skill,
     WorkExperience,
-    CustomSections,
 )
 from ..models.user import User
 from .base import BeanieRepository
@@ -30,27 +31,75 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
 
     async def get_by_user(self, user: User) -> List[Portfolio]:
         """
-        Get portfolios for a user.
+        Get all portfolios for a user.
 
         Args:
             user: User
 
         Returns:
-            List[Portfolio]: List of portfolios for the user
+            List[Portfolio]: List of portfolios
         """
         return await Portfolio.find({"user_id": user.id}).to_list()
 
     async def get_by_user_id(self, user_id: str) -> List[Portfolio]:
         """
-        Get portfolios for a user by user ID.
+        Get all portfolios for a user by user ID.
 
         Args:
             user_id: User ID
 
         Returns:
-            List[Portfolio]: List of portfolios for the user
+            List[Portfolio]: List of portfolios
         """
         return await Portfolio.find({"user_id": user_id}).to_list()
+
+    async def get_by_profile(self, profile: Profile) -> List[Portfolio]:
+        """
+        Get all portfolios for a profile.
+
+        Args:
+            profile: Profile
+
+        Returns:
+            List[Portfolio]: List of portfolios
+        """
+        return await Portfolio.find({"profile_id": profile.id}).to_list()
+
+    async def get_by_profile_id(self, profile_id: str) -> List[Portfolio]:
+        """
+        Get all portfolios for a profile by profile ID.
+
+        Args:
+            profile_id: Profile ID
+
+        Returns:
+            List[Portfolio]: List of portfolios
+        """
+        return await Portfolio.find({"profile_id": profile_id}).to_list()
+
+    async def get_active_by_user(self, user: User) -> Optional[Portfolio]:
+        """
+        Get the active portfolio for a user.
+
+        Args:
+            user: User
+
+        Returns:
+            Optional[Portfolio]: Active portfolio if found, None otherwise
+        """
+        return await Portfolio.find_one({"user_id": user.id, "is_active": True})
+
+    async def get_active_by_user_id(self, user_id: str) -> Optional[Portfolio]:
+        """
+        Get the active portfolio for a user by user ID.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            Optional[Portfolio]: Active portfolio if found, None otherwise
+        """
+        return await Portfolio.find_one({"user_id": user_id, "is_active": True})
 
     async def get_active_portfolios(self) -> List[Portfolio]:
         """
@@ -209,146 +258,44 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         await result.save()
         return True
 
-    async def create_item(self, item: PortfolioItem) -> PortfolioItem:
-        """
-        Create a new portfolio item.
-
-        Args:
-            item: Portfolio item to create
-
-        Returns:
-            PortfolioItem: Created portfolio item
-        """
-        await item.create()
-        return item
-
-    async def get_items_by_portfolio_id(self, portfolio_id: str) -> List[PortfolioItem]:
-        """
-        Get all items for a portfolio.
-
-        Args:
-            portfolio_id: Portfolio ID
-
-        Returns:
-            List[PortfolioItem]: List of portfolio items
-        """
-        return await PortfolioItem.find({"portfolio_id": portfolio_id}).to_list()
-
-    async def update_item(self, item_id: str, updated_data: Dict[str, Any]) -> bool:
-        """
-        Update a portfolio item.
-
-        Args:
-            item_id: Item ID
-            updated_data: Updated data
-
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        result = await PortfolioItem.find_one({"_id": item_id})
-        if not result:
-            return False
-
-        # Update fields
-        for key, value in updated_data.items():
-            if hasattr(result, key):
-                setattr(result, key, value)
-
-        result.updated_at = datetime.utcnow()
-        await result.save()
-        return True
-
-    async def delete_item(self, item_id: str) -> bool:
-        """
-        Delete a portfolio item.
-
-        Args:
-            item_id: Item ID
-
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        result = await PortfolioItem.find_one({"_id": item_id})
-        if not result:
-            return False
-
-        await result.delete()
-        return True
-
-    async def update_active_status(self, portfolio_id: str, is_active: bool) -> bool:
-        """
-        Update active status for a portfolio.
-
-        Args:
-            portfolio_id: Portfolio ID
-            is_active: Whether the portfolio is active
-
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        result = await Portfolio.find_one({"_id": portfolio_id})
-        if not result:
-            return False
-
-        result.is_active = is_active
-        result.updated_at = datetime.utcnow()
-        await result.save()
-        return True
-
     async def create_for_user(
-        self, user: User, title: str = "My Portfolio"
+        self, user_id: str, profile_id: Optional[str] = None
     ) -> Portfolio:
         """
         Create a new portfolio for a user.
 
         Args:
-            user: User
-            title: Portfolio title
+            user_id: The ID of the user to create the portfolio for
+            profile_id: Optional profile ID to associate with the portfolio
 
         Returns:
-            Portfolio: Created portfolio
+            The created portfolio
         """
+        now = datetime.utcnow()
         portfolio = Portfolio(
-            user_id=user.id,
-            title=title,
-            description="",
-            professional_title=None,
-            career_summary=CareerSummary(),
-            skills=list(),
-            work_experience=list(),
-            education=list(),
-            projects=list(),
-            awards=list(),
-            publications=list(),
-            certifications=list(),
-            custom_sections=CustomSections(),
+            user_id=ObjectId(user_id),
+            profile_id=ObjectId(profile_id) if profile_id else None,
+            professional_title="",
+            career_summary=CareerSummary(
+                job_titles=[],
+                years_of_experience="",
+                default_summary="",
+            ),
+            skills=[],
+            work_experience=[],
+            education=[],
+            projects=[],
+            awards=[],
+            publications=[],
+            certifications=[],
+            custom_sections=CustomSections(enabled=[], order=[]),
             is_active=True,
             version="1.0",
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=now,
+            updated_at=now,
         )
-        await portfolio.create()
+        await portfolio.insert()
         return portfolio
-
-    async def get_items(self, portfolio_id: str) -> List[PortfolioItem]:
-        """Get all portfolio items associated with this portfolio."""
-        return await PortfolioItem.find({"portfolio_id": portfolio_id}).to_list()
-
-    async def get_items_by_type(
-        self, portfolio_id: str, item_type: str
-    ) -> List[PortfolioItem]:
-        """Get portfolio items of a specific type."""
-        return await PortfolioItem.find(
-            {"portfolio_id": portfolio_id, "type": item_type}
-        ).to_list()
-
-    async def get_items_by_tag(
-        self, portfolio_id: str, tag: str
-    ) -> List[PortfolioItem]:
-        """Get portfolio items with a specific tag."""
-        return await PortfolioItem.find(
-            {"portfolio_id": portfolio_id, "tags": tag}
-        ).to_list()
 
     async def get_user(self, portfolio_id: str) -> Optional[User]:
         """Get the user associated with this portfolio."""

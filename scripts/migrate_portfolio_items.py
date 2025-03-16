@@ -9,11 +9,12 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List, Optional, Tuple
 
 from beanie import init_beanie
 from bson import ObjectId
 from dotenv import load_dotenv
+from tqdm import tqdm
 
 # Add parent directory to path to import core modules
 sys.path.append(str(Path(__file__).parent.parent))
@@ -21,12 +22,16 @@ from core.database.connections.mongo import mongo_manager
 from core.models.portfolio import Portfolio, PortfolioItem
 from core.models.profile import Profile
 from core.models.user import User
+from core.repositories.portfolio import PortfolioItemRepository, PortfolioRepository
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler("portfolio_items_migration.log"),
+    ],
 )
 logger = logging.getLogger(__name__)
 
@@ -79,7 +84,7 @@ def convert_mongo_date(date_obj) -> datetime:
 
 
 def load_portfolio_id_map() -> Dict[str, str]:
-    """Load the portfolio ID map from file."""
+    """Load portfolio ID map from file."""
     try:
         with open("portfolio_id_map.json", "r") as f:
             portfolio_id_map = json.load(f)
@@ -95,99 +100,175 @@ def load_portfolio_id_map() -> Dict[str, str]:
         return {}
 
 
+def validate_portfolio_item_data(item_data: Dict) -> Tuple[bool, str]:
+    """
+    Validate portfolio item data before migration.
+
+    Args:
+        item_data: Portfolio item data to validate
+
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    if not item_data.get("portfolio_id"):
+        return False, "Missing portfolio_id"
+
+    required_fields = ["title", "type"]
+    missing_fields = [field for field in required_fields if not item_data.get(field)]
+    if missing_fields:
+        return False, f"Missing required fields: {', '.join(missing_fields)}"
+
+    valid_types = [
+        "project",
+        "work",
+        "education",
+        "award",
+        "publication",
+        "certification",
+    ]
+    if item_data.get("type") not in valid_types:
+        return False, f"Invalid item type: {item_data.get('type')}"
+
+    return True, ""
+
+
 async def migrate_portfolio_items() -> Dict[str, str]:
     """Migrate portfolio items from legacy data to new database."""
-    # Load environment variables
+    # Load environment variables and initialize connections
     env = load_environment()
-
-    # Initialize MongoDB connection using the manager
     mongo_manager.initialize(env["MONGODB_URI"], env["MONGODB_DATABASE"])
-
-    # Initialize Beanie with the managed connection
     await init_beanie(
         database=mongo_manager.async_db,
         document_models=[User, Profile, Portfolio, PortfolioItem],
     )
     logger.info(f"Connected to database: {env['MONGODB_DATABASE']}")
 
-    # Load portfolio ID map
+    # Initialize repositories
+    portfolio_repo = PortfolioRepository()
+    portfolio_item_repo = PortfolioItemRepository()
+
+    # Load portfolio ID map and portfolio items data
     portfolio_id_map = load_portfolio_id_map()
     if not portfolio_id_map:
         logger.error("No portfolio ID map found, cannot migrate portfolio items")
         return {}
 
-    # Load portfolio items data
-    items_data = load_json_file("user_information.portfolio_items.json")
-    if not items_data:
+    portfolio_items_data = load_json_file("user_information.portfolio_items.json")
+    if not portfolio_items_data:
         logger.error("No portfolio items data found")
         return {}
 
-    # Map of old item_id to new item_id
-    item_id_map = {}
+    # Map of old portfolio_item_id to new portfolio_item_id
+    portfolio_item_id_map = {}
+    migration_errors = []
 
-    # Process each portfolio item
-    for item_data in items_data:
+    # Process each portfolio item with progress bar
+    for item_data in tqdm(portfolio_items_data, desc="Migrating portfolio items"):
         try:
-            portfolio_id = item_data.get("portfolio_id")
-            if not portfolio_id:
-                logger.warning(f"Skipping item without portfolio_id: {item_data}")
+            # Validate portfolio item data
+            is_valid, error_msg = validate_portfolio_item_data(item_data)
+            if not is_valid:
+                logger.warning(f"Invalid portfolio item data: {error_msg}")
+                migration_errors.append(
+                    {"portfolio_item": item_data.get("_id"), "error": error_msg}
+                )
                 continue
 
-            # Check if portfolio exists in the map
+            portfolio_id = item_data["portfolio_id"]
             if portfolio_id not in portfolio_id_map:
                 logger.warning(f"Portfolio ID not found in map: {portfolio_id}")
                 continue
 
             new_portfolio_id = ObjectId(portfolio_id_map[portfolio_id])
+            logger.debug(
+                f"Processing portfolio item for portfolio: {portfolio_id} -> {new_portfolio_id}"
+            )
 
             # Check if portfolio exists
-            portfolio = await Portfolio.get(new_portfolio_id)
+            portfolio = await portfolio_repo.get_by_id(str(new_portfolio_id))
             if not portfolio:
                 logger.warning(f"Portfolio not found: {new_portfolio_id}")
                 continue
 
-            # Create a new portfolio item
-            new_item = PortfolioItem(
-                portfolio_id=new_portfolio_id,
-                title=item_data.get("title", ""),
-                description=item_data.get("description", ""),
-                type=item_data.get("type", ""),
-                url=item_data.get("url", ""),
-                bullet_points=item_data.get("bullet_points", []),
-                tags=item_data.get("tags", []),
-                date=item_data.get("date", ""),
-                order=item_data.get("order", 0),
-                is_featured=item_data.get("is_featured", False),
-                company=item_data.get("company", ""),
-                location=item_data.get("location", ""),
-                created_at=convert_mongo_date(item_data.get("created_at")),
-                updated_at=convert_mongo_date(item_data.get("updated_at")),
+            # Check for existing portfolio item
+            existing_items = await portfolio_item_repo.get_by_portfolio_id(
+                str(new_portfolio_id)
+            )
+            if existing_items:
+                for item in existing_items:
+                    if item.title == item_data.get(
+                        "title"
+                    ) and item.type == item_data.get("type"):
+                        logger.info(
+                            f"Portfolio item already exists: {item.title} ({item.type})"
+                        )
+                        portfolio_item_id_map[
+                            str(item_data.get("_id", {}).get("$oid", portfolio_id))
+                        ] = str(item.id)
+                        continue
+
+            # Create a new portfolio item using the repository
+            new_item = await portfolio_item_repo.create_item(
+                portfolio_id=str(new_portfolio_id),
+                title=str(item_data.get("title", "")),
+                item_type=str(item_data.get("type", "")),
+                description=str(item_data.get("description", "")),
+                url=str(item_data.get("url", "")),
+                bullet_points=[str(b) for b in item_data.get("bullet_points", []) if b],
+                tags=[str(t) for t in item_data.get("tags", []) if t],
+                date=str(item_data.get("date", "")),
+                order=int(item_data.get("order", 0)),
+                is_featured=bool(item_data.get("is_featured", False)),
+                company=str(item_data.get("company", "")),
+                location=str(item_data.get("location", "")),
             )
 
-            # Save the portfolio item
+            # Update timestamps
+            new_item.created_at = convert_mongo_date(item_data.get("created_at"))
+            new_item.updated_at = convert_mongo_date(item_data.get("updated_at"))
             await new_item.save()
+
             logger.info(
-                f"Created portfolio item: {new_item.id} for portfolio: {portfolio_id}"
+                f"Created portfolio item: {new_item.title} ({new_item.type}) for portfolio: {portfolio_id}"
             )
-            item_id_map[str(item_data.get("_id", {}).get("$oid", ""))] = str(
-                new_item.id
-            )
+            portfolio_item_id_map[
+                str(item_data.get("_id", {}).get("$oid", portfolio_id))
+            ] = str(new_item.id)
 
         except Exception as e:
-            logger.error(f"Error migrating portfolio item: {e}")
+            error_msg = f"Error migrating portfolio item for portfolio {item_data.get('portfolio_id')}: {e}"
+            logger.error(error_msg)
+            migration_errors.append(
+                {"portfolio_item": item_data.get("_id"), "error": str(e)}
+            )
 
-    # Save the item ID map to a file
+    # Save the portfolio item ID map
     try:
         with open("portfolio_item_id_map.json", "w") as f:
-            json.dump(item_id_map, f, indent=2)
-        logger.info(f"Saved portfolio item ID map with {len(item_id_map)} mappings")
+            json.dump(portfolio_item_id_map, f, indent=2)
+        logger.info(
+            f"Saved portfolio item ID map with {len(portfolio_item_id_map)} mappings"
+        )
     except Exception as e:
         logger.error(f"Error saving portfolio item ID map: {e}")
 
-    # Close the connection when done
+    # Save migration errors if any
+    if migration_errors:
+        try:
+            with open("portfolio_items_migration_errors.json", "w") as f:
+                json.dump(migration_errors, f, indent=2)
+            logger.warning(
+                f"Migration completed with {len(migration_errors)} errors. See portfolio_items_migration_errors.json for details."
+            )
+        except Exception as e:
+            logger.error(f"Error saving migration errors: {e}")
+
+    # Close the connection
     mongo_manager.close_async_connection()
-    logger.info(f"Migrated {len(item_id_map)} portfolio items")
-    return item_id_map
+    logger.info(
+        f"Migration completed. Successfully migrated {len(portfolio_item_id_map)} portfolio items."
+    )
+    return portfolio_item_id_map
 
 
 async def main():

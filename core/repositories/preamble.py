@@ -14,7 +14,9 @@ class PreambleRepository(BeanieRepository[Preamble]):
         """Initialize the repository."""
         super().__init__(Preamble)
 
-    async def get_by_name(self, name: str, preamble_type: str = "resume_preamble") -> Optional[Preamble]:
+    async def get_by_name(
+        self, name: str, preamble_type: str = "resume_preamble"
+    ) -> Optional[Preamble]:
         """
         Get a preamble by name and type.
 
@@ -27,7 +29,9 @@ class PreambleRepository(BeanieRepository[Preamble]):
         """
         return await Preamble.find_one({"name": name, "type": preamble_type})
 
-    async def get_by_type(self, preamble_type: str = "resume_preamble") -> List[Preamble]:
+    async def get_by_type(
+        self, preamble_type: str = "resume_preamble"
+    ) -> List[Preamble]:
         """
         Get all preambles of a specific type.
 
@@ -39,7 +43,9 @@ class PreambleRepository(BeanieRepository[Preamble]):
         """
         return await Preamble.find({"type": preamble_type}).to_list()
 
-    async def get_default(self, preamble_type: str = "resume_preamble") -> Optional[Preamble]:
+    async def get_default(
+        self, preamble_type: str = "resume_preamble"
+    ) -> Optional[Preamble]:
         """
         Get the default preamble for a specific type.
 

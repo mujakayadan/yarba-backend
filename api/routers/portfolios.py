@@ -7,7 +7,18 @@ from pydantic import BaseModel
 
 from core.database import get_portfolio_repository, get_unit_of_work
 from core.database.unit_of_work import AsyncMongoUnitOfWork
-from core.models.portfolio import CareerSummary, Portfolio, PortfolioItem
+from core.models.portfolio import (
+    Award,
+    CareerSummary,
+    CustomSections,
+    Education,
+    Portfolio,
+    PortfolioItem,
+    Project,
+    Publication,
+    Skill,
+    WorkExperience,
+)
 from core.models.user import User
 from core.repositories.portfolio import PortfolioRepository
 
@@ -17,107 +28,59 @@ router = APIRouter()
 
 
 class PortfolioCreate(BaseModel):
-    """Schema for creating a portfolio."""
+    """Portfolio creation model."""
 
-    title: str
-    description: Optional[str] = None
-    professional_title: Optional[str] = None
-    career_summary: Optional[dict] = None
-    theme: Optional[str] = "modern"
-    layout: Optional[str] = "grid"
-    items_per_page: Optional[int] = 10
-    is_public: Optional[bool] = False
+    profile_id: Optional[str] = None
 
 
 class PortfolioUpdate(BaseModel):
-    """Schema for updating a portfolio."""
+    """Portfolio update model."""
 
-    title: Optional[str] = None
-    description: Optional[str] = None
+    profile_id: Optional[str] = None
     professional_title: Optional[str] = None
-    career_summary: Optional[dict] = None
-    theme: Optional[str] = None
-    layout: Optional[str] = None
-    items_per_page: Optional[int] = None
-    is_public: Optional[bool] = None
+    career_summary: Optional[CareerSummary] = None
+    skills: Optional[List[Skill]] = None
+    work_experience: Optional[List[WorkExperience]] = None
+    education: Optional[List[Education]] = None
+    projects: Optional[List[Project]] = None
+    awards: Optional[List[Award]] = None
+    publications: Optional[List[Publication]] = None
+    certifications: Optional[List[str]] = None
+    custom_sections: Optional[CustomSections] = None
+    is_active: Optional[bool] = None
+    version: Optional[str] = None
 
 
 class PortfolioItemCreate(BaseModel):
     """Schema for creating a portfolio item."""
 
-    title: str
-    description: Optional[str] = None
     type: str
     url: Optional[str] = None
-    image_url: Optional[str] = None
-    technologies: Optional[List[str]] = None
+    bullet_points: Optional[List[str]] = None
     tags: Optional[List[str]] = None
     date: Optional[str] = None
-    highlights: Optional[List[str]] = None
     order: Optional[int] = None
     is_featured: Optional[bool] = False
-    metadata: Optional[dict] = None
 
     # Work experience fields
     company: Optional[str] = None
     location: Optional[str] = None
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
-
-    # Education fields
-    institution: Optional[str] = None
-    degree: Optional[str] = None
-    field_of_study: Optional[str] = None
-    gpa: Optional[str] = None
-    courses: Optional[List[str]] = None
-
-    # Publication fields
-    authors: Optional[List[str]] = None
-    publisher: Optional[str] = None
-    publication_date: Optional[str] = None
-
-    # Award fields
-    issuer: Optional[str] = None
-    issue_date: Optional[str] = None
 
 
 class PortfolioItemUpdate(BaseModel):
     """Schema for updating a portfolio item."""
 
-    title: Optional[str] = None
-    description: Optional[str] = None
     type: Optional[str] = None
     url: Optional[str] = None
-    image_url: Optional[str] = None
-    technologies: Optional[List[str]] = None
+    bullet_points: Optional[List[str]] = None
     tags: Optional[List[str]] = None
     date: Optional[str] = None
-    highlights: Optional[List[str]] = None
     order: Optional[int] = None
     is_featured: Optional[bool] = None
-    metadata: Optional[dict] = None
 
     # Work experience fields
     company: Optional[str] = None
     location: Optional[str] = None
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
-
-    # Education fields
-    institution: Optional[str] = None
-    degree: Optional[str] = None
-    field_of_study: Optional[str] = None
-    gpa: Optional[str] = None
-    courses: Optional[List[str]] = None
-
-    # Publication fields
-    authors: Optional[List[str]] = None
-    publisher: Optional[str] = None
-    publication_date: Optional[str] = None
-
-    # Award fields
-    issuer: Optional[str] = None
-    issue_date: Optional[str] = None
 
 
 @router.get("/", response_model=List[Portfolio])

@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from ..models.portfolio import Portfolio
 from ..models.profile import Profile
-from ..models.resume import Resume, LLMSettings
+from ..models.resume import LLMSettings, Resume
 from ..models.user import User
 from .base import BeanieRepository
 
@@ -42,7 +42,7 @@ class ResumeRepository(BeanieRepository[Resume]):
         resume = await Resume.get(resume_id)
         if not resume:
             return None
-        
+
         if not resume.user:
             resume.user = await User.get(resume.user_id)
         return resume.user
@@ -60,7 +60,7 @@ class ResumeRepository(BeanieRepository[Resume]):
         resume = await Resume.get(resume_id)
         if not resume:
             return None
-        
+
         if not resume.profile:
             resume.profile = await Profile.get(resume.profile_id)
         return resume.profile
@@ -78,7 +78,7 @@ class ResumeRepository(BeanieRepository[Resume]):
         resume = await Resume.get(resume_id)
         if not resume or not resume.portfolio_id:
             return None
-        
+
         if not resume.portfolio:
             resume.portfolio = await Portfolio.get(resume.portfolio_id)
         return resume.portfolio

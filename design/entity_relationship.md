@@ -6,7 +6,6 @@ erDiagram
     User ||--o{ Portfolio : "has"
     User ||--o{ Resume : "has"
     Profile ||--o{ Resume : "used in"
-    Portfolio ||--o{ PortfolioItem : "contains"
     Portfolio ||--o{ Resume : "used in"
     Resume }o--|| Portfolio : "references"
     Resume }o--|| Profile : "references"
@@ -56,38 +55,18 @@ erDiagram
         ObjectId id PK
         ObjectId user_id FK
         ObjectId profile_id FK
-        string title
-        string description
         string professional_title
         object career_summary "{ job_titles[], years_of_experience, default_summary }"
         array skills "[ { category: string, skills: string[] } ]"
-        array work_experience "[ { job_title, company, location, time, responsibilities[] } ]"
-        array education "[ { degree_type, degree, university_name, time, location, GPA, transcript[] } ]"
-        array projects "[ { name, bullet_points[], date } ]"
-        array awards "[ { name, explanation } ]"
-        array publications "[ { name, publisher, link, time } ]"
+        array work_experience "[ { job_title, company, location, time, responsibilities[], is_featured, tags[] } ]"
+        array education "[ { degree_type, degree, university_name, time, location, GPA, transcript[], is_featured, tags[] } ]"
+        array projects "[ { name, bullet_points[], date, url, is_featured, tags[] } ]"
+        array awards "[ { name, explanation, is_featured, tags[] } ]"
+        array publications "[ { name, publisher, link, time, is_featured, tags[] } ]"
         array certifications "[]"
         object custom_sections "{ enabled: string[], order: string[] }"
         boolean is_active
         string version
-        datetime created_at
-        datetime updated_at
-    }
-    
-    PortfolioItem {
-        ObjectId id PK
-        ObjectId portfolio_id FK
-        string title
-        string description
-        string type
-        string url
-        array bullet_points "string[]"
-        array tags "string[]"
-        string date
-        int order
-        boolean is_featured
-        string company
-        string location
         datetime created_at
         datetime updated_at
     }
@@ -154,15 +133,9 @@ A collection of a user's professional information, work, projects, experiences, 
 - Contains professional information (skills, work experience, education, projects)
 - Contains career summary with multiple job titles and experience
 - Includes awards, publications, and certifications
+- Each item (work, education, project, etc.) can be featured and tagged
 - Stores custom sections with enabled sections and their order
 - Linked to a user via user_id and optionally to a profile
-
-### PortfolioItem
-Individual showcase items within a portfolio, such as featured projects, case studies, etc.
-- Simplified structure with essential fields only
-- Contains bullet points instead of technologies/responsibilities
-- Includes basic metadata like company, location, date
-- Linked to a portfolio via portfolio_id
 
 ### Resume
 A specific resume document created by a user.
@@ -191,7 +164,6 @@ LaTeX headers used for custom LaTeX code generation.
 
 - A User can have multiple Profiles, Portfolios, and Resumes
 - A Profile can be used in multiple Resumes
-- A Portfolio contains professional information and multiple PortfolioItems
 - A Portfolio can be used in multiple Resumes
 - A Resume references one Profile (for personal info) and one Portfolio (for professional info)
 - A Resume uses one Preamble and multiple TexHeaders for LaTeX generation
