@@ -30,19 +30,6 @@ class Preamble(Document):
         default_factory=datetime.utcnow, description="Last update timestamp."
     )
 
-    @classmethod
-    async def get_default(cls, preamble_type: str) -> Optional["Preamble"]:
-        """
-        Get the default preamble for a specific type.
-
-        Args:
-            preamble_type: Type of preamble to get the default for
-
-        Returns:
-            The default preamble for the specified type, or None if not found
-        """
-        return await cls.find_one({"type": preamble_type, "is_default": True})
-
     model_config = {
         "validate_assignment": True,
         "json_encoders": {datetime: lambda v: v.isoformat()},

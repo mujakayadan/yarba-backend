@@ -4,7 +4,7 @@ import logging
 from typing import Dict, List, Optional
 
 from ..exceptions.base import NotFoundException
-from ..models.profile import Profile, SkillCategory
+from ..models.profile import Profile, Skill
 from ..models.user import User
 from ..repositories.profile import ProfileRepository
 from ..repositories.user import UserRepository
@@ -112,7 +112,7 @@ class ProfileService:
         self.logger.info(f"Profile updated for user: {user_id}")
         return updated_profile
 
-    async def update_skills(self, user_id: str, skills: List[SkillCategory]) -> Profile:
+    async def update_skills(self, user_id: str, skills: List[Skill]) -> Profile:
         """
         Update a user's skills.
 
@@ -139,9 +139,7 @@ class ProfileService:
         self.logger.info(f"Skills updated for user: {user_id}")
         return updated_profile
 
-    async def add_skill_category(
-        self, user_id: str, category: SkillCategory
-    ) -> Profile:
+    async def add_skill_category(self, user_id: str, category: Skill) -> Profile:
         """
         Add a skill category to a user's profile.
 

@@ -1,13 +1,13 @@
 """Resume repository implementation."""
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel
 
 from ..models.portfolio import Portfolio
 from ..models.profile import Profile
-from ..models.resume import Resume
+from ..models.resume import Resume, LLMSettings
 from ..models.user import User
 from .base import BeanieRepository
 
@@ -28,6 +28,95 @@ class ResumeRepository(BeanieRepository[Resume]):
     def __init__(self):
         """Initialize the repository."""
         super().__init__(Resume)
+
+    async def get_user(self, resume_id: str) -> Optional[User]:
+        """
+        Get the user associated with a resume.
+
+        Args:
+            resume_id: Resume ID
+
+        Returns:
+            Optional[User]: User if found, None otherwise
+        """
+        resume = await Resume.get(resume_id)
+        if not resume:
+            return None
+        
+        if not resume.user:
+            resume.user = await User.get(resume.user_id)
+        return resume.user
+
+    async def get_profile(self, resume_id: str) -> Optional[Profile]:
+        """
+        Get the profile associated with a resume.
+
+        Args:
+            resume_id: Resume ID
+
+        Returns:
+            Optional[Profile]: Profile if found, None otherwise
+        """
+        resume = await Resume.get(resume_id)
+        if not resume:
+            return None
+        
+        if not resume.profile:
+            resume.profile = await Profile.get(resume.profile_id)
+        return resume.profile
+
+    async def get_portfolio(self, resume_id: str) -> Optional[Portfolio]:
+        """
+        Get the portfolio associated with a resume.
+
+        Args:
+            resume_id: Resume ID
+
+        Returns:
+            Optional[Portfolio]: Portfolio if found, None otherwise
+        """
+        resume = await Resume.get(resume_id)
+        if not resume or not resume.portfolio_id:
+            return None
+        
+        if not resume.portfolio:
+            resume.portfolio = await Portfolio.get(resume.portfolio_id)
+        return resume.portfolio
+
+    async def get_related_documents(
+        self, resume_id: str
+    ) -> Tuple[Optional[User], Optional[Profile], Optional[Portfolio]]:
+        """
+        Get all related documents (user, profile, portfolio) for a resume in a single call.
+
+        Args:
+            resume_id: Resume ID
+
+        Returns:
+            Tuple containing User, Profile, and Portfolio (any may be None if not found)
+        """
+        resume = await Resume.get(resume_id)
+        if not resume:
+            return None, None, None
+
+        user = profile = portfolio = None
+
+        # Get user
+        if not resume.user:
+            resume.user = await User.get(resume.user_id)
+        user = resume.user
+
+        # Get profile
+        if not resume.profile:
+            resume.profile = await Profile.get(resume.profile_id)
+        profile = resume.profile
+
+        # Get portfolio if it exists
+        if resume.portfolio_id and not resume.portfolio:
+            resume.portfolio = await Portfolio.get(resume.portfolio_id)
+        portfolio = resume.portfolio
+
+        return user, profile, portfolio
 
     async def get_by_user(self, user: User) -> List[Resume]:
         """
@@ -325,14 +414,14 @@ class ResumeRepository(BeanieRepository[Resume]):
             version=1,
             content={},
             custom_sections=[],
-            llm_settings={
-                "model_type": "Claude",
-                "model_name": "claude-3-5-sonnet-20240620",
-                "temperature": 0.1,
-                "p_value": 0.9,
-                "max_tokens": 4000,
-                "system_prompt_version": "v2.3",
-            },
+            llm_settings=LLMSettings(
+                model_type="Claude",
+                model_name="claude-3-5-sonnet-20240620",
+                temperature=0.1,
+                p_value=0.9,
+                max_tokens=4000,
+                system_prompt_version="v2.3",
+            ),
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),
         )

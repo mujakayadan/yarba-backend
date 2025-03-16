@@ -89,21 +89,3 @@ class Resume(Document):
         bson_encoders = {
             datetime: lambda x: x,
         }
-
-    async def get_user(self):
-        """Get the user associated with this resume."""
-        if not self.user:
-            self.user = await User.get(self.user_id)
-        return self.user
-
-    async def get_profile(self):
-        """Get the profile associated with this resume."""
-        if not self.profile:
-            self.profile = await Profile.get(self.profile_id)
-        return self.profile
-
-    async def get_portfolio(self):
-        """Get the portfolio associated with this resume."""
-        if not self.portfolio and self.portfolio_id:
-            self.portfolio = await Portfolio.get(self.portfolio_id)
-        return self.portfolio

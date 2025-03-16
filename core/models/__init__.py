@@ -9,7 +9,7 @@ from .portfolio import (
     PortfolioItem,
     Project,
     Publication,
-    SkillCategory,
+    Skill,
     WorkExperience,
 )
 from .preamble import Preamble
@@ -37,7 +37,7 @@ __all__ = [
     "Award",
     "Publication",
     "CustomSections",
-    "SkillCategory",
+    "Skill",
     # LaTeX models
     "TexHeader",
     "Preamble",

@@ -30,40 +30,6 @@ class TexHeader(Document):
         default_factory=datetime.utcnow, description="Last update timestamp."
     )
 
-    @classmethod
-    async def get_by_name(
-        cls, name: str, category: str = "resume_section"
-    ) -> Optional["TexHeader"]:
-        """
-        Get a TeX header by name and category.
-
-        Args:
-            name: Name of the TeX header to get
-            category: Category of the TeX header
-
-        Returns:
-            The TeX header with the specified name and category, or None if not found
-        """
-        return await cls.find_one({"name": name, "category": category})
-
-    @classmethod
-    async def get_default(
-        cls, name: str, category: str = "resume_section"
-    ) -> Optional["TexHeader"]:
-        """
-        Get the default TeX header for a specific name and category.
-
-        Args:
-            name: Name of the TeX header to get the default for
-            category: Category of the TeX header
-
-        Returns:
-            The default TeX header for the specified name and category, or None if not found
-        """
-        return await cls.find_one(
-            {"name": name, "category": category, "is_default": True}
-        )
-
     model_config = {
         "validate_assignment": True,
         "json_encoders": {datetime: lambda v: v.isoformat()},

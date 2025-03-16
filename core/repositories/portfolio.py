@@ -3,6 +3,8 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from core.models.profile import Profile
+
 from ..models.portfolio import (
     Award,
     CareerSummary,
@@ -11,8 +13,9 @@ from ..models.portfolio import (
     PortfolioItem,
     Project,
     Publication,
-    SkillCategory,
+    Skill,
     WorkExperience,
+    CustomSections,
 )
 from ..models.user import User
 from .base import BeanieRepository
@@ -58,15 +61,13 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         """
         return await Portfolio.find({"is_active": True}).to_list()
 
-    async def update_skills(
-        self, portfolio_id: str, skills: List[Dict[str, List[str]]]
-    ) -> bool:
+    async def update_skills(self, portfolio_id: str, skills: List[Skill]) -> bool:
         """
         Update skills for a portfolio.
 
         Args:
             portfolio_id: Portfolio ID
-            skills: List of skill categories and their skills
+            skills: List of Skill objects
 
         Returns:
             bool: True if successful, False otherwise
@@ -313,13 +314,14 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
             description="",
             professional_title=None,
             career_summary=CareerSummary(),
-            skills=[],
-            work_experience=[],
-            education=[],
-            projects=[],
-            awards=[],
-            publications=[],
-            certifications=[],
+            skills=list(),
+            work_experience=list(),
+            education=list(),
+            projects=list(),
+            awards=list(),
+            publications=list(),
+            certifications=list(),
+            custom_sections=CustomSections(),
             is_active=True,
             version="1.0",
             created_at=datetime.utcnow(),
@@ -327,3 +329,37 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         )
         await portfolio.create()
         return portfolio
+
+    async def get_items(self, portfolio_id: str) -> List[PortfolioItem]:
+        """Get all portfolio items associated with this portfolio."""
+        return await PortfolioItem.find({"portfolio_id": portfolio_id}).to_list()
+
+    async def get_items_by_type(
+        self, portfolio_id: str, item_type: str
+    ) -> List[PortfolioItem]:
+        """Get portfolio items of a specific type."""
+        return await PortfolioItem.find(
+            {"portfolio_id": portfolio_id, "type": item_type}
+        ).to_list()
+
+    async def get_items_by_tag(
+        self, portfolio_id: str, tag: str
+    ) -> List[PortfolioItem]:
+        """Get portfolio items with a specific tag."""
+        return await PortfolioItem.find(
+            {"portfolio_id": portfolio_id, "tags": tag}
+        ).to_list()
+
+    async def get_user(self, portfolio_id: str) -> Optional[User]:
+        """Get the user associated with this portfolio."""
+        portfolio = await Portfolio.find_one({"_id": portfolio_id})
+        if not portfolio:
+            return None
+        return await User.get(portfolio.user_id)
+
+    async def get_profile(self, portfolio_id: str) -> Optional[Profile]:
+        """Get the profile associated with this portfolio."""
+        portfolio = await Portfolio.find_one({"_id": portfolio_id})
+        if not portfolio or not portfolio.profile_id:
+            return None
+        return await Profile.get(portfolio.profile_id)

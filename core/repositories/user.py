@@ -3,6 +3,9 @@
 from datetime import datetime
 from typing import Dict, List, Optional
 
+from ..models.portfolio import Portfolio
+from ..models.profile import Profile
+from ..models.resume import Resume
 from ..models.user import User
 from .base import BeanieRepository
 
@@ -55,6 +58,42 @@ class UserRepository(BeanieRepository[User]):
             List[User]: List of superusers
         """
         return await User.find({"is_superuser": True}).to_list()
+
+    async def get_profiles(self, user_id: str) -> List[Profile]:
+        """
+        Get all profiles for a user.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            List[Profile]: List of profiles for this user
+        """
+        return await Profile.find({"user_id": user_id}).to_list()
+
+    async def get_portfolios(self, user_id: str) -> List[Portfolio]:
+        """
+        Get all portfolios for a user.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            List[Portfolio]: List of portfolios for this user
+        """
+        return await Portfolio.find({"user_id": user_id}).to_list()
+
+    async def get_resumes(self, user_id: str) -> List[Resume]:
+        """
+        Get all resumes for a user.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            List[Resume]: List of resumes for this user
+        """
+        return await Resume.find({"user_id": user_id}).to_list()
 
     async def update_last_login(self, user_id: str) -> bool:
         """

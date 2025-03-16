@@ -1,7 +1,7 @@
 """Profile model for MongoDB using Beanie ODM."""
 
 from datetime import datetime
-from typing import Any, ClassVar, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from beanie import Document, Link, PydanticObjectId
 from pydantic import BaseModel, EmailStr, Field
@@ -147,41 +147,3 @@ class Profile(Document):
         bson_encoders = {
             datetime: lambda x: x,
         }
-
-    async def get_user(self):
-        """Get the user associated with this profile."""
-        if not self.user:
-            self.user = await User.get(self.user_id)
-        return self.user
-
-    async def get_resumes(self):
-        """Get all resumes that use this profile."""
-        from .resume import Resume
-
-        return await Resume.find(Resume.profile_id == self.id).to_list()
-
-    def migrate_personal_info(self):
-        """Migrate personal information from the personal_information field to individual fields."""
-        if not self.personal_information:
-            return
-
-        if "full_name" in self.personal_information and not self.full_name:
-            self.full_name = self.personal_information.get("full_name", "")
-
-        if "email" in self.personal_information and not self.email:
-            self.email = self.personal_information.get("email", "")
-
-        if "phone" in self.personal_information and not self.phone:
-            self.phone = self.personal_information.get("phone", None)
-
-        if "address" in self.personal_information and not self.address:
-            self.address = self.personal_information.get("address", None)
-
-        if "linkedin" in self.personal_information and not self.linkedin:
-            self.linkedin = self.personal_information.get("linkedin", None)
-
-        if "github" in self.personal_information and not self.github:
-            self.github = self.personal_information.get("github", None)
-
-        if "website" in self.personal_information and not self.website:
-            self.website = self.personal_information.get("website", None)

@@ -27,7 +27,7 @@ from core.models.portfolio import (
     PortfolioItem,
     Project,
     Publication,
-    SkillCategory,
+    Skill,
     WorkExperience,
 )
 from core.models.profile import Profile
@@ -164,6 +164,7 @@ async def migrate_portfolios() -> Dict[str, str]:
                 continue
 
             new_user_id = ObjectId(user_id_map[user_id])
+            logger.info(f"Processing portfolio for user: {user_id} -> {new_user_id}")
 
             # Get profile ID if available
             profile_id = portfolio_data.get("profile_id")
@@ -172,6 +173,7 @@ async def migrate_portfolios() -> Dict[str, str]:
                 if profile_id and profile_id in profile_id_map
                 else None
             )
+            logger.info(f"Profile ID mapping: {profile_id} -> {new_profile_id}")
 
             # Check if portfolio already exists
             existing_portfolio = await Portfolio.find_one(
@@ -184,26 +186,25 @@ async def migrate_portfolios() -> Dict[str, str]:
                 ] = str(existing_portfolio.id)
                 continue
 
-            # Create career summary
-            career_summary = CareerSummary(
-                job_titles=portfolio_data.get("career_summary", {}).get(
-                    "job_titles", []
-                ),
-                years_of_experience=str(
-                    portfolio_data.get("career_summary", {}).get(
-                        "years_of_experience", ""
-                    )
-                ),
-                default_summary=portfolio_data.get("career_summary", {}).get(
-                    "default_summary", ""
-                ),
-            )
-
-            # Convert skills to SkillCategory objects
+            # Convert skills to Skill objects
+            skills_data = portfolio_data.get("skills", [])
             skills = []
-            for skill_data in portfolio_data.get("skills", []):
-                for category, skill_list in skill_data.items():
-                    skills.append(SkillCategory(category=category, skills=skill_list))
+            logger.info(f"Processing skills: {skills_data}")
+            for skill_category in skills_data:
+                try:
+                    if isinstance(skill_category, dict):
+                        for category, skill_list in skill_category.items():
+                            if isinstance(skill_list, list):
+                                skill = Skill(category=category, skills=skill_list)
+                                skills.append(skill)
+                                logger.info(
+                                    f"Added skill category: {category} with {len(skill_list)} skills"
+                                )
+                except Exception as e:
+                    logger.error(
+                        f"Error processing skill category {skill_category}: {e}"
+                    )
+                    continue
 
             # Convert work experience entries
             work_experience = [
@@ -273,7 +274,19 @@ async def migrate_portfolios() -> Dict[str, str]:
                 title=portfolio_data.get("title", ""),
                 description=portfolio_data.get("description", ""),
                 professional_title=portfolio_data.get("professional_title"),
-                career_summary=career_summary,
+                career_summary=CareerSummary(
+                    job_titles=portfolio_data.get("career_summary", {}).get(
+                        "job_titles", []
+                    ),
+                    years_of_experience=str(
+                        portfolio_data.get("career_summary", {}).get(
+                            "years_of_experience", ""
+                        )
+                    ),
+                    default_summary=portfolio_data.get("career_summary", {}).get(
+                        "default_summary", ""
+                    ),
+                ),
                 skills=skills,
                 work_experience=work_experience,
                 education=education,

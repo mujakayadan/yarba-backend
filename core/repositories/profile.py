@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from ..models.profile import Preferences, Profile
+from ..models.resume import Resume
 from ..models.user import User
 from .base import BeanieRepository
 
@@ -38,6 +39,33 @@ class ProfileRepository(BeanieRepository[Profile]):
             Optional[Profile]: Profile if found, None otherwise
         """
         return await Profile.find_one({"user_id": user_id})
+
+    async def get_user(self, profile_id: str) -> Optional[User]:
+        """
+        Get the user associated with this profile.
+
+        Args:
+            profile_id: Profile ID
+
+        Returns:
+            Optional[User]: User if found, None otherwise
+        """
+        profile = await Profile.find_one({"_id": profile_id})
+        if not profile:
+            return None
+        return await User.get(profile.user_id)
+
+    async def get_resumes(self, profile_id: str) -> List[Resume]:
+        """
+        Get all resumes that use this profile.
+
+        Args:
+            profile_id: Profile ID
+
+        Returns:
+            List[Resume]: List of resumes using this profile
+        """
+        return await Resume.find({"profile_id": profile_id}).to_list()
 
     async def update_preferences(
         self, profile_id: str, preferences: Preferences

@@ -50,21 +50,3 @@ class User(Document):
         bson_encoders = {
             datetime: lambda x: x,
         }
-
-    async def get_profiles(self):
-        """Get all profiles for this user."""
-        from .profile import Profile
-
-        return await Profile.find(Profile.user_id == self.id).to_list()
-
-    async def get_portfolios(self):
-        """Get all portfolios for this user."""
-        from .portfolio import Portfolio
-
-        return await Portfolio.find(Portfolio.user_id == self.id).to_list()
-
-    async def get_resumes(self):
-        """Get all resumes for this user."""
-        from .resume import Resume
-
-        return await Resume.find(Resume.user_id == self.id).to_list()
