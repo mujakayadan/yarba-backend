@@ -12,11 +12,11 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 from config.logging_config import get_logger
 from config.settings import Settings
-from core.models.preamble import Preamble
-from core.models.tex_header import TexHeader
 from core.models.portfolio import Portfolio, PortfolioItem
+from core.models.preamble import Preamble
 from core.models.profile import Profile
 from core.models.resume import Resume
+from core.models.tex_header import TexHeader
 from core.models.user import User
 
 logger = get_logger(__name__)

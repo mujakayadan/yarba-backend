@@ -24,20 +24,72 @@ class HomePage:
         self.generator_manager = generator_manager
         self.section_selector = SectionSelector()
         # Initialize with default preferences
-        self._initialize_preferences()
+        self._load_user_preferences()
 
-    def _initialize_preferences(self):
-        """Initialize with default preferences."""
+    def _load_user_preferences(self):
+        """Load user preferences from database"""
         try:
-            # Set default preferences if loading fails
-            self.model_selector.set_model_settings(
-                model_type="Claude",
-                model_name="claude-3-5-sonnet-20240620",
-                temperature=0.1,
-            )
-            logger.debug("Initialized with default preferences")
+
+            async def _load():
+                async with await get_unit_of_work() as uow:
+                    # Get current user's profile
+                    profile = await uow.profile_repository.get_by_user_id(
+                        st.session_state["user_id"]
+                    )
+
+                    if profile and profile.preferences:
+                        # Set LLM preferences
+                        if (
+                            hasattr(profile.preferences, "llm_preferences")
+                            and profile.preferences.llm_preferences
+                        ):
+                            llm_prefs = profile.preferences.llm_preferences
+                            self.generator_manager.configure_llm(
+                                model_type=llm_prefs.get("model_type", "Claude"),
+                                model_name=llm_prefs.get(
+                                    "model_name", "claude-3-5-sonnet-20240620"
+                                ),
+                                temperature=llm_prefs.get("temperature", 0.1),
+                            )
+                            logger.debug(f"Configured LLM with: {llm_prefs}")
+
+                        # Set section preferences
+                        if (
+                            hasattr(profile.preferences, "section_preferences")
+                            and profile.preferences.section_preferences
+                        ):
+                            section_prefs = profile.preferences.section_preferences
+                            st.session_state["section_preferences"] = section_prefs
+                            logger.debug(f"Loaded section preferences: {section_prefs}")
+
+                        logger.debug("User preferences loaded successfully")
+                    else:
+                        logger.warning("No profile or preferences found for user")
+                        # Set default preferences
+                        self._set_default_preferences()
+
+            # Run the async function
+            if "loop" in st.session_state:
+                st.session_state.loop.run_until_complete(_load())
+            else:
+                logger.error("No event loop available to load preferences")
+                self._set_default_preferences()
+
         except Exception as e:
-            logger.error(f"Error initializing preferences: {e}")
+            logger.error(f"Error loading user preferences: {e}")
+            # Set default preferences if loading fails
+            self._set_default_preferences()
+
+    def _set_default_preferences(self):
+        """Set default preferences when loading from database fails"""
+        self.generator_manager.configure_llm(
+            model_type="Claude",
+            model_name="claude-3-5-sonnet-20240620",
+            temperature=0.1,
+        )
+        logger.debug(
+            "Using default model preferences: Claude/claude-3-5-sonnet-20240620/0.1"
+        )
 
     def render(self):
         try:
@@ -131,26 +183,108 @@ class HomePage:
                 # Show current configuration (read-only)
                 st.markdown("### ⚙️ Current Configuration")
                 with st.expander("Model Settings"):
-                    # Get model settings from model_selector
-                    model_type, model_name, temperature = (
-                        self.model_selector.get_model_settings()
-                    )
-                    st.text(f"Model Type: {model_type}")
-                    st.text(f"Model: {model_name}")
-                    st.text(f"Temperature: {temperature}")
+                    # Get preferences from database
+                    async def _get_model_settings():
+                        async with await get_unit_of_work() as uow:
+                            profile = await uow.profile_repository.get_by_user_id(
+                                st.session_state["user_id"]
+                            )
+                            if (
+                                profile
+                                and profile.preferences
+                                and hasattr(profile.preferences, "llm_preferences")
+                            ):
+                                llm_prefs = profile.preferences.llm_preferences
+                                return (
+                                    llm_prefs.get("model_type", "Claude"),
+                                    llm_prefs.get(
+                                        "model_name", "claude-3-5-sonnet-20240620"
+                                    ),
+                                    llm_prefs.get("temperature", 0.1),
+                                )
+                            return None
+
+                    if "loop" in st.session_state:
+                        llm_settings = st.session_state.loop.run_until_complete(
+                            _get_model_settings()
+                        )
+                        if llm_settings:
+                            model_type, model_name, temperature = llm_settings
+                            st.text(f"Model Type: {model_type}")
+                            st.text(f"Model: {model_name}")
+                            st.text(f"Temperature: {temperature}")
+                        else:
+                            # Fallback to model_selector
+                            model_type, model_name = self.model_selector.render()
+                            temperature = 0.1  # Default temperature
+                            st.text(f"Model Type: {model_type}")
+                            st.text(f"Model: {model_name}")
+                            st.text(f"Temperature: {temperature}")
+                    else:
+                        # Fallback to model_selector
+                        model_type, model_name = self.model_selector.render()
+                        temperature = 0.1  # Default temperature
+                        st.text(f"Model Type: {model_type}")
+                        st.text(f"Model: {model_name}")
+                        st.text(f"Temperature: {temperature}")
 
                 with st.expander("Section Settings"):
+                    # Get section preferences from database or use section selector
                     section_prefs = st.session_state.get("section_preferences", {})
-                    if section_prefs:
-                        for section, handling in section_prefs.items():
-                            st.text(f"{section}: {handling}")
+
+                    if (
+                        section_prefs
+                        and "sections_order" in section_prefs
+                        and "visible_sections" in section_prefs
+                    ):
+                        # Use saved preferences
+                        section_order = section_prefs.get("sections_order", [])
+                        visible_sections = section_prefs.get("visible_sections", [])
+
+                        # Display current section settings
+                        st.subheader("Current Sections")
+                        for section in section_order:
+                            status = (
+                                "✅ Included"
+                                if section in visible_sections
+                                else "❌ Excluded"
+                            )
+                            st.text(f"{section.replace('_', ' ').title()}: {status}")
+
+                        # Convert to a format compatible with the generator
+                        selected_sections = {}
+                        for section in section_order:
+                            if section in visible_sections:
+                                selected_sections[section] = "process"
+                            else:
+                                selected_sections[section] = "skip"
+
+                        # Store in session state for use during generation
+                        st.session_state["section_preferences"] = selected_sections
                     else:
-                        # Get default sections from section_selector
-                        default_sections = (
-                            self.section_selector.get_user_section_selection()
-                        )
-                        for section, handling in default_sections.items():
-                            st.text(f"{section}: {handling}")
+                        # Use section selector to get preferences
+                        section_order, visible_sections = self.section_selector.render()
+
+                        # Convert to a format compatible with the generator
+                        selected_sections = {}
+                        for section in section_order:
+                            if section in visible_sections:
+                                selected_sections[section] = "process"
+                            else:
+                                selected_sections[section] = "skip"
+
+                        # Store in session state for use during generation
+                        st.session_state["section_preferences"] = selected_sections
+
+                        # Display current section settings
+                        st.subheader("Current Sections")
+                        for section in section_order:
+                            status = (
+                                "✅ Included"
+                                if section in visible_sections
+                                else "❌ Excluded"
+                            )
+                            st.text(f"{section.replace('_', ' ').title()}: {status}")
 
                 st.markdown(
                     """

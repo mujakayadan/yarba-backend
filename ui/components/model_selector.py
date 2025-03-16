@@ -4,14 +4,16 @@ import streamlit as st
 
 from config.logging_config import get_logger
 from config.settings import Settings
-from core.database.factory import get_unit_of_work
 
 logger = get_logger(__name__)
 settings = Settings()
 
 
 class ModelSelector:
+    """Component for selecting AI models and their parameters."""
+
     def __init__(self):
+        """Initialize the model selector with available model options."""
         logger.debug("Initializing ModelSelector")
         self.model_types = ["OpenAI", "Claude", "Ollama", "Gemini"]
         self.model_options = {
@@ -41,44 +43,50 @@ class ModelSelector:
             ],
             "Gemini": ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.5-pro-exp-0801"],
         }
-        # Load saved preferences
-        self._load_saved_preferences()
 
-    def _load_saved_preferences(self):
-        """Load saved preferences from database"""
-        try:
-            # Default values from settings
-            st.session_state["model_type"] = "Claude"
-            st.session_state["model_name"] = settings.llm.default_model
-            st.session_state["temperature"] = settings.llm.temperature
-            logger.debug("Using default model preferences")
-        except Exception as e:
-            logger.error(f"Error loading model preferences: {e}")
-
-    def get_model_settings(self):
-        """Get model settings, preferring saved preferences"""
-        # Use saved preferences if available
-        if "model_type" in st.session_state:
-            model_type = st.session_state["model_type"]
-            model_name = st.session_state["model_name"]
-            temperature = st.session_state["temperature"]
-        else:
-            # Default values from settings
-            model_type = "Claude"
-            model_name = settings.llm.default_model
-            temperature = settings.llm.temperature
-
-        return model_type, model_name, temperature
-
-    def set_model_settings(self, model_type: str, model_name: str, temperature: float):
-        """Set model settings in session state.
+    def render(
+        self, current_model_type: str = None, current_model_name: str = None
+    ) -> tuple:
+        """
+        Render the model selector component.
 
         Args:
-            model_type: The type of model (e.g., "Claude", "OpenAI")
-            model_name: The specific model name
-            temperature: The temperature setting for the model
+            current_model_type: Currently selected model type
+            current_model_name: Currently selected model name
+
+        Returns:
+            tuple: Selected model type and name
         """
-        st.session_state["model_type"] = model_type
-        st.session_state["model_name"] = model_name
-        st.session_state["temperature"] = temperature
-        logger.debug(f"Set model settings: {model_type}, {model_name}, {temperature}")
+        # Default values if not provided
+        if not current_model_type:
+            current_model_type = "Claude"
+        if not current_model_name:
+            current_model_name = "claude-3-5-sonnet-20240620"
+
+        # Ensure current_model_type is valid
+        if current_model_type not in self.model_types:
+            current_model_type = "Claude"
+
+        # Model type selection
+        model_type = st.selectbox(
+            "Model Type",
+            self.model_types,
+            index=self.model_types.index(current_model_type),
+        )
+
+        # Ensure current_model_name is valid for the selected model type
+        if current_model_name not in self.model_options[model_type]:
+            current_model_name = self.model_options[model_type][0]
+
+        # Model name selection
+        model_name = st.selectbox(
+            "Model Name",
+            self.model_options[model_type],
+            index=(
+                self.model_options[model_type].index(current_model_name)
+                if current_model_name in self.model_options[model_type]
+                else 0
+            ),
+        )
+
+        return model_type, model_name

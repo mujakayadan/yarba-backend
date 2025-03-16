@@ -1,7 +1,7 @@
 """Database viewer component."""
 
-from datetime import datetime
 import asyncio
+from datetime import datetime
 from typing import List, Optional
 
 import pandas as pd
@@ -10,8 +10,8 @@ from streamlit_pdf_viewer import pdf_viewer
 
 from config.logging_config import get_logger
 from config.settings import Settings
+from core.database.factory import get_resume_repository
 from core.models.resume import Resume
-from core.database import get_resume_repository
 from core.repositories.resume import ResumeRepository
 
 logger = get_logger(__name__)
@@ -21,7 +21,7 @@ settings = Settings()
 @st.cache_resource
 def get_repository() -> ResumeRepository:
     """Get a cached instance of the resume repository."""
-    return ResumeRepository()
+    return get_resume_repository()
 
 
 class DatabaseViewer:
@@ -30,9 +30,9 @@ class DatabaseViewer:
 
     def get_display_name(self, resume) -> str:
         """Generate a display name for the resume"""
-        if isinstance(resume.personal_information, dict):
+        if hasattr(resume, "personal_info") and resume.personal_info:
             # For structured data
-            name = resume.personal_information.get("name", "Unnamed")
+            name = resume.personal_info.get("name", "Unnamed")
         else:
             # For LaTeX format
             name = resume.title or "Unnamed"
@@ -142,7 +142,7 @@ class DatabaseViewer:
                         sections = [
                             (
                                 "Personal Information",
-                                selected_resume.personal_information,
+                                selected_resume.personal_info,
                             ),
                             ("Career Summary", selected_resume.career_summary),
                             ("Skills", selected_resume.skills),

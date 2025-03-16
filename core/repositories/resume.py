@@ -1,14 +1,14 @@
 """Resume repository implementation."""
 
 from datetime import datetime
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
+from ..models.portfolio import Portfolio
+from ..models.profile import Profile
 from ..models.resume import Resume
 from ..models.user import User
-from ..models.profile import Profile
-from ..models.portfolio import Portfolio
 from .base import BeanieRepository
 
 

@@ -1,68 +1,115 @@
-"""Combined document generator implementation."""
+"""Combined generator implementation."""
 
 from typing import Any, Dict, Optional, Tuple
 
-from ..models.resume import Resume
+from config.logging_config import get_logger
+from core.models.portfolio import Portfolio
+from core.models.profile import Profile
+from core.models.resume import Resume
+
 from .base import BaseGenerator
 from .cover_letter_generator import CoverLetterGenerator
 from .resume_generator import ResumeGenerator
 
+logger = get_logger(__name__)
+
 
 class CombinedGenerator(BaseGenerator):
-    """Combined generator for creating both resume and cover letter PDFs.
+    """Combined generator for creating both resume and cover letter."""
 
-    This class handles the generation of both resumes and cover letters from
-    resume data and templates. It uses separate generators for each document
-    type and combines their functionality.
-    """
-
-    def __init__(self, *args, **kwargs):
-        """Initialize the combined generator.
-
-        Creates separate resume and cover letter generators.
-        """
-        super().__init__(*args, **kwargs)
-        self.resume_generator = ResumeGenerator(*args, **kwargs)
-        self.cover_letter_generator = CoverLetterGenerator(*args, **kwargs)
-
-    async def validate(self, resume: Resume, template: Dict[str, Any]) -> bool:
-        """Validate data for both resume and cover letter.
+    async def generate(self, **kwargs) -> Dict[str, Any]:
+        """Generate both resume and cover letter content.
 
         Args:
-            resume: Resume data
-            template: Template data
+            **kwargs: Additional arguments for generation
+                - generate_pdf: Whether to generate PDFs (default: False)
+                - resume_kwargs: Additional arguments for resume generation
+                - cover_letter_kwargs: Additional arguments for cover letter generation
 
         Returns:
-            bool: True if validation passes for both documents
+            Dict[str, Any]: Generated content with both resume and cover letter
         """
-        resume_valid = await self.resume_generator.validate(resume, template)
-        cover_letter_valid = await self.cover_letter_generator.validate(
-            resume, template
+        if not self.profile or not self.resume:
+            raise ValueError("Profile and Resume are required for generation")
+
+        # Preprocess data
+        data = await self.preprocess(**kwargs)
+
+        # Initialize generators
+        resume_generator = ResumeGenerator(
+            profile=self.profile,
+            portfolio=self.portfolio,
+            resume=self.resume,
+            settings=self.settings,
         )
-        return resume_valid and cover_letter_valid
 
-    async def generate(
-        self, resume: Resume, template: Dict[str, Any]
-    ) -> Optional[Tuple[bytes, bytes]]:
-        """Generate both resume and cover letter PDFs.
+        cover_letter_generator = CoverLetterGenerator(
+            profile=self.profile,
+            portfolio=self.portfolio,
+            resume=self.resume,
+            settings=self.settings,
+        )
+
+        # Generate resume content
+        resume_kwargs = kwargs.get("resume_kwargs", {})
+        resume_kwargs["generate_pdf"] = kwargs.get("generate_pdf", False)
+        resume_content = await resume_generator.generate(**resume_kwargs)
+
+        # Generate cover letter content
+        cover_letter_kwargs = kwargs.get("cover_letter_kwargs", {})
+        cover_letter_kwargs["generate_pdf"] = kwargs.get("generate_pdf", False)
+        cover_letter_content = await cover_letter_generator.generate(
+            **cover_letter_kwargs
+        )
+
+        # Combine content
+        combined_content = {
+            "resume": resume_content,
+            "cover_letter": cover_letter_content,
+        }
+
+        # Postprocess content
+        processed_content = await self.postprocess(combined_content, **kwargs)
+
+        return processed_content
+
+    async def preprocess(self, **kwargs) -> Dict[str, Any]:
+        """Preprocess data before generation.
 
         Args:
-            resume: Resume data
-            template: Template data
+            **kwargs: Additional arguments for preprocessing
 
         Returns:
-            Optional[Tuple[bytes, bytes]]: Tuple of (resume_pdf, cover_letter_pdf)
-                if successful, None otherwise
+            Dict[str, Any]: Preprocessed data
         """
-        # Validate data for both documents
-        if not await self.validate(resume, template):
-            return None
+        # Add job targeting information if not already present
+        if self.resume:
+            if not self.resume.job_title and "job_title" in kwargs:
+                self.resume.job_title = kwargs["job_title"]
 
-        # Generate both documents
-        resume_pdf = await self.resume_generator.generate(resume, template)
-        cover_letter_pdf = await self.cover_letter_generator.generate(resume, template)
+            if not self.resume.company_name and "company_name" in kwargs:
+                self.resume.company_name = kwargs["company_name"]
 
-        if resume_pdf is None or cover_letter_pdf is None:
-            return None
+            if not self.resume.job_description and "job_description" in kwargs:
+                self.resume.job_description = kwargs["job_description"]
 
-        return resume_pdf, cover_letter_pdf
+        return await super().preprocess(**kwargs)
+
+    async def postprocess(self, content: Dict[str, Any], **kwargs) -> Dict[str, Any]:
+        """Postprocess generated content.
+
+        Args:
+            content: Generated content
+            **kwargs: Additional arguments for postprocessing
+
+        Returns:
+            Dict[str, Any]: Postprocessed content
+        """
+        # Add metadata
+        content["metadata"] = {
+            "job_title": self.resume.job_title,
+            "company_name": self.resume.company_name,
+            "generated_at": self.resume.updated_at.isoformat(),
+        }
+
+        return await super().postprocess(content, **kwargs)

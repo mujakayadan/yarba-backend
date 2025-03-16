@@ -1,18 +1,18 @@
 """Portfolio repository implementation."""
 
 from datetime import datetime
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
 from ..models.portfolio import (
+    Award,
+    CareerSummary,
+    Education,
     Portfolio,
     PortfolioItem,
-    WorkExperience,
-    Education,
     Project,
-    Award,
     Publication,
-    CareerSummary,
     SkillCategory,
+    WorkExperience,
 )
 from ..models.user import User
 from .base import BeanieRepository

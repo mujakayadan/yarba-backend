@@ -1,64 +1,142 @@
 """Section selector component."""
 
-from typing import Dict
+from typing import Dict, List, Tuple
 
 import streamlit as st
 
 from config.logging_config import get_logger
-from config.settings import Settings
 
 logger = get_logger(__name__)
-settings = Settings()
 
 
 class SectionSelector:
-    def __init__(self):
-        logger.debug("Initializing SectionSelector")
-        self.sections = [
-            "personal_information",
-            "career_summary",
-            "skills",
-            "work_experience",
-            "education",
-            "projects",
-            "awards",
-            "publications",
-        ]
-        self.options = ["Process", "Hardcode", "Skip"]
+    """Component for selecting and ordering resume sections."""
 
-    def get_user_section_selection(self) -> Dict[str, str]:
+    def __init__(
+        self,
+        available_sections: List[str] = None,
+        current_order: List[str] = None,
+        current_visible: List[str] = None,
+    ):
         """
-        Creates a UI for selecting how to handle each resume section.
+        Initialize the section selector with available sections and current selections.
+
+        Args:
+            available_sections: List of available section names
+            current_order: Current order of sections
+            current_visible: Currently visible sections
+        """
+        logger.debug("Initializing SectionSelector")
+
+        # Default sections if not provided
+        if not available_sections:
+            self.available_sections = [
+                "personal_info",
+                "career_summary",
+                "work_experience",
+                "education",
+                "skills",
+                "projects",
+                "awards",
+                "publications",
+            ]
+        else:
+            self.available_sections = available_sections
+
+        # Default order if not provided
+        if not current_order:
+            self.current_order = self.available_sections.copy()
+        else:
+            self.current_order = current_order
+
+        # Default visible sections if not provided
+        if not current_visible:
+            self.current_visible = self.available_sections[
+                :6
+            ]  # First 6 sections by default
+        else:
+            self.current_visible = current_visible
+
+        # Ensure all sections in current_order and current_visible are valid
+        self.current_order = [
+            s for s in self.current_order if s in self.available_sections
+        ]
+        self.current_visible = [
+            s for s in self.current_visible if s in self.available_sections
+        ]
+
+        # Add any missing sections to current_order
+        for section in self.available_sections:
+            if section not in self.current_order:
+                self.current_order.append(section)
+
+    def render(self) -> Tuple[List[str], List[str]]:
+        """
+        Render the section selector component.
 
         Returns:
-            Dict[str, str]: Dictionary mapping section names to their selected handling method
+            Tuple[List[str], List[str]]: Tuple of (ordered sections, visible sections)
         """
-        logger.debug("Getting user section selection")
-        selected_sections = {}
+        st.subheader("Resume Sections")
+        st.write(
+            "Select which sections to include in your resume and use the arrows to reorder them."
+        )
 
-        st.subheader("Section Handling")
+        # Create a list of section names with proper formatting for display
+        section_display_names = {
+            section: section.replace("_", " ").title()
+            for section in self.available_sections
+        }
 
-        # Create column headers
-        col1, col2 = st.columns([2, 3])
-        col1.write("**Section**")
-        col2.write("**Action**")
+        # Create a list of sections in the current order with checkboxes
+        visible_sections = []
 
-        # Create rows for each section
-        for section in self.sections:
-            col1, col2 = st.columns([2, 3])
-            col1.write(section.replace("_", " ").title())
+        # Use a container for the section list
+        for i, section in enumerate(self.current_order):
+            # Create a row for each section
+            row = st.container()
 
-            # Create radio buttons for each option
-            selected_option = col2.radio(
-                f"Select action for {section}",
-                self.options,
-                index=0,  # Default to "Process"
-                key=f"section_{section}",
-                label_visibility="collapsed",
-                horizontal=True,
-            )
+            # Use columns for the checkbox, name, and buttons
+            with row:
+                col1, col2, col3, col4 = st.columns([1, 5, 1, 1])
 
-            selected_sections[section] = selected_option.lower()
+                # Checkbox for visibility
+                is_visible = section in self.current_visible
+                is_checked = col1.checkbox(
+                    f"Include {section}",
+                    value=is_visible,
+                    key=f"visible_{section}",
+                    label_visibility="collapsed",
+                )
 
-        logger.debug(f"Selected sections: {selected_sections}")
-        return selected_sections
+                # Section name
+                col2.write(section_display_names[section])
+
+                # Up button (disabled for first item)
+                if i > 0:
+                    if col3.button("↑", key=f"up_{section}"):
+                        # Swap with previous item
+                        self.current_order[i], self.current_order[i - 1] = (
+                            self.current_order[i - 1],
+                            self.current_order[i],
+                        )
+                        st.rerun()
+
+                # Down button (disabled for last item)
+                if i < len(self.current_order) - 1:
+                    if col4.button("↓", key=f"down_{section}"):
+                        # Swap with next item
+                        self.current_order[i], self.current_order[i + 1] = (
+                            self.current_order[i + 1],
+                            self.current_order[i],
+                        )
+                        st.rerun()
+
+                # Add to visible sections if checked
+                if is_checked:
+                    visible_sections.append(section)
+
+            # Add a separator
+            st.divider()
+
+        return self.current_order, visible_sections

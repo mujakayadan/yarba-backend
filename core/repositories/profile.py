@@ -1,9 +1,9 @@
 """Profile repository implementation."""
 
 from datetime import datetime
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
-from ..models.profile import Profile, Preferences
+from ..models.profile import Preferences, Profile
 from ..models.user import User
 from .base import BeanieRepository
 

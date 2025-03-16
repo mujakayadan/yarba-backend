@@ -7,11 +7,11 @@ from typing import Optional
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from ..repositories.preamble import PreambleRepository
-from ..repositories.tex_header import TexHeaderRepository
 from ..repositories.portfolio import PortfolioRepository
+from ..repositories.preamble import PreambleRepository
 from ..repositories.profile import ProfileRepository
 from ..repositories.resume import ResumeRepository
+from ..repositories.tex_header import TexHeaderRepository
 from ..repositories.user import UserRepository
 from .connection import get_async_database_connection
 

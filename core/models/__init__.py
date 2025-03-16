@@ -1,21 +1,21 @@
 """Core models package for the resume builder application."""
 
-from .preamble import Preamble
-from .tex_header import TexHeader
 from .portfolio import (
+    Award,
+    CareerSummary,
+    CustomSections,
+    Education,
     Portfolio,
     PortfolioItem,
-    CareerSummary,
-    WorkExperience,
-    Education,
     Project,
-    Award,
     Publication,
-    CustomSections,
     SkillCategory,
+    WorkExperience,
 )
-from .profile import Profile, Preferences
+from .preamble import Preamble
+from .profile import Preferences, Profile
 from .resume import Resume, ResumeSection
+from .tex_header import TexHeader
 from .user import User
 
 __all__ = [

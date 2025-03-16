@@ -3,10 +3,11 @@
 Script to update MongoDB connection settings.
 """
 
+import asyncio
 import os
 import sys
 from pathlib import Path
-import asyncio
+
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 

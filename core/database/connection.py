@@ -29,7 +29,7 @@ def get_database_connection():
 
     # Get connection parameters from environment variables
     mongodb_uri = os.environ.get("MONGODB_URI", "mongodb://localhost:27017")
-    mongodb_db = os.environ.get("MONGODB_DB", "user_information")
+    mongodb_db = os.environ.get("MONGODB_DATABASE", "rbt")
 
     # Create client if it doesn't exist
     if _mongo_client is None:
@@ -49,7 +49,7 @@ async def get_async_database_connection():
 
     # Get connection parameters from environment variables
     mongodb_uri = os.environ.get("MONGODB_URI", "mongodb://localhost:27017")
-    mongodb_db = os.environ.get("MONGODB_DB", "user_information")
+    mongodb_db = os.environ.get("MONGODB_DATABASE", "rbt")
 
     # Create client if it doesn't exist
     if _async_mongo_client is None:

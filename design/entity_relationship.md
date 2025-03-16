@@ -41,15 +41,12 @@ erDiagram
         string email
         string phone
         string address
-        string city
-        string state
-        string zip_code
-        string country
         string linkedin
         string github
         string website
         binary signature
         string life_story
+        object api_keys "{ service_name: hashed_key }"
         object preferences "{ project_details, work_experience_details, skills_details, etc. }"
         datetime created_at
         datetime updated_at
@@ -149,6 +146,7 @@ Extended user information containing personal details and preferences.
 - Contains personal contact information
 - Stores user preferences for resume generation
 - Includes signature image and life story for cover letters
+- Manages API keys and supported API integrations
 - Linked to a user via user_id
 
 ### Portfolio

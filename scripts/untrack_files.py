@@ -30,21 +30,21 @@ def untrack_files(patterns):
     """Untrack files matching the given patterns without deleting them."""
     for pattern in patterns:
         print(f"Untracking files matching pattern: {pattern}")
-        
+
         # Find files matching the pattern that are tracked by git
         tracked_files = run_command(f'git ls-files "{pattern}"')
         if not tracked_files:
             print(f"No tracked files found matching pattern: {pattern}")
             continue
-        
+
         files = tracked_files.split("\n")
         print(f"Found {len(files)} tracked files matching pattern: {pattern}")
-        
+
         # Untrack each file
         for file in files:
             if not file.strip():
                 continue
-                
+
             print(f"Untracking file: {file}")
             result = run_command(f'git rm --cached "{file}"')
             if result is not None:
@@ -76,26 +76,22 @@ def main():
         "*.egg-info/",
         ".installed.cfg",
         "*.egg",
-        
         # Virtual environments
         "venv/",
         "env/",
         "ENV/",
         ".env",
         ".venv",
-        
         # IDE specific files
         ".idea/",
         ".vscode/",
         "*.swp",
         "*.swo",
         ".DS_Store",
-        
         # MongoDB
         "*.mongodb",
         "mongodb_data/",
         "dump/",
-        
         # LaTeX
         "*.aux",
         "*.lof",
@@ -115,39 +111,39 @@ def main():
         "*.pdf",
         "*.ps",
         "*.eps",
-        
         # Project specific
         ".env",
         ".coverage",
         "htmlcov/",
         ".pytest_cache/",
-        
         # Logs
         "logs/",
         "*.log",
     ]
-    
+
     # Confirm with the user
-    print("This script will untrack files that are already committed without deleting them.")
+    print(
+        "This script will untrack files that are already committed without deleting them."
+    )
     print("The following patterns will be untracked:")
     for pattern in patterns_to_untrack:
         print(f"  - {pattern}")
-    
+
     confirm = input("Do you want to continue? (y/n): ")
     if confirm.lower() != "y":
         print("Aborting.")
         return
-    
+
     # Untrack files
     untrack_files(patterns_to_untrack)
-    
+
     print("\nDone!")
     print("The files have been untracked but not deleted.")
     print("They will now be ignored by git according to your .gitignore file.")
     print("You should commit the .gitignore file and the changes from untracking:")
     print("  git add .gitignore")
-    print("  git commit -m \"Add .gitignore and untrack ignored files\"")
+    print('  git commit -m "Add .gitignore and untrack ignored files"')
 
 
 if __name__ == "__main__":
-    main() 
+    main()

@@ -3,11 +3,12 @@
 Script to initialize a test database with sample data.
 """
 
+import asyncio
+import datetime
 import os
 import sys
 from pathlib import Path
-import asyncio
-import datetime
+
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 
@@ -23,13 +24,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+from core.models.portfolio import CareerSummary, Portfolio, PortfolioItem
+from core.models.preamble import Preamble
+from core.models.profile import Preferences, Profile
+from core.models.resume import Resume
+from core.models.tex_header import TexHeader
+
 # Import models
 from core.models.user import User
-from core.models.profile import Profile, Preferences
-from core.models.portfolio import Portfolio, PortfolioItem, CareerSummary
-from core.models.resume import Resume
-from core.models.preamble import Preamble
-from core.models.tex_header import TexHeader
 
 
 async def init_test_db():

@@ -1,10 +1,10 @@
 """Profile model for MongoDB using Beanie ODM."""
 
 from datetime import datetime
-from typing import Dict, List, Optional, Any
+from typing import Any, ClassVar, Dict, List, Optional, Tuple
 
 from beanie import Document, Link, PydanticObjectId
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 from .user import User
 
@@ -42,9 +42,13 @@ class Preferences(BaseModel):
     )
 
     # Other section preferences
-    cover_letter_details: Dict[str, Any] = Field(default_factory=dict)
-    awards_details: Dict[str, Any] = Field(default_factory=dict)
-    publications_details: Dict[str, Any] = Field(default_factory=dict)
+    cover_letter_details: Dict[str, Any] = Field(
+        default_factory=lambda: {"paragraphs": 5, "target_age": 25}
+    )
+    awards_details: Dict[str, Any] = Field(default_factory=lambda: {"max_awards": 4})
+    publications_details: Dict[str, Any] = Field(
+        default_factory=lambda: {"max_publications": 3}
+    )
 
     # Feature preferences
     feature_preferences: Dict[str, bool] = Field(
@@ -98,10 +102,6 @@ class Profile(Document):
     email: EmailStr
     phone: Optional[str] = None
     address: Optional[str] = None
-    city: Optional[str] = None
-    state: Optional[str] = None
-    zip_code: Optional[str] = None
-    country: Optional[str] = None
     linkedin: Optional[str] = None
     github: Optional[str] = None
     website: Optional[str] = None
@@ -109,6 +109,20 @@ class Profile(Document):
     # Additional information
     signature: Optional[bytes] = None
     life_story: Optional[str] = None
+
+    # API Keys configuration
+    supported_api_keys: List[str] = Field(
+        default=[
+            "OPENAI_API_KEY",
+            "GEMINI_API_KEY",
+            "ANTHROPIC_API_KEY",
+            "MISTRAL_API_KEY",
+        ],
+        description="List of supported API key types",
+    )
+    api_keys: Dict[str, str] = Field(
+        default_factory=dict, description="Hashed API keys for various services"
+    )
 
     # User preferences
     preferences: Preferences = Field(default_factory=Preferences)

@@ -1,13 +1,13 @@
 """Portfolio and PortfolioItem models for the RBT database."""
 
 from datetime import datetime
-from typing import List, Dict, Optional, Any, Union
+from typing import Any, Dict, List, Optional, Union
 
 from beanie import Document, Link, PydanticObjectId
 from pydantic import BaseModel, Field, model_validator
 
-from core.models.user import User
 from core.models.profile import Profile
+from core.models.user import User
 
 
 class CareerSummary(BaseModel):

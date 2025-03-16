@@ -1,54 +1,120 @@
-"""Base generator implementation."""
+"""Base generator class for all generators."""
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
 
-from ..latex.compilers import CoverLetterCompiler, ResumeCompiler
-from ..latex.config import LatexConfig
-from ..models.resume import Resume
+from config.logging_config import get_logger
+from config.settings import Settings
+from core.models.portfolio import Portfolio
+from core.models.profile import Profile
+from core.models.resume import Resume
+
+logger = get_logger(__name__)
 
 
 class BaseGenerator(ABC):
-    """Abstract base class for document generators.
+    """Base class for all generators."""
 
-    This class provides the base functionality for generating resumes and
-    cover letters. It handles template management and LaTeX compilation.
-    """
-
-    def __init__(self, config: Optional[LatexConfig] = None):
+    def __init__(
+        self,
+        profile: Optional[Profile] = None,
+        portfolio: Optional[Portfolio] = None,
+        resume: Optional[Resume] = None,
+        settings: Optional[Settings] = None,
+    ):
         """Initialize the generator.
 
         Args:
-            config: Optional LaTeX configuration
+            profile: User profile
+            portfolio: User portfolio
+            resume: Resume to generate
+            settings: Application settings
         """
-        self.config = config or LatexConfig()
-        self.resume_compiler = ResumeCompiler(config)
-        self.cover_letter_compiler = CoverLetterCompiler(config)
+        self.profile = profile
+        self.portfolio = portfolio
+        self.resume = resume
+        self.settings = settings or Settings()
+        self.logger = logger
 
     @abstractmethod
-    async def generate(
-        self, resume: Resume, template: Dict[str, Any]
-    ) -> Optional[bytes]:
-        """Generate a document from resume data.
+    async def generate(self, **kwargs) -> Dict[str, Any]:
+        """Generate content.
 
         Args:
-            resume: Resume data
-            template: Template data
+            **kwargs: Additional arguments for generation
 
         Returns:
-            Optional[bytes]: Generated PDF content if successful, None otherwise
+            Dict[str, Any]: Generated content
         """
         pass
 
-    @abstractmethod
-    async def validate(self, resume: Resume, template: Dict[str, Any]) -> bool:
-        """Validate resume data against template requirements.
+    async def preprocess(self, **kwargs) -> Dict[str, Any]:
+        """Preprocess data before generation.
 
         Args:
-            resume: Resume data
-            template: Template data
+            **kwargs: Additional arguments for preprocessing
 
         Returns:
-            bool: True if validation passes, False otherwise
+            Dict[str, Any]: Preprocessed data
         """
-        pass
+        return kwargs
+
+    async def postprocess(self, content: Dict[str, Any], **kwargs) -> Dict[str, Any]:
+        """Postprocess generated content.
+
+        Args:
+            content: Generated content
+            **kwargs: Additional arguments for postprocessing
+
+        Returns:
+            Dict[str, Any]: Postprocessed content
+        """
+        return content
+
+    def get_model_settings(self) -> Dict[str, Any]:
+        """Get LLM model settings.
+
+        Returns:
+            Dict[str, Any]: Model settings
+        """
+        if self.resume and self.resume.llm_settings:
+            # Use resume-specific settings if available
+            model_settings = {
+                "model_type": self.resume.llm_settings.model_type
+                or self.settings.llm.default_model.split("-")[0],
+                "model_name": self.resume.llm_settings.model_name
+                or self.settings.llm.default_model,
+                "temperature": self.resume.llm_settings.temperature
+                or self.settings.llm.temperature,
+                "max_tokens": self.resume.llm_settings.max_tokens
+                or self.settings.llm.max_tokens,
+            }
+        elif (
+            self.profile
+            and self.profile.preferences
+            and self.profile.preferences.llm_preferences
+        ):
+            # Use profile preferences if available
+            llm_prefs = self.profile.preferences.llm_preferences
+            model_settings = {
+                "model_type": llm_prefs.get(
+                    "model_type", self.settings.llm.default_model.split("-")[0]
+                ),
+                "model_name": llm_prefs.get(
+                    "model_name", self.settings.llm.default_model
+                ),
+                "temperature": llm_prefs.get(
+                    "temperature", self.settings.llm.temperature
+                ),
+                "max_tokens": self.settings.llm.max_tokens,
+            }
+        else:
+            # Use default settings
+            model_settings = {
+                "model_type": self.settings.llm.default_model.split("-")[0],
+                "model_name": self.settings.llm.default_model,
+                "temperature": self.settings.llm.temperature,
+                "max_tokens": self.settings.llm.max_tokens,
+            }
+
+        return model_settings

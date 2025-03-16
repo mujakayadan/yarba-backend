@@ -6,9 +6,9 @@ from typing import Any, Dict, List, Optional
 from beanie import Document, Link, PydanticObjectId
 from pydantic import BaseModel, Field
 
-from .user import User
-from .profile import Profile
 from .portfolio import Portfolio
+from .profile import Profile
+from .user import User
 
 
 class ResumeSection(BaseModel):

@@ -1,6 +1,5 @@
 """Streamlit application implementation."""
 
-import logging
 import asyncio
 from pathlib import Path
 
@@ -8,8 +7,8 @@ import streamlit as st
 
 from config.logging_config import get_logger
 from config.settings import Settings
-from core.generator.generator_manager import GeneratorManager
 from core.database import init_db
+from core.generator.generator_manager import GeneratorManager
 from ui.components.database_viewer import DatabaseViewer
 from ui.components.model_selector import ModelSelector
 from ui.pages.home import HomePage
@@ -17,18 +16,6 @@ from ui.pages.settings import SettingsPage
 
 logger = get_logger(__name__)
 settings = Settings()
-
-
-@st.cache_resource
-async def initialize_app_database():
-    """Initialize the database connection for the Streamlit app."""
-    try:
-        await init_db()
-        logger.info("Database initialized for Streamlit app")
-        return True
-    except Exception as e:
-        logger.error(f"Failed to initialize database: {e}")
-        return False
 
 
 class StreamlitApp:
@@ -44,15 +31,11 @@ class StreamlitApp:
         # Load and apply CSS
         self._load_css()
 
-        # Initialize session state first - Call it explicitly
+        # Initialize session state first
         self.setup_session_state()
 
         # Initialize database
-        if not asyncio.run(initialize_app_database()):
-            st.error(
-                "Failed to initialize database. Please check your database connection."
-            )
-            st.stop()
+        self._initialize_database()
 
         # Initialize components after database is ready
         self.model_selector = ModelSelector()
@@ -60,11 +43,31 @@ class StreamlitApp:
 
         # Initialize pages
         self.home_page = HomePage(self.model_selector, self.generator_manager)
-        self.settings_page = SettingsPage(self.model_selector)
+        self.settings_page = SettingsPage()
+        self.database_viewer = DatabaseViewer()
 
         if "components_initialized" not in st.session_state:
             self._store_components()
             st.session_state["components_initialized"] = True
+
+    def _initialize_database(self):
+        """Initialize the database connection."""
+        # Create an event loop for the app
+        if "loop" not in st.session_state:
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                st.session_state["loop"] = loop
+
+                # Initialize database
+                loop.run_until_complete(init_db())
+                logger.info("Database initialized for Streamlit app")
+            except Exception as e:
+                logger.error(f"Failed to initialize database: {e}")
+                st.error(
+                    "Failed to initialize database. Please check your database connection."
+                )
+                st.stop()
 
     def _store_components(self):
         """Store components in session state"""
@@ -85,6 +88,8 @@ class StreamlitApp:
             )
         if "portfolio_initialized" not in st.session_state:
             st.session_state["portfolio_initialized"] = False
+        if "current_page" not in st.session_state:
+            st.session_state["current_page"] = "home"
 
     def _load_css(self):
         css_file = Path(__file__).parent / "static" / "styles.css"
@@ -110,27 +115,30 @@ class StreamlitApp:
                     logger.error(f"Error loading icon: {e}")
                     st.markdown("")
 
-            # Navigation menu using buttons
-            if "current_page" not in st.session_state:
-                st.session_state.current_page = "home"
+            # Navigation using buttons
+            st.subheader("Navigation")
 
-            # Navigation buttons
             if st.button("🏠 Home", key="nav_home", use_container_width=True):
-                st.session_state.current_page = "home"
+                st.session_state["current_page"] = "home"
+                st.rerun()
 
             if st.button("⚙️ Settings", key="nav_settings", use_container_width=True):
-                st.session_state.current_page = "settings"
+                st.session_state["current_page"] = "settings"
+                st.rerun()
 
             if st.button("🗄️ Database", key="nav_database", use_container_width=True):
-                st.session_state.current_page = "database"
+                st.session_state["current_page"] = "database"
+                st.rerun()
 
         # Render selected page
-        if st.session_state.current_page == "home":
+        current_page = st.session_state["current_page"]
+
+        if current_page == "home":
             self.home_page.render()
-        elif st.session_state.current_page == "settings":
+        elif current_page == "settings":
             self.settings_page.render()
-        else:
-            DatabaseViewer().render()
+        elif current_page == "database":
+            self.database_viewer.render()
 
 
 if __name__ == "__main__":

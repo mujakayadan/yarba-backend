@@ -7,8 +7,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import API_TAGS_METADATA, API_V1_PREFIX, configure_logging, settings
+from core.database.init import init_db
 
-from ..core.database.init import init_database
 from .middleware import setup_middlewares
 
 # Configure logging
@@ -28,10 +28,10 @@ async def lifespan(app: FastAPI):
     """
     # Startup: Initialize database connection
     logger.info("Initializing database connection")
-    await init_database(
-        mongodb_uri=settings.mongodb_uri,
-        database_name=settings.mongodb_database,
-    )
+    client = await init_db()
+    if not client:
+        logger.error("Failed to initialize database connection")
+        raise RuntimeError("Failed to initialize database connection")
     logger.info("Application startup complete")
 
     yield
@@ -66,7 +66,7 @@ app.add_middleware(
 setup_middlewares(app)
 
 # Import and include routers
-from .routers import auth, cover_letters, resumes
+from .routers import auth, cover_letters, portfolios, profiles, resumes
 
 app.include_router(auth.router, prefix=f"{API_V1_PREFIX}/auth", tags=["auth"])
 app.include_router(resumes.router, prefix=f"{API_V1_PREFIX}/resumes", tags=["resumes"])
@@ -74,6 +74,16 @@ app.include_router(
     cover_letters.router,
     prefix=f"{API_V1_PREFIX}/cover-letters",
     tags=["cover-letters"],
+)
+app.include_router(
+    portfolios.router,
+    prefix=f"{API_V1_PREFIX}/portfolios",
+    tags=["portfolios"],
+)
+app.include_router(
+    profiles.router,
+    prefix=f"{API_V1_PREFIX}/profiles",
+    tags=["profiles"],
 )
 
 

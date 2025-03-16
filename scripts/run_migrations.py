@@ -8,6 +8,7 @@ import logging
 import os
 import sys
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 # Add the project root to the Python path

@@ -5,6 +5,7 @@ Migration created at: 2024-06-21T00:00:00
 """
 
 from pymongo.database import Database
+
 from core.database.migrations.migration_manager import Migration
 
 

@@ -1,105 +1,173 @@
-"""Generator manager implementation."""
+"""Generator manager for coordinating document generation."""
 
-from enum import Enum
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-from ..latex.config import LatexConfig
-from ..models.resume import Resume
+from config.logging_config import get_logger
+from config.settings import Settings
+from core.models.portfolio import Portfolio
+from core.models.profile import Profile
+from core.models.resume import Resume
+
+from .base import BaseGenerator
 from .combined_generator import CombinedGenerator
 from .cover_letter_generator import CoverLetterGenerator
 from .resume_generator import ResumeGenerator
 
-
-class DocumentType(Enum):
-    """Enumeration of document types that can be generated."""
-
-    RESUME = "resume"
-    COVER_LETTER = "cover_letter"
-    COMBINED = "combined"
+logger = get_logger(__name__)
 
 
 class GeneratorManager:
-    """Manager class for document generation.
+    """Manager for coordinating document generation.
 
-    This class provides a unified interface for generating different types
-    of documents. It manages the different generators and handles the
-    generation process based on the requested document type.
+    This class provides a unified interface for generating different types of
+    documents, including resumes and cover letters. It handles the selection
+    of appropriate generators and manages the generation process.
     """
 
-    def __init__(self, config: Optional[LatexConfig] = None):
+    def __init__(self, settings: Optional[Settings] = None):
         """Initialize the generator manager.
 
         Args:
-            config: Optional LaTeX configuration
+            settings: Application settings
         """
-        self.config = config or LatexConfig()
-        self.resume_generator = ResumeGenerator(config)
-        self.cover_letter_generator = CoverLetterGenerator(config)
-        self.combined_generator = CombinedGenerator(config)
+        self.settings = settings or Settings()
+        self.logger = logger
 
-    async def generate(
+    async def generate_resume(
         self,
-        doc_type: Union[DocumentType, str],
+        profile: Profile,
         resume: Resume,
-        template: Dict[str, Any],
-    ) -> Optional[Union[bytes, Tuple[bytes, bytes]]]:
-        """Generate document(s) based on the requested type.
+        portfolio: Optional[Portfolio] = None,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """Generate a resume.
 
         Args:
-            doc_type: Type of document to generate
-            resume: Resume data
-            template: Template data
+            profile: User profile
+            resume: Resume to generate
+            portfolio: Optional portfolio data
+            **kwargs: Additional arguments for generation
 
         Returns:
-            Optional[Union[bytes, Tuple[bytes, bytes]]]: Generated PDF content(s)
-                if successful, None otherwise
+            Dict[str, Any]: Generated resume content
         """
-        # Convert string to enum if necessary
-        if isinstance(doc_type, str):
-            try:
-                doc_type = DocumentType(doc_type.lower())
-            except ValueError:
-                return None
+        generator = ResumeGenerator(
+            profile=profile,
+            portfolio=portfolio,
+            resume=resume,
+            settings=self.settings,
+        )
 
-        # Generate requested document type
-        if doc_type == DocumentType.RESUME:
-            return await self.resume_generator.generate(resume, template)
-        elif doc_type == DocumentType.COVER_LETTER:
-            return await self.cover_letter_generator.generate(resume, template)
-        elif doc_type == DocumentType.COMBINED:
-            return await self.combined_generator.generate(resume, template)
-        else:
-            return None
+        return await generator.generate(**kwargs)
 
-    async def validate(
+    async def generate_cover_letter(
         self,
-        doc_type: Union[DocumentType, str],
+        profile: Profile,
         resume: Resume,
-        template: Dict[str, Any],
-    ) -> bool:
-        """Validate data for the requested document type.
+        portfolio: Optional[Portfolio] = None,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """Generate a cover letter.
 
         Args:
-            doc_type: Type of document to validate
-            resume: Resume data
-            template: Template data
+            profile: User profile
+            resume: Resume to generate cover letter for
+            portfolio: Optional portfolio data
+            **kwargs: Additional arguments for generation
 
         Returns:
-            bool: True if validation passes, False otherwise
+            Dict[str, Any]: Generated cover letter content
         """
-        # Convert string to enum if necessary
-        if isinstance(doc_type, str):
-            try:
-                doc_type = DocumentType(doc_type.lower())
-            except ValueError:
-                return False
+        generator = CoverLetterGenerator(
+            profile=profile,
+            portfolio=portfolio,
+            resume=resume,
+            settings=self.settings,
+        )
 
-        # Validate for requested document type
-        if doc_type == DocumentType.RESUME:
-            return await self.resume_generator.validate(resume, template)
-        elif doc_type == DocumentType.COVER_LETTER:
-            return await self.cover_letter_generator.validate(resume, template)
-        elif doc_type == DocumentType.COMBINED:
-            return await self.combined_generator.validate(resume, template)
+        return await generator.generate(**kwargs)
+
+    async def generate_combined(
+        self,
+        profile: Profile,
+        resume: Resume,
+        portfolio: Optional[Portfolio] = None,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """Generate both resume and cover letter.
+
+        Args:
+            profile: User profile
+            resume: Resume to generate
+            portfolio: Optional portfolio data
+            **kwargs: Additional arguments for generation
+
+        Returns:
+            Dict[str, Any]: Generated content with both resume and cover letter
+        """
+        generator = CombinedGenerator(
+            profile=profile,
+            portfolio=portfolio,
+            resume=resume,
+            settings=self.settings,
+        )
+
+        return await generator.generate(**kwargs)
+
+    async def generate_by_type(
+        self,
+        generator_type: str,
+        profile: Profile,
+        resume: Resume,
+        portfolio: Optional[Portfolio] = None,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """Generate content based on generator type.
+
+        Args:
+            generator_type: Type of generator to use ("resume", "cover_letter", or "combined")
+            profile: User profile
+            resume: Resume to generate
+            portfolio: Optional portfolio data
+            **kwargs: Additional arguments for generation
+
+        Returns:
+            Dict[str, Any]: Generated content
+
+        Raises:
+            ValueError: If an invalid generator type is provided
+        """
+        if generator_type == "resume":
+            return await self.generate_resume(profile, resume, portfolio, **kwargs)
+        elif generator_type == "cover_letter":
+            return await self.generate_cover_letter(
+                profile, resume, portfolio, **kwargs
+            )
+        elif generator_type == "combined":
+            return await self.generate_combined(profile, resume, portfolio, **kwargs)
         else:
-            return False
+            raise ValueError(f"Invalid generator type: {generator_type}")
+
+    async def get_available_generators(self) -> List[Dict[str, Any]]:
+        """Get a list of available generators.
+
+        Returns:
+            List[Dict[str, Any]]: List of available generators with metadata
+        """
+        return [
+            {
+                "type": "resume",
+                "name": "Resume Generator",
+                "description": "Generates a resume from profile and portfolio data",
+            },
+            {
+                "type": "cover_letter",
+                "name": "Cover Letter Generator",
+                "description": "Generates a cover letter from profile and portfolio data",
+            },
+            {
+                "type": "combined",
+                "name": "Combined Generator",
+                "description": "Generates both a resume and cover letter",
+            },
+        ]

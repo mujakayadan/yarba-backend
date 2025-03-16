@@ -8,10 +8,10 @@ from typing import AsyncGenerator
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from ..repositories.portfolio import PortfolioRepository
-from ..repositories.profile import ProfileRepository
 from ..repositories.preamble import PreambleRepository
-from ..repositories.tex_header import TexHeaderRepository
+from ..repositories.profile import ProfileRepository
 from ..repositories.resume import ResumeRepository
+from ..repositories.tex_header import TexHeaderRepository
 from ..repositories.user import UserRepository
 from .connection import get_async_database_connection
 from .unit_of_work import AsyncMongoUnitOfWork

@@ -14,7 +14,7 @@ class DatabaseSettings(BaseSettings):
     url: str = Field(
         default="mongodb://localhost:27017", description="MongoDB connection URL"
     )
-    name: str = Field(default="user_information", description="Database name")
+    name: str = Field(default="rbt", description="Database name")
     min_pool_size: int = Field(
         default=10, description="Minimum number of connections in the pool"
     )

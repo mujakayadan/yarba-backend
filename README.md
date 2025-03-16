@@ -48,7 +48,7 @@ Create a `.env` file in the project root with the following variables:
 
 ```
 MONGODB_URI=mongodb://localhost:27017
-MONGODB_DATABASE=user_information
+MONGODB_DATABASE=rbt
 JWT_SECRET_KEY=your-secret-key
 ```
 

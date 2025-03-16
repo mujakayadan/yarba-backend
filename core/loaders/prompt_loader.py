@@ -212,8 +212,8 @@ async def main():
 
 if __name__ == "__main__":
     # Import here to avoid circular imports
-    from motor.motor_asyncio import AsyncIOMotorClient
     from beanie import init_beanie
+    from motor.motor_asyncio import AsyncIOMotorClient
 
     # Run the async main function
     asyncio.run(main())
