@@ -2,7 +2,8 @@
 import logging
 from typing import Optional
 
-from core.models.latex import TexHeader, TexTemplate
+from core.models.tex_header import TexHeader
+from core.models.tex_template import TexTemplate
 
 logger = logging.getLogger(__name__)
 

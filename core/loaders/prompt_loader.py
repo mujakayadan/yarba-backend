@@ -1,35 +1,74 @@
 """Prompt loader for loading and formatting prompts."""
 
-import asyncio
-import logging
 import os
+import sys
 from pathlib import Path
-from string import Template
 from typing import Any, Dict, Optional
+
+# Add project root to Python path when running as script
+if __name__ == "__main__":
+    project_root = str(Path(__file__).parent.parent.parent)
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
 
 from beanie import PydanticObjectId
 
 from config.settings import Settings
+from core.llm.prompts import (
+    AWARDS_PROMPT,
+    CAREER_SUMMARY_PROMPT,
+    COVER_LETTER_PROMPT,
+    EDUCATION_PROMPT,
+    FOLDER_NAME_PROMPT,
+    HEADER_PROMPT,
+    JOB_TITLES_PROMPT,
+    PERSONAL_INFORMATION_PROMPT,
+    PROJECTS_PROMPT,
+    PUBLICATIONS_PROMPT,
+    SKILLS_PROMPT,
+    SYSTEM_PROMPT,
+    WORK_EXPERIENCE_PROMPT,
+)
 from core.models.user import User
 
-logger = logging.getLogger(__name__)
 settings = Settings()
 
 
 class PromptLoader:
-    """A class to load prompts from a specified directory."""
+    """A class to load and format prompts with user preferences."""
+
+    # Default values for prompt variables
+    DEFAULT_VARIABLES = {
+        "cover_letter_details_paragraphs": "4",
+        "cover_letter_details_target_grade_level": "12",
+        "life_story": "No personal story available.",
+    }
 
     def __init__(self, user_id: Optional[str | PydanticObjectId] = None):
-        """Initialize the PromptLoader with a base directory path and user_id.
+        """Initialize the PromptLoader with a user_id.
 
         Args:
             user_id: Optional user ID (can be either user_id or _id)
         """
-        # Get the absolute path to the prompts directory
-        current_dir = Path(__file__).parent.parent
-        self.prompt_dir = current_dir / "llm" / "prompts"
         self.user_id = user_id
         self._preferences = None
+
+        # Map section names to prompt instances
+        self._prompt_map = {
+            "awards": AWARDS_PROMPT,
+            "career_summary": CAREER_SUMMARY_PROMPT,
+            "cover_letter": COVER_LETTER_PROMPT,
+            "education": EDUCATION_PROMPT,
+            "folder_name": FOLDER_NAME_PROMPT,
+            "header": HEADER_PROMPT,
+            "job_titles": JOB_TITLES_PROMPT,
+            "personal_information": PERSONAL_INFORMATION_PROMPT,
+            "projects": PROJECTS_PROMPT,
+            "publications": PUBLICATIONS_PROMPT,
+            "skills": SKILLS_PROMPT,
+            "system": SYSTEM_PROMPT,
+            "work_experience": WORK_EXPERIENCE_PROMPT,
+        }
 
     @property
     async def preferences(self) -> Optional[Dict[str, Any]]:
@@ -39,30 +78,9 @@ class PromptLoader:
                 user = await User.get(self.user_id)
                 if user and user.preferences:
                     self._preferences = user.preferences.model_dump()
-                    logger.debug(f"Loaded preferences: {self._preferences}")
-            except Exception as e:
-                logger.error(f"Error loading preferences for user {self.user_id}: {e}")
+            except Exception:
                 self._preferences = None
         return self._preferences
-
-    def _read_template_file(self, filename: str) -> Template:
-        """Read and create a template from a file.
-
-        Args:
-            filename: Name of the file to read
-
-        Returns:
-            Template object created from file contents
-
-        Raises:
-            FileNotFoundError: If the file doesn't exist
-        """
-        prompt_path = self.prompt_dir / filename
-        if not prompt_path.exists():
-            raise FileNotFoundError(f"Prompt file not found at {prompt_path}")
-
-        with open(prompt_path, "r", encoding="utf-8") as f:
-            return Template(f.read().strip())
 
     async def _get_preference_variables(self) -> Dict[str, Any]:
         """Get variables from user preferences.
@@ -70,7 +88,7 @@ class PromptLoader:
         Returns:
             Dictionary of variables for template substitution
         """
-        variables = {}
+        variables = self.DEFAULT_VARIABLES.copy()
         prefs = await self.preferences
         if prefs:
             for category, values in prefs.items():
@@ -87,36 +105,57 @@ class PromptLoader:
         Args:
             variables: Dictionary to add life story to
         """
+        if not self.user_id:
+            return
+
         try:
             user = await User.get(self.user_id)
             if user and hasattr(user, "life_story"):
                 variables["life_story"] = user.life_story
-            else:
-                variables["life_story"] = "No personal story available."
-        except Exception as e:
-            logger.error(f"Error loading life story: {e}")
-            variables["life_story"] = "No personal story available."
+        except Exception:
+            pass
 
-    async def _load_prompt(self, filename: str) -> str:
-        """Load and format a prompt file with user preferences if available.
+    async def _format_prompt(
+        self, prompt_name: str, add_life_story: bool = False
+    ) -> str:
+        """Format a prompt with user preferences.
 
         Args:
-            filename: The name of the file to load
+            prompt_name: Name of the prompt to format
+            add_life_story: Whether to add life story to variables
 
         Returns:
             Formatted prompt string
+
+        Raises:
+            KeyError: If prompt_name is not found in prompt_map
         """
         try:
-            template = self._read_template_file(filename)
+            # Get prompt template
+            prompt = self._prompt_map[prompt_name]
+
+            # Return unformatted prompt if no formatting needed
+            if not self.user_id and not add_life_story:
+                return str(prompt)
+
+            # Get variables for formatting
             variables = await self._get_preference_variables()
 
-            # Add life story if loading cover letter prompt
-            if filename == "cover_letter_prompt.txt" and self.user_id:
+            # Add life story if needed
+            if add_life_story:
                 await self._add_life_story(variables)
 
-            return template.safe_substitute(variables)
+            # Format prompt with variables
+            try:
+                return prompt.format(**variables)
+            except KeyError as e:
+                missing_var = str(e).strip("'")
+                variables[missing_var] = "Not specified"
+                return prompt.format(**variables)
+
+        except KeyError:
+            raise
         except Exception as e:
-            logger.error(f"Error loading prompt {filename}: {e}")
             raise
 
     async def get_section_prompt(self, section: str) -> str:
@@ -129,19 +168,17 @@ class PromptLoader:
             str: The formatted prompt text
 
         Raises:
-            FileNotFoundError: If prompt file doesn't exist
-            TemplateError: If template substitution fails
+            KeyError: If section prompt doesn't exist
         """
-        filename = f"{section.lower()}_prompt.txt"
-        return await self._load_prompt(filename)
+        return await self._format_prompt(section.lower())
 
     async def get_system_prompt(self) -> str:
         """Get the system prompt."""
-        return await self._load_prompt("system_prompt.txt")
+        return await self._format_prompt("system")
 
     async def get_folder_name_prompt(self) -> str:
         """Get the folder name prompt."""
-        return await self._load_prompt("folder_name_prompt.txt")
+        return await self._format_prompt("folder_name")
 
     async def get_cover_letter_prompt(self) -> str:
         """Get the cover letter prompt with user's life story.
@@ -149,71 +186,36 @@ class PromptLoader:
         Returns:
             str: The cover letter prompt with user's life story
         """
-        return await self._load_prompt("cover_letter_prompt.txt")
+        return await self._format_prompt("cover_letter", add_life_story=True)
 
     def refresh_preferences(self) -> None:
         """Force reload of user preferences."""
         self._preferences = None
 
 
-async def main():
-    """Main function to test the PromptLoader."""
-    # Initialize MongoDB connection
-    await init_beanie(
-        database=AsyncIOMotorClient(settings.database.url)[settings.database.name],
-        document_models=[User],
-    )
+async def test_prompt_loader():
+    """Test the PromptLoader functionality."""
+    # Initialize loader and run tests
+    loader = PromptLoader()
+    test_cases = [
+        ("System", loader.get_system_prompt()),
+        ("Work Experience", loader.get_section_prompt("work_experience")),
+        ("Career Summary", loader.get_section_prompt("career_summary")),
+        ("Cover Letter", loader.get_cover_letter_prompt()),
+    ]
 
-    # Create a test user if needed
-    test_user = await User.find_one(User.email == "test@example.com")
-    if not test_user:
-        test_user = User(
-            email="test@example.com",
-            hashed_password="test",
-            full_name="Test User",
-        )
-        await test_user.insert()
-
-    # Example usage
-    prompt_loader = PromptLoader(user_id=test_user.id)
-    print(f"Resolved PROMPTS_FOLDER: {prompt_loader.prompt_dir}\n")
-
-    try:
-        # Try loading each available prompt
-        prompts = [
-            "personal_information",
-            "skills",
-            "work_experience",
-            "projects",
-            "publications",
-            "education",
-            "career_summary",
-            "cover_letter",
-            "awards",
-        ]
-
-        for section in prompts:
-            try:
-                prompt = await prompt_loader.get_section_prompt(section)
-                print(f"\n{'='*40}")
-                print(f"{section.upper()} PROMPT")
-                print(f"{'='*40}\n")
-                # Split into lines and print first 5 lines
-                lines = prompt.split("\n")
-                preview = "\n".join(lines[:5])
-                print(preview)
-                if len(lines) > 5:
-                    print("\n... (truncated)")
-            except FileNotFoundError as e:
-                print(f"\nError loading {section} prompt: {e}")
-    except Exception as e:
-        print(f"\nError: {e}")
+    # Run tests
+    for name, coro in test_cases:
+        try:
+            prompt = await coro
+            print(f"\n{name} Prompt Preview:")
+            print("-" * 20)
+            print(f"{prompt[:100]}...")
+        except Exception as e:
+            print(f"Failed to load {name.lower()} prompt: {e}")
 
 
 if __name__ == "__main__":
-    # Import here to avoid circular imports
-    from beanie import init_beanie
-    from motor.motor_asyncio import AsyncIOMotorClient
+    import asyncio
 
-    # Run the async main function
-    asyncio.run(main())
+    asyncio.run(test_prompt_loader())

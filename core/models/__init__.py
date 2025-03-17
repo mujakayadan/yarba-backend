@@ -6,7 +6,6 @@ from .portfolio import (
     CustomSections,
     Education,
     Portfolio,
-    PortfolioItem,
     Project,
     Publication,
     Skill,
@@ -29,7 +28,6 @@ __all__ = [
     "Preferences",
     # Portfolio models
     "Portfolio",
-    "PortfolioItem",
     "CareerSummary",
     "WorkExperience",
     "Education",

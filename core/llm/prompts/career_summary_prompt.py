@@ -1,0 +1,51 @@
+"""Prompt template for career summary."""
+
+from .base import BasePrompt
+
+TEMPLATE = """Task: Based on the provided job description, candidate\'s job titles, and years of experience, create a concise career summary for the resume. The summary should be in the following format:
+
+Instructions for the Job Title:
+- Match the job description to one of the provided job titles in the given data.
+- You will receive a list of job titles and years of experience in the JSON format as "job_titles".
+- Select the most suitable job title from the provided options that best fits the job description.
+
+Instructions for the Career Summary Content:
+- Analyze the **ONLY** candidate\'s resume data. Do NOT introduce or assume any information, technologies, or skills not explicitly mentioned in the provided data.
+For example, if the user does not have experience or skills in front end development and it is a must in the job description, you will not write it. Career summary cannot have a content that my data does not have.
+- Use strong action verbs and quantify achievements where applicable.
+- Ensure the summary is aligned with the job description and showcases the candidate\'s most relevant skills and experiences.
+- Begin the career summary with a lowercase word, as it continues a sentence.
+- Create a summary between ${career_summary_details_min_words} and ${career_summary_details_max_words} words.
+
+Example: "implementing" will start with a small letter here:
+    A Machine Learning Engineer with 2 years of experience implementing highly scalable robust industrial computer vision applications using machine learning algorithms.
+
+Tex file format: **DO NOT PRINT THIS** iT WILL BE IN ANOTHER FILE, SO THIS IS NOT NEEDED. THIS IS ADDED JUST TO HELP YOU UNDERSTAND THE STRUCTURE**
+\\newcommand{\\careerSummary}[3]{
+  \\vspace{3pt}%
+  {A #1 with #2 years of experience #3 }
+}
+
+Each argument corresponds:
+#1 = Job title
+#2 = Years of experience
+#3 = A concise statement (${career_summary_details_min_words}-${career_summary_details_max_words} words)
+
+Expected Output:
+\\section{Career Summary}
+\\careerSummary{{Job Title}}{{years_of_experience}}{{Career summary statement}}
+
+Example:
+\\section{Career Summary}
+\\careerSummary{{Computer Vision Engineer}}{{3}}{{implementing highly scalable robust industrial computer vision applications using machine learning algorithms. Proficient in algorithm development, research \\&development processes, and finding suitable solutions for complex industrial needs. Hands-on using Python,Matlab, C++ OpenCV, and Deep Learning libraries.}}"""
+
+
+class CareerSummaryPrompt(BasePrompt):
+    """Career Summary prompt template."""
+
+    def __init__(self):
+        """Initialize the career summary prompt template."""
+        super().__init__(TEMPLATE)
+
+
+CAREER_SUMMARY_PROMPT = CareerSummaryPrompt()

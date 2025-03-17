@@ -1,0 +1,46 @@
+"""Prompt template for personal information."""
+
+from .base import BasePrompt
+
+TEMPLATE = """Format the given personal information into a LaTeX-compatible header for a resume.
+Use the \\personalinfo command with the following syntax: \\personalinfo{Name}{Phone}{Email}{LinkedIn URL}{GitHub URL}{Website}{Location}.
+Ensure all information is accurate and formatted correctly for LaTeX.
+
+## Rules for selecting the location:
+- Use **only** the addresses provided in the addresses list within the given structured data.
+- Select the address that is **closest distance to the job location** from the job description, if such information is available.
+- If no job location proximity is provided, use "San Francisco, CA" as the default location.
+- Do not add or assume any new locations beyond those in the list. For example, if the job location is in Redmond, WA but it does not exist in the addresses list, do not list it, but the closest distance address to the Redmond, WA from the list
+
+Tex file format: **DO NOT PRINT THIS** iT WILL BE IN ANOTHER FILE, SO THIS IS NOT NEEDED. THIS IS ADDED JUST TO HELP YOU UNDERSTAND THE STRUCTURE**
+\\newcommand{\\personalinfo}[6]{
+    \\begin{center}
+        \\textbf{\\Huge \\scshape #1} \\\\ \\vspace{3pt}
+        \\small
+        \\faMobile \\hspace{.5pt} \\href{mobile:#2}{#2}
+        $|$
+        \\faAt \\hspace{.5pt} \\href{mailto:#3}{#3}
+        $|$
+        \\faLinkedinSquare \\hspace{.5pt} \\href{#4}{LinkedIn}
+        $|$
+        \\faGithub \\hspace{.5pt} \\href{#5}{GitHub}
+        $|$
+	    \\faGlobe \\hspace{.5pt} \\href{#6}{Website}
+	    $|$
+        \\faMapMarker \\hspace{.5pt} \\href{#7}{#7}
+    \\end{center}
+}
+
+Example:
+\\personalinfo{Muja Kayadan}{641-233-9607}{mujakayadan@outlook.com}{https://www.linkedin.com/in/muja-kayadan/}{https://github.com/mucahitkayadan}{https://www.mujakayadan.com}{San Francisco, CA}"""
+
+
+class PersonalInformationPrompt(BasePrompt):
+    """Personal Information prompt template."""
+
+    def __init__(self):
+        """Initialize the personal information prompt template."""
+        super().__init__(TEMPLATE)
+
+
+PERSONAL_INFORMATION_PROMPT = PersonalInformationPrompt()

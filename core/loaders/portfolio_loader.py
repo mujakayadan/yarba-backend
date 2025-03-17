@@ -7,12 +7,20 @@ from typing import Any, Dict, Optional
 from config.logging_config import get_logger
 from config.settings import Settings
 from core.database.init import init_db
-from core.models.portfolio import Portfolio, PortfolioItem
+from core.models.portfolio import Portfolio
 from core.models.profile import Profile
 from core.models.user import User
 
 logger = get_logger(__name__)
 settings = Settings()
+
+if __name__ == "__main__":
+    import sys
+    from pathlib import Path
+
+    project_root = str(Path(__file__).parent.parent.parent)
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
 
 
 class PortfolioLoader:
@@ -114,37 +122,42 @@ class PortfolioLoader:
         await self._load_data()
         logger.debug(f"Getting data for section: {section}")
 
-        if not self._profile:
-            logger.warning(f"No profile found for user {self.user_id}")
+        if not self._portfolio:
+            logger.warning(f"No portfolio found for user {self.user_id}")
             return None
 
         if section == "personal_information":
             # Construct personal information from profile fields
             personal_info = {
-                "name": self._profile.full_name,
-                "email": self._profile.email,
-                "phone": self._profile.phone,
-                "address": self._profile.address,
-                "city": self._profile.city,
-                "state": self._profile.state,
-                "zip_code": self._profile.zip_code,
-                "country": self._profile.country,
-                "linkedin": self._profile.linkedin,
-                "github": self._profile.github,
-                "website": self._profile.website,
+                "name": self._profile.full_name if self._profile else None,
+                "email": self._profile.email if self._profile else None,
+                "phone": self._profile.phone if self._profile else None,
+                "address": self._profile.address if self._profile else None,
+                "city": self._profile.city if self._profile else None,
+                "state": self._profile.state if self._profile else None,
+                "zip_code": self._profile.zip_code if self._profile else None,
+                "country": self._profile.country if self._profile else None,
+                "linkedin": self._profile.linkedin if self._profile else None,
+                "github": self._profile.github if self._profile else None,
+                "website": self._profile.website if self._profile else None,
             }
             logger.debug(f"Found personal information: {personal_info}")
             return personal_info
-        elif section == "career_summary":
-            if hasattr(self._profile, "summary"):
-                return self._profile.summary
-        elif hasattr(self._profile, section):
-            data = getattr(self._profile, section)
-            logger.debug(f"Found data for section {section}: {data}")
+
+        # Try to get data from portfolio first
+        if hasattr(self._portfolio, section):
+            data = getattr(self._portfolio, section)
+            logger.debug(f"Found data for section {section} in portfolio: {data}")
             return data
-        else:
-            logger.warning(f"Section {section} not found in profile")
-            return None
+
+        # Fallback to profile if data not found in portfolio
+        if self._profile and hasattr(self._profile, section):
+            data = getattr(self._profile, section)
+            logger.debug(f"Found data for section {section} in profile: {data}")
+            return data
+
+        logger.warning(f"Section {section} not found in portfolio or profile")
+        return None
 
     async def get_all_sections(self) -> Dict[str, Any]:
         """Get all sections from the portfolio.
@@ -167,27 +180,6 @@ class PortfolioLoader:
             "certifications": await self.get_section_data("certifications"),
         }
         return sections
-
-    async def get_portfolio_items(self) -> list:
-        """Get all portfolio items.
-
-        Returns:
-            list: List of portfolio items
-        """
-        await self._load_data()
-
-        if self._portfolio and hasattr(self._portfolio, "items"):
-            return self._portfolio.items
-
-        # Try to find portfolio items directly
-        try:
-            if await self._initialize_db():
-                items = await PortfolioItem.find({"user_id": self.user_id}).to_list()
-                return items
-        except Exception as e:
-            logger.error(f"Error fetching portfolio items: {e}")
-
-        return []
 
     def refresh(self) -> None:
         """Force reload of portfolio data."""

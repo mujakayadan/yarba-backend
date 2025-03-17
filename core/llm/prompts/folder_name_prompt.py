@@ -1,0 +1,37 @@
+"""Prompt template for folder name."""
+
+from .base import BasePrompt
+
+TEMPLATE = """Based on the given job description, extract the company name and job title.
+
+Instructions:
+- Extract only the company name and position from this job description. 
+Format the response exactly like this example: \'CompanyName|PositionName\'.
+Use only alphanumeric characters, spaces, and underscores.
+- Provide the company name and job title separately.
+- Both should be in lowercase.
+- Use underscores instead of spaces.
+- If the company name or job title is not known or cannot be assumed, use "unknown".
+- Do NOT put a backslash \'\\\' before underscores \'_\'.
+- Do not include any other text or characters in the response. Do not include any characters that prevents os from creating the folder.
+
+Output Format:
+company_name|job_title
+
+Examples:
+- meta|machine_learning_engineer
+- google|software_engineer
+- amazon|computer_vision_engineer
+- go_global_world|machine_learning_engineer
+- unknown|data_scientist"""
+
+
+class FolderNamePrompt(BasePrompt):
+    """Folder Name prompt template."""
+
+    def __init__(self):
+        """Initialize the folder name prompt template."""
+        super().__init__(TEMPLATE)
+
+
+FOLDER_NAME_PROMPT = FolderNamePrompt()

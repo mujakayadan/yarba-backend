@@ -1,0 +1,41 @@
+"""Prompt template for skills."""
+
+from .base import BasePrompt
+
+TEMPLATE = """Task: Create a skills section in LaTeX using the following rules:
+
+Instructions:
+- Pick only skills provided in the data. Do not add or infer additional skills. Even if other skills are mentioned in the job description as a must to have, do not use them.
+- Choose the most relevant skills for the job description for the skill category.
+- Omit any categories or skills not relevant to the job description.
+- Add other relevant skills as \\resumeSkillHeading to your answer. List ALL relevant skills for each category. Skills does not have to be explicitly exist in the job description.
+- Ensure that all relevant skills from the dataset are included, even if this means listing more than 3-4 items per category.
+For example, if languages are less than 10, you have to list all of them.
+- List ${skills_details_max_categories} skill categories, even if this means some skill categories are not relevant to the job description.
+- List at least ${skills_details_min_skills_per_category} and maximum ${skills_details_max_skills_per_category} skills per category, even if this means some skills are not relevant to the job description.
+
+Tex file format: **DO NOT PRINT THIS** iT WILL BE IN ANOTHER FILE, SO THIS IS NOT NEEDED. THIS IS ADDED JUST TO HELP YOU TO UNDERSTAND THE STRUCTURE
+\\newcommand{\\resumeSkillHeading}[2]{
+    \\vspace{-2pt}\\item
+    {\\textbf{\\small#1}}{\\small#2}
+}
+
+Example:
+\\section{Skills}
+\\resumeSubHeadingListStart
+    \\resumeSkillHeading{Languages}{Python, C++, MATLAB}
+    \\resumeSkillHeading{Computer Vision}{Object Detection, Feature Extraction, Image Processing, Object Tracking, Semantic Segmentation, Instance Segmentation, Pose Estimation, Real-Time Video Analysis, Action Recognition, Visual Question Answering}
+    \\resumeSkillHeading{Machine Learning}{Convolutional Networks, Transfer Learning, Generative Networks, NLP, Transformers, Unsupervised Learning, Reinforcement Learning, Dimensionality Reduction, Anomaly Detection, Time Series Analysis}
+    \\resumeSkillHeading{Frameworks}{OpenCV, TensorFlow, PyTorch, Keras, Scikit-Learn}
+\\resumeSubHeadingListEnd"""
+
+
+class SkillsPrompt(BasePrompt):
+    """Skills prompt template."""
+
+    def __init__(self):
+        """Initialize the skills prompt template."""
+        super().__init__(TEMPLATE)
+
+
+SKILLS_PROMPT = SkillsPrompt()
