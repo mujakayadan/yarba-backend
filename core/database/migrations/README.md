@@ -108,4 +108,4 @@ cd /path/to/resume_builder
 poetry run python -m core.database.migrations.migration_manager migrate
 ```
 
-This ensures consistency between the Pydantic model (which expects `PydanticObjectId`) and the database schema (which should store `ObjectId` values). 
+This ensures consistency between the Pydantic model (which expects `PydanticObjectId`) and the database schema (which should store `ObjectId` values).

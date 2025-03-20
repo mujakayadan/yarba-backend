@@ -64,11 +64,11 @@ class TexHeaderRepository(BeanieRepository[TexHeader]):
         header = await TexHeader.find_one(
             {"name": name, "category": category, "is_default": True}
         )
-        
+
         if header:
             cache_key = f"{name}:{category}"
             self._cached_headers[cache_key] = header
-            
+
         return header
 
     async def get_all_by_category(
@@ -84,11 +84,11 @@ class TexHeaderRepository(BeanieRepository[TexHeader]):
             List of TeX headers
         """
         headers = await TexHeader.find({"category": category}).to_list()
-        
+
         # Cache all headers by their name:category
         for header in headers:
             self._cached_headers[f"{header.name}:{category}"] = header
-            
+
         return headers
 
     async def create_header(
@@ -119,10 +119,10 @@ class TexHeaderRepository(BeanieRepository[TexHeader]):
             updated_at=datetime.utcnow(),
         )
         await header.create()
-        
+
         # Cache the new header
         self._cached_headers[f"{name}:{category}"] = header
-        
+
         return header
 
     async def update_content(self, header_id: str, content: str) -> Optional[TexHeader]:
@@ -143,14 +143,14 @@ class TexHeaderRepository(BeanieRepository[TexHeader]):
         header.content = content
         header.updated_at = datetime.utcnow()
         await header.save()
-        
+
         # Update cache if header is in cache
         cache_key = f"{header.name}:{header.category}"
         if cache_key in self._cached_headers:
             self._cached_headers[cache_key] = header
-        
+
         return header
-        
+
     def clear_cache(self) -> None:
         """Clear the header cache."""
         self._cached_headers.clear()

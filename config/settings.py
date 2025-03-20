@@ -242,9 +242,7 @@ class Settings(BaseSettings):
 
     # Testing
     test_user_id: str = Field(
-        default=...,
-        description="Test user ID",
-        env="TEST_USER_ID"
+        default=..., description="Test user ID", env="TEST_USER_ID"
     )
 
     # Components

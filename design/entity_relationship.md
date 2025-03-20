@@ -11,7 +11,7 @@ erDiagram
     Resume }o--|| Profile : "references"
     Resume }o--|| Preamble : "uses"
     Resume }o--|| TexHeader : "uses many"
-    
+
     User {
         ObjectId id PK
         string username
@@ -32,7 +32,7 @@ erDiagram
         datetime created_at
         datetime updated_at
     }
-    
+
     Profile {
         ObjectId id PK
         ObjectId user_id FK
@@ -50,7 +50,7 @@ erDiagram
         datetime created_at
         datetime updated_at
     }
-    
+
     Portfolio {
         ObjectId id PK
         ObjectId user_id FK
@@ -70,7 +70,7 @@ erDiagram
         datetime created_at
         datetime updated_at
     }
-    
+
     Resume {
         ObjectId id PK
         ObjectId user_id FK
@@ -91,7 +91,7 @@ erDiagram
         datetime created_at
         datetime updated_at
     }
-    
+
     Preamble {
         ObjectId id PK
         string name
@@ -101,7 +101,7 @@ erDiagram
         datetime created_at
         datetime updated_at
     }
-    
+
     TexHeader {
         ObjectId id PK
         string name
@@ -223,7 +223,7 @@ LaTeX headers used for custom LaTeX code generation.
   {
     "Category 1": [
       "Skill 1",
-      "Skill 2", 
+      "Skill 2",
       "Skill 3"
     ]
   },
@@ -231,7 +231,7 @@ LaTeX headers used for custom LaTeX code generation.
     "Category 2": [
       "Skill 1",
       "Skill 2",
-      "Skill 3" 
+      "Skill 3"
     ]
   }
 ]
@@ -247,4 +247,4 @@ LaTeX headers used for custom LaTeX code generation.
   "max_tokens": 4000,
   "system_prompt_version": "v2.3"
 }
-``` 
+```

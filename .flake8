@@ -1,7 +1,7 @@
 [flake8]
 max-line-length = 88
 extend-ignore = E203, W503
-exclude = 
+exclude =
     .git,
     __pycache__,
     build,
@@ -29,4 +29,4 @@ avoid-escape = True
 # Additional settings
 max-annotations-complexity = 4
 max-expression-complexity = 7
-max-cognitive-complexity = 12 
+max-cognitive-complexity = 12

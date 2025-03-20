@@ -1,1 +1,1 @@
-"""Scripts package for project utilities.""" 
+"""Scripts package for project utilities."""

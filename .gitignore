@@ -94,7 +94,7 @@ temp/
 # Generated files
 generated/
 output/
-resume_output/ 
+resume_output/
 
 .cursorrules
 

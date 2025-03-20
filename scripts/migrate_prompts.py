@@ -81,7 +81,7 @@ class BasePrompt:
 
     def __init__(self, template: str):
         """Initialize the prompt template.
-        
+
         Args:
             template: The prompt template string
         """
@@ -89,10 +89,10 @@ class BasePrompt:
 
     def format(self, **kwargs: Dict[str, str]) -> str:
         """Format the prompt template with the given arguments.
-        
+
         Args:
             **kwargs: Keyword arguments to format the template with
-            
+
         Returns:
             The formatted prompt string
         """

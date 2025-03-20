@@ -288,7 +288,7 @@ class HomePage:
 
                 st.markdown(
                     """
-                    ℹ️ To change settings, use the Settings and Section Manager pages 
+                    ℹ️ To change settings, use the Settings and Section Manager pages
                     from the sidebar navigation.
                 """
                 )

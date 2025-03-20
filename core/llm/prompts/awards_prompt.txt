@@ -31,5 +31,3 @@ Example:
 \resumeSubHeadingListEnd
 
 Note: Each award should demonstrate value and impact. Focus on awards that showcase skills and achievements relevant to the position you're applying for. If you have more than ${awards_details_max_awards} awards, select the most impactful ones that align with the job requirements.
-
-

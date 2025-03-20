@@ -82,7 +82,7 @@ poetry run pytest
 
 ## License
 
-MIT 
+MIT
 
 # Resume Builder MongoDB Improvements
 
@@ -167,4 +167,4 @@ After running the migration scripts, you should:
 1. Update your application code to use the new model structure
 2. Test the application thoroughly to ensure everything works as expected
 3. Consider adding indexes to improve query performance
-4. Add validation rules to ensure data integrity 
+4. Add validation rules to ensure data integrity

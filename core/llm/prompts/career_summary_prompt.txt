@@ -34,7 +34,3 @@ Expected Output:
 Example:
 \section{Career Summary}
 \careerSummary{{Computer Vision Engineer}}{{3}}{{implementing highly scalable robust industrial computer vision applications using machine learning algorithms. Proficient in algorithm development, research \&development processes, and finding suitable solutions for complex industrial needs. Hands-on using Python,Matlab, C++ OpenCV, and Deep Learning libraries.}}
-
-
-
-

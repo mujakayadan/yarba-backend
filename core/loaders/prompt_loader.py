@@ -3,7 +3,7 @@
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, List, Optional
 
 # Add project root to Python path when running as script
 if __name__ == "__main__":
@@ -38,7 +38,7 @@ logger = get_logger(__name__)
 
 class PromptLoader:
     """A class to load and format prompts with user preferences.
-    
+
     This loader accesses file-based prompts from the core/llm/prompts directory
     and formats them with user preferences when needed.
     """
@@ -208,7 +208,7 @@ class PromptLoader:
 
     async def get_all_prompt_names(self) -> List[str]:
         """Get a list of all available prompt names.
-        
+
         Returns:
             List[str]: List of all prompt names that can be loaded
         """
@@ -219,16 +219,16 @@ async def test_prompt_loader():
     """Test the PromptLoader functionality."""
     logger = get_logger("prompt_loader_test")
     logger.info("Starting prompt loader test")
-    
+
     # Initialize loader and run tests
     loader = PromptLoader()
-    
+
     try:
         # List all available prompts
         logger.info("Available prompts:")
         for prompt_name in await loader.get_all_prompt_names():
             logger.info(f"- {prompt_name}")
-        
+
         # Test loading key prompts
         test_cases = [
             ("System", loader.get_system_prompt()),
@@ -248,7 +248,7 @@ async def test_prompt_loader():
                 print(preview)
             except Exception as e:
                 logger.error(f"Failed to load {name.lower()} prompt: {e}")
-                
+
         logger.info("Prompt loader test completed")
     except Exception as e:
         logger.error(f"Test failed: {e}")

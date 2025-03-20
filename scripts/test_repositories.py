@@ -38,7 +38,7 @@ async def test_repositories():
     # Test profile repository
     logger.info("Testing ProfileRepository...")
     profile_repo = ProfileRepository()
-    
+
     # Get profile
     profile = await profile_repo.get_by_user_id(test_user_id)
     if profile:
@@ -48,7 +48,7 @@ async def test_repositories():
         print(f"{'='*40}")
         print(f"Name: {profile.full_name}")
         print(f"Email: {profile.email}")
-        
+
         # Get preferences
         preferences = await profile_repo.get_preferences(test_user_id)
         if preferences:
@@ -58,16 +58,16 @@ async def test_repositories():
             print(json.dumps(preferences.dict(), indent=2))
     else:
         logger.warning(f"No profile found for user {test_user_id}")
-    
+
     # Test portfolio repository
     logger.info("Testing PortfolioRepository...")
     portfolio_repo = PortfolioRepository()
-    
+
     # Get portfolio
     portfolio = await portfolio_repo.get_portfolio_by_user_id(test_user_id)
     if portfolio:
         logger.info(f"Found portfolio for user {test_user_id}")
-        
+
         # Test individual sections
         print(f"\n{'='*40}")
         print("CAREER SUMMARY")
@@ -75,7 +75,7 @@ async def test_repositories():
         career_summary = await portfolio_repo.get_career_summary(test_user_id)
         if career_summary:
             print(json.dumps(career_summary.dict(), indent=2))
-        
+
         print(f"\n{'='*40}")
         print("SKILLS")
         print(f"{'='*40}")
@@ -83,7 +83,7 @@ async def test_repositories():
         print(f"Found {len(skills)} skills")
         for skill in skills[:3]:  # Show first 3 skills
             print(f"- {skill.name} ({skill.level})")
-        
+
         print(f"\n{'='*40}")
         print("PUBLICATIONS")
         print(f"{'='*40}")
@@ -91,7 +91,7 @@ async def test_repositories():
         print(f"Found {len(publications)} publications")
         for pub in publications[:3]:  # Show first 3 publications
             print(f"- {pub.title} ({pub.year})")
-        
+
         print(f"\n{'='*40}")
         print("WORK EXPERIENCE")
         print(f"{'='*40}")
@@ -102,9 +102,9 @@ async def test_repositories():
             print(f"- {job.title} at {job.company}")
     else:
         logger.warning(f"No portfolio found for user {test_user_id}")
-    
+
     logger.info("Repository testing completed")
 
 
 if __name__ == "__main__":
-    asyncio.run(test_repositories()) 
+    asyncio.run(test_repositories())

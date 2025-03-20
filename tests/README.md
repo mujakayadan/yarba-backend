@@ -85,10 +85,10 @@ async def test_register_user_success(client):
         "password": "Password123!",
         "full_name": "Test User",
     }
-    
+
     # Act
     response = client.post("/api/auth/register", json=user_data)
-    
+
     # Assert
     assert response.status_code == 201
     assert "id" in response.json()
@@ -121,4 +121,4 @@ Aim for at least 80% test coverage. To check coverage:
 
 ```bash
 pytest --cov=new_structure --cov-report=term-missing
-``` 
+```

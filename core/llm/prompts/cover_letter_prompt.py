@@ -5,7 +5,7 @@ from .base import BasePrompt
 TEMPLATE = """Task:
 You are given a resume content and job description. Create a cover letter for the job application.
 
-Instructions: 
+Instructions:
 - Write a cover letter that is ${cover_letter_details_paragraphs} paragraphs long.
 - Write for a ${cover_letter_details_target_grade_level}-year-old reading level.
 - Use the resume content to create a cover letter tailored to the job description.

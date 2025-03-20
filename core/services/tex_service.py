@@ -3,6 +3,7 @@
 from typing import Dict, List, Optional
 
 from config.logging_config import get_logger
+
 from ..models.preamble import Preamble
 from ..models.tex_header import TexHeader
 from ..models.tex_template import TexTemplate
@@ -55,9 +56,7 @@ class TexService:
         else:
             return await self.template_repo.get_all_by_type(template_type)
 
-    async def format_template(
-        self, template_name: str, **kwargs
-    ) -> Optional[str]:
+    async def format_template(self, template_name: str, **kwargs) -> Optional[str]:
         """
         Format a template with given parameters.
 
@@ -173,4 +172,4 @@ class TexService:
         """Clear all repository caches."""
         self.template_repo.clear_cache()
         self.header_repo.clear_cache()
-        self.logger.debug("All TeX caches cleared") 
+        self.logger.debug("All TeX caches cleared")

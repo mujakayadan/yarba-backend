@@ -5,7 +5,7 @@ from .base import BasePrompt
 TEMPLATE = """Based on the given job description, extract the company name and job title.
 
 Instructions:
-- Extract only the company name and position from this job description. 
+- Extract only the company name and position from this job description.
 Format the response exactly like this example: \'CompanyName|PositionName\'.
 Use only alphanumeric characters, spaces, and underscores.
 - Provide the company name and job title separately.

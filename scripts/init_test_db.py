@@ -204,31 +204,31 @@ async def init_test_db():
         )
         await db.portfolios.insert_one(portfolio.dict())
         logger.info(f"Created portfolio for user: {user.username}")
-        
-    # Create portfolio items
+
+        # Create portfolio items
         portfolio_items = [
-        PortfolioItem(
+            PortfolioItem(
                 portfolio_id=portfolio.id,
                 title="Resume Builder",
                 description="A web application for creating and managing resumes.",
-            type="project",
+                type="project",
                 url="https://github.com/testuser/resume-builder",
                 image_url="https://example.com/images/resume-builder.png",
                 technologies=["Python", "FastAPI", "MongoDB", "React"],
                 tags=["web", "full-stack", "open-source"],
                 date="2023-01-01",
-            highlights=[
+                highlights=[
                     "Implemented a RESTful API using FastAPI",
                     "Designed a MongoDB database schema",
                     "Created a responsive UI with React",
                 ],
                 order=1,
-            is_featured=True,
+                is_featured=True,
                 metadata={"github_stars": 100, "github_forks": 20},
                 created_at=datetime.datetime.utcnow(),
                 updated_at=datetime.datetime.utcnow(),
-        ),
-        PortfolioItem(
+            ),
+            PortfolioItem(
                 portfolio_id=portfolio.id,
                 title="Software Engineer",
                 description="Developed web applications and APIs for a SaaS company.",
@@ -239,17 +239,17 @@ async def init_test_db():
                 end_date="2023-01-01",
                 technologies=["Python", "Django", "PostgreSQL", "AWS"],
                 tags=["backend", "cloud", "api"],
-            highlights=[
+                highlights=[
                     "Led a team of 5 developers",
                     "Reduced API response time by 50%",
                     "Implemented CI/CD pipelines",
                 ],
                 order=2,
-            is_featured=True,
+                is_featured=True,
                 created_at=datetime.datetime.utcnow(),
                 updated_at=datetime.datetime.utcnow(),
-        ),
-        PortfolioItem(
+            ),
+            PortfolioItem(
                 portfolio_id=portfolio.id,
                 title="Bachelor of Science in Computer Science",
                 description="Studied computer science with a focus on artificial intelligence.",
@@ -268,7 +268,7 @@ async def init_test_db():
                     "Computer Vision",
                 ],
                 tags=["education", "computer-science", "ai"],
-            highlights=[
+                highlights=[
                     "Graduated with honors",
                     "Published a paper on machine learning",
                     "Completed a thesis on computer vision",
@@ -475,4 +475,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    

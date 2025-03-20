@@ -3,6 +3,13 @@ name = "resume_builder"
 version = "0.1.0"
 description = "A LaTeX-based resume builder with AI assistance"
 authors = ["Muja Kayadan <mujakayadan@gmail.com>"]
+packages = [
+    {include = "api"},
+    {include = "core"},
+    {include = "config"},
+    {include = "ui"},
+    {include = "scripts"},
+]
 
 [tool.poetry.dependencies]
 python = "^3.10"
@@ -19,6 +26,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry.scripts]
 app = "main:main"
 lint = "scripts.lint:run_flake8"
+format = "scripts.format:run_formatters"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.2.0"
@@ -34,6 +42,7 @@ flake8-quotes = "^3.4.0"
 flake8-bugbear = "^24.12.12"
 flake8-comprehensions = "^3.16.0"
 flake8-black = "^0.3.6"
+pre-commit = "^4.2.0"
 
 [tool.black]
 line-length = 88
@@ -60,4 +69,4 @@ asyncio_mode = "auto"
 line-length = 88
 target-version = "py310"
 select = ["E", "F", "B", "I"]
-ignore = [] 
+ignore = []

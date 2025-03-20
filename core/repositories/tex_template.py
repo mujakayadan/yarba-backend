@@ -152,9 +152,9 @@ class TexTemplateRepository(BeanieRepository[TexTemplate]):
         template.content = content
         template.updated_at = datetime.utcnow()
         await template.save()
-        
+
         # Update cache if template is in cache
         if template.name in self._cached_templates:
             self._cached_templates[template.name] = template
-            
-        return template 
+
+        return template

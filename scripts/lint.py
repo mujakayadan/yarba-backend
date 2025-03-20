@@ -28,4 +28,4 @@ def run_flake8() -> None:
 
 
 if __name__ == "__main__":
-    run_flake8() 
+    run_flake8()

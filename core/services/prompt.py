@@ -1,7 +1,7 @@
 """Prompt service for loading and managing prompts."""
 
-import sys
 import logging
+import sys
 from pathlib import Path
 from string import Template
 from typing import Any, Dict, List, Optional, Union
@@ -14,12 +14,12 @@ if __name__ == "__main__":
 
 from beanie import PydanticObjectId
 
-from core.exceptions.base import NotFoundException
-from core.models.user import User
-from core.repositories.user import UserRepository
-from core.loaders.prompt_loader import PromptLoader
 from config.logging_config import get_logger
 from config.settings import Settings
+from core.exceptions.base import NotFoundException
+from core.loaders.prompt_loader import PromptLoader
+from core.models.user import User
+from core.repositories.user import UserRepository
 
 settings = Settings()
 logger = get_logger(__name__)
@@ -27,7 +27,7 @@ logger = get_logger(__name__)
 
 class PromptService:
     """Service for loading and managing prompts for LLM operations.
-    
+
     This service can load prompts from both:
     1. Text files (legacy approach)
     2. Python modules (new approach)
@@ -41,10 +41,10 @@ class PromptService:
     }
 
     def __init__(
-        self, 
-        user_repository: Optional[UserRepository] = None, 
+        self,
+        user_repository: Optional[UserRepository] = None,
         user_id: Optional[Union[str, PydanticObjectId]] = None,
-        use_python_prompts: bool = True
+        use_python_prompts: bool = True,
     ):
         """
         Initialize the prompt service.
@@ -59,7 +59,7 @@ class PromptService:
         self.user_id = user_id
         self.use_python_prompts = use_python_prompts
         self.logger = get_logger(self.__class__.__name__)
-        
+
         # Initialize the Python module-based prompt loader if needed
         if use_python_prompts:
             self.prompt_loader = PromptLoader(user_id)
@@ -78,9 +78,11 @@ class PromptService:
             Optional[Dict[str, Any]]: User preferences if found, None otherwise
         """
         if not self.user_repository:
-            self.logger.warning("User repository not provided, cannot fetch preferences")
+            self.logger.warning(
+                "User repository not provided, cannot fetch preferences"
+            )
             return None
-            
+
         user = await self.user_repository.get_by_id(user_id)
         if user and user.preferences:
             self.logger.debug(f"Loaded preferences for user {user_id}")
@@ -144,7 +146,7 @@ class PromptService:
         if not self.user_repository:
             variables["life_story"] = "No personal story available."
             return
-            
+
         user = await self.user_repository.get_by_id(user_id)
         if user and user.life_story:
             variables["life_story"] = user.life_story
@@ -258,11 +260,11 @@ class PromptService:
             return await self.prompt_loader.get_cover_letter_prompt()
         else:
             return await self.load_prompt("cover_letter_prompt.txt", user_id)
-    
+
     async def get_available_prompts(self) -> List[str]:
         """
         Get a list of all available prompts.
-        
+
         Returns:
             List of prompt names that can be accessed
         """
@@ -270,16 +272,19 @@ class PromptService:
             return await self.prompt_loader.get_all_prompt_names()
         else:
             # List all txt files in the prompts directory
-            prompt_files = [f.stem.replace('_prompt', '') for f in self.prompt_dir.glob("*_prompt.txt")]
+            prompt_files = [
+                f.stem.replace("_prompt", "")
+                for f in self.prompt_dir.glob("*_prompt.txt")
+            ]
             return prompt_files
-    
+
     async def get_multiple_prompts(self, names: List[str]) -> Dict[str, str]:
         """
         Get multiple prompts by name.
-        
+
         Args:
             names: List of prompt names to retrieve
-            
+
         Returns:
             Dictionary mapping prompt names to their formatted text
         """
@@ -298,11 +303,11 @@ class PromptService:
                 self.logger.warning(f"Failed to load prompt '{name}': {e}")
                 result[name] = f"Error: {str(e)}"
         return result
-    
+
     def set_user_id(self, user_id: Optional[Union[str, PydanticObjectId]]) -> None:
         """
         Set or change the user ID for personalized prompts.
-        
+
         Args:
             user_id: User ID to set
         """
@@ -310,11 +315,11 @@ class PromptService:
         if self.use_python_prompts:
             self.prompt_loader = PromptLoader(user_id)
         self.logger.debug(f"User changed to: {user_id}")
-    
+
     def switch_prompt_source(self, use_python_prompts: bool) -> None:
         """
         Switch between Python module-based prompts and file-based prompts.
-        
+
         Args:
             use_python_prompts: True to use Python modules, False to use files
         """
@@ -332,38 +337,38 @@ async def test_prompt_service():
     """Test both prompt service approaches."""
     logger = get_logger("prompt_service_test")
     logger.info("Starting prompt service test")
-    
+
     # Test Python module-based prompts
     logger.info("Testing Python module-based prompts:")
     python_service = PromptService(use_python_prompts=True)
-    
+
     # Get available prompts
     py_prompts = await python_service.get_available_prompts()
     logger.info(f"Available Python prompts: {', '.join(py_prompts)}")
-    
+
     # Test key prompts
     try:
         system_prompt = await python_service.get_system_prompt()
         career_prompt = await python_service.get_section_prompt("career_summary")
-        
+
         print("\nPYTHON MODULE PROMPTS:")
         print("=" * 40)
         print(f"System prompt preview: {system_prompt[:100]}...")
         print(f"Career summary prompt preview: {career_prompt[:100]}...")
     except Exception as e:
         logger.error(f"Error testing Python prompts: {e}")
-    
+
     # Try to test file-based prompts if the directory exists
     prompt_dir = Path(settings.paths.prompts_dir)
     if prompt_dir.exists():
         logger.info("\nTesting file-based prompts:")
         file_service = PromptService(use_python_prompts=False)
-        
+
         try:
             # Get available prompts
             file_prompts = await file_service.get_available_prompts()
             logger.info(f"Available file prompts: {', '.join(file_prompts)}")
-            
+
             if file_prompts:
                 sample_prompt = await file_service.get_section_prompt(file_prompts[0])
                 print("\nFILE-BASED PROMPTS:")
@@ -372,12 +377,14 @@ async def test_prompt_service():
         except Exception as e:
             logger.error(f"Error testing file-based prompts: {e}")
     else:
-        logger.warning(f"Prompt directory {prompt_dir} not found, skipping file-based tests")
-    
+        logger.warning(
+            f"Prompt directory {prompt_dir} not found, skipping file-based tests"
+        )
+
     logger.info("PromptService test completed")
 
 
 if __name__ == "__main__":
     import asyncio
-    
+
     asyncio.run(test_prompt_service())
