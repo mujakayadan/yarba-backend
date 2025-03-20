@@ -32,6 +32,6 @@ OLLAMA_URI = os.getenv("OLLAMA_URI", "http://localhost:11434")
 
 # This configuration is used in the Streamlit app, since there is no sign-up and sign-in logics are implemented in the Streamlit UI
 # Note that these logics are implemented in the back-end service.
-TEST_USER_ID = os.getenv("TEST_USER_ID", "mujakayadan")
+# TEST_USER_ID is now handled through Pydantic settings in settings.py
 
 logger.debug("Environment configuration loaded")

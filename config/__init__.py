@@ -30,7 +30,6 @@ from .env_config import (
     MONGODB_URI,
     OLLAMA_URI,
     OPENAI_API_KEY,
-    TEST_USER_ID,
 )
 from .logging_config import configure_logging, get_logger
 from .settings import Settings, settings

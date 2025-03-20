@@ -1,6 +1,5 @@
 """Validation utilities for the Resume Builder application."""
 
-import os
 import pathlib
 from typing import Union
 

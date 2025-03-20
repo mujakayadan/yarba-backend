@@ -114,11 +114,6 @@ class Portfolio(Document):
     user: Optional[Link[User]] = None
     profile: Optional[Link[Profile]] = None
 
-    professional_title: Optional[str] = Field(
-        default=None,
-        description="Professional title to use. If None, the LLM will choose from job_titles.",
-    )
-
     career_summary: CareerSummary = Field(
         default_factory=CareerSummary,
         description="Career summary information, including multiple job titles and experience.",

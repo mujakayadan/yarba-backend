@@ -1,0 +1,32 @@
+[flake8]
+max-line-length = 88
+extend-ignore = E203, W503
+exclude = 
+    .git,
+    __pycache__,
+    build,
+    dist,
+    *.pyc,
+    *.egg-info,
+    .eggs,
+    .tox,
+    .venv,
+    .env,
+    venv,
+    env,
+    my_data
+
+# Docstring settings
+docstring-convention = google
+max-complexity = 10
+
+# Quote settings
+inline-quotes = double
+multiline-quotes = double
+docstring-quotes = double
+avoid-escape = True
+
+# Additional settings
+max-annotations-complexity = 4
+max-expression-complexity = 7
+max-cognitive-complexity = 12 

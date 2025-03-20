@@ -18,6 +18,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 app = "main:main"
+lint = "scripts.lint:run_flake8"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.2.0"
@@ -27,6 +28,12 @@ pytest = "^8.0.0"
 pytest-asyncio = "^0.23.5"
 pytest-cov = "^4.1.0"
 ruff = "^0.2.2"
+flake8 = "^7.1.2"
+flake8-docstrings = "^1.7.0"
+flake8-quotes = "^3.4.0"
+flake8-bugbear = "^24.12.12"
+flake8-comprehensions = "^3.16.0"
+flake8-black = "^0.3.6"
 
 [tool.black]
 line-length = 88

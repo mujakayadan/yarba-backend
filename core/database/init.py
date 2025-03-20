@@ -12,7 +12,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 from config.logging_config import get_logger
 from config.settings import Settings
-from core.models.portfolio import Portfolio, PortfolioItem
+from core.models.portfolio import Portfolio
 from core.models.preamble import Preamble
 from core.models.profile import Profile
 from core.models.resume import Resume
@@ -48,7 +48,6 @@ async def init_db() -> Optional[AsyncIOMotorClient]:
             Profile,
             # Portfolio models
             Portfolio,
-            PortfolioItem,
             # LaTeX models
             TexHeader,
             Preamble,

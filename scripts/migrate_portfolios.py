@@ -25,7 +25,6 @@ from core.models.portfolio import (
     CustomSections,
     Education,
     Portfolio,
-    PortfolioItem,
     Project,
     Publication,
     Skill,
@@ -33,7 +32,7 @@ from core.models.portfolio import (
 )
 from core.models.profile import Profile
 from core.models.user import User
-from core.repositories.portfolio import PortfolioItemRepository, PortfolioRepository
+from core.repositories.portfolio import PortfolioRepository
 
 # Configure logging
 logging.basicConfig(
@@ -192,7 +191,7 @@ async def migrate_portfolios() -> Dict[str, str]:
     mongo_manager.initialize(env["MONGODB_URI"], env["MONGODB_DATABASE"])
     await init_beanie(
         database=mongo_manager.async_db,
-        document_models=[User, Profile, Portfolio, PortfolioItem],
+        document_models=[User, Profile, Portfolio],
     )
     logger.info(f"Connected to database: {env['MONGODB_DATABASE']}")
 
@@ -384,9 +383,6 @@ async def migrate_portfolios() -> Dict[str, str]:
             logger.debug(f"Created new portfolio with ID: {new_portfolio.id}")
 
             # Update portfolio fields
-            new_portfolio.professional_title = str(
-                portfolio_data.get("professional_title", "")
-            )
             new_portfolio.career_summary = career_summary
             new_portfolio.skills = skills
             new_portfolio.work_experience = work_experience

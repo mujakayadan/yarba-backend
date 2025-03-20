@@ -241,7 +241,11 @@ class Settings(BaseSettings):
     version: str = Field(default="1.0.0", description="Application version")
 
     # Testing
-    test_user_id: str = Field(default="test_user", description="Test user ID")
+    test_user_id: str = Field(
+        default=...,
+        description="Test user ID",
+        env="TEST_USER_ID"
+    )
 
     # Components
     database: DatabaseSettings = Field(

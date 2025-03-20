@@ -94,12 +94,19 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         Get the active portfolio for a user by user ID.
 
         Args:
-            user_id: User ID
+            user_id: User ID (string or ObjectId)
 
         Returns:
             Optional[Portfolio]: Active portfolio if found, None otherwise
         """
-        return await Portfolio.find_one({"user_id": user_id, "is_active": True})
+        # Try with the user_id as is
+        portfolio = await Portfolio.find_one({"user_id": user_id, "is_active": True})
+        
+        # If not found and user_id is a string that could be an ObjectId, try converting
+        if not portfolio and isinstance(user_id, str) and ObjectId.is_valid(user_id):
+            portfolio = await Portfolio.find_one({"user_id": ObjectId(user_id), "is_active": True})
+            
+        return portfolio
 
     async def get_active_portfolios(self) -> List[Portfolio]:
         """
@@ -275,7 +282,6 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         portfolio = Portfolio(
             user_id=ObjectId(user_id),
             profile_id=ObjectId(profile_id) if profile_id else None,
-            professional_title="",
             career_summary=CareerSummary(
                 job_titles=[],
                 years_of_experience="",
@@ -310,3 +316,145 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         if not portfolio or not portfolio.profile_id:
             return None
         return await Profile.get(portfolio.profile_id)
+
+    # Enhanced methods for direct section access
+    
+    async def get_portfolio_by_user_id(self, user_id: str) -> Optional[Portfolio]:
+        """
+        Get a portfolio by user ID, handling ObjectId conversion.
+        
+        This method tries both string and ObjectId versions of the user_id.
+        
+        Args:
+            user_id: User ID (string or ObjectId)
+            
+        Returns:
+            Optional[Portfolio]: Portfolio if found, None otherwise
+        """
+        # Get active portfolio first
+        portfolio = await self.get_active_by_user_id(user_id)
+        
+        # If not found, try getting any portfolio
+        if not portfolio:
+            portfolios = await self.get_by_user_id(user_id)
+            if portfolios:
+                portfolio = portfolios[0]
+                
+        return portfolio
+    
+    async def get_career_summary(self, user_id: str) -> Optional[CareerSummary]:
+        """
+        Get career summary for a user.
+        
+        Args:
+            user_id: User ID (string or ObjectId)
+            
+        Returns:
+            Optional[CareerSummary]: Career summary if found, None otherwise
+        """
+        portfolio = await self.get_portfolio_by_user_id(user_id)
+        return portfolio.career_summary if portfolio else None
+    
+    async def get_skills(self, user_id: str) -> List[Skill]:
+        """
+        Get skills for a user.
+        
+        Args:
+            user_id: User ID (string or ObjectId)
+            
+        Returns:
+            List[Skill]: List of skills
+        """
+        portfolio = await self.get_portfolio_by_user_id(user_id)
+        return portfolio.skills if portfolio and portfolio.skills else []
+    
+    async def get_work_experience(self, user_id: str) -> List[WorkExperience]:
+        """
+        Get work experience for a user.
+        
+        Args:
+            user_id: User ID (string or ObjectId)
+            
+        Returns:
+            List[WorkExperience]: List of work experience entries
+        """
+        portfolio = await self.get_portfolio_by_user_id(user_id)
+        return portfolio.work_experience if portfolio and portfolio.work_experience else []
+    
+    async def get_education(self, user_id: str) -> List[Education]:
+        """
+        Get education for a user.
+        
+        Args:
+            user_id: User ID (string or ObjectId)
+            
+        Returns:
+            List[Education]: List of education entries
+        """
+        portfolio = await self.get_portfolio_by_user_id(user_id)
+        return portfolio.education if portfolio and portfolio.education else []
+    
+    async def get_projects(self, user_id: str) -> List[Project]:
+        """
+        Get projects for a user.
+        
+        Args:
+            user_id: User ID (string or ObjectId)
+            
+        Returns:
+            List[Project]: List of project entries
+        """
+        portfolio = await self.get_portfolio_by_user_id(user_id)
+        return portfolio.projects if portfolio and portfolio.projects else []
+    
+    async def get_awards(self, user_id: str) -> List[Award]:
+        """
+        Get awards for a user.
+        
+        Args:
+            user_id: User ID (string or ObjectId)
+            
+        Returns:
+            List[Award]: List of award entries
+        """
+        portfolio = await self.get_portfolio_by_user_id(user_id)
+        return portfolio.awards if portfolio and portfolio.awards else []
+    
+    async def get_publications(self, user_id: str) -> List[Publication]:
+        """
+        Get publications for a user.
+        
+        Args:
+            user_id: User ID (string or ObjectId)
+            
+        Returns:
+            List[Publication]: List of publication entries
+        """
+        portfolio = await self.get_portfolio_by_user_id(user_id)
+        return portfolio.publications if portfolio and portfolio.publications else []
+    
+    async def get_certifications(self, user_id: str) -> List[str]:
+        """
+        Get certifications for a user.
+        
+        Args:
+            user_id: User ID (string or ObjectId)
+            
+        Returns:
+            List[str]: List of certifications
+        """
+        portfolio = await self.get_portfolio_by_user_id(user_id)
+        return portfolio.certifications if portfolio and portfolio.certifications else []
+    
+    async def get_custom_sections(self, user_id: str) -> Optional[CustomSections]:
+        """
+        Get custom sections config for a user.
+        
+        Args:
+            user_id: User ID (string or ObjectId)
+            
+        Returns:
+            Optional[CustomSections]: Custom sections config if found, None otherwise
+        """
+        portfolio = await self.get_portfolio_by_user_id(user_id)
+        return portfolio.custom_sections if portfolio else None

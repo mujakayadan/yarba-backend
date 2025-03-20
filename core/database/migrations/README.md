@@ -87,4 +87,25 @@ To set up a new database with the initial schema:
 poetry run python scripts/run_migrations.py migrate
 ```
 
-This will apply the initial migration that creates all collections, validators, and indexes. 
+This will apply the initial migration that creates all collections, validators, and indexes.
+
+## Recent Migrations
+
+### 20240623000000_fix_portfolio_user_id.py
+
+This migration fixes two issues:
+
+1. Converts string `user_id` values in the portfolios collection to proper `ObjectId` values
+2. Removes the deprecated `professional_title` field from all portfolios
+
+To run this migration:
+
+```bash
+# Navigate to the project root
+cd /path/to/resume_builder
+
+# Run the migration
+poetry run python -m core.database.migrations.migration_manager migrate
+```
+
+This ensures consistency between the Pydantic model (which expects `PydanticObjectId`) and the database schema (which should store `ObjectId` values). 

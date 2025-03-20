@@ -3,6 +3,8 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from bson import ObjectId
+
 from ..models.profile import Preferences, Profile
 from ..models.resume import Resume
 from ..models.user import User
@@ -33,12 +35,19 @@ class ProfileRepository(BeanieRepository[Profile]):
         Get profile for a user by user ID.
 
         Args:
-            user_id: User ID
+            user_id: User ID (string or ObjectId)
 
         Returns:
             Optional[Profile]: Profile if found, None otherwise
         """
-        return await Profile.find_one({"user_id": user_id})
+        # Try with the user_id as is
+        profile = await Profile.find_one({"user_id": user_id})
+        
+        # If not found and user_id is a string that could be an ObjectId, try converting
+        if not profile and isinstance(user_id, str) and ObjectId.is_valid(user_id):
+            profile = await Profile.find_one({"user_id": ObjectId(user_id)})
+            
+        return profile
 
     async def get_user(self, profile_id: str) -> Optional[User]:
         """
@@ -137,3 +146,60 @@ class ProfileRepository(BeanieRepository[Profile]):
         )
         await profile.create()
         return profile
+
+    # Enhanced methods for direct section access
+    
+    async def get_personal_information(self, user_id: str) -> Optional[Profile]:
+        """
+        Get personal information for a user.
+        
+        Args:
+            user_id: User ID (string or ObjectId)
+            
+        Returns:
+            Optional[Profile]: Profile if found, None otherwise
+        """
+        return await self.get_by_user_id(user_id)
+    
+    async def get_preferences(self, user_id: str) -> Optional[Preferences]:
+        """
+        Get user preferences.
+        
+        Args:
+            user_id: User ID (string or ObjectId)
+            
+        Returns:
+            Optional[Preferences]: User preferences if found, None otherwise
+        """
+        profile = await self.get_by_user_id(user_id)
+        return profile.preferences if profile else None
+    
+    async def get_section_preferences(self, user_id: str) -> Dict[str, str]:
+        """
+        Get section preferences.
+        
+        Args:
+            user_id: User ID (string or ObjectId)
+            
+        Returns:
+            Dict[str, str]: Dictionary of section preferences
+        """
+        profile = await self.get_by_user_id(user_id)
+        
+        if not profile or not profile.preferences or not hasattr(profile.preferences, "section_preferences"):
+            return {}
+            
+        return profile.preferences.section_preferences
+    
+    async def get_api_keys(self, user_id: str) -> Dict[str, str]:
+        """
+        Get API keys for a user.
+        
+        Args:
+            user_id: User ID (string or ObjectId)
+            
+        Returns:
+            Dict[str, str]: Dictionary of API keys
+        """
+        profile = await self.get_by_user_id(user_id)
+        return profile.api_keys if profile and hasattr(profile, "api_keys") else {}

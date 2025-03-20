@@ -1,9 +1,9 @@
-"""Prompt loader for loading and formatting prompts."""
+"""Prompt loader for loading and formatting prompts from files."""
 
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 # Add project root to Python path when running as script
 if __name__ == "__main__":
@@ -13,6 +13,7 @@ if __name__ == "__main__":
 
 from beanie import PydanticObjectId
 
+from config.logging_config import get_logger
 from config.settings import Settings
 from core.llm.prompts import (
     AWARDS_PROMPT,
@@ -32,10 +33,15 @@ from core.llm.prompts import (
 from core.models.user import User
 
 settings = Settings()
+logger = get_logger(__name__)
 
 
 class PromptLoader:
-    """A class to load and format prompts with user preferences."""
+    """A class to load and format prompts with user preferences.
+    
+    This loader accesses file-based prompts from the core/llm/prompts directory
+    and formats them with user preferences when needed.
+    """
 
     # Default values for prompt variables
     DEFAULT_VARIABLES = {
@@ -69,6 +75,7 @@ class PromptLoader:
             "system": SYSTEM_PROMPT,
             "work_experience": WORK_EXPERIENCE_PROMPT,
         }
+        logger.debug(f"PromptLoader initialized with {len(self._prompt_map)} prompts")
 
     @property
     async def preferences(self) -> Optional[Dict[str, Any]]:
@@ -78,7 +85,9 @@ class PromptLoader:
                 user = await User.get(self.user_id)
                 if user and user.preferences:
                     self._preferences = user.preferences.model_dump()
-            except Exception:
+                    logger.debug(f"Loaded preferences for user {self.user_id}")
+            except Exception as e:
+                logger.error(f"Error loading preferences: {e}")
                 self._preferences = None
         return self._preferences
 
@@ -112,8 +121,9 @@ class PromptLoader:
             user = await User.get(self.user_id)
             if user and hasattr(user, "life_story"):
                 variables["life_story"] = user.life_story
-        except Exception:
-            pass
+                logger.debug("Added life story to prompt variables")
+        except Exception as e:
+            logger.error(f"Error adding life story: {e}")
 
     async def _format_prompt(
         self, prompt_name: str, add_life_story: bool = False
@@ -150,12 +160,15 @@ class PromptLoader:
                 return prompt.format(**variables)
             except KeyError as e:
                 missing_var = str(e).strip("'")
+                logger.warning(f"Missing variable in prompt: {missing_var}")
                 variables[missing_var] = "Not specified"
                 return prompt.format(**variables)
 
         except KeyError:
+            logger.error(f"Prompt not found: {prompt_name}")
             raise
         except Exception as e:
+            logger.error(f"Error formatting prompt: {e}")
             raise
 
     async def get_section_prompt(self, section: str) -> str:
@@ -191,28 +204,54 @@ class PromptLoader:
     def refresh_preferences(self) -> None:
         """Force reload of user preferences."""
         self._preferences = None
+        logger.debug("User preferences cache cleared")
+
+    async def get_all_prompt_names(self) -> List[str]:
+        """Get a list of all available prompt names.
+        
+        Returns:
+            List[str]: List of all prompt names that can be loaded
+        """
+        return list(self._prompt_map.keys())
 
 
 async def test_prompt_loader():
     """Test the PromptLoader functionality."""
+    logger = get_logger("prompt_loader_test")
+    logger.info("Starting prompt loader test")
+    
     # Initialize loader and run tests
     loader = PromptLoader()
-    test_cases = [
-        ("System", loader.get_system_prompt()),
-        ("Work Experience", loader.get_section_prompt("work_experience")),
-        ("Career Summary", loader.get_section_prompt("career_summary")),
-        ("Cover Letter", loader.get_cover_letter_prompt()),
-    ]
+    
+    try:
+        # List all available prompts
+        logger.info("Available prompts:")
+        for prompt_name in await loader.get_all_prompt_names():
+            logger.info(f"- {prompt_name}")
+        
+        # Test loading key prompts
+        test_cases = [
+            ("System", loader.get_system_prompt()),
+            ("Work Experience", loader.get_section_prompt("work_experience")),
+            ("Career Summary", loader.get_section_prompt("career_summary")),
+            ("Cover Letter", loader.get_cover_letter_prompt()),
+        ]
 
-    # Run tests
-    for name, coro in test_cases:
-        try:
-            prompt = await coro
-            print(f"\n{name} Prompt Preview:")
-            print("-" * 20)
-            print(f"{prompt[:100]}...")
-        except Exception as e:
-            print(f"Failed to load {name.lower()} prompt: {e}")
+        # Run tests
+        for name, coro in test_cases:
+            try:
+                prompt = await coro
+                preview = prompt[:100] + "..." if len(prompt) > 100 else prompt
+                logger.info(f"{name} prompt loaded successfully")
+                print(f"\n{name} Prompt Preview:")
+                print("-" * 20)
+                print(preview)
+            except Exception as e:
+                logger.error(f"Failed to load {name.lower()} prompt: {e}")
+                
+        logger.info("Prompt loader test completed")
+    except Exception as e:
+        logger.error(f"Test failed: {e}")
 
 
 if __name__ == "__main__":
