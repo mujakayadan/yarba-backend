@@ -22,7 +22,10 @@ from core.database.connections.mongo import mongo_manager
 from core.models.portfolio import Portfolio, PortfolioItem
 from core.models.profile import Profile
 from core.models.user import User
-from core.repositories.portfolio import PortfolioItemRepository, PortfolioRepository
+from core.repositories.portfolio_repository import (
+    PortfolioItemRepository,
+    PortfolioRepository,
+)
 
 # Configure logging
 logging.basicConfig(

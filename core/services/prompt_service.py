@@ -335,7 +335,7 @@ async def test_prompt_service():
 
     # Test Python module-based prompts
     logger.info("Testing Python module-based prompts:")
-    python_service = Prompt(use_python_prompts=True)
+    python_service = PromptService(use_python_prompts=True)
 
     # Get available prompts
     py_prompts = await python_service.get_available_prompts()
@@ -357,7 +357,7 @@ async def test_prompt_service():
     prompt_dir = Path(settings.paths.prompts_dir)
     if prompt_dir.exists():
         logger.info("\nTesting file-based prompts:")
-        file_service = Prompt(use_python_prompts=False)
+        file_service = PromptService(use_python_prompts=False)
 
         try:
             # Get available prompts

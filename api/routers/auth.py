@@ -12,7 +12,7 @@ from config import get_logger, settings
 from core.database import get_unit_of_work, get_user_repository
 from core.database.unit_of_work import AsyncMongoUnitOfWork
 from core.models.user import User
-from core.repositories.user import UserRepository
+from core.repositories.user_repository import UserRepository
 
 from ..schemas.auth import LoginRequest, RegisterRequest, TokenResponse
 

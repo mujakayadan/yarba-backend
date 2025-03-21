@@ -9,10 +9,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from config.logging_config import get_logger
 from core.models.resume import Resume
-from core.repositories.portfolio import PortfolioRepository
-from core.repositories.profile import ProfileRepository
-from core.repositories.resume import ResumeRepository
-from core.repositories.tex_template import TexHeaderRepository, TexTemplateRepository
+from core.repositories.portfolio_repository import PortfolioRepository
+from core.repositories.profile_repository import ProfileRepository
+from core.repositories.resume_repository import ResumeRepository
+from core.repositories.tex_header_repository import TexHeaderRepository
+from core.repositories.tex_template_repository import TexTemplateRepository
 from core.services.llm_service import LLMService
 from core.services.prompt_service import PromptService
 from core.services.resume_generation_service import ResumeGenerationService

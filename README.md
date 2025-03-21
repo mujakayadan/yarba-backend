@@ -188,7 +188,7 @@ The `LLMService` provides a unified interface to access various LLM providers th
 #### Usage
 
 ```python
-from core.repositories.profile import ProfileRepository
+from core.repositories.profile_repository import ProfileRepository
 from core.services.llm_service import LLMService
 from core.services.prompt_service import PromptService
 
@@ -236,10 +236,10 @@ The `ResumeGenerationService` orchestrates the complete resume and cover letter 
 #### Usage
 
 ```python
-from core.repositories.portfolio import PortfolioRepository
-from core.repositories.profile import ProfileRepository
-from core.repositories.resume import ResumeRepository
-from core.repositories.tex_template import TexHeaderRepository, TexTemplateRepository
+from core.repositories.portfolio_repository import PortfolioRepository
+from core.repositories.profile_repository import ProfileRepository
+from core.repositories.resume_repository import ResumeRepository
+from core.repositories.tex_template_repository import TexHeaderRepository, TexTemplateRepository
 from core.services.llm_service import LLMService
 from core.services.prompt_service import PromptService
 from core.services.resume_generation_service import ResumeGenerationService

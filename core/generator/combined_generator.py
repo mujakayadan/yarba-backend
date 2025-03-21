@@ -5,9 +5,9 @@ from typing import Any, Dict, Optional
 from core.models.portfolio import Portfolio
 from core.models.profile import Profile
 from core.models.resume import Resume
-from core.repositories.preamble import PreambleRepository
-from core.repositories.tex_header import TexHeaderRepository
-from core.repositories.tex_template import TexTemplateRepository
+from core.repositories.preamble_repository import PreambleRepository
+from core.repositories.tex_header_repository import TexHeaderRepository
+from core.repositories.tex_template_repository import TexTemplateRepository
 from core.services.llm_service import LLMService
 
 from .base import BaseGenerator

@@ -13,8 +13,8 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.database.init import init_db
-from core.repositories.portfolio import PortfolioRepository
-from core.repositories.profile import ProfileRepository
+from core.repositories.portfolio_repository import PortfolioRepository
+from core.repositories.profile_repository import ProfileRepository
 
 # Set up logging
 logging.basicConfig(

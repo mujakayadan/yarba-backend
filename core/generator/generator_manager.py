@@ -7,10 +7,10 @@ from config.settings import Settings
 from core.models.portfolio import Portfolio
 from core.models.profile import Profile
 from core.models.resume import Resume
-from core.repositories.preamble import PreambleRepository
-from core.repositories.tex_header import TexHeaderRepository
-from core.repositories.tex_template import TexTemplateRepository
-from core.services.latex import Latex
+from core.repositories.preamble_repository import PreambleRepository
+from core.repositories.tex_header_repository import TexHeaderRepository
+from core.repositories.tex_template_repository import TexTemplateRepository
+from core.services.latex_service import LatexService
 from core.services.llm_service import LLMService
 
 from .base import BaseGenerator
@@ -38,7 +38,7 @@ class GeneratorManager:
         preamble_repository: Optional[PreambleRepository] = None,
         tex_header_repository: Optional[TexHeaderRepository] = None,
         tex_template_repository: Optional[TexTemplateRepository] = None,
-        latex_service: Optional[Latex] = None,
+        latex_service: Optional[LatexService] = None,
     ):
         """Initialize the generator manager.
 
