@@ -7,13 +7,13 @@ from typing import AsyncGenerator
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from ..repositories.portfolio import PortfolioRepository
-from ..repositories.preamble import PreambleRepository
-from ..repositories.profile import ProfileRepository
-from ..repositories.resume import ResumeRepository
-from ..repositories.tex_header import TexHeaderRepository
-from ..repositories.tex_template import TexTemplateRepository
-from ..repositories.user import UserRepository
+from ..repositories.portfolio_repository import PortfolioRepository
+from ..repositories.preamble_repository import PreambleRepository
+from ..repositories.profile_repository import ProfileRepository
+from ..repositories.resume_repository import ResumeRepository
+from ..repositories.tex_header_repository import TexHeaderRepository
+from ..repositories.tex_template_repository import TexTemplateRepository
+from ..repositories.user_repository import UserRepository
 from .connection import get_async_database_connection
 from .unit_of_work import AsyncMongoUnitOfWork
 

@@ -3,9 +3,10 @@
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
+from core.llm.base import BaseLLM
+
 from config.logging_config import get_logger
 from config.settings import Settings
-from core.llm.base import BaseLLM
 
 logger = get_logger(__name__)
 settings = Settings()

@@ -8,8 +8,8 @@ from config import settings
 from ..exceptions.base import NotFoundException
 from ..models.resume import Resume
 from ..models.user import User
-from ..repositories.resume import ResumeFilter, ResumeRepository
-from ..repositories.user import UserRepository
+from ..repositories.resume_repository import ResumeFilter, ResumeRepository
+from ..repositories.user_repository import UserRepository
 
 logger = logging.getLogger(__name__)
 

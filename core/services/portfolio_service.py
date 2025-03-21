@@ -15,8 +15,8 @@ from ..models.portfolio import (
     WorkExperience,
 )
 from ..models.user import User
-from ..repositories.portfolio import PortfolioRepository
-from ..repositories.user import UserRepository
+from ..repositories.portfolio_repository import PortfolioRepository
+from ..repositories.user_repository import UserRepository
 
 logger = logging.getLogger(__name__)
 

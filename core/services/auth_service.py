@@ -15,7 +15,7 @@ from core.exceptions.base import (
     UnauthorizedException,
 )
 from core.models.user import User
-from core.repositories.user import UserRepository
+from core.repositories.user_repository import UserRepository
 
 settings = Settings()
 logger = get_logger(__name__)

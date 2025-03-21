@@ -8,7 +8,7 @@ from bson import ObjectId
 from ..models.profile import Preferences, Profile
 from ..models.resume import Resume
 from ..models.user import User
-from .base import BeanieRepository
+from .base_repository import BeanieRepository
 
 
 class ProfileRepository(BeanieRepository[Profile]):

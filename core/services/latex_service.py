@@ -11,9 +11,9 @@ from core.exceptions.base import InternalServerException
 from core.latex.compilers import CoverLetterCompiler, ResumeCompiler
 from core.latex.config import LatexConfig
 from core.models.resume import Resume
-from core.repositories.preamble import PreambleRepository
-from core.repositories.tex_header import TexHeaderRepository
-from core.repositories.tex_template import TexTemplateRepository
+from core.repositories.preamble_repository import PreambleRepository
+from core.repositories.tex_header_repository import TexHeaderRepository
+from core.repositories.tex_template_repository import TexTemplateRepository
 
 settings = Settings()
 logger = get_logger(__name__)

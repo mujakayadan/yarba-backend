@@ -10,9 +10,9 @@ from litellm.main import acompletion
 
 from config.settings import Settings
 from core.models.profile import LLMPreferences, Preferences, Profile
-from core.repositories.profile import ProfileRepository
-from core.services.llm import LLM
-from core.services.prompt import PromptService
+from core.repositories.profile_repository import ProfileRepository
+from core.services.llm_service import LLMService
+from core.services.prompt_service import PromptService
 
 # Make sure tests can import from the project root
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -54,12 +54,12 @@ def mock_prompt_service():
 async def test_llm_init():
     """Test LLM service initialization."""
     # Test with default settings
-    llm = LLM()
+    llm = LLMService()
     assert llm.model is not None
     assert llm.temperature is not None
 
     # Test with custom settings
-    llm = LLM(model="custom-model", temperature=0.7, api_key="test_api_key")
+    llm = LLMService(model="custom-model", temperature=0.7, api_key="test_api_key")
     assert llm.model == "custom-model"
     assert llm.temperature == 0.7
     assert llm.api_key == "test_api_key"
@@ -68,7 +68,7 @@ async def test_llm_init():
 @pytest.mark.asyncio
 async def test_configure_for_user(mock_profile_repository, mock_prompt_service):
     """Test configuring LLM for a specific user."""
-    llm = LLM(
+    llm = LLMService(
         profile_repository=mock_profile_repository, prompt_service=mock_prompt_service
     )
 
@@ -89,7 +89,7 @@ async def test_configure_for_user(mock_profile_repository, mock_prompt_service):
 @pytest.mark.asyncio
 async def test_get_completion():
     """Test getting completion from LLM."""
-    llm = LLM()
+    llm = LLMService()
 
     with patch("core.services.llm_service.acompletion") as mock_completion:
         # Setup mock response
@@ -122,7 +122,7 @@ async def test_get_completion():
 @pytest.mark.asyncio
 async def test_generate_section(mock_prompt_service):
     """Test generating section content."""
-    llm = LLM(prompt_service=mock_prompt_service)
+    llm = LLMService(prompt_service=mock_prompt_service)
 
     # Mock get_completion
     llm.get_completion = AsyncMock(return_value="Generated section")
@@ -147,7 +147,7 @@ async def test_generate_section(mock_prompt_service):
 @pytest.mark.asyncio
 async def test_generate_cover_letter(mock_prompt_service):
     """Test generating cover letter."""
-    llm = LLM(prompt_service=mock_prompt_service)
+    llm = LLMService(prompt_service=mock_prompt_service)
 
     # Mock get_completion
     llm.get_completion = AsyncMock(return_value="Generated cover letter")
@@ -214,7 +214,7 @@ class TestLLMService:
         self.prompt_service.set_user_id = MagicMock()
 
         # Initialize service with mocks
-        self.service = LLM(
+        self.service = LLMService(
             profile_repository=self.profile_repository,
             prompt_service=self.prompt_service,
             model="claude-3-haiku-20240307",  # Use a specific model for testing

@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from core.models.tex_template import TexTemplate
-from core.repositories.base import BeanieRepository
+from core.repositories.base_repository import BeanieRepository
 
 
 class TexTemplateRepository(BeanieRepository[TexTemplate]):

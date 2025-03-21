@@ -1,4 +1,4 @@
-"""Generator package for resume and cover letter generation."""
+"""Generator module for creating resumes and cover letters."""
 
 from .base import BaseGenerator
 from .combined_generator import CombinedGenerator
@@ -8,8 +8,8 @@ from .resume_generator import ResumeGenerator
 
 __all__ = [
     "BaseGenerator",
-    "CombinedGenerator",
-    "CoverLetterGenerator",
-    "GeneratorManager",
     "ResumeGenerator",
+    "CoverLetterGenerator",
+    "CombinedGenerator",
+    "GeneratorManager",
 ]

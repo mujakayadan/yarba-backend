@@ -1,77 +1,147 @@
-"""Combined generator implementation."""
+"""Combined generator for creating both resume and cover letter."""
 
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
-from config.logging_config import get_logger
 from core.models.portfolio import Portfolio
 from core.models.profile import Profile
 from core.models.resume import Resume
+from core.repositories.preamble import PreambleRepository
+from core.repositories.tex_header import TexHeaderRepository
+from core.repositories.tex_template import TexTemplateRepository
+from core.services.llm_service import LLMService
 
 from .base import BaseGenerator
 from .cover_letter_generator import CoverLetterGenerator
 from .resume_generator import ResumeGenerator
 
-logger = get_logger(__name__)
-
 
 class CombinedGenerator(BaseGenerator):
-    """Combined generator for creating both resume and cover letter."""
+    """Generator for creating both resume and cover letter."""
+
+    def __init__(
+        self,
+        profile: Profile,
+        resume: Resume,
+        portfolio: Optional[Portfolio] = None,
+        llm_service: Optional[LLMService] = None,
+        preamble_repository: Optional[PreambleRepository] = None,
+        tex_header_repository: Optional[TexHeaderRepository] = None,
+        tex_template_repository: Optional[TexTemplateRepository] = None,
+    ):
+        """Initialize the combined generator.
+
+        Args:
+            profile: User profile
+            resume: Resume to generate content for
+            portfolio: Optional portfolio data
+            llm_service: LLM service for content generation
+            preamble_repository: Repository for LaTeX preambles
+            tex_header_repository: Repository for LaTeX headers
+            tex_template_repository: Repository for LaTeX templates
+        """
+        super().__init__(
+            profile=profile,
+            resume=resume,
+            portfolio=portfolio,
+            llm_service=llm_service,
+            preamble_repository=preamble_repository,
+            tex_header_repository=tex_header_repository,
+            tex_template_repository=tex_template_repository,
+        )
+        self.logger = self.logger.getChild("CombinedGenerator")
+
+        # Initialize child generators
+        self.resume_generator = ResumeGenerator(
+            profile=profile,
+            resume=resume,
+            portfolio=portfolio,
+            llm_service=llm_service,
+            preamble_repository=preamble_repository,
+            tex_header_repository=tex_header_repository,
+            tex_template_repository=tex_template_repository,
+        )
+
+        self.cover_letter_generator = CoverLetterGenerator(
+            profile=profile,
+            resume=resume,
+            portfolio=portfolio,
+            llm_service=llm_service,
+            preamble_repository=preamble_repository,
+            tex_header_repository=tex_header_repository,
+            tex_template_repository=tex_template_repository,
+        )
 
     async def generate(self, **kwargs) -> Dict[str, Any]:
         """Generate both resume and cover letter content.
 
         Args:
             **kwargs: Additional arguments for generation
-                - generate_pdf: Whether to generate PDFs (default: False)
-                - resume_kwargs: Additional arguments for resume generation
-                - cover_letter_kwargs: Additional arguments for cover letter generation
+                - resume_kwargs: Arguments to pass to the resume generator
+                - cover_letter_kwargs: Arguments to pass to the cover letter generator
 
         Returns:
-            Dict[str, Any]: Generated content with both resume and cover letter
+            Dict[str, Any]: Generated content for both resume and cover letter
         """
-        if not self.profile or not self.resume:
-            raise ValueError("Profile and Resume are required for generation")
-
-        # Preprocess data
-        data = await self.preprocess(**kwargs)
-
-        # Initialize generators
-        resume_generator = ResumeGenerator(
-            profile=self.profile,
-            portfolio=self.portfolio,
-            resume=self.resume,
-            settings=self.settings,
+        self.logger.info(
+            f"Generating combined content for user: {self.profile.user_id}"
         )
 
-        cover_letter_generator = CoverLetterGenerator(
-            profile=self.profile,
-            portfolio=self.portfolio,
-            resume=self.resume,
-            settings=self.settings,
-        )
-
-        # Generate resume content
-        resume_kwargs = kwargs.get("resume_kwargs", {})
-        resume_kwargs["generate_pdf"] = kwargs.get("generate_pdf", False)
-        resume_content = await resume_generator.generate(**resume_kwargs)
-
-        # Generate cover letter content
-        cover_letter_kwargs = kwargs.get("cover_letter_kwargs", {})
-        cover_letter_kwargs["generate_pdf"] = kwargs.get("generate_pdf", False)
-        cover_letter_content = await cover_letter_generator.generate(
-            **cover_letter_kwargs
-        )
-
-        # Combine content
-        combined_content = {
-            "resume": resume_content,
-            "cover_letter": cover_letter_content,
+        result = {
+            "resume_id": str(self.resume.id),
+            "user_id": str(self.profile.user_id),
+            "resume": {},
+            "cover_letter": {},
         }
 
-        # Postprocess content
-        processed_content = await self.postprocess(combined_content, **kwargs)
+        # Extract specific kwargs for each generator
+        resume_kwargs = kwargs.get("resume_kwargs", {})
+        cover_letter_kwargs = kwargs.get("cover_letter_kwargs", {})
 
-        return processed_content
+        # Generate resume
+        try:
+            resume_result = await self.resume_generator.generate(**resume_kwargs)
+            result["resume"] = resume_result
+            self.logger.info("Resume generation completed")
+        except Exception as e:
+            self.logger.error(f"Error generating resume: {e}")
+            result["resume"] = {"error": str(e)}
+
+        # Generate cover letter
+        try:
+            # Pass resume content to cover letter generation if needed
+            if "json_content" in result.get("resume", {}):
+                # Update the resume content before generating cover letter
+                self.resume.content = result["resume"]["json_content"]
+
+            cover_letter_result = await self.cover_letter_generator.generate(
+                **cover_letter_kwargs
+            )
+            result["cover_letter"] = cover_letter_result
+            self.logger.info("Cover letter generation completed")
+        except Exception as e:
+            self.logger.error(f"Error generating cover letter: {e}")
+            result["cover_letter"] = {"error": str(e)}
+
+        # Set all content in resume for persistence
+        try:
+            if "json_content" in result.get("resume", {}):
+                self.resume.content = result["resume"]["json_content"]
+
+            if "latex_content" in result.get("resume", {}):
+                self.resume.resume_latex = result["resume"]["latex_content"]
+
+            if "json_content" in result.get("cover_letter", {}):
+                self.resume.cover_letter_content = result["cover_letter"][
+                    "json_content"
+                ]
+
+            if "latex_content" in result.get("cover_letter", {}):
+                self.resume.cover_letter_latex = result["cover_letter"]["latex_content"]
+
+        except Exception as e:
+            self.logger.error(f"Error updating resume with generated content: {e}")
+
+        return result
 
     async def preprocess(self, **kwargs) -> Dict[str, Any]:
         """Preprocess data before generation.

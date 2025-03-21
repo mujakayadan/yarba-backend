@@ -7,6 +7,11 @@ from config.settings import Settings
 from core.models.portfolio import Portfolio
 from core.models.profile import Profile
 from core.models.resume import Resume
+from core.repositories.preamble import PreambleRepository
+from core.repositories.tex_header import TexHeaderRepository
+from core.repositories.tex_template import TexTemplateRepository
+from core.services.latex import Latex
+from core.services.llm_service import LLMService
 
 from .base import BaseGenerator
 from .combined_generator import CombinedGenerator
@@ -24,129 +29,141 @@ class GeneratorManager:
     of appropriate generators and manages the generation process.
     """
 
-    def __init__(self, settings: Optional[Settings] = None):
+    def __init__(
+        self,
+        profile: Profile,
+        resume: Resume,
+        portfolio: Optional[Portfolio] = None,
+        llm_service: Optional[LLMService] = None,
+        preamble_repository: Optional[PreambleRepository] = None,
+        tex_header_repository: Optional[TexHeaderRepository] = None,
+        tex_template_repository: Optional[TexTemplateRepository] = None,
+        latex_service: Optional[Latex] = None,
+    ):
         """Initialize the generator manager.
 
         Args:
-            settings: Application settings
-        """
-        self.settings = settings or Settings()
-        self.logger = logger
-
-    async def generate_resume(
-        self,
-        profile: Profile,
-        resume: Resume,
-        portfolio: Optional[Portfolio] = None,
-        **kwargs,
-    ) -> Dict[str, Any]:
-        """Generate a resume.
-
-        Args:
             profile: User profile
-            resume: Resume to generate
+            resume: Resume to generate content for
             portfolio: Optional portfolio data
-            **kwargs: Additional arguments for generation
-
-        Returns:
-            Dict[str, Any]: Generated resume content
+            llm_service: LLM service for content generation
+            preamble_repository: Repository for LaTeX preambles
+            tex_header_repository: Repository for LaTeX headers
+            tex_template_repository: Repository for LaTeX templates
+            latex_service: Service for compiling LaTeX to PDF
         """
-        generator = ResumeGenerator(
-            profile=profile,
-            portfolio=portfolio,
-            resume=resume,
-            settings=self.settings,
-        )
+        self.profile = profile
+        self.resume = resume
+        self.portfolio = portfolio
+        self.llm_service = llm_service
+        self.preamble_repository = preamble_repository
+        self.tex_header_repository = tex_header_repository
+        self.tex_template_repository = tex_template_repository
+        self.latex_service = latex_service
+        self.logger = get_logger(__name__).getChild("GeneratorManager")
 
-        return await generator.generate(**kwargs)
+        # Initialize generators
+        self.generators = {
+            "resume": ResumeGenerator(
+                profile=profile,
+                resume=resume,
+                portfolio=portfolio,
+                llm_service=llm_service,
+                preamble_repository=preamble_repository,
+                tex_header_repository=tex_header_repository,
+                tex_template_repository=tex_template_repository,
+            ),
+            "cover_letter": CoverLetterGenerator(
+                profile=profile,
+                resume=resume,
+                portfolio=portfolio,
+                llm_service=llm_service,
+                preamble_repository=preamble_repository,
+                tex_header_repository=tex_header_repository,
+                tex_template_repository=tex_template_repository,
+            ),
+            "combined": CombinedGenerator(
+                profile=profile,
+                resume=resume,
+                portfolio=portfolio,
+                llm_service=llm_service,
+                preamble_repository=preamble_repository,
+                tex_header_repository=tex_header_repository,
+                tex_template_repository=tex_template_repository,
+            ),
+        }
 
-    async def generate_cover_letter(
-        self,
-        profile: Profile,
-        resume: Resume,
-        portfolio: Optional[Portfolio] = None,
-        **kwargs,
+    async def generate(
+        self, generator_type: str = "resume", compile_pdf: bool = False, **kwargs
     ) -> Dict[str, Any]:
-        """Generate a cover letter.
-
-        Args:
-            profile: User profile
-            resume: Resume to generate cover letter for
-            portfolio: Optional portfolio data
-            **kwargs: Additional arguments for generation
-
-        Returns:
-            Dict[str, Any]: Generated cover letter content
-        """
-        generator = CoverLetterGenerator(
-            profile=profile,
-            portfolio=portfolio,
-            resume=resume,
-            settings=self.settings,
-        )
-
-        return await generator.generate(**kwargs)
-
-    async def generate_combined(
-        self,
-        profile: Profile,
-        resume: Resume,
-        portfolio: Optional[Portfolio] = None,
-        **kwargs,
-    ) -> Dict[str, Any]:
-        """Generate both resume and cover letter.
-
-        Args:
-            profile: User profile
-            resume: Resume to generate
-            portfolio: Optional portfolio data
-            **kwargs: Additional arguments for generation
-
-        Returns:
-            Dict[str, Any]: Generated content with both resume and cover letter
-        """
-        generator = CombinedGenerator(
-            profile=profile,
-            portfolio=portfolio,
-            resume=resume,
-            settings=self.settings,
-        )
-
-        return await generator.generate(**kwargs)
-
-    async def generate_by_type(
-        self,
-        generator_type: str,
-        profile: Profile,
-        resume: Resume,
-        portfolio: Optional[Portfolio] = None,
-        **kwargs,
-    ) -> Dict[str, Any]:
-        """Generate content based on generator type.
+        """Generate document content using the specified generator.
 
         Args:
             generator_type: Type of generator to use ("resume", "cover_letter", or "combined")
-            profile: User profile
-            resume: Resume to generate
-            portfolio: Optional portfolio data
-            **kwargs: Additional arguments for generation
+            compile_pdf: Whether to compile the generated LaTeX to PDF
+            **kwargs: Additional arguments for the generator
 
         Returns:
             Dict[str, Any]: Generated content
-
-        Raises:
-            ValueError: If an invalid generator type is provided
         """
-        if generator_type == "resume":
-            return await self.generate_resume(profile, resume, portfolio, **kwargs)
-        elif generator_type == "cover_letter":
-            return await self.generate_cover_letter(
-                profile, resume, portfolio, **kwargs
-            )
-        elif generator_type == "combined":
-            return await self.generate_combined(profile, resume, portfolio, **kwargs)
-        else:
-            raise ValueError(f"Invalid generator type: {generator_type}")
+        self.logger.info(
+            f"Generating {generator_type} for user: {self.profile.user_id}"
+        )
+
+        if generator_type not in self.generators:
+            raise ValueError(f"Unknown generator type: {generator_type}")
+
+        # Generate content
+        result = await self.generators[generator_type].generate(**kwargs)
+
+        # Compile to PDF if requested
+        if compile_pdf and self.latex_service:
+            try:
+                self._compile_pdf(result, generator_type)
+            except Exception as e:
+                self.logger.error(f"Error compiling PDF: {e}")
+                if "error" not in result:
+                    result["error"] = {}
+                result["error"]["pdf_compilation"] = str(e)
+
+        return result
+
+    def _compile_pdf(self, result: Dict[str, Any], generator_type: str) -> None:
+        """Compile LaTeX content to PDF.
+
+        Args:
+            result: Generated content
+            generator_type: Type of generator used
+        """
+        if not self.latex_service:
+            self.logger.warning("LaTeX service not available for PDF compilation")
+            return
+
+        # Update resume with generated content
+        if generator_type in ["resume", "combined"]:
+            if "resume" in result and "latex_content" in result.get("resume", {}):
+                latex_content = result["resume"]["latex_content"]
+                pdf_path = self.latex_service.compile_latex_to_pdf(
+                    latex_content, self.resume.id, is_cover_letter=False
+                )
+                if pdf_path:
+                    result["resume"]["pdf_path"] = pdf_path
+                    # Update resume with PDF path
+                    self.resume.resume_pdf_path = pdf_path
+
+        # Update cover letter with generated content
+        if generator_type in ["cover_letter", "combined"]:
+            if "cover_letter" in result and "latex_content" in result.get(
+                "cover_letter", {}
+            ):
+                latex_content = result["cover_letter"]["latex_content"]
+                pdf_path = self.latex_service.compile_latex_to_pdf(
+                    latex_content, self.resume.id, is_cover_letter=True
+                )
+                if pdf_path:
+                    result["cover_letter"]["pdf_path"] = pdf_path
+                    # Update resume with PDF path
+                    self.resume.cover_letter_pdf_path = pdf_path
 
     async def get_available_generators(self) -> List[Dict[str, Any]]:
         """Get a list of available generators.

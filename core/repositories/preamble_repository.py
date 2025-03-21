@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from ..models.preamble import Preamble
-from .base import BeanieRepository
+from .base_repository import BeanieRepository
 
 
 class PreambleRepository(BeanieRepository[Preamble]):

@@ -7,11 +7,11 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 import streamlit as st
+from core.llm.base import BaseLLM
 
 from config import get_logger
 from config.settings import settings
 from core.database.factory import get_unit_of_work
-from core.llm.base import BaseLLM
 from core.models.profile import Preferences, Profile
 
 from ..components.model_selector import ModelSelector

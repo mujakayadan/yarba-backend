@@ -1,4 +1,4 @@
-"""Base generator class for all generators."""
+"""Base generator class for document generation."""
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
@@ -8,43 +8,63 @@ from config.settings import Settings
 from core.models.portfolio import Portfolio
 from core.models.profile import Profile
 from core.models.resume import Resume
+from core.repositories.preamble_repository import PreambleRepository
+from core.repositories.tex_header_repository import TexHeaderRepository
+from core.repositories.tex_template_repository import TexTemplateRepository
+from core.services.llm_service import LLMService
 
 logger = get_logger(__name__)
 
 
 class BaseGenerator(ABC):
-    """Base class for all generators."""
+    """Base abstract class for document generators.
+
+    This class provides common functionality for document generators,
+    including access to user data, repositories, and services.
+    """
 
     def __init__(
         self,
-        profile: Optional[Profile] = None,
+        profile: Profile,
+        resume: Resume,
         portfolio: Optional[Portfolio] = None,
-        resume: Optional[Resume] = None,
-        settings: Optional[Settings] = None,
+        llm_service: Optional[LLMService] = None,
+        preamble_repository: Optional[PreambleRepository] = None,
+        tex_header_repository: Optional[TexHeaderRepository] = None,
+        tex_template_repository: Optional[TexTemplateRepository] = None,
     ):
-        """Initialize the generator.
+        """Initialize the base generator.
 
         Args:
             profile: User profile
-            portfolio: User portfolio
-            resume: Resume to generate
-            settings: Application settings
+            resume: Resume to generate content for
+            portfolio: Optional portfolio data
+            llm_service: LLM service for content generation
+            preamble_repository: Repository for LaTeX preambles
+            tex_header_repository: Repository for LaTeX headers
+            tex_template_repository: Repository for LaTeX templates
         """
         self.profile = profile
-        self.portfolio = portfolio
         self.resume = resume
-        self.settings = settings or Settings()
+        self.portfolio = portfolio
+        self.llm_service = llm_service
+        self.preamble_repository = preamble_repository
+        self.tex_header_repository = tex_header_repository
+        self.tex_template_repository = tex_template_repository
         self.logger = logger
 
     @abstractmethod
     async def generate(self, **kwargs) -> Dict[str, Any]:
-        """Generate content.
+        """Generate document content.
+
+        This abstract method must be implemented by subclasses to
+        generate the specific document content.
 
         Args:
             **kwargs: Additional arguments for generation
 
         Returns:
-            Dict[str, Any]: Generated content
+            Dict[str, Any]: Generated document content
         """
         pass
 
@@ -118,3 +138,93 @@ class BaseGenerator(ABC):
             }
 
         return model_settings
+
+    async def _get_section_processing_preference(self, section_name: str) -> str:
+        """Get processing preference for a section.
+
+        Args:
+            section_name: Name of the section
+
+        Returns:
+            str: Processing preference ('Process' or 'Hardcode')
+        """
+        # Default to processing
+        section_preference = "Process"
+
+        # Check profile preferences if available
+        if (
+            self.profile
+            and self.profile.preferences
+            and self.profile.preferences.section_preferences
+        ):
+            section_preference = self.profile.preferences.section_preferences.get(
+                section_name, "Process"
+            )
+
+        return section_preference
+
+    async def _get_preamble(self, preamble_name: str) -> Optional[str]:
+        """Get a LaTeX preamble.
+
+        Args:
+            preamble_name: Name of the preamble to retrieve
+
+        Returns:
+            Optional[str]: Preamble content if found, None otherwise
+        """
+        if not self.preamble_repository:
+            self.logger.warning("Preamble repository not available")
+            return None
+
+        try:
+            preamble = await self.preamble_repository.get_by_name(preamble_name)
+            if preamble:
+                return preamble.content
+        except Exception as e:
+            self.logger.error(f"Error retrieving preamble '{preamble_name}': {e}")
+
+        return None
+
+    async def _get_tex_header(self, header_name: str) -> Optional[str]:
+        """Get a LaTeX header.
+
+        Args:
+            header_name: Name of the header to retrieve
+
+        Returns:
+            Optional[str]: Header content if found, None otherwise
+        """
+        if not self.tex_header_repository:
+            self.logger.warning("TeX header repository not available")
+            return None
+
+        try:
+            header = await self.tex_header_repository.get_by_name(header_name)
+            if header:
+                return header.content
+        except Exception as e:
+            self.logger.error(f"Error retrieving TeX header '{header_name}': {e}")
+
+        return None
+
+    async def _get_tex_template(self, template_name: str) -> Optional[str]:
+        """Get a LaTeX template.
+
+        Args:
+            template_name: Name of the template to retrieve
+
+        Returns:
+            Optional[str]: Template content if found, None otherwise
+        """
+        if not self.tex_template_repository:
+            self.logger.warning("TeX template repository not available")
+            return None
+
+        try:
+            template = await self.tex_template_repository.get_by_name(template_name)
+            if template:
+                return template.content
+        except Exception as e:
+            self.logger.error(f"Error retrieving TeX template '{template_name}': {e}")
+
+        return None

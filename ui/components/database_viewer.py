@@ -12,7 +12,7 @@ from config.logging_config import get_logger
 from config.settings import Settings
 from core.database.factory import get_resume_repository
 from core.models.resume import Resume
-from core.repositories.resume import ResumeRepository
+from core.repositories.resume_repository import ResumeRepository
 
 logger = get_logger(__name__)
 settings = Settings()

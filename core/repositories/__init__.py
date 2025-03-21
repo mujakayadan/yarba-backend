@@ -1,11 +1,11 @@
 """Core repositories package for the resume builder application."""
 
-from .portfolio import PortfolioRepository
-from .preamble import PreambleRepository
-from .profile import ProfileRepository
-from .resume import ResumeRepository
-from .tex_header import TexHeaderRepository
-from .user import UserRepository
+from .portfolio_repository import PortfolioRepository
+from .preamble_repository import PreambleRepository
+from .profile_repository import ProfileRepository
+from .resume_repository import ResumeRepository
+from .tex_header_repository import TexHeaderRepository
+from .user_repository import UserRepository
 
 __all__ = [
     "UserRepository",

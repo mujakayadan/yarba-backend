@@ -49,46 +49,54 @@ Your task is to generate content for the '{section_name}' section of a resume.
         prompt += f"Job Description:\n{job_description}\n\n"
 
     # Add section-specific instructions
-    if section_name == "personal_information":
-        prompt += """Generate a professional personal information section for the resume.
+    section_instructions = {
+        "personal_information": """Generate a professional personal information section for the resume.
 Include the full name, email, phone number, and location. Optionally include LinkedIn, GitHub, and personal website if available.
-Format the information in a clean, professional manner suitable for a resume header.
-"""
-    elif section_name == "career_summary":
-        prompt += """Generate a compelling career summary that highlights the candidate's experience, skills, and value proposition.
+Format the information in a clean, professional manner suitable for a resume header.""",
+        "career_summary": """Generate a compelling career summary that highlights the candidate's experience, skills, and value proposition.
 Keep it concise (3-5 sentences) and impactful, focusing on achievements and expertise relevant to the target position.
-Avoid generic statements and use strong action verbs.
-"""
-    elif section_name == "skills":
-        prompt += """Generate a skills section organized by categories (e.g., Technical Skills, Soft Skills, Languages).
+Avoid generic statements and use strong action verbs.""",
+        "skills": """Generate a skills section organized by categories (e.g., Technical Skills, Soft Skills, Languages).
 For each category, list relevant skills that match the job requirements and the candidate's experience.
-Format the skills in a way that is easy to scan and ATS-friendly.
-"""
-    elif section_name == "work_experience":
-        prompt += """Generate work experience entries with the following format for each position:
+Format the skills in a way that is easy to scan and ATS-friendly.""",
+        "work_experience": """Generate work experience entries with the following format for each position:
 - Company name, location
 - Job title
 - Employment dates (MM/YYYY - MM/YYYY or "Present" for current positions)
 - 3-5 bullet points highlighting achievements, responsibilities, and impact
-Use strong action verbs, quantify achievements where possible, and focus on results rather than just duties.
-"""
-    elif section_name == "education":
-        prompt += """Generate education entries with the following format for each institution:
+Use strong action verbs, quantify achievements where possible, and focus on results rather than just duties.""",
+        "education": """Generate education entries with the following format for each institution:
 - Institution name, location
 - Degree and field of study
 - Graduation date (MM/YYYY)
-- Optional: GPA (if above 3.5), relevant coursework, academic achievements, extracurricular activities
-"""
-    elif section_name == "projects":
-        prompt += """Generate project entries with the following format for each project:
+- Optional: GPA (if above 3.5), relevant coursework, academic achievements, extracurricular activities""",
+        "projects": """Generate project entries with the following format for each project:
 - Project name
 - Technologies/tools used
 - Brief description of the project's purpose and your role
-- 2-3 bullet points highlighting your contributions, challenges overcome, and results achieved
-"""
+- 2-3 bullet points highlighting your contributions, challenges overcome, and results achieved""",
+        "awards": """Generate awards and honors entries with the following format:
+- Award/honor name
+- Issuing organization
+- Date received (YYYY)
+- Brief description of the award's significance""",
+        "publications": """Generate publication entries with the following format:
+- Title of publication
+- Authors (if applicable)
+- Journal/conference/publisher
+- Publication date (YYYY)
+- Brief description or impact of the publication""",
+    }
+
+    prompt += (
+        section_instructions.get(
+            section_name, f"Generate content for the {section_name} section."
+        )
+        + "\n\n"
+    )
 
     # Add user information
-    prompt += f"\nCandidate Information:\n"
+    prompt += f"Candidate Information:\n"
     prompt += f"Name: {profile.full_name}\n"
 
     if portfolio:

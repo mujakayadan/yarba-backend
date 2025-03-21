@@ -19,7 +19,7 @@ from ..models.portfolio import (
     WorkExperience,
 )
 from ..models.user import User
-from .base import BeanieRepository
+from .base_repository import BeanieRepository
 
 
 class PortfolioRepository(BeanieRepository[Portfolio]):

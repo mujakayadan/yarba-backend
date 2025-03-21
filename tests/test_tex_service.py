@@ -8,9 +8,9 @@ from beanie import init_beanie
 from core.models.preamble import Preamble
 from core.models.tex_header import TexHeader
 from core.models.tex_template import TexTemplate
-from core.repositories.preamble import PreambleRepository
-from core.repositories.tex_header import TexHeaderRepository
-from core.repositories.tex_template import TexTemplateRepository
+from core.repositories.preamble_repository import PreambleRepository
+from core.repositories.tex_header_repository import TexHeaderRepository
+from core.repositories.tex_template_repository import TexTemplateRepository
 from core.services.tex_service import TexService
 
 

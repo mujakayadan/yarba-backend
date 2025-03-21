@@ -7,18 +7,18 @@ import pytest
 from core.models.portfolio import Portfolio
 from core.models.profile import Profile
 from core.models.resume import Resume
-from core.repositories.portfolio import PortfolioRepository
-from core.repositories.profile import ProfileRepository
-from core.repositories.resume import ResumeRepository
-from core.services.llm import LLM
-from core.services.resume_generation import ResumeGeneration
-from core.services.tex import TexService
+from core.repositories.portfolio_repository import PortfolioRepository
+from core.repositories.profile_repository import ProfileRepository
+from core.repositories.resume_repository import ResumeRepository
+from core.services.llm_service import LLMService
+from core.services.resume_generation_service import ResumeGenerationService
+from core.services.tex_service import TexService
 
 
 @pytest.fixture
 def mock_llm():
     """Create a mock LLM service."""
-    llm = AsyncMock(spec=LLM)
+    llm = AsyncMock(spec=LLMService)
     llm.generate_section.return_value = "Generated content"
     llm.generate_cover_letter.return_value = "Generated cover letter"
     return llm
@@ -136,7 +136,7 @@ async def test_generation_service_init(
 ):
     """Test resume generation service initialization."""
     # Create service with all dependencies
-    service = ResumeGeneration(
+    service = ResumeGenerationService(
         llm_service=mock_llm,
         tex_service=mock_tex_service,
         profile_repository=mock_profile_repository,
@@ -158,7 +158,7 @@ async def test_generate_resume_content(
 ):
     """Test generating resume content."""
     # Create service
-    service = ResumeGeneration(
+    service = ResumeGenerationService(
         llm_service=mock_llm,
         profile_repository=mock_profile_repository,
         portfolio_repository=mock_portfolio_repository,
@@ -197,7 +197,7 @@ async def test_generate_cover_letter(
 ):
     """Test generating cover letter."""
     # Create service
-    service = ResumeGeneration(
+    service = ResumeGenerationService(
         llm_service=mock_llm,
         tex_service=mock_tex_service,
         profile_repository=mock_profile_repository,

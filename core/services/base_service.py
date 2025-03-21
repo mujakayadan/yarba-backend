@@ -4,7 +4,7 @@ import logging
 from typing import Any, Dict, Generic, List, Optional, Type, TypeVar
 
 from ..models import User
-from ..repositories.base import BaseRepository
+from ..repositories.base_repository import BaseRepository
 
 T = TypeVar("T")
 

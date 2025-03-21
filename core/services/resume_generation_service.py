@@ -10,9 +10,9 @@ from config.logging_config import get_logger
 from core.models.portfolio import Portfolio
 from core.models.profile import Profile
 from core.models.resume import Resume
-from core.repositories.portfolio import PortfolioRepository
-from core.repositories.profile import ProfileRepository
-from core.repositories.resume import ResumeRepository
+from core.repositories.portfolio_repository import PortfolioRepository
+from core.repositories.profile_repository import ProfileRepository
+from core.repositories.resume_repository import ResumeRepository
 from core.services.llm_service import LLMService
 from core.services.prompt_service import PromptService
 from core.services.tex_service import TexService

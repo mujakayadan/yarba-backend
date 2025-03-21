@@ -7,7 +7,7 @@ from ..models.portfolio import Portfolio
 from ..models.profile import Profile
 from ..models.resume import Resume
 from ..models.user import User
-from .base import BeanieRepository
+from .base_repository import BeanieRepository
 
 
 class UserRepository(BeanieRepository[User]):

@@ -6,8 +6,8 @@ from typing import Dict, List, Optional
 from ..exceptions.base import NotFoundException
 from ..models.profile import Profile
 from ..models.user import User
-from ..repositories.profile import ProfileRepository
-from ..repositories.user import UserRepository
+from ..repositories.profile_repository import ProfileRepository
+from ..repositories.user_repository import UserRepository
 
 logger = logging.getLogger(__name__)
 

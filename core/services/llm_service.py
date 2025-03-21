@@ -9,7 +9,7 @@ from litellm import acompletion
 from config.logging_config import get_logger
 from config.settings import Settings
 from core.models.profile import Profile
-from core.repositories.profile import ProfileRepository
+from core.repositories.profile_repository import ProfileRepository
 from core.services.prompt_service import PromptService
 
 settings = Settings()

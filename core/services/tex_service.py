@@ -3,9 +3,15 @@
 import logging
 from typing import Any, Dict, List, Optional
 
-from core.repositories.preamble import PreambleRepository, get_preamble_repository
-from core.repositories.tex_header import TexHeaderRepository, get_tex_header_repository
-from core.repositories.tex_template import (
+from core.repositories.preamble_repository import (
+    PreambleRepository,
+    get_preamble_repository,
+)
+from core.repositories.tex_header_repository import (
+    TexHeaderRepository,
+    get_tex_header_repository,
+)
+from core.repositories.tex_template_repository import (
     TexTemplateRepository,
     get_tex_template_repository,
 )

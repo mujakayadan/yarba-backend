@@ -15,13 +15,13 @@ from core.database import (
     get_user_repository,
 )
 from core.database.unit_of_work import AsyncMongoUnitOfWork
-from core.repositories.portfolio import PortfolioRepository
-from core.repositories.preamble import PreambleRepository
-from core.repositories.profile import ProfileRepository
-from core.repositories.resume import ResumeRepository
-from core.repositories.tex_header import TexHeaderRepository
-from core.repositories.tex_template import TexTemplateRepository
-from core.repositories.user import UserRepository
+from core.repositories.portfolio_repository import PortfolioRepository
+from core.repositories.preamble_repository import PreambleRepository
+from core.repositories.profile_repository import ProfileRepository
+from core.repositories.resume_repository import ResumeRepository
+from core.repositories.tex_header_repository import TexHeaderRepository
+from core.repositories.tex_template_repository import TexTemplateRepository
+from core.repositories.user_repository import UserRepository
 
 # Type aliases for dependency injection
 UnitOfWork = Annotated[AsyncMongoUnitOfWork, Depends(get_unit_of_work)]
