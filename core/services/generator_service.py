@@ -86,8 +86,8 @@ class GeneratorService:
             if not resume:
                 raise ValueError(f"Resume with ID {resume_id} not found")
 
-            # Verify resume belongs to user
-            if str(resume.user_id) != user_id:
+            # Verify resume belongs to user (convert both to strings for comparison)
+            if str(resume.user_id) != str(user_id):
                 raise ValueError(
                     f"Resume with ID {resume_id} does not belong to user {user_id}"
                 )

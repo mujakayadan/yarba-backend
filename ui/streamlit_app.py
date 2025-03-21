@@ -66,7 +66,13 @@ class StreamlitApp:
             def get_repo_from_generator(gen):
                 """Helper to get first yield from generator"""
                 try:
-                    loop = asyncio.get_event_loop()
+                    try:
+                        loop = asyncio.get_event_loop()
+                    except RuntimeError:
+                        # Create a new event loop if there isn't one available
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+
                     gen_instance = gen.__aiter__()
                     return loop.run_until_complete(gen_instance.__anext__())
                 except Exception as e:

@@ -253,7 +253,7 @@ class PathSettings(BaseSettings):
     )
 
     prompts_dir: Path = Field(
-        default=Path("core/prompts"),
+        default=Path("/prompts"),
         description="Directory for prompt templates",
     )
 

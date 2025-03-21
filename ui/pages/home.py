@@ -11,6 +11,7 @@ from core.services.generator_service import GeneratorService
 from core.services.job_service import JobService
 from core.services.latex_service import LatexService
 from core.services.llm_service import LLMService
+from core.services.prompt_service import PromptService
 from ui.components.section_selector import SectionSelector
 
 logger = get_logger(__name__)
@@ -208,8 +209,17 @@ class HomePage:
                                 llm_service = LLMService(
                                     profile_repository=profile_repo,
                                 )
+                                # Set up prompt service
+                                prompt_service = PromptService(
+                                    user_repository=profile_repo
+                                )
+                                prompt_service.set_user_id(st.session_state["user_id"])
+
                                 # Set up job service
-                                job_service = JobService(llm_service=llm_service)
+                                job_service = JobService(
+                                    llm_service=llm_service,
+                                    prompt_service=prompt_service,
+                                )
 
                                 # Extract job info
                                 job_info = await job_service.extract_job_info(
@@ -418,23 +428,56 @@ class HomePage:
                                             "Profile not found. Please create a profile first."
                                         )
 
-                                    if not profile.default_portfolio_id:
-                                        raise ValueError(
-                                            "No default portfolio found. Please create a portfolio first."
+                                    # Get user's portfolios
+                                    portfolios = (
+                                        await uow.portfolio_repository.get_by_user_id(
+                                            st.session_state["user_id"]
                                         )
+                                    )
 
-                                    # Create a new resume
+                                    # Use first portfolio or create a new one
+                                    if not portfolios:
+                                        from core.models.portfolio import Portfolio
+
+                                        # Create a default portfolio
+                                        portfolio = Portfolio(
+                                            user_id=st.session_state["user_id"],
+                                            title="Default Portfolio",
+                                            description="Default portfolio created automatically",
+                                        )
+                                        await uow.portfolio_repository.save(portfolio)
+                                        portfolio_id = portfolio.id
+                                    else:
+                                        portfolio_id = portfolios[0].id
+
+                                    # Extract job info from session state
+                                    job_info = st.session_state.get(
+                                        "current_job_info", {}
+                                    )
+                                    company_name = job_info.get(
+                                        "company_name", "unknown_company"
+                                    )
+                                    job_title = job_info.get(
+                                        "job_title", "unknown_position"
+                                    )
+
+                                    # Create a new resume with all required fields
                                     from core.models.resume import Resume
 
                                     resume = Resume(
                                         user_id=st.session_state["user_id"],
                                         profile_id=profile.id,
-                                        portfolio_id=profile.default_portfolio_id,
+                                        portfolio_id=portfolio_id,
                                         job_description=job_description,
-                                        job_position=job_info.get("job_title"),
-                                        company_details=job_info.get("company_name"),
+                                        # Make sure these required fields are not None
+                                        company_name=company_name,
+                                        job_title=job_title,
+                                        resume_pdf=b"",  # Empty bytes for initial creation
+                                        cover_letter_content="",  # Empty string for initial creation
+                                        cover_letter_pdf=b"",  # Empty bytes for initial creation
                                     )
-                                    await uow.resume_repository.save(resume)
+
+                                    await uow.resume_repository.create(resume)
                                     return str(resume.id)
                                 finally:
                                     # Clean up

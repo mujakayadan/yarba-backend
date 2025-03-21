@@ -13,7 +13,7 @@ if __name__ == "__main__":
 
 from beanie import PydanticObjectId
 
-from config.logging_config import get_logger
+from config.logging_config import configure_logging, get_logger
 from config.settings import Settings
 from core.models.user import User
 from prompts import (
@@ -33,6 +33,7 @@ from prompts import (
 )
 
 settings = Settings()
+configure_logging()
 logger = get_logger(__name__)
 
 
