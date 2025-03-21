@@ -1,28 +1,129 @@
-"""Tests for the TexService class."""
+"""Tests for tex service."""
 
-import asyncio
-import os
-import sys
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-import pytest_asyncio
 from beanie import init_beanie
 
 from core.models.preamble import Preamble
 from core.models.tex_header import TexHeader
 from core.models.tex_template import TexTemplate
+from core.repositories.preamble import PreambleRepository
+from core.repositories.tex_header import TexHeaderRepository
+from core.repositories.tex_template import TexTemplateRepository
 from core.services.tex_service import TexService
 
-# Make sure tests can import from the project root
-sys.path.insert(0, str(Path(__file__).parent.parent))
+
+@pytest.fixture
+def mock_template_repository():
+    """Create a mock template repository."""
+    repo = AsyncMock(spec=TexTemplateRepository)
+    repo.get_by_name.return_value = "Test template content with {placeholder}"
+    repo.safe_format_template.return_value = "Formatted template content"
+    return repo
+
+
+@pytest.fixture
+def mock_header_repository():
+    """Create a mock header repository."""
+    repo = AsyncMock(spec=TexHeaderRepository)
+    repo.get_by_name.return_value = "Test header content"
+    repo.get_default.return_value = "Default header content"
+    return repo
+
+
+@pytest.fixture
+def mock_preamble_repository():
+    """Create a mock preamble repository."""
+    repo = AsyncMock(spec=PreambleRepository)
+    repo.get_default.return_value = "Default preamble content"
+    return repo
 
 
 @pytest.mark.asyncio
-class TestTexService:
-    """Test class for the TexService."""
+async def test_tex_service_init(
+    mock_template_repository, mock_header_repository, mock_preamble_repository
+):
+    """Test TeX service initialization."""
+    # Create service with all dependencies
+    service = TexService(
+        template_repository=mock_template_repository,
+        header_repository=mock_header_repository,
+        preamble_repository=mock_preamble_repository,
+    )
 
+    # Verify all dependencies are set
+    assert service.template_repository == mock_template_repository
+    assert service.header_repository == mock_header_repository
+    assert service.preamble_repository == mock_preamble_repository
+
+
+@pytest.mark.asyncio
+async def test_get_template(mock_template_repository):
+    """Test getting a template."""
+    # Create service
+    service = TexService(template_repository=mock_template_repository)
+
+    # Test get template
+    result = await service.get_template("resume")
+
+    # Verify repository was called
+    mock_template_repository.get_by_name.assert_called_once_with("resume")
+
+    # Verify result
+    assert result == "Test template content with {placeholder}"
+
+
+@pytest.mark.asyncio
+async def test_format_template(mock_template_repository):
+    """Test formatting a template."""
+    # Create service
+    service = TexService(template_repository=mock_template_repository)
+
+    # Test format template
+    result = await service.format_template("resume", {"placeholder": "test value"})
+
+    # Verify repository was called
+    mock_template_repository.safe_format_template.assert_called_once()
+
+    # Verify result
+    assert result == "Formatted template content"
+
+
+@pytest.mark.asyncio
+async def test_get_header(mock_header_repository):
+    """Test getting a header."""
+    # Create service
+    service = TexService(header_repository=mock_header_repository)
+
+    # Test get header
+    result = await service.get_header("modern")
+
+    # Verify repository was called
+    mock_header_repository.get_by_name.assert_called_once_with("modern")
+
+    # Verify result
+    assert result == "Test header content"
+
+
+@pytest.mark.asyncio
+async def test_get_default_header(mock_header_repository):
+    """Test getting the default header."""
+    # Create service
+    service = TexService(header_repository=mock_header_repository)
+
+    # Test get default header
+    result = await service.get_default_header()
+
+    # Verify repository was called
+    mock_header_repository.get_default.assert_called_once()
+
+    # Verify result
+    assert result == "Default header content"
+
+
+@pytest.mark.asyncio
+async def test_get_default_preamble(mock_preamble_repository):
     async def setup_method(self):
         """Set up the test environment."""
         # Create a mock database connection

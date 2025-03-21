@@ -4,14 +4,15 @@ from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
-from ...core.models.resume import Resume
-from ...core.models.user import User
-from ...core.services.generator import GeneratorService
-from ...core.services.resume import ResumeService
+from config import get_logger
+from core.models.resume import Resume
+from core.models.user import User
+from core.services.generator_service import GeneratorService
+from core.services.resume_service import ResumeService
+
 from ..dependencies.services import get_generator_service, get_resume_service
 from ..middleware.auth import CurrentUser
 from ..schemas.resume import ResumeCreate, ResumeFilter, ResumeResponse, ResumeUpdate
-from .config import get_logger
 
 router = APIRouter()
 logger = get_logger(__name__)

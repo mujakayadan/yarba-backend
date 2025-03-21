@@ -169,3 +169,10 @@ class UserRepository(BeanieRepository[User]):
         user.account_locked_until = lock_until
         await user.save()
         return True
+
+
+async def get_user_repository(self) -> UserRepository:
+    """
+    Get the user repository.
+    """
+    return UserRepository()

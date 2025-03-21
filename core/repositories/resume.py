@@ -427,3 +427,10 @@ class ResumeRepository(BeanieRepository[Resume]):
         )
         await resume.create()
         return resume
+
+
+async def get_resume_repository(self) -> ResumeRepository:
+    """
+    Get the resume repository.
+    """
+    return ResumeRepository()

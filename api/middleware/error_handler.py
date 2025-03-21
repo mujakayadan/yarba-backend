@@ -7,8 +7,7 @@ from fastapi import FastAPI, Request, Response, status
 from fastapi.responses import JSONResponse
 
 from config import get_logger, settings
-
-from ...core.exceptions.base import AppException
+from core.exceptions.base import AppException
 
 logger = get_logger(__name__)
 

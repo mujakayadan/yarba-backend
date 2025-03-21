@@ -1,10 +1,10 @@
 """TeX template repository implementation."""
 
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
-from ..models.tex_template import TexTemplate
-from .base import BeanieRepository
+from core.models.tex_template import TexTemplate
+from core.repositories.base import BeanieRepository
 
 
 class TexTemplateRepository(BeanieRepository[TexTemplate]):
@@ -158,3 +158,14 @@ class TexTemplateRepository(BeanieRepository[TexTemplate]):
             self._cached_templates[template.name] = template
 
         return template
+
+
+# Factory function for dependency injection
+def get_tex_template_repository() -> TexTemplateRepository:
+    """
+    Factory function to create a TeX template repository instance.
+
+    Returns:
+        TexTemplateRepository: A new instance of the TeX template repository
+    """
+    return TexTemplateRepository()

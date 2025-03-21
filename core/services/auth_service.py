@@ -1,38 +1,39 @@
 """Authentication service for user management and authentication."""
 
-import logging
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Tuple
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
-from ..exceptions.base import (
+from config.logging_config import get_logger
+from config.settings import Settings
+from core.exceptions.base import (
     BadRequestException,
     ForbiddenException,
     NotFoundException,
     UnauthorizedException,
 )
-from ..models.user import User
-from ..repositories.user import UserRepository
-from .config import settings
+from core.models.user import User
+from core.repositories.user import UserRepository
 
-logger = logging.getLogger(__name__)
+settings = Settings()
+logger = get_logger(__name__)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 class AuthService:
-    """Service for handling authentication related operations."""
+    """Service for authentication operations."""
 
-    def __init__(self, user_repository: UserRepository):
+    def __init__(self, user_repository: Optional[UserRepository] = None):
         """
-        Initialize the service.
+        Initialize the authentication service.
 
         Args:
-            user_repository: User repository instance
+            user_repository: Repository for accessing user data
         """
-        self.user_repository = user_repository
-        self.logger = logging.getLogger(self.__class__.__name__)
+        self.user_repository = user_repository or UserRepository()
+        self.logger = get_logger(self.__class__.__name__)
 
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """

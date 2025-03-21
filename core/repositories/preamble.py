@@ -147,3 +147,10 @@ class PreambleRepository(BeanieRepository[Preamble]):
         preamble.updated_at = datetime.utcnow()
         await preamble.save()
         return preamble
+
+
+async def get_preamble_repository(self) -> PreambleRepository:
+    """
+    Get the preamble repository.
+    """
+    return PreambleRepository()

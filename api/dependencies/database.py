@@ -10,6 +10,7 @@ from core.database import (
     get_profile_repository,
     get_resume_repository,
     get_tex_header_repository,
+    get_tex_template_repository,
     get_unit_of_work,
     get_user_repository,
 )
@@ -19,6 +20,7 @@ from core.repositories.preamble import PreambleRepository
 from core.repositories.profile import ProfileRepository
 from core.repositories.resume import ResumeRepository
 from core.repositories.tex_header import TexHeaderRepository
+from core.repositories.tex_template import TexTemplateRepository
 from core.repositories.user import UserRepository
 
 # Type aliases for dependency injection
@@ -29,3 +31,4 @@ PortfolioRepo = Annotated[PortfolioRepository, Depends(get_portfolio_repository)
 ResumeRepo = Annotated[ResumeRepository, Depends(get_resume_repository)]
 PreambleRepo = Annotated[PreambleRepository, Depends(get_preamble_repository)]
 TexHeaderRepo = Annotated[TexHeaderRepository, Depends(get_tex_header_repository)]
+TexTemplateRepo = Annotated[TexTemplateRepository, Depends(get_tex_template_repository)]

@@ -9,10 +9,10 @@ from ...core.exceptions.base import (
     NotFoundException,
     UnauthorizedException,
 )
-from ...core.services.auth import AuthService
-from ...core.services.generator import GeneratorService
-from ...core.services.latex import LaTeXService
-from ...core.services.resume import ResumeService
+from ...core.services.auth_service import AuthService
+from ...core.services.generator_service import GeneratorService
+from ...core.services.latex_service import LaTeXService
+from ...core.services.resume_service import ResumeService
 
 
 @pytest.fixture

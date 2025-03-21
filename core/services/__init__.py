@@ -1,14 +1,15 @@
 """Core services package for the resume builder application."""
 
-from .auth import AuthService
-from .base import BaseService
-from .generator import GeneratorService
-from .latex import LaTeXService
-from .llm import ClaudeStrategy, LLMService, OpenAIStrategy
-from .portfolio import PortfolioService
-from .profile import ProfileService
-from .prompt import PromptService
-from .resume import ResumeService
+from .auth_service import AuthService
+from .base_service import BaseService
+from .latex_service import LatexService
+from .llm_service import LLMService
+from .portfolio_service import PortfolioService
+from .profile_service import ProfileService
+from .prompt_service import PromptService
+from .resume_generation_service import ResumeGenerationService
+from .resume_service import ResumeService
+from .tex_service import TexService
 
 __all__ = [
     # Base service
@@ -22,13 +23,13 @@ __all__ = [
     # Portfolio service
     "PortfolioService",
     # LaTeX service
-    "LaTeXService",
+    "LatexService",
     # LLM service
     "LLMService",
-    "ClaudeStrategy",
-    "OpenAIStrategy",
     # Prompt service
     "PromptService",
-    # Generator service
-    "GeneratorService",
+    # Resume generation service
+    "ResumeGenerationService",
+    # Tex service
+    "TexService",
 ]

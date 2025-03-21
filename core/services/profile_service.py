@@ -4,7 +4,7 @@ import logging
 from typing import Dict, List, Optional
 
 from ..exceptions.base import NotFoundException
-from ..models.profile import Profile, Skill
+from ..models.profile import Profile
 from ..models.user import User
 from ..repositories.profile import ProfileRepository
 from ..repositories.user import UserRepository
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class ProfileService:
-    """Service for handling user profile related operations."""
+    """Service for user profile operations."""
 
     def __init__(
         self,
@@ -110,87 +110,4 @@ class ProfileService:
             raise NotFoundException("Profile not found")
 
         self.logger.info(f"Profile updated for user: {user_id}")
-        return updated_profile
-
-    async def update_skills(self, user_id: str, skills: List[Skill]) -> Profile:
-        """
-        Update a user's skills.
-
-        Args:
-            user_id: User ID
-            skills: Updated skills
-
-        Returns:
-            Profile: Updated profile
-
-        Raises:
-            NotFoundException: If profile not found
-        """
-        profile = await self.get_profile(user_id)
-
-        result = await self.profile_repository.update_skills(profile.id, skills)
-        if not result:
-            self.logger.error(f"Failed to update skills for user: {user_id}")
-            raise NotFoundException("Profile not found")
-
-        # Get updated profile
-        updated_profile = await self.get_profile(user_id)
-
-        self.logger.info(f"Skills updated for user: {user_id}")
-        return updated_profile
-
-    async def add_skill_category(self, user_id: str, category: Skill) -> Profile:
-        """
-        Add a skill category to a user's profile.
-
-        Args:
-            user_id: User ID
-            category: Skill category to add
-
-        Returns:
-            Profile: Updated profile
-
-        Raises:
-            NotFoundException: If profile not found
-        """
-        profile = await self.get_profile(user_id)
-
-        result = await self.profile_repository.add_skill_category(profile.id, category)
-        if not result:
-            self.logger.warning(f"Failed to add skill category for user: {user_id}")
-            # Category might already exist, so we don't raise an exception
-
-        # Get updated profile
-        updated_profile = await self.get_profile(user_id)
-
-        self.logger.info(f"Skill category added for user: {user_id}")
-        return updated_profile
-
-    async def remove_skill_category(self, user_id: str, category_name: str) -> Profile:
-        """
-        Remove a skill category from a user's profile.
-
-        Args:
-            user_id: User ID
-            category_name: Name of the category to remove
-
-        Returns:
-            Profile: Updated profile
-
-        Raises:
-            NotFoundException: If profile not found
-        """
-        profile = await self.get_profile(user_id)
-
-        result = await self.profile_repository.remove_skill_category(
-            profile.id, category_name
-        )
-        if not result:
-            self.logger.warning(f"Failed to remove skill category for user: {user_id}")
-            # Category might not exist, so we don't raise an exception
-
-        # Get updated profile
-        updated_profile = await self.get_profile(user_id)
-
-        self.logger.info(f"Skill category removed for user: {user_id}")
         return updated_profile

@@ -12,6 +12,7 @@ from ..repositories.preamble import PreambleRepository
 from ..repositories.profile import ProfileRepository
 from ..repositories.resume import ResumeRepository
 from ..repositories.tex_header import TexHeaderRepository
+from ..repositories.tex_template import TexTemplateRepository
 from ..repositories.user import UserRepository
 from .connection import get_async_database_connection
 from .unit_of_work import AsyncMongoUnitOfWork
@@ -83,6 +84,15 @@ async def get_tex_header_repository() -> AsyncGenerator[TexHeaderRepository, Non
         TexHeaderRepository: TeX header repository instance
     """
     yield TexHeaderRepository()
+
+
+async def get_tex_template_repository() -> AsyncGenerator[TexTemplateRepository, None]:
+    """Get a TeX template repository.
+
+    Yields:
+        TexTemplateRepository: TeX template repository instance
+    """
+    yield TexTemplateRepository()
 
 
 async def get_unit_of_work() -> AsyncGenerator[AsyncMongoUnitOfWork, None]:

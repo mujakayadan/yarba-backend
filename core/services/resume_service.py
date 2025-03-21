@@ -3,18 +3,19 @@
 import logging
 from typing import Dict, List, Optional
 
+from config import settings
+
 from ..exceptions.base import NotFoundException
 from ..models.resume import Resume
 from ..models.user import User
 from ..repositories.resume import ResumeFilter, ResumeRepository
 from ..repositories.user import UserRepository
-from .config import settings
 
 logger = logging.getLogger(__name__)
 
 
 class ResumeService:
-    """Service for handling resume related operations."""
+    """Service for resume operations."""
 
     def __init__(
         self,

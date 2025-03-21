@@ -6,10 +6,9 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import ExpiredSignatureError, JWTError, jwt
 
+from api.dependencies.database import UserRepository
 from config import get_logger, settings
-
-from ...core.models.user import User
-from ..dependencies.database import UserRepository
+from core.models.user import User
 
 logger = get_logger(__name__)
 security = HTTPBearer(auto_error=False)

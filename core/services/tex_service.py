@@ -1,175 +1,187 @@
-"""Service for TeX templates, headers, and preambles."""
+"""Tex service for handling TeX templates, headers, and preambles."""
 
-from typing import Dict, List, Optional
+import logging
+from typing import Any, Dict, List, Optional
 
-from config.logging_config import get_logger
-
-from ..models.preamble import Preamble
-from ..models.tex_header import TexHeader
-from ..models.tex_template import TexTemplate
-from ..repositories.preamble import PreambleRepository
-from ..repositories.tex_header import TexHeaderRepository
-from ..repositories.tex_template import TexTemplateRepository
-
-logger = get_logger(__name__)
+from core.repositories.preamble import PreambleRepository, get_preamble_repository
+from core.repositories.tex_header import TexHeaderRepository, get_tex_header_repository
+from core.repositories.tex_template import (
+    TexTemplateRepository,
+    get_tex_template_repository,
+)
 
 
 class TexService:
-    """Service for working with LaTeX templates, headers, and preambles."""
+    """Service for handling TeX templates, headers, and preambles."""
 
-    def __init__(self):
-        """Initialize the TeX service."""
-        self.template_repo = TexTemplateRepository()
-        self.header_repo = TexHeaderRepository()
-        self.preamble_repo = PreambleRepository()
-        self.logger = get_logger(self.__class__.__name__)
+    def __init__(
+        self,
+        header_repository: Optional[TexHeaderRepository] = None,
+        template_repository: Optional[TexTemplateRepository] = None,
+        preamble_repository: Optional[PreambleRepository] = None,
+    ):
+        """
+        Initialize the Tex service.
+
+        Args:
+            header_repository: Repository for TeX headers
+            template_repository: Repository for TeX templates
+            preamble_repository: Repository for LaTeX preambles
+        """
+        self.header_repository = header_repository or get_tex_header_repository()
+        self.template_repository = template_repository or get_tex_template_repository()
+        self.preamble_repository = preamble_repository or get_preamble_repository()
+        self.logger = logging.getLogger(__name__)
 
     # Template methods
-    async def get_template(self, name: str) -> Optional[TexTemplate]:
+    async def get_template(self, template_name: str) -> Optional[str]:
         """
         Get a template by name.
 
         Args:
-            name: Name of the template
+            template_name: Name of the template
 
         Returns:
-            The template if found, None otherwise
+            Template content if found, None otherwise
         """
-        return await self.template_repo.get_by_name(name)
-
-    async def get_template_by_type(
-        self, template_type: str = "resume", default_only: bool = False
-    ) -> List[TexTemplate]:
-        """
-        Get templates by type.
-
-        Args:
-            template_type: Type of templates to get
-            default_only: If True, return only the default template
-
-        Returns:
-            List of templates (or a single template if default_only is True)
-        """
-        if default_only:
-            default = await self.template_repo.get_default(template_type)
-            return [default] if default else []
-        else:
-            return await self.template_repo.get_all_by_type(template_type)
+        template = await self.template_repository.get_by_name(template_name)
+        if template:
+            return template.content
+        self.logger.warning(f"Template '{template_name}' not found")
+        return None
 
     async def format_template(self, template_name: str, **kwargs) -> Optional[str]:
         """
-        Format a template with given parameters.
+        Format a template with the given parameters.
 
         Args:
-            template_name: Name of the template to format
-            **kwargs: Parameters to use in formatting
+            template_name: Name of the template
+            **kwargs: Parameters to format the template with
 
         Returns:
-            Formatted template string if successful, None otherwise
+            Formatted template if successful, None otherwise
         """
-        template = await self.get_template(template_name)
-        if not template:
-            self.logger.warning(f"Template not found: {template_name}")
-            return None
-
         try:
-            return self.template_repo.safe_format_template(template, **kwargs)
+            template = await self.template_repository.get_by_name(template_name)
+            if not template:
+                self.logger.warning(f"Template '{template_name}' not found")
+                return None
+
+            return self.template_repository.safe_format_template(template, **kwargs)
         except ValueError as e:
-            self.logger.error(f"Error formatting template: {e}")
+            self.logger.error(f"Error formatting template '{template_name}': {e}")
             return None
 
     # Header methods
-    async def get_header(
-        self, name: str, category: str = "resume_section"
-    ) -> Optional[TexHeader]:
+    async def get_header(self, header_name: str) -> Optional[str]:
         """
-        Get a header by name and category.
+        Get a header by name.
 
         Args:
-            name: Name of the header
-            category: Category of the header
+            header_name: Name of the header
 
         Returns:
-            The header if found, None otherwise
+            Header content if found, None otherwise
         """
-        return await self.header_repo.get_by_name(name, category)
+        header = await self.header_repository.get_by_name(header_name)
+        if header:
+            return header.content
+        self.logger.warning(f"Header '{header_name}' not found")
+        return None
 
-    async def get_default_header(
-        self, name: str, category: str = "resume_section"
-    ) -> Optional[TexHeader]:
+    async def format_header(self, header_name: str, **kwargs) -> Optional[str]:
         """
-        Get the default header for a name and category.
+        Format a header with the given parameters.
 
         Args:
-            name: Name of the header
-            category: Category of the header
+            header_name: Name of the header
+            **kwargs: Parameters to format the header with
 
         Returns:
-            The default header if found, None otherwise
+            Formatted header if successful, None otherwise
         """
-        return await self.header_repo.get_default(name, category)
+        try:
+            header = await self.header_repository.get_by_name(header_name)
+            if not header:
+                self.logger.warning(f"Header '{header_name}' not found")
+                return None
 
-    async def get_headers_by_category(
-        self, category: str = "resume_section"
-    ) -> List[TexHeader]:
+            return header.content.format(**kwargs)
+        except KeyError as e:
+            self.logger.error(f"KeyError in header '{header_name}': {e}")
+            return None
+        except ValueError as e:
+            self.logger.error(f"ValueError in header '{header_name}': {e}")
+            return None
+
+    async def get_all_headers_by_category(self, category: str) -> List[Dict[str, str]]:
         """
-        Get all headers for a category.
+        Get all headers for a specific category.
 
         Args:
             category: Category of headers to get
 
         Returns:
-            List of headers
+            List of dictionaries with name and content
         """
-        return await self.header_repo.get_all_by_category(category)
+        headers = await self.header_repository.get_all_by_category(category)
+        return [{"name": h.name, "content": h.content} for h in headers]
+
+    async def get_all_header_names_by_category(self, category: str) -> List[str]:
+        """
+        Get all header names for a specific category.
+
+        Args:
+            category: Category of headers to get
+
+        Returns:
+            List of header names
+        """
+        headers = await self.header_repository.get_all_by_category(category)
+        return [header.name for header in headers]
 
     # Preamble methods
+    async def get_default_preamble(
+        self, preamble_type: str = "resume_preamble"
+    ) -> Optional[str]:
+        """
+        Get the default preamble for a specific type.
+
+        Args:
+            preamble_type: Type of preamble (default: resume_preamble)
+
+        Returns:
+            Default preamble content if found, None otherwise
+        """
+        preamble = await self.preamble_repository.get_default(preamble_type)
+        if preamble:
+            return preamble.content
+        self.logger.warning(f"Default preamble for type '{preamble_type}' not found")
+        return None
+
     async def get_preamble(
         self, name: str, preamble_type: str = "resume_preamble"
-    ) -> Optional[Preamble]:
+    ) -> Optional[str]:
         """
         Get a preamble by name and type.
 
         Args:
             name: Name of the preamble
-            preamble_type: Type of the preamble
+            preamble_type: Type of preamble (default: resume_preamble)
 
         Returns:
-            The preamble if found, None otherwise
+            Preamble content if found, None otherwise
         """
-        return await self.preamble_repo.get_by_name(name, preamble_type)
-
-    async def get_default_preamble(
-        self, preamble_type: str = "resume_preamble"
-    ) -> Optional[Preamble]:
-        """
-        Get the default preamble for a type.
-
-        Args:
-            preamble_type: Type of preamble
-
-        Returns:
-            The default preamble if found, None otherwise
-        """
-        return await self.preamble_repo.get_default(preamble_type)
-
-    async def get_preambles_by_type(
-        self, preamble_type: str = "resume_preamble"
-    ) -> List[Preamble]:
-        """
-        Get all preambles for a type.
-
-        Args:
-            preamble_type: Type of preambles to get
-
-        Returns:
-            List of preambles
-        """
-        return await self.preamble_repo.get_by_type(preamble_type)
+        preamble = await self.preamble_repository.get_by_name(name, preamble_type)
+        if preamble:
+            return preamble.content
+        self.logger.warning(f"Preamble '{name}' of type '{preamble_type}' not found")
+        return None
 
     # Cache management
     def clear_caches(self) -> None:
         """Clear all repository caches."""
-        self.template_repo.clear_cache()
-        self.header_repo.clear_cache()
+        self.header_repository.clear_cache()
+        self.template_repository.clear_cache()
+        self.preamble_repository.clear_cache()
         self.logger.debug("All TeX caches cleared")

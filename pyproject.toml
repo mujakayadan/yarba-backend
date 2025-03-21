@@ -18,6 +18,7 @@ beanie = "^1.25.0"
 motor = "^3.3.2"
 pydantic = "^2.6.3"
 pydantic-settings = "^2.2.1"
+litellm = "^1.63.12"
 
 [build-system]
 requires = ["poetry-core"]

@@ -464,3 +464,10 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         """
         portfolio = await self.get_portfolio_by_user_id(user_id)
         return portfolio.custom_sections if portfolio else None
+
+
+async def get_portfolio_repository(self) -> PortfolioRepository:
+    """
+    Get the portfolio repository.
+    """
+    return PortfolioRepository()

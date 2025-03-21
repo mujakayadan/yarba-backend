@@ -15,7 +15,8 @@ from beanie import PydanticObjectId
 
 from config.logging_config import get_logger
 from config.settings import Settings
-from core.llm.prompts import (
+from core.models.user import User
+from prompts import (
     AWARDS_PROMPT,
     CAREER_SUMMARY_PROMPT,
     COVER_LETTER_PROMPT,
@@ -30,7 +31,6 @@ from core.llm.prompts import (
     SYSTEM_PROMPT,
     WORK_EXPERIENCE_PROMPT,
 )
-from core.models.user import User
 
 settings = Settings()
 logger = get_logger(__name__)

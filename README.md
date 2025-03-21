@@ -168,3 +168,159 @@ After running the migration scripts, you should:
 2. Test the application thoroughly to ensure everything works as expected
 3. Consider adding indexes to improve query performance
 4. Add validation rules to ensure data integrity
+
+## Resume Generation Services
+
+The project includes advanced services for generating resumes and cover letters using LLMs.
+
+### LLMService
+
+The `LLMService` provides a unified interface to access various LLM providers through LiteLLM.
+
+#### Features
+
+- Unified access to multiple LLM providers (OpenAI, Anthropic, etc.)
+- User-specific configuration based on profile preferences
+- Secure API key management
+- Methods for generating content for specific resume sections
+- Cover letter generation
+
+#### Usage
+
+```python
+from core.repositories.profile import ProfileRepository
+from core.services.llm_service import LLMService
+from core.services.prompt_service import PromptService
+
+# Initialize dependencies
+profile_repository = ProfileRepository()
+prompt_service = PromptService()
+
+# Initialize LLM service
+llm_service = LLMService(
+    profile_repository=profile_repository,
+    prompt_service=prompt_service
+)
+
+# Configure for a specific user
+await llm_service.configure_for_user("user_id")
+
+# Generate content for a section
+work_experience = await llm_service.generate_section(
+    section_name="work_experience",
+    context=work_experience_data,
+    job_description="Software Engineer position..."
+)
+
+# Generate a cover letter
+cover_letter = await llm_service.generate_cover_letter(
+    resume_content=resume_content,
+    job_description="Software Engineer position...",
+    company_name="Acme Inc.",
+    job_title="Senior Software Engineer"
+)
+```
+
+### ResumeGenerationService
+
+The `ResumeGenerationService` orchestrates the complete resume and cover letter generation process, integrating various repositories and services.
+
+#### Features
+
+- End-to-end resume generation
+- Cover letter generation
+- LaTeX generation for both resumes and cover letters
+- User-specific configuration
+- Section-by-section content processing
+
+#### Usage
+
+```python
+from core.repositories.portfolio import PortfolioRepository
+from core.repositories.profile import ProfileRepository
+from core.repositories.resume import ResumeRepository
+from core.repositories.tex_template import TexHeaderRepository, TexTemplateRepository
+from core.services.llm_service import LLMService
+from core.services.prompt_service import PromptService
+from core.services.resume_generation_service import ResumeGenerationService
+from core.services.tex_service import TexService
+
+# Initialize repositories and services
+portfolio_repository = PortfolioRepository()
+profile_repository = ProfileRepository()
+resume_repository = ResumeRepository()
+tex_template_repository = TexTemplateRepository()
+tex_header_repository = TexHeaderRepository()
+
+prompt_service = PromptService()
+llm_service = LLMService(
+    profile_repository=profile_repository,
+    prompt_service=prompt_service
+)
+tex_service = TexService(
+    tex_template_repository=tex_template_repository,
+    tex_header_repository=tex_header_repository
+)
+
+# Initialize resume generation service
+resume_service = ResumeGenerationService(
+    resume_repository=resume_repository,
+    portfolio_repository=portfolio_repository,
+    profile_repository=profile_repository,
+    llm_service=llm_service,
+    tex_service=tex_service
+)
+
+# Configure for a specific user
+await resume_service.configure_for_user("user_id")
+
+# Generate resume content
+resume_content = await resume_service.generate_resume_content("resume_id")
+
+# Generate resume LaTeX
+resume_latex = await resume_service.generate_latex(
+    resume_id="resume_id",
+    content=resume_content,
+    is_cover_letter=False
+)
+
+# Generate cover letter
+cover_letter = await resume_service.generate_cover_letter(
+    resume_id="resume_id",
+    resume_content=resume_content
+)
+
+# Generate cover letter LaTeX
+cover_letter_latex = await resume_service.generate_latex(
+    resume_id="resume_id",
+    content=cover_letter,
+    is_cover_letter=True
+)
+```
+
+## Example Scripts
+
+The project includes several example scripts to demonstrate the usage of various services:
+
+- `scripts/examples/generate_resume.py`: Shows how to generate a resume and cover letter
+- `scripts/examples/api_usage.py`: Demonstrates integration with FastAPI
+- `scripts/examples/streamlit_ui.py`: Illustrates how to use the services with Streamlit
+- `scripts/examples/batch_processing.py`: Shows how to process multiple resumes for multiple users
+
+### Running the Example Scripts
+
+```bash
+# Generate a resume
+poetry run python scripts/examples/generate_resume.py
+
+# Run the Streamlit UI
+poetry run streamlit run scripts/examples/streamlit_ui.py
+```
+
+## Prerequisites
+
+- Python 3.10+
+- Poetry for dependency management
+- MongoDB database
+- LaTeX installation for document generation
+- API keys for LLM providers (OpenAI, Anthropic, etc.)

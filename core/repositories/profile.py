@@ -207,3 +207,10 @@ class ProfileRepository(BeanieRepository[Profile]):
         """
         profile = await self.get_by_user_id(user_id)
         return profile.api_keys if profile and hasattr(profile, "api_keys") else {}
+
+
+async def get_profile_repository(self) -> ProfileRepository:
+    """
+    Get the profile repository.
+    """
+    return ProfileRepository()
