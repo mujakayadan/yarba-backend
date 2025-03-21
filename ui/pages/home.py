@@ -3,14 +3,9 @@ from typing import Any, Dict, Optional
 
 import streamlit as st
 
-from config import (
-    APP_CONSTANTS,
-    FEATURE_FLAGS,
-    LINKEDIN_EMAIL,
-    LINKEDIN_PASSWORD,
-    get_logger,
-)
+from config import APP_CONSTANTS, FEATURE_FLAGS, get_logger
 from config.settings import settings
+from core.database.connection import get_async_database_connection
 from core.database.factory import get_unit_of_work
 from core.services.generator_service import GeneratorService
 from core.services.job_service import JobService
@@ -60,7 +55,10 @@ class HomePage:
         try:
 
             async def _load():
-                async for uow in get_unit_of_work():
+                # Get the unit of work
+                uow_generator = get_unit_of_work()
+                uow = await anext(uow_generator)
+                try:
                     # Get current user's profile
                     profile = await uow.profile_repository.get_by_user_id(
                         st.session_state["user_id"]
@@ -97,6 +95,12 @@ class HomePage:
                         logger.warning("No profile or preferences found for user")
                         # Set default preferences
                         self._set_default_preferences()
+                finally:
+                    # Clean up - close the generator
+                    try:
+                        await uow_generator.aclose()
+                    except Exception as e:
+                        logger.error(f"Error closing unit of work: {e}")
 
             # Run the async function
             if "loop" in st.session_state:
@@ -166,7 +170,8 @@ class HomePage:
                                     from easy_applier.job_extractor import JobExtractor
 
                                     self.job_extractor = JobExtractor(
-                                        LINKEDIN_EMAIL, LINKEDIN_PASSWORD
+                                        settings.linkedin_email,
+                                        settings.linkedin_password,
                                     )
 
                                 url_description = str(
@@ -194,7 +199,10 @@ class HomePage:
                     try:
                         # Create a temporary job service for job info extraction
                         async def extract_job_info():
-                            async for uow in get_unit_of_work():
+                            # Get the unit of work
+                            uow_generator = get_unit_of_work()
+                            uow = await anext(uow_generator)
+                            try:
                                 profile_repo = uow.profile_repository
                                 # Set up temporary LLM service
                                 llm_service = LLMService(
@@ -208,6 +216,12 @@ class HomePage:
                                     job_description
                                 )
                                 return job_info
+                            finally:
+                                # Clean up
+                                try:
+                                    await uow_generator.aclose()
+                                except Exception as e:
+                                    logger.error(f"Error closing unit of work: {e}")
 
                         # Run the extraction
                         if "loop" in st.session_state:
@@ -251,16 +265,13 @@ class HomePage:
                 with st.expander("Model Settings"):
                     # Get preferences from database
                     async def _get_model_settings():
-                        # Import to avoid circular dependencies
-                        from ui.streamlit_app import StreamlitApp
-
-                        # Try to get profile using the repository directly from session state if available
-                        if "profile_repository" in st.session_state:
-                            profile_repo = st.session_state["profile_repository"]
-                            profile = await profile_repo.get_by_user_id(
+                        # Get the unit of work
+                        uow_generator = get_unit_of_work()
+                        uow = await anext(uow_generator)
+                        try:
+                            profile = await uow.profile_repository.get_by_user_id(
                                 st.session_state["user_id"]
                             )
-
                             if (
                                 profile
                                 and profile.preferences
@@ -274,9 +285,13 @@ class HomePage:
                                     ),
                                     llm_prefs.get("temperature", 0.1),
                                 )
-
-                        # Fall back to default values
-                        return "Claude", "claude-3-5-sonnet-20240620", 0.1
+                            return None
+                        finally:
+                            # Clean up
+                            try:
+                                await uow_generator.aclose()
+                            except Exception as e:
+                                logger.error(f"Error closing unit of work: {e}")
 
                     if "loop" in st.session_state:
                         llm_settings = st.session_state.loop.run_until_complete(
@@ -387,7 +402,10 @@ class HomePage:
                         if not resume_id:
                             # Create a new resume
                             async def create_resume():
-                                async for uow in get_unit_of_work():
+                                # Get the unit of work
+                                uow_generator = get_unit_of_work()
+                                uow = await anext(uow_generator)
+                                try:
                                     # Get user's profile
                                     profile = (
                                         await uow.profile_repository.get_by_user_id(
@@ -418,6 +436,12 @@ class HomePage:
                                     )
                                     await uow.resume_repository.save(resume)
                                     return str(resume.id)
+                                finally:
+                                    # Clean up
+                                    try:
+                                        await uow_generator.aclose()
+                                    except Exception as e:
+                                        logger.error(f"Error closing unit of work: {e}")
 
                             if "loop" in st.session_state:
                                 resume_id = st.session_state.loop.run_until_complete(
@@ -444,7 +468,10 @@ class HomePage:
                                 )
 
                                 # Initialize repositories and services
-                                async for uow in get_unit_of_work():
+                                # Get the unit of work
+                                uow_generator = get_unit_of_work()
+                                uow = await anext(uow_generator)
+                                try:
                                     # Configure services
                                     from core.services.prompt_service import (
                                         PromptService,
@@ -575,6 +602,12 @@ class HomePage:
                                             "cover_letter": cover_letter_result,
                                             "cover_letter_pdf": cover_letter_pdf,
                                         }
+                                finally:
+                                    # Clean up - close the unit of work generator
+                                    try:
+                                        await uow_generator.aclose()
+                                    except Exception as e:
+                                        logger.error(f"Error closing unit of work: {e}")
                             except Exception as e:
                                 logger.error(
                                     f"Error in generate_documents: {e}", exc_info=True

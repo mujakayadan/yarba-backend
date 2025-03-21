@@ -1,71 +1,37 @@
 """Configuration package.
 
-This package contains all configuration-related modules for the application.
+This package contains configuration modules for the application.
 """
 
-from .constants import (
-    API_TAGS_METADATA,
-    API_V1_PREFIX,
-    APP_CONSTANTS,
-    DEFAULT_PAGE_SIZE,
-    FEATURE_FLAGS,
-    LATEX_COMPILERS,
-    LATEX_EXTENSIONS,
-    MAX_PAGE_SIZE,
-    PDF_EXTENSION,
-    PROJECT_ROOT,
-    STATIC_DIR,
-    TEMPLATES_DIR,
-    LLMModel,
-    LLMProvider,
-    ProcessingMode,
-    ResumeSection,
-)
-from .env_config import (
-    ANTHROPIC_API_KEY,
-    GEMINI_API_KEY,
-    LINKEDIN_EMAIL,
-    LINKEDIN_PASSWORD,
-    MONGODB_DATABASE,
-    MONGODB_URI,
-    OLLAMA_URI,
-    OPENAI_API_KEY,
-)
-from .logging_config import configure_logging, get_logger
-from .settings import Settings, settings
+from .logging_config import get_logger
+from .settings import settings
 
-__all__ = [
-    # Constants
-    "API_TAGS_METADATA",
-    "API_V1_PREFIX",
-    "DEFAULT_PAGE_SIZE",
-    "LATEX_COMPILERS",
-    "LATEX_EXTENSIONS",
-    "MAX_PAGE_SIZE",
-    "PDF_EXTENSION",
-    "PROJECT_ROOT",
-    "STATIC_DIR",
-    "TEMPLATES_DIR",
-    "FEATURE_FLAGS",
-    "APP_CONSTANTS",
-    "LLMModel",
-    "LLMProvider",
-    "ProcessingMode",
-    "ResumeSection",
-    # Environment configuration
-    "LINKEDIN_EMAIL",
-    "LINKEDIN_PASSWORD",
-    "MONGODB_URI",
-    "MONGODB_DATABASE",
-    "ANTHROPIC_API_KEY",
-    "OPENAI_API_KEY",
-    "GEMINI_API_KEY",
-    "OLLAMA_URI",
-    "TEST_USER_ID",
-    # Logging
-    "configure_logging",
-    "get_logger",
-    # Settings
-    "Settings",
-    "settings",
-]
+# Constants
+APP_CONSTANTS = {
+    "clearance_keywords": [
+        "security clearance",
+        "clearance required",
+        "must be cleared",
+        "must have clearance",
+        "ts/sci",
+        "top secret",
+        "secret clearance",
+        "public trust",
+        "active clearance",
+        "current clearance",
+        "security+ certification",
+    ],
+    "extraction_timeout": 30,  # seconds
+    "max_retry_attempts": 3,
+}
+
+# Feature flags
+FEATURE_FLAGS = {
+    "check_clearance": True,
+    "enable_ai_generation": True,
+    "enable_analytics": False,
+    "enable_feedback": False,
+    "enable_job_extraction": True,
+}
+
+__all__ = ["get_logger", "settings", "APP_CONSTANTS", "FEATURE_FLAGS"]

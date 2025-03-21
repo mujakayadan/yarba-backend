@@ -1,184 +1,133 @@
-"""Script to populate tex_headers and tex_templates collections from raw JSON data.
+#!/usr/bin/env python
+"""Script to populate TeX collections in the database."""
 
-This script uses direct MongoDB commands without Beanie for maximum compatibility.
-"""
-
+import argparse
 import asyncio
 import json
 import logging
 import os
-from datetime import datetime
+import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from pprint import pprint
+from typing import Dict, List, Optional
 
-import motor.motor_asyncio
-from bson import ObjectId
+from motor.motor_asyncio import AsyncIOMotorClient
 
-from config.env_config import MONGODB_DATABASE, MONGODB_URI
-from config.logging_config import configure_logging
+# Add parent directory to path to allow importing from the package
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-# Configure logging
-configure_logging()
-logger = logging.getLogger(__name__)
+from config.logging_config import get_logger
+from config.settings import settings
 
-# Templates are complete document templates that include multiple sections
-TEMPLATE_NAMES = [
-    "muja_kayadan_resume",  # This is a full document template
-]
+logger = get_logger(__name__)
 
 
-async def connect_to_db():
-    """Connect to MongoDB and return the database client.
-
-    Returns:
-        Tuple of (client, db)
-    """
-    client = motor.motor_asyncio.AsyncIOMotorClient(MONGODB_URI)
-    db = client[MONGODB_DATABASE]
-    return client, db
-
-
-async def clear_collections(db):
-    """Clear the tex_headers and tex_templates collections if they exist.
+async def populate_collection(
+    client: AsyncIOMotorClient,
+    collection_name: str,
+    data_file: Path,
+    clear_existing: bool = False,
+) -> None:
+    """Populate a collection with data from a JSON file.
 
     Args:
-        db: MongoDB database
+        client: MongoDB client
+        collection_name: Name of the collection to populate
+        data_file: Path to the JSON file containing the data
+        clear_existing: Whether to clear the existing collection before populating
     """
-    # Clear collections if they exist
-    if "tex_headers" in await db.list_collection_names():
-        await db.tex_headers.delete_many({})
-        logger.info("Cleared tex_headers collection")
+    # Get database and collection
+    db = client[settings.mongodb_database]
+    collection = db[collection_name]
 
-    if "tex_templates" in await db.list_collection_names():
-        await db.tex_templates.delete_many({})
-        logger.info("Cleared tex_templates collection")
+    # Clear existing documents if requested
+    if clear_existing:
+        logger.info(f"Clearing collection {collection_name}")
+        await collection.delete_many({})
 
-
-async def load_json_data() -> List[Dict[str, Any]]:
-    """Load LaTeX data from the JSON file.
-
-    Returns:
-        List of LaTeX data entries from the JSON file
-    """
-    # Get the path to the JSON file
-    base_dir = Path(__file__).resolve().parent.parent
-    json_path = base_dir / "my_data" / "user_information.tex_headers.json"
-
-    # Load the JSON data
-    with open(json_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    logger.info(f"Loaded {len(data)} entries from JSON file")
-    return data
-
-
-async def migrate_to_tex_headers(db, data: List[Dict[str, Any]]):
-    """Migrate appropriate entries to the tex_headers collection.
-
-    Args:
-        db: MongoDB database
-        data: List of LaTeX data entries from the JSON file
-    """
-    headers_created = 0
-
-    for item in data:
-        # Skip items that are templates
-        if item["name"] in TEMPLATE_NAMES:
-            continue
-
-        # Prepare document for insertion
-        header_doc = {
-            "name": item["name"],
-            "content": item["content"],
-            "category": "resume_section",  # Default category
-            "is_default": False,
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
-        }
-
-        # Set more specific category based on name patterns
-        if item["name"].endswith("_item"):
-            header_doc["category"] = "resume_item"
-
-        # Use original ID if available
-        if "_id" in item and "$oid" in item["_id"]:
-            header_doc["_id"] = ObjectId(item["_id"]["$oid"])
-
-        try:
-            # Insert document
-            await db.tex_headers.insert_one(header_doc)
-            headers_created += 1
-        except Exception as e:
-            logger.error(f"Error creating header {item['name']}: {str(e)}")
-
-    logger.info(f"Created {headers_created} headers in tex_headers collection")
-
-
-async def migrate_to_tex_templates(db, data: List[Dict[str, Any]]):
-    """Migrate template entries to the tex_templates collection.
-
-    Args:
-        db: MongoDB database
-        data: List of LaTeX data entries from the JSON file
-    """
-    templates_created = 0
-
-    for item in data:
-        # Only process items that are templates
-        if item["name"] not in TEMPLATE_NAMES:
-            continue
-
-        # Prepare document for insertion
-        template_doc = {
-            "name": item["name"],
-            "content": item["content"],
-            "type": "resume",  # Default type
-            "is_default": True,  # Make the templates default
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
-        }
-
-        # Set more specific type if needed
-        if "cover_letter" in item["name"]:
-            template_doc["type"] = "cover_letter"
-
-        # Use original ID if available
-        if "_id" in item and "$oid" in item["_id"]:
-            template_doc["_id"] = ObjectId(item["_id"]["$oid"])
-
-        try:
-            # Insert document
-            await db.tex_templates.insert_one(template_doc)
-            templates_created += 1
-        except Exception as e:
-            logger.error(f"Error creating template {item['name']}: {str(e)}")
-
-    logger.info(f"Created {templates_created} templates in tex_templates collection")
-
-
-async def main():
-    """Main migration function."""
-    logger.info("Starting migration of LaTeX data")
-
-    # Connect to MongoDB
-    client, db = await connect_to_db()
-
+    # Read and parse the JSON file
     try:
-        # Clear collections
-        await clear_collections(db)
+        with open(data_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception as e:
+        logger.error(f"Error loading data file {data_file}: {e}")
+        return
 
-        # Load data from JSON
-        data = await load_json_data()
+    # Insert the documents
+    if isinstance(data, list):
+        if not data:
+            logger.warning(f"No documents found in {data_file}")
+            return
 
-        # Migrate data to respective collections
-        await migrate_to_tex_headers(db, data)
-        await migrate_to_tex_templates(db, data)
+        # Make sure each document has a name field
+        for doc in data:
+            if "name" not in doc:
+                logger.error(f"Document missing 'name' field: {doc}")
+                return
 
-        logger.info("Migration completed successfully")
-    finally:
-        # Close client connection
-        client.close()
+        # Insert the documents
+        logger.info(f"Inserting {len(data)} documents into {collection_name}")
+        await collection.insert_many(data)
+        logger.info(
+            f"Successfully inserted {len(data)} documents into {collection_name}"
+        )
+    else:
+        logger.error(f"Data in {data_file} is not a list")
+
+
+async def main(args: argparse.Namespace) -> None:
+    """Main entry point.
+
+    Args:
+        args: Command line arguments
+    """
+    # Connect to MongoDB
+    try:
+        client = AsyncIOMotorClient(settings.mongodb_uri)
+        logger.info(f"Connected to MongoDB at {settings.mongodb_uri}")
+    except Exception as e:
+        logger.error(f"Error connecting to MongoDB: {e}")
+        return
+
+    # Populate the collections
+    base_dir = Path(args.data_dir)
+
+    # Map of collection names to data files
+    collections = {
+        "tex_headers": base_dir / "tex_headers.json",
+        "tex_templates": base_dir / "tex_templates.json",
+        "tex_preambles": base_dir / "tex_preambles.json",
+    }
+
+    # Validate data files
+    for collection, file_path in collections.items():
+        if not file_path.exists():
+            logger.error(f"Data file not found: {file_path}")
+            return
+
+    # Populate the collections
+    for collection, file_path in collections.items():
+        await populate_collection(client, collection, file_path, args.clear_existing)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Set up argument parser
+    parser = argparse.ArgumentParser(
+        description="Populate TeX collections in the database"
+    )
+    parser.add_argument(
+        "--data-dir",
+        type=str,
+        default="data/tex",
+        help="Directory containing the JSON data files",
+    )
+    parser.add_argument(
+        "--clear-existing",
+        action="store_true",
+        help="Clear existing collections before populating",
+    )
+
+    args = parser.parse_args()
+
+    # Run the main function
+    asyncio.run(main(args))

@@ -4,16 +4,15 @@ import asyncio
 from typing import Any, Dict, List, Optional, Union
 
 import litellm
+from beanie.odm.fields import PydanticObjectId
 from litellm import acompletion
 
-from config.env_config import ANTHROPIC_API_KEY, GEMINI_API_KEY, OPENAI_API_KEY
 from config.logging_config import get_logger
-from config.settings import Settings
+from config.settings import settings
 from core.models.profile import Profile
 from core.repositories.profile_repository import ProfileRepository
 from core.services.prompt_service import PromptService
 
-settings = Settings()
 logger = get_logger(__name__)
 
 
@@ -27,11 +26,10 @@ class LLMService:
 
     def __init__(
         self,
-        profile_repository: Optional[ProfileRepository] = None,
+        profile_repository: ProfileRepository,
         prompt_service: Optional[PromptService] = None,
-        model: Optional[str] = None,
-        api_key: Optional[str] = None,
-        temperature: Optional[float] = None,
+        model: str = "claude-3-5-sonnet-20240620",
+        temperature: float = 0.1,
     ):
         """
         Initialize the LLM service.
@@ -40,59 +38,40 @@ class LLMService:
             profile_repository: Repository for accessing user profiles and preferences
             prompt_service: Service for loading and formatting prompts
             model: Override the default model from settings
-            api_key: Override the default API key from settings
             temperature: Override the default temperature from settings
         """
         self.profile_repository = profile_repository
         self.prompt_service = prompt_service
-
-        # Set default values from settings
-        self.model = model or settings.llm.default_model
-        self.api_key = api_key
-        self.temperature = temperature or settings.llm.temperature
+        self.model = model
+        self.temperature = temperature
         self.max_tokens = settings.llm.max_tokens
 
         # Store API keys from environment config as fallbacks
         self.api_keys = {
-            "openai": OPENAI_API_KEY,
-            "anthropic": ANTHROPIC_API_KEY,
-            "gemini": GEMINI_API_KEY,
+            "openai": settings.llm.openai_api_key,
+            "anthropic": settings.llm.anthropic_api_key,
+            "google": settings.llm.gemini_api_key,
             "cohere": None,
             "mistral": None,
         }
 
-        # If specific API key is provided in constructor, use it
-        if self.api_key:
-            provider = self._get_provider_from_model(self.model)
-            if provider:
-                self.api_keys[provider] = self.api_key
-
+        self._setup_litellm()
         self.logger = get_logger(self.__class__.__name__)
         self.logger.info(f"LLM service initialized with model: {self.model}")
 
-    def _get_provider_from_model(self, model: str) -> Optional[str]:
-        """
-        Get the provider name from the model name.
-
-        Args:
-            model: Model name (e.g., 'gpt-4', 'claude-3-opus')
-
-        Returns:
-            Provider name or None if unknown
-        """
-        model_lower = model.lower()
-        if "gpt" in model_lower or "text-embedding" in model_lower:
-            return "openai"
-        elif "claude" in model_lower:
-            return "anthropic"
-        elif "gemini" in model_lower:
-            return "gemini"
-        elif "command" in model_lower:
-            return "cohere"
-        elif "llama" in model_lower or "mistral" in model_lower:
-            return "mistral"
-        else:
-            return None
+    def _setup_litellm(self):
+        """Set up litellm with API keys."""
+        # Configure litellm with API keys
+        try:
+            litellm.api_key_dict = {
+                "openai": self.api_keys["openai"],
+                "anthropic": self.api_keys["anthropic"],
+                "google": self.api_keys["google"],
+            }
+            logger.debug("LiteLLM configured with API keys")
+        except Exception as e:
+            logger.error(f"Error configuring LiteLLM: {e}")
+            raise
 
     async def _get_user_preferences(self, user_id: str) -> Dict[str, Any]:
         """
@@ -135,41 +114,59 @@ class LLMService:
             self.logger.error(f"Error fetching API keys: {e}")
             return {}
 
-    async def configure_for_user(self, user_id: str) -> None:
+    async def configure_for_user(self, user_id: Union[str, PydanticObjectId]) -> None:
         """
         Configure the LLM service for a specific user.
 
         Args:
             user_id: User ID to configure for
         """
-        # Get user preferences
-        preferences = await self._get_user_preferences(user_id)
+        try:
+            # Get user profile
+            profile = await self.profile_repository.get_by_user_id(user_id)
 
-        # Apply user-specific settings if available
-        self.model = preferences.get("model_name", self.model)
-        self.temperature = preferences.get("temperature", self.temperature)
-        self.max_tokens = preferences.get("max_tokens", self.max_tokens)
+            if (
+                profile
+                and profile.preferences
+                and "llm_preferences" in profile.preferences
+            ):
+                llm_prefs = profile.preferences["llm_preferences"]
 
-        # Get all user API keys
-        user_api_keys = await self._get_api_keys_for_user(user_id)
+                # Update model and temperature if specified
+                if "model_name" in llm_prefs:
+                    self.model = llm_prefs["model_name"]
+                    logger.debug(f"Using model from user preferences: {self.model}")
 
-        # Update the service's API keys with user-specific keys if available
-        if "OPENAI_API_KEY" in user_api_keys:
-            self.api_keys["openai"] = user_api_keys["OPENAI_API_KEY"]
-        if "ANTHROPIC_API_KEY" in user_api_keys:
-            self.api_keys["anthropic"] = user_api_keys["ANTHROPIC_API_KEY"]
-        if "GEMINI_API_KEY" in user_api_keys:
-            self.api_keys["gemini"] = user_api_keys["GEMINI_API_KEY"]
-        if "MISTRAL_API_KEY" in user_api_keys:
-            self.api_keys["mistral"] = user_api_keys["MISTRAL_API_KEY"]
-        if "COHERE_API_KEY" in user_api_keys:
-            self.api_keys["cohere"] = user_api_keys["COHERE_API_KEY"]
+                if "temperature" in llm_prefs:
+                    self.temperature = llm_prefs["temperature"]
+                    logger.debug(
+                        f"Using temperature from user preferences: {self.temperature}"
+                    )
+            else:
+                logger.debug("No user preferences found, using defaults")
 
-        # Configure prompt service if available
-        if self.prompt_service:
-            self.prompt_service.set_user_id(user_id)
+            # Get all user API keys
+            user_api_keys = await self._get_api_keys_for_user(user_id)
 
-        self.logger.debug(f"LLM service configured for user {user_id}")
+            # Update the service's API keys with user-specific keys if available
+            if "OPENAI_API_KEY" in user_api_keys:
+                self.api_keys["openai"] = user_api_keys["OPENAI_API_KEY"]
+            if "ANTHROPIC_API_KEY" in user_api_keys:
+                self.api_keys["anthropic"] = user_api_keys["ANTHROPIC_API_KEY"]
+            if "GEMINI_API_KEY" in user_api_keys:
+                self.api_keys["google"] = user_api_keys["GEMINI_API_KEY"]
+            if "MISTRAL_API_KEY" in user_api_keys:
+                self.api_keys["mistral"] = user_api_keys["MISTRAL_API_KEY"]
+            if "COHERE_API_KEY" in user_api_keys:
+                self.api_keys["cohere"] = user_api_keys["COHERE_API_KEY"]
+
+            # Configure prompt service if available
+            if self.prompt_service:
+                self.prompt_service.set_user_id(user_id)
+
+            self.logger.debug(f"LLM service configured for user {user_id}")
+        except Exception as e:
+            self.logger.error(f"Error configuring LLM for user {user_id}: {e}")
 
     async def get_prompt(self, prompt_name: str) -> str:
         """
@@ -269,6 +266,30 @@ class LLMService:
         except Exception as e:
             self.logger.error(f"Error getting completion: {e}")
             raise
+
+    def _get_provider_from_model(self, model: str) -> Optional[str]:
+        """
+        Get the provider name from the model name.
+
+        Args:
+            model: Model name (e.g., 'gpt-4', 'claude-3-opus')
+
+        Returns:
+            Provider name or None if unknown
+        """
+        model_lower = model.lower()
+        if "gpt" in model_lower or "text-embedding" in model_lower:
+            return "openai"
+        elif "claude" in model_lower:
+            return "anthropic"
+        elif "gemini" in model_lower:
+            return "google"
+        elif "command" in model_lower:
+            return "cohere"
+        elif "llama" in model_lower or "mistral" in model_lower:
+            return "mistral"
+        else:
+            return None
 
     async def generate_section(
         self,

@@ -74,6 +74,20 @@ class LLMSettings(BaseSettings):
         default=0.7, description="Default temperature for LLM responses"
     )
     max_tokens: int = Field(default=2000, description="Maximum tokens in LLM responses")
+    ollama_uri: str = Field(
+        default="http://localhost:11434", description="URI for Ollama API"
+    )
+
+
+class LinkedInSettings(BaseSettings):
+    """LinkedIn settings for job scraping."""
+
+    email: Optional[str] = Field(
+        default=None, description="LinkedIn email for authentication"
+    )
+    password: Optional[str] = Field(
+        default=None, description="LinkedIn password for authentication"
+    )
 
 
 class UISettings(BaseSettings):
@@ -313,6 +327,9 @@ class Settings(BaseSettings):
         default_factory=AuthSettings, description="Auth settings"
     )
     llm: LLMSettings = Field(default_factory=LLMSettings, description="LLM settings")
+    linkedin: LinkedInSettings = Field(
+        default_factory=LinkedInSettings, description="LinkedIn settings"
+    )
     ui: UISettings = Field(default_factory=UISettings, description="UI settings")
     latex: LatexSettings = Field(
         default_factory=LatexSettings, description="LaTeX settings"
@@ -355,6 +372,16 @@ class Settings(BaseSettings):
     def cors_origins(self) -> List[Union[str, AnyHttpUrl]]:
         """Get CORS origins."""
         return self.api.cors_origins
+
+    @property
+    def linkedin_email(self) -> Optional[str]:
+        """Get LinkedIn email."""
+        return self.linkedin.email
+
+    @property
+    def linkedin_password(self) -> Optional[str]:
+        """Get LinkedIn password."""
+        return self.linkedin.password
 
 
 # Create settings instance
