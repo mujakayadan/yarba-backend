@@ -7,8 +7,18 @@ import streamlit as st
 
 from config.logging_config import get_logger
 from config.settings import Settings
-from core.database import init_db
-from core.generator.generator_manager import GeneratorManager
+from core.database import (
+    get_portfolio_repository,
+    get_preamble_repository,
+    get_profile_repository,
+    get_resume_repository,
+    get_tex_header_repository,
+    get_tex_template_repository,
+)
+from core.services.generator_service import GeneratorService
+from core.services.latex_service import LatexService
+from core.services.llm_service import LLMService
+from core.services.prompt_service import PromptService
 from ui.components.database_viewer import DatabaseViewer
 from ui.components.model_selector import ModelSelector
 from ui.pages.home import HomePage
@@ -37,18 +47,74 @@ class StreamlitApp:
         # Initialize database
         self._initialize_database()
 
-        # Initialize components after database is ready
-        self.model_selector = ModelSelector()
-        self.generator_manager = GeneratorManager(st.session_state["user_id"])
+        # Initialize repositories and services
+        self._initialize_repositories_and_services()
 
         # Initialize pages
-        self.home_page = HomePage(self.model_selector, self.generator_manager)
+        self.home_page = HomePage(self.model_selector, self.generator_service)
         self.settings_page = SettingsPage()
         self.database_viewer = DatabaseViewer()
 
         if "components_initialized" not in st.session_state:
             self._store_components()
             st.session_state["components_initialized"] = True
+
+    def _initialize_repositories_and_services(self):
+        """Initialize repositories and services"""
+        try:
+            # Initialize repositories using async functions
+            def get_repo_from_generator(gen):
+                """Helper to get first yield from generator"""
+                try:
+                    loop = asyncio.get_event_loop()
+                    gen_instance = gen.__aiter__()
+                    return loop.run_until_complete(gen_instance.__anext__())
+                except Exception as e:
+                    logger.error(f"Error getting repository from generator: {e}")
+                    raise
+
+            # Initialize all repositories
+            self.resume_repository = get_repo_from_generator(get_resume_repository())
+            self.profile_repository = get_repo_from_generator(get_profile_repository())
+            self.portfolio_repository = get_repo_from_generator(
+                get_portfolio_repository()
+            )
+            preamble_repository = get_repo_from_generator(get_preamble_repository())
+            tex_header_repository = get_repo_from_generator(get_tex_header_repository())
+            tex_template_repository = get_repo_from_generator(
+                get_tex_template_repository()
+            )
+
+            # Create dependent services
+            self.prompt_service = PromptService()
+            self.llm_service = LLMService(
+                profile_repository=self.profile_repository,
+                prompt_service=self.prompt_service,
+            )
+
+            self.latex_service = LatexService(
+                preamble_repository=preamble_repository,
+                header_repository=tex_header_repository,
+                template_repository=tex_template_repository,
+            )
+
+            # Initialize generator service
+            self.generator_service = GeneratorService(
+                resume_repository=self.resume_repository,
+                profile_repository=self.profile_repository,
+                portfolio_repository=self.portfolio_repository,
+                llm_service=self.llm_service,
+                latex_service=self.latex_service,
+            )
+
+            # Initialize components
+            self.model_selector = ModelSelector()
+
+            logger.info("Repositories and services initialized successfully")
+        except Exception as e:
+            logger.error(f"Error initializing repositories and services: {e}")
+            st.error(f"Failed to initialize application services: {str(e)}")
+            st.stop()
 
     def _initialize_database(self):
         """Initialize the database connection."""
@@ -59,33 +125,75 @@ class StreamlitApp:
                 asyncio.set_event_loop(loop)
                 st.session_state["loop"] = loop
 
-                # Initialize database
-                loop.run_until_complete(init_db())
-                logger.info("Database initialized for Streamlit app")
+                # Initialize Beanie with document models
+                from beanie import init_beanie
+
+                from core.database.connection import get_async_database_connection
+                from core.models.portfolio import Portfolio
+                from core.models.preamble import Preamble
+                from core.models.profile import Profile
+                from core.models.resume import Resume
+                from core.models.tex_header import TexHeader
+                from core.models.tex_template import TexTemplate
+
+                # Import models that need to be registered with Beanie
+                from core.models.user import User
+
+                # Get database and initialize Beanie
+                async def initialize_beanie():
+                    db = await get_async_database_connection()
+                    await init_beanie(
+                        database=db,
+                        document_models=[
+                            User,
+                            Profile,
+                            Portfolio,
+                            Resume,
+                            Preamble,
+                            TexHeader,
+                            TexTemplate,
+                        ],
+                    )
+                    return db
+
+                db = loop.run_until_complete(initialize_beanie())
+                st.session_state["db"] = db
+                logger.info("Database initialized with Beanie ODM for Streamlit app")
             except Exception as e:
                 logger.error(f"Failed to initialize database: {e}")
-                st.error(
-                    "Failed to initialize database. Please check your database connection."
-                )
+                st.error(f"Failed to initialize database: {str(e)}")
                 st.stop()
 
     def _store_components(self):
         """Store components in session state"""
+        # Store services
         st.session_state["model_selector"] = self.model_selector
-        st.session_state["generator_manager"] = self.generator_manager
+        st.session_state["generator_service"] = self.generator_service
+        st.session_state["llm_service"] = self.llm_service
+        st.session_state["latex_service"] = self.latex_service
+        st.session_state["prompt_service"] = self.prompt_service
+
+        # Store repositories
+        st.session_state["resume_repository"] = self.resume_repository
+        st.session_state["profile_repository"] = self.profile_repository
+        st.session_state["portfolio_repository"] = self.portfolio_repository
+
         logger.debug("Components stored in session state")
 
     def setup_session_state(self):
         """Initialize session state variables"""
         if "user_id" not in st.session_state:
-            logger.debug(
-                f"Setting user_id in session state to: {settings.test_user_id}"
-            )
-            st.session_state["user_id"] = settings.test_user_id
+            # Use the test_user_id directly from settings
+            # It should already be a PydanticObjectId thanks to the validator
+            user_id = settings.test_user_id
+            logger.debug(f"Using test_user_id from settings: {user_id}")
+            st.session_state["user_id"] = user_id
         else:
             logger.debug(
                 f"Current user_id in session state: {st.session_state['user_id']}"
             )
+
+        # Initialize other session state variables
         if "portfolio_initialized" not in st.session_state:
             st.session_state["portfolio_initialized"] = False
         if "current_page" not in st.session_state:

@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -9,7 +10,8 @@ from config.logging_config import get_logger
 from config.settings import Settings
 from core.exceptions.base import InternalServerException
 from core.latex.compilers import CoverLetterCompiler, ResumeCompiler
-from core.latex.config import LatexConfig
+from core.models.portfolio import Portfolio
+from core.models.profile import Profile
 from core.models.resume import Resume
 from core.repositories.preamble_repository import PreambleRepository
 from core.repositories.tex_header_repository import TexHeaderRepository
@@ -24,102 +26,124 @@ class LatexService:
 
     def __init__(
         self,
-        template_repository: Optional[TexTemplateRepository] = None,
-        header_repository: Optional[TexHeaderRepository] = None,
-        preamble_repository: Optional[PreambleRepository] = None,
-        latex_config: Optional[LatexConfig] = None,
+        preamble_repository: PreambleRepository,
+        header_repository: TexHeaderRepository,
+        template_repository: TexTemplateRepository,
     ):
         """
-        Initialize the LaTeX service.
+        Initialize LaTeX service.
 
         Args:
-            template_repository: Repository for accessing LaTeX templates
-            header_repository: Repository for accessing LaTeX headers
-            preamble_repository: Repository for accessing LaTeX preambles
-            latex_config: Configuration for LaTeX compilation
+            preamble_repository: Repository for LaTeX preambles
+            header_repository: Repository for LaTeX headers
+            template_repository: Repository for LaTeX templates
         """
-        self.template_repository = template_repository or TexTemplateRepository()
-        self.header_repository = header_repository or TexHeaderRepository()
-        self.preamble_repository = preamble_repository or PreambleRepository()
-        self.latex_config = latex_config or LatexConfig()
-        self.logger = get_logger(self.__class__.__name__)
+        self.preamble_repository = preamble_repository
+        self.header_repository = header_repository
+        self.template_repository = template_repository
+        self.logger = logger
 
-        # Initialize the compilers
-        self.resume_compiler = ResumeCompiler(self.latex_config)
-        self.cover_letter_compiler = CoverLetterCompiler(self.latex_config)
+        # Initialize compilers directly
+        self.resume_compiler = ResumeCompiler()
+        self.cover_letter_compiler = CoverLetterCompiler()
 
-    async def get_template(self, template_name: str) -> str:
+    async def get_default_preamble(self) -> str:
         """
-        Get a LaTeX template by name.
-
-        Args:
-            template_name: Template name
+        Get default LaTeX preamble.
 
         Returns:
-            str: Template content
+            str: LaTeX preamble content
         """
-        return await self.template_repository.get_by_name(template_name)
+        try:
+            preamble = await self.preamble_repository.get_default()
+            if not preamble:
+                self.logger.warning("Default preamble not found, using empty string")
+                return ""
+            return preamble.content
+        except Exception as e:
+            self.logger.error(f"Error getting default preamble: {e}")
+            return ""
 
-    async def get_header(self, header_name: str) -> str:
+    async def get_preamble(self, preamble_id: Union[str, None] = None) -> str:
         """
-        Get a LaTeX header by name.
+        Get LaTeX preamble by ID.
+
+        Args:
+            preamble_id: Preamble ID or None for default
+
+        Returns:
+            str: LaTeX preamble content
+        """
+        try:
+            if not preamble_id:
+                return await self.get_default_preamble()
+
+            preamble = await self.preamble_repository.get_by_id(preamble_id)
+            if not preamble:
+                self.logger.warning(f"Preamble {preamble_id} not found, using default")
+                return await self.get_default_preamble()
+            return preamble.content
+        except Exception as e:
+            self.logger.error(f"Error getting preamble {preamble_id}: {e}")
+            return await self.get_default_preamble()
+
+    async def get_header(self, header_name: str = "default") -> str:
+        """
+        Get LaTeX header by name.
 
         Args:
             header_name: Header name
 
         Returns:
-            str: Header content
+            str: LaTeX header content
         """
-        return await self.header_repository.get_by_name(header_name)
+        try:
+            header = await self.header_repository.get_by_name(header_name)
+            if not header:
+                self.logger.warning(
+                    f"Header {header_name} not found, using empty string"
+                )
+                return ""
+            return header.content
+        except Exception as e:
+            self.logger.error(f"Error getting header {header_name}: {e}")
+            return ""
 
-    async def get_default_header(self) -> str:
+    async def get_template(self, template_name: str) -> str:
         """
-        Get the default LaTeX header.
-
-        Returns:
-            str: Default header content
-        """
-        return await self.header_repository.get_default()
-
-    async def get_default_preamble(self) -> str:
-        """
-        Get the default LaTeX preamble.
-
-        Returns:
-            str: Default preamble content
-        """
-        return await self.preamble_repository.get_default()
-
-    async def format_template(self, template_name: str, params: Dict[str, Any]) -> str:
-        """
-        Format a LaTeX template with parameters.
+        Get LaTeX template by name.
 
         Args:
             template_name: Template name
-            params: Template parameters
 
         Returns:
-            str: Formatted template content
+            str: LaTeX template content
         """
-        return await self.template_repository.safe_format_template(
-            template_name, params
-        )
+        try:
+            template = await self.template_repository.get_by_name(template_name)
+            if not template:
+                self.logger.warning(
+                    f"Template {template_name} not found, using empty string"
+                )
+                return ""
+            return template.content
+        except Exception as e:
+            self.logger.error(f"Error getting template {template_name}: {e}")
+            return ""
 
     async def generate_resume_latex(
         self,
         resume: Resume,
-        profile_data: Dict[str, Any],
-        portfolio_data: Dict[str, Any],
-        content: Dict[str, str],
+        profile: Profile,
+        portfolio: Portfolio,
     ) -> str:
         """
         Generate LaTeX for a resume.
 
         Args:
             resume: Resume model
-            profile_data: Profile data
-            portfolio_data: Portfolio data
-            content: Generated content for sections
+            profile: Profile model
+            portfolio: Portfolio model
 
         Returns:
             str: LaTeX document
@@ -127,18 +151,21 @@ class LatexService:
         try:
             # Get template, header, and preamble
             template = await self.get_template("resume")
-            header = await self.get_header(resume.template_name or "modern")
+            header = await self.get_header(resume.template_id or "default")
             preamble = await self.get_default_preamble()
+
+            # Extract content from resume
+            content = resume.content or {}
 
             # Combine parameters
             params = {
                 "header": header,
                 "preamble": preamble,
-                "name": profile_data.get("name", ""),
-                "email": profile_data.get("email", ""),
-                "phone": profile_data.get("phone", ""),
-                "location": profile_data.get("location", ""),
-                "links": self._format_links(profile_data.get("links", {})),
+                "name": profile.name if profile else "",
+                "email": profile.email if profile else "",
+                "phone": profile.phone if profile else "",
+                "location": profile.location if profile else "",
+                "links": self._format_links(profile.links if profile else {}),
                 "summary": content.get("summary", ""),
                 "skills": content.get("skills", ""),
                 "work_experience": content.get("work_experience", ""),
@@ -149,7 +176,7 @@ class LatexService:
             }
 
             # Format template
-            return await self.format_template(template_name="resume", params=params)
+            return template.format(**params)
 
         except Exception as e:
             self.logger.error(f"Error generating resume LaTeX: {e}")
@@ -157,19 +184,17 @@ class LatexService:
 
     async def generate_cover_letter_latex(
         self,
-        profile_data: Dict[str, Any],
-        company_name: str,
-        job_title: str,
-        content: str,
+        resume: Resume,
+        profile: Profile,
+        portfolio: Portfolio,
     ) -> str:
         """
         Generate LaTeX for a cover letter.
 
         Args:
-            profile_data: Profile data
-            company_name: Company name
-            job_title: Job title
-            content: Cover letter content
+            resume: Resume model (containing cover letter content)
+            profile: Profile model
+            portfolio: Portfolio model
 
         Returns:
             str: LaTeX document
@@ -177,32 +202,33 @@ class LatexService:
         try:
             # Get template, header, and preamble
             template = await self.get_template("cover_letter")
-            header = await self.get_default_header()
+            header = await self.get_header(resume.template_id or "default")
             preamble = await self.get_default_preamble()
 
-            # Get current date
-            from datetime import datetime
+            # Extract content
+            content = resume.content or {}
+            cover_letter_text = content.get("cover_letter", "")
 
-            current_date = datetime.now().strftime("%B %d, %Y")
+            # Get application details
+            company_name = resume.company_details or ""
+            job_title = resume.job_position or ""
 
             # Combine parameters
             params = {
                 "header": header,
                 "preamble": preamble,
-                "name": profile_data.get("name", ""),
-                "email": profile_data.get("email", ""),
-                "phone": profile_data.get("phone", ""),
-                "address": profile_data.get("location", ""),
-                "date": current_date,
+                "name": profile.name if profile else "",
+                "email": profile.email if profile else "",
+                "phone": profile.phone if profile else "",
+                "location": profile.location if profile else "",
+                "date": datetime.now().strftime("%B %d, %Y"),
                 "company_name": company_name,
                 "job_title": job_title,
-                "content": content,
+                "cover_letter_text": cover_letter_text,
             }
 
             # Format template
-            return await self.format_template(
-                template_name="cover_letter", params=params
-            )
+            return template.format(**params)
 
         except Exception as e:
             self.logger.error(f"Error generating cover letter LaTeX: {e}")

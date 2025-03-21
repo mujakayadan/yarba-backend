@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Union
 import litellm
 from litellm import acompletion
 
+from config.env_config import ANTHROPIC_API_KEY, GEMINI_API_KEY, OPENAI_API_KEY
 from config.logging_config import get_logger
 from config.settings import Settings
 from core.models.profile import Profile
@@ -51,31 +52,23 @@ class LLMService:
         self.temperature = temperature or settings.llm.temperature
         self.max_tokens = settings.llm.max_tokens
 
-        self.logger = get_logger(self.__class__.__name__)
-        self.logger.info(f"LLM service initialized with model: {self.model}")
+        # Store API keys from environment config as fallbacks
+        self.api_keys = {
+            "openai": OPENAI_API_KEY,
+            "anthropic": ANTHROPIC_API_KEY,
+            "gemini": GEMINI_API_KEY,
+            "cohere": None,
+            "mistral": None,
+        }
 
-        # Configure LiteLLM
-        self._configure_litellm()
-
-    def _configure_litellm(self) -> None:
-        """Configure litellm with default settings."""
-        # Set fallback providers if needed
-        litellm.set_verbose = False
-
-        # Set API keys from settings if available
-        if settings.llm.openai_api_key:
-            litellm.api_key_dict["openai"] = settings.llm.openai_api_key
-        if settings.llm.anthropic_api_key:
-            litellm.api_key_dict["anthropic"] = settings.llm.anthropic_api_key
-        if settings.llm.gemini_api_key:
-            litellm.api_key_dict["gemini"] = settings.llm.gemini_api_key
-
-        # Override with provided API key if specified
+        # If specific API key is provided in constructor, use it
         if self.api_key:
-            # Detect the provider from the model name
             provider = self._get_provider_from_model(self.model)
             if provider:
-                litellm.api_key_dict[provider] = self.api_key
+                self.api_keys[provider] = self.api_key
+
+        self.logger = get_logger(self.__class__.__name__)
+        self.logger.info(f"LLM service initialized with model: {self.model}")
 
     def _get_provider_from_model(self, model: str) -> Optional[str]:
         """
@@ -123,35 +116,24 @@ class LLMService:
 
         return {}
 
-    async def _get_api_key_for_user(self, user_id: str, model: str) -> Optional[str]:
+    async def _get_api_keys_for_user(self, user_id: str) -> Dict[str, str]:
         """
-        Get the appropriate API key for a user and model.
+        Get all API keys for a user.
 
         Args:
             user_id: User ID
-            model: Model name
 
         Returns:
-            API key if available
+            Dictionary of API keys
         """
         if not self.profile_repository:
-            return None
+            return {}
 
         try:
-            profile = await self.profile_repository.get_by_user_id(user_id)
-            if not profile or not profile.api_keys:
-                return None
-
-            provider = self._get_provider_from_model(model)
-            if not provider:
-                return None
-
-            key_name = f"{provider.upper()}_API_KEY"
-            return profile.api_keys.get(key_name)
+            return await self.profile_repository.get_api_keys(user_id)
         except Exception as e:
-            self.logger.error(f"Error fetching API key: {e}")
-
-        return None
+            self.logger.error(f"Error fetching API keys: {e}")
+            return {}
 
     async def configure_for_user(self, user_id: str) -> None:
         """
@@ -168,12 +150,20 @@ class LLMService:
         self.temperature = preferences.get("temperature", self.temperature)
         self.max_tokens = preferences.get("max_tokens", self.max_tokens)
 
-        # Try to get user-specific API key
-        api_key = await self._get_api_key_for_user(user_id, self.model)
-        if api_key:
-            provider = self._get_provider_from_model(self.model)
-            if provider:
-                litellm.api_key_dict[provider] = api_key
+        # Get all user API keys
+        user_api_keys = await self._get_api_keys_for_user(user_id)
+
+        # Update the service's API keys with user-specific keys if available
+        if "OPENAI_API_KEY" in user_api_keys:
+            self.api_keys["openai"] = user_api_keys["OPENAI_API_KEY"]
+        if "ANTHROPIC_API_KEY" in user_api_keys:
+            self.api_keys["anthropic"] = user_api_keys["ANTHROPIC_API_KEY"]
+        if "GEMINI_API_KEY" in user_api_keys:
+            self.api_keys["gemini"] = user_api_keys["GEMINI_API_KEY"]
+        if "MISTRAL_API_KEY" in user_api_keys:
+            self.api_keys["mistral"] = user_api_keys["MISTRAL_API_KEY"]
+        if "COHERE_API_KEY" in user_api_keys:
+            self.api_keys["cohere"] = user_api_keys["COHERE_API_KEY"]
 
         # Configure prompt service if available
         if self.prompt_service:
@@ -254,17 +244,22 @@ class LLMService:
                 messages.append({"role": "system", "content": system_prompt})
             messages.append({"role": "user", "content": prompt})
 
+            # Get the provider for this model
+            provider = self._get_provider_from_model(model)
+            api_key = self.api_keys.get(provider) if provider else None
+
             # Log the request
             self.logger.debug(
                 f"Sending request to {model} with temperature {temperature}"
             )
 
-            # Call the LLM
+            # Call the LLM with the appropriate API key
             response = await acompletion(
                 model=model,
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
+                api_key=api_key,  # Pass API key directly to the completion function
             )
 
             # Process the response

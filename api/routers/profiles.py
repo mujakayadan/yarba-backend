@@ -8,7 +8,7 @@ from pydantic import BaseModel, EmailStr
 from core.database import get_profile_repository
 from core.models.profile import Preferences, Profile
 from core.models.user import User
-from core.repositories.profile import ProfileRepository
+from core.repositories.profile_repository import ProfileRepository
 
 from ..dependencies.auth import get_current_active_user
 

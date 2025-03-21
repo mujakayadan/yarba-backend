@@ -12,12 +12,7 @@ from core.services.resume_service import ResumeService
 
 from ..dependencies.services import get_generator_service, get_resume_service
 from ..middleware.auth import CurrentUser
-from ..schemas.resume import (
-    CoverLetterCreate,
-    CoverLetterResponse,
-    ResumeFilter,
-    ResumeUpdate,
-)
+from ..schemas import CoverLetterCreate, CoverLetterResponse, ResumeFilter, ResumeUpdate
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -313,6 +308,7 @@ async def generate_cover_letter(
             job_description=job_description,
             title=resume.title,
             template_id=resume.template_id,
+            resume_id=cover_letter_id,
         )
 
         logger.info(f"Cover letter content generated: {cover_letter_id}")

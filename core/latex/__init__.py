@@ -5,6 +5,5 @@ from various data sources.
 """
 
 from .base import LatexCompiler
-from .config import LatexConfig
 
-__all__ = ["LatexCompiler", "LatexConfig"]
+__all__ = ["LatexCompiler"]

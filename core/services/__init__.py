@@ -2,6 +2,7 @@
 
 from .auth_service import AuthService
 from .base_service import BaseService
+from .generator_service import GeneratorService
 from .latex_service import LatexService
 from .llm_service import LLMService
 from .portfolio_service import PortfolioService
@@ -16,6 +17,8 @@ __all__ = [
     "BaseService",
     # Auth service
     "AuthService",
+    # Generator service
+    "GeneratorService",
     # Resume service
     "ResumeService",
     # Profile service

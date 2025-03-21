@@ -1,3 +1,6 @@
+from enum import Enum, auto
+from typing import Any, Dict, Optional
+
 import streamlit as st
 
 from config import (
@@ -9,19 +12,45 @@ from config import (
 )
 from config.settings import settings
 from core.database.factory import get_unit_of_work
-from core.generator.generator_manager import DocumentType
-from core.generator.utils.job_analysis import check_clearance_requirement
-from core.generator.utils.job_info import JobInfo
-from core.generator.utils.output_manager import OutputManager
+from core.services.generator_service import GeneratorService
+from core.services.job_service import JobService
+from core.services.latex_service import LatexService
+from core.services.llm_service import LLMService
 from ui.components.section_selector import SectionSelector
 
 logger = get_logger(__name__)
 
 
+# Define document types locally since we deleted the generator module
+class DocumentType(Enum):
+    RESUME = auto()
+    COVER_LETTER = auto()
+    COMBINED = auto()
+
+
+# Helper function to check clearance requirements in job descriptions
+def check_clearance_requirement(job_description: str, clearance_keywords: list) -> bool:
+    """
+    Check if a job requires security clearance.
+
+    Args:
+        job_description: The job description text
+        clearance_keywords: List of clearance-related keywords to check
+
+    Returns:
+        True if clearance is required, False otherwise
+    """
+    job_desc_lower = job_description.lower()
+    for keyword in clearance_keywords:
+        if keyword.lower() in job_desc_lower:
+            return True
+    return False
+
+
 class HomePage:
-    def __init__(self, model_selector, generator_manager):
+    def __init__(self, model_selector, generator_service):
         self.model_selector = model_selector
-        self.generator_manager = generator_manager
+        self.generator_service = generator_service
         self.section_selector = SectionSelector()
         # Initialize with default preferences
         self._load_user_preferences()
@@ -31,27 +60,28 @@ class HomePage:
         try:
 
             async def _load():
-                async with await get_unit_of_work() as uow:
+                async for uow in get_unit_of_work():
                     # Get current user's profile
                     profile = await uow.profile_repository.get_by_user_id(
                         st.session_state["user_id"]
                     )
 
                     if profile and profile.preferences:
-                        # Set LLM preferences
+                        # Set LLM preferences for service initialization
                         if (
                             hasattr(profile.preferences, "llm_preferences")
                             and profile.preferences.llm_preferences
                         ):
                             llm_prefs = profile.preferences.llm_preferences
-                            self.generator_manager.configure_llm(
-                                model_type=llm_prefs.get("model_type", "Claude"),
-                                model_name=llm_prefs.get(
+                            # Store preferences to be used when generating
+                            st.session_state["llm_preferences"] = {
+                                "model_type": llm_prefs.get("model_type", "Claude"),
+                                "model_name": llm_prefs.get(
                                     "model_name", "claude-3-5-sonnet-20240620"
                                 ),
-                                temperature=llm_prefs.get("temperature", 0.1),
-                            )
-                            logger.debug(f"Configured LLM with: {llm_prefs}")
+                                "temperature": llm_prefs.get("temperature", 0.1),
+                            }
+                            logger.debug(f"Stored LLM preferences: {llm_prefs}")
 
                         # Set section preferences
                         if (
@@ -82,11 +112,11 @@ class HomePage:
 
     def _set_default_preferences(self):
         """Set default preferences when loading from database fails"""
-        self.generator_manager.configure_llm(
-            model_type="Claude",
-            model_name="claude-3-5-sonnet-20240620",
-            temperature=0.1,
-        )
+        st.session_state["llm_preferences"] = {
+            "model_type": "Claude",
+            "model_name": "claude-3-5-sonnet-20240620",
+            "temperature": 0.1,
+        }
         logger.debug(
             "Using default model preferences: Claude/claude-3-5-sonnet-20240620/0.1"
         )
@@ -94,6 +124,7 @@ class HomePage:
     def render(self):
         try:
             clearance_blocked = False
+            job_info = None
             left_col, right_col = st.columns([2, 1])
 
             with left_col:
@@ -158,6 +189,41 @@ class HomePage:
                         )
                         clearance_blocked = True
 
+                # Before the generation options, extract job info
+                if job_description:
+                    try:
+                        # Create a temporary job service for job info extraction
+                        async def extract_job_info():
+                            async for uow in get_unit_of_work():
+                                profile_repo = uow.profile_repository
+                                # Set up temporary LLM service
+                                llm_service = LLMService(
+                                    profile_repository=profile_repo,
+                                )
+                                # Set up job service
+                                job_service = JobService(llm_service=llm_service)
+
+                                # Extract job info
+                                job_info = await job_service.extract_job_info(
+                                    job_description
+                                )
+                                return job_info
+
+                        # Run the extraction
+                        if "loop" in st.session_state:
+                            job_info = st.session_state.loop.run_until_complete(
+                                extract_job_info()
+                            )
+                            st.session_state["current_job_info"] = job_info
+                    except Exception as e:
+                        logger.error(f"Error extracting job info: {e}")
+                        # Create a simple job info dict with defaults
+                        job_info = {
+                            "company_name": "Unknown Company",
+                            "job_title": "Unknown Position",
+                            "job_description": job_description,
+                        }
+
                 st.markdown("### 🎯 Generation Options")
                 generation_option = st.selectbox(
                     "What would you like to generate?",
@@ -185,10 +251,16 @@ class HomePage:
                 with st.expander("Model Settings"):
                     # Get preferences from database
                     async def _get_model_settings():
-                        async with await get_unit_of_work() as uow:
-                            profile = await uow.profile_repository.get_by_user_id(
+                        # Import to avoid circular dependencies
+                        from ui.streamlit_app import StreamlitApp
+
+                        # Try to get profile using the repository directly from session state if available
+                        if "profile_repository" in st.session_state:
+                            profile_repo = st.session_state["profile_repository"]
+                            profile = await profile_repo.get_by_user_id(
                                 st.session_state["user_id"]
                             )
+
                             if (
                                 profile
                                 and profile.preferences
@@ -202,7 +274,9 @@ class HomePage:
                                     ),
                                     llm_prefs.get("temperature", 0.1),
                                 )
-                            return None
+
+                        # Fall back to default values
+                        return "Claude", "claude-3-5-sonnet-20240620", 0.1
 
                     if "loop" in st.session_state:
                         llm_settings = st.session_state.loop.run_until_complete(
@@ -294,57 +368,304 @@ class HomePage:
                 )
 
             # Handle generation when button is clicked
-            if generate_button:
-                self._handle_generation(
-                    job_description,
-                    generation_option,
-                    st.session_state.get("section_preferences", {}),
-                )
+            if generate_button and job_description:
+                with st.spinner("Generating your documents..."):
+                    try:
+                        # Map UI selection to DocumentType
+                        doc_type = None
+                        if generation_option == "Resume":
+                            doc_type = DocumentType.RESUME
+                        elif generation_option == "Cover Letter":
+                            doc_type = DocumentType.COVER_LETTER
+                        else:  # Both
+                            doc_type = DocumentType.COMBINED
+
+                        # Get or create the resume
+                        resume_id = st.session_state.get("current_resume_id")
+                        job_info = st.session_state.get("current_job_info")
+
+                        if not resume_id:
+                            # Create a new resume
+                            async def create_resume():
+                                async for uow in get_unit_of_work():
+                                    # Get user's profile
+                                    profile = (
+                                        await uow.profile_repository.get_by_user_id(
+                                            st.session_state["user_id"]
+                                        )
+                                    )
+
+                                    if not profile:
+                                        raise ValueError(
+                                            "Profile not found. Please create a profile first."
+                                        )
+
+                                    if not profile.default_portfolio_id:
+                                        raise ValueError(
+                                            "No default portfolio found. Please create a portfolio first."
+                                        )
+
+                                    # Create a new resume
+                                    from core.models.resume import Resume
+
+                                    resume = Resume(
+                                        user_id=st.session_state["user_id"],
+                                        profile_id=profile.id,
+                                        portfolio_id=profile.default_portfolio_id,
+                                        job_description=job_description,
+                                        job_position=job_info.get("job_title"),
+                                        company_details=job_info.get("company_name"),
+                                    )
+                                    await uow.resume_repository.save(resume)
+                                    return str(resume.id)
+
+                            if "loop" in st.session_state:
+                                resume_id = st.session_state.loop.run_until_complete(
+                                    create_resume()
+                                )
+                                st.session_state["current_resume_id"] = resume_id
+                            else:
+                                st.error(
+                                    "No event loop available. Cannot create resume."
+                                )
+                                return
+
+                        # Configure and use generator service
+                        async def generate_documents():
+                            try:
+                                # Get llm preferences from session state
+                                llm_prefs = st.session_state.get(
+                                    "llm_preferences",
+                                    {
+                                        "model_type": "Claude",
+                                        "model_name": "claude-3-5-sonnet-20240620",
+                                        "temperature": 0.1,
+                                    },
+                                )
+
+                                # Initialize repositories and services
+                                async for uow in get_unit_of_work():
+                                    # Configure services
+                                    from core.services.prompt_service import (
+                                        PromptService,
+                                    )
+
+                                    prompt_service = PromptService(
+                                        user_repository=uow.profile_repository
+                                    )
+                                    prompt_service.set_user_id(
+                                        st.session_state["user_id"]
+                                    )
+
+                                    llm_service = LLMService(
+                                        profile_repository=uow.profile_repository,
+                                        prompt_service=prompt_service,
+                                        model=llm_prefs.get("model_name"),
+                                        temperature=llm_prefs.get("temperature"),
+                                    )
+                                    # Configure LLM for the current user
+                                    await llm_service.configure_for_user(
+                                        st.session_state["user_id"]
+                                    )
+
+                                    latex_service = LatexService(
+                                        preamble_repository=uow.preamble_repository,
+                                        header_repository=uow.tex_header_repository,
+                                        template_repository=uow.tex_template_repository,
+                                    )
+
+                                    # Configure generator service
+                                    from core.services.generator_service import (
+                                        GeneratorService,
+                                    )
+
+                                    generator_service = GeneratorService(
+                                        resume_repository=uow.resume_repository,
+                                        profile_repository=uow.profile_repository,
+                                        portfolio_repository=uow.portfolio_repository,
+                                        llm_service=llm_service,
+                                        latex_service=latex_service,
+                                    )
+
+                                    # Apply section preferences if available
+                                    section_prefs = st.session_state.get(
+                                        "section_preferences", {}
+                                    )
+
+                                    # If job_info is available, use it
+                                    company_name = job_info.get("company_name")
+                                    job_title = job_info.get("job_title")
+
+                                    # Generate the appropriate document type
+                                    if doc_type == DocumentType.RESUME:
+                                        result = await generator_service.generate_resume(
+                                            user_id=st.session_state["user_id"],
+                                            job_description=job_description,
+                                            selected_sections=section_prefs,
+                                            title=f"Resume for {company_name if company_name else 'Job Application'}",
+                                            template_id="default",
+                                            resume_id=resume_id if resume_id else None,
+                                        )
+                                        # Generate PDF
+                                        pdf_content = (
+                                            await generator_service.generate_pdf(
+                                                resume_id=result.id,
+                                                user_id=st.session_state["user_id"],
+                                            )
+                                        )
+                                        return {"resume": result, "pdf": pdf_content}
+
+                                    elif doc_type == DocumentType.COVER_LETTER:
+                                        result = await generator_service.generate_cover_letter(
+                                            user_id=st.session_state["user_id"],
+                                            job_description=job_description,
+                                            title=f"Cover Letter for {company_name if company_name else 'Job Application'}",
+                                            template_id="default",
+                                            resume_id=resume_id if resume_id else None,
+                                        )
+                                        # Generate PDF
+                                        pdf_content = (
+                                            await generator_service.generate_pdf(
+                                                resume_id=result.id,
+                                                user_id=st.session_state["user_id"],
+                                            )
+                                        )
+                                        return {
+                                            "cover_letter": result,
+                                            "pdf": pdf_content,
+                                        }
+
+                                    else:  # Combined
+                                        # Generate resume
+                                        resume_result = await generator_service.generate_resume(
+                                            user_id=st.session_state["user_id"],
+                                            job_description=job_description,
+                                            selected_sections=section_prefs,
+                                            title=f"Resume for {company_name if company_name else 'Job Application'}",
+                                            template_id="default",
+                                            resume_id=resume_id if resume_id else None,
+                                        )
+
+                                        # Generate cover letter
+                                        cover_letter_result = await generator_service.generate_cover_letter(
+                                            user_id=st.session_state["user_id"],
+                                            job_description=job_description,
+                                            title=f"Cover Letter for {company_name if company_name else 'Job Application'}",
+                                            template_id="default",
+                                        )
+
+                                        # Generate PDFs
+                                        resume_pdf = (
+                                            await generator_service.generate_pdf(
+                                                resume_id=resume_result.id,
+                                                user_id=st.session_state["user_id"],
+                                            )
+                                        )
+
+                                        cover_letter_pdf = (
+                                            await generator_service.generate_pdf(
+                                                resume_id=cover_letter_result.id,
+                                                user_id=st.session_state["user_id"],
+                                            )
+                                        )
+
+                                        return {
+                                            "resume": resume_result,
+                                            "resume_pdf": resume_pdf,
+                                            "cover_letter": cover_letter_result,
+                                            "cover_letter_pdf": cover_letter_pdf,
+                                        }
+                            except Exception as e:
+                                logger.error(
+                                    f"Error in generate_documents: {e}", exc_info=True
+                                )
+                                return {"error": str(e)}
+
+                        try:
+                            if "loop" in st.session_state:
+                                result = st.session_state.loop.run_until_complete(
+                                    generate_documents()
+                                )
+                            else:
+                                st.error(
+                                    "No event loop available. Cannot generate documents."
+                                )
+                                return
+                        except Exception as e:
+                            st.error(f"Error during document generation: {str(e)}")
+                            logger.error(
+                                f"Exception in generate_documents: {e}", exc_info=True
+                            )
+                            return
+
+                        # Check for errors
+                        if "error" in result:
+                            st.error(f"Generation failed: {result['error']}")
+                            logger.error(
+                                f"Document generation error: {result['error']}"
+                            )
+                        else:
+                            st.success("Documents generated successfully!")
+
+                            # Store the results for later reference
+                            st.session_state["generation_result"] = result
+
+                            # Show download buttons for PDFs
+                            st.markdown("### Download Generated Documents")
+
+                            # Prepare PDF data based on document type
+                            if doc_type == DocumentType.RESUME:
+                                # For resume only
+                                resume_pdf = result.get("pdf")
+                                if resume_pdf:
+                                    st.download_button(
+                                        label="📄 Download Resume PDF",
+                                        data=resume_pdf,
+                                        file_name="resume.pdf",
+                                        mime="application/pdf",
+                                        key="download_resume",
+                                    )
+                            elif doc_type == DocumentType.COVER_LETTER:
+                                # For cover letter only
+                                cover_letter_pdf = result.get("pdf")
+                                if cover_letter_pdf:
+                                    st.download_button(
+                                        label="📝 Download Cover Letter PDF",
+                                        data=cover_letter_pdf,
+                                        file_name="cover_letter.pdf",
+                                        mime="application/pdf",
+                                        key="download_cover_letter",
+                                    )
+                            else:
+                                # For combined (both resume and cover letter)
+                                resume_pdf = result.get("resume_pdf")
+                                cover_letter_pdf = result.get("cover_letter_pdf")
+
+                                if resume_pdf:
+                                    st.download_button(
+                                        label="📄 Download Resume PDF",
+                                        data=resume_pdf,
+                                        file_name="resume.pdf",
+                                        mime="application/pdf",
+                                        key="download_resume",
+                                    )
+
+                                if cover_letter_pdf:
+                                    st.download_button(
+                                        label="📝 Download Cover Letter PDF",
+                                        data=cover_letter_pdf,
+                                        file_name="cover_letter.pdf",
+                                        mime="application/pdf",
+                                        key="download_cover_letter",
+                                    )
+
+                            # Show success message with balloons
+                            st.balloons()
+
+                    except Exception as e:
+                        st.error(f"An error occurred during generation: {str(e)}")
+                        logger.error(f"Document generation error: {e}", exc_info=True)
 
         except Exception as e:
             logger.error(f"Error in home page: {str(e)}", exc_info=True)
             st.error(f"❌ An unexpected error occurred: {str(e)}")
-
-    def _handle_generation(self, job_description, generation_option, selected_sections):
-        if not job_description:
-            logger.warning("Generation attempted without job description")
-            st.error("❌ Please enter a job description first.")
-            return
-
-        with st.spinner("🔄 Generating your documents..."):
-            progress_bar = st.progress(0)
-            status_area = st.empty()
-
-            try:
-                # Get job info
-                job_info = JobInfo.extract_from_description(
-                    job_description, self.generator_manager.llm_runner
-                )
-
-                # Create output manager directly
-                output_manager = OutputManager(job_info)
-                logger.info(f"Output manager working at: {output_manager.output_dir}")
-
-                generation_type = DocumentType(
-                    generation_option.lower().replace(" ", "_")
-                )
-
-                for result in self.generator_manager.generate(
-                    generation_type=generation_type,
-                    job_description=job_description,
-                    selected_sections=selected_sections,
-                    output_manager=output_manager,
-                ):
-                    if isinstance(result, tuple):
-                        status_msg, progress = result
-                        progress_bar.progress(progress)
-                        status_area.text(status_msg)
-
-                st.success("✨ Generation completed successfully!")
-                st.balloons()
-                logger.info("Generation completed successfully")
-                st.success(f"Generation complete: {output_manager.output_dir}")
-
-            except Exception as e:
-                logger.error(f"Generation failed: {e}")
-                st.error(f"❌ {str(e)}")

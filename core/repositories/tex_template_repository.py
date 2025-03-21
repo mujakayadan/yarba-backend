@@ -3,6 +3,7 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from config.logging_config import get_logger
 from core.models.tex_template import TexTemplate
 from core.repositories.base_repository import BeanieRepository
 
@@ -14,7 +15,7 @@ class TexTemplateRepository(BeanieRepository[TexTemplate]):
         """Initialize the repository."""
         super().__init__(TexTemplate)
         self._cached_templates: Dict[str, TexTemplate] = {}
-        self.logger = self._get_logger()
+        self.logger = get_logger(__name__)
 
     async def get_by_name(self, name: str) -> Optional[TexTemplate]:
         """

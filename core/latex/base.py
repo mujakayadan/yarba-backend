@@ -6,8 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 from config.logging_config import get_logger
-
-from .config import LatexConfig
+from config.settings import settings
 
 logger = get_logger(__name__)
 
@@ -19,13 +18,15 @@ class LatexCompiler(ABC):
     to PDF. It handles the compilation process, file management, and cleanup.
     """
 
-    def __init__(self, config: Optional[LatexConfig] = None):
-        """Initialize the compiler.
-
-        Args:
-            config: Optional LaTeX configuration
-        """
-        self.config = config or LatexConfig()
+    def __init__(self):
+        """Initialize the compiler with settings from the application configuration."""
+        # Use settings directly
+        self.compiler_path = settings.latex.compiler_path
+        self.output_dir = settings.latex.output_dir
+        self.temp_extensions = settings.latex.temp_extensions
+        self.compiler_options = settings.latex.compiler_options
+        self.cleanup_temp_files = settings.latex.cleanup_temp_files
+        self.templates_dir = settings.latex.templates_dir
 
     @abstractmethod
     async def generate_tex_content(self, *args, **kwargs) -> str:
@@ -58,8 +59,8 @@ class LatexCompiler(ABC):
 
             # Build command
             command = [
-                self.config.compiler_path,
-                *self.config.compiler_options,
+                self.compiler_path,
+                *self.compiler_options,
                 tex_path.name,
             ]
 
@@ -89,7 +90,7 @@ class LatexCompiler(ABC):
             return None
 
         finally:
-            if self.config.cleanup_temp_files:
+            if self.cleanup_temp_files:
                 await self._cleanup_temp_files(tex_path)
 
     async def _cleanup_temp_files(self, tex_path: Path) -> None:
@@ -99,7 +100,7 @@ class LatexCompiler(ABC):
             tex_path: Path to the LaTeX file
         """
         output_dir = tex_path.parent
-        for ext in self.config.temp_extensions:
+        for ext in self.temp_extensions:
             temp_file = output_dir / f"{tex_path.stem}{ext}"
             if temp_file.exists():
                 try:

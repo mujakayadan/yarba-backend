@@ -7,12 +7,12 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 import streamlit as st
-from core.llm.base import BaseLLM
 
 from config import get_logger
 from config.settings import settings
 from core.database.factory import get_unit_of_work
 from core.models.profile import Preferences, Profile
+from ui.pages.home import DocumentType
 
 from ..components.model_selector import ModelSelector
 from ..components.section_selector import SectionSelector
@@ -107,7 +107,7 @@ class SettingsPage:
         """
 
         async def _save():
-            async with await get_unit_of_work() as uow:
+            async for uow in get_unit_of_work():
                 # Get current user
                 user_id = st.session_state.get("user_id")
                 if not user_id:
@@ -323,7 +323,7 @@ class SettingsPage:
         """
 
         async def _save():
-            async with await get_unit_of_work() as uow:
+            async for uow in get_unit_of_work():
                 # Get current user
                 user_id = st.session_state.get("user_id")
                 if not user_id:
@@ -443,7 +443,7 @@ class SettingsPage:
         """
 
         async def _save():
-            async with await get_unit_of_work() as uow:
+            async for uow in get_unit_of_work():
                 # Get current user
                 user_id = st.session_state.get("user_id")
                 if not user_id:
@@ -494,7 +494,7 @@ class SettingsPage:
         profile = None
 
         async def _get_profile():
-            async with await get_unit_of_work() as uow:
+            async for uow in get_unit_of_work():
                 # Get current user
                 user_id = st.session_state.get("user_id")
                 if not user_id:

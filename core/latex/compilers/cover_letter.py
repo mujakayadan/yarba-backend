@@ -5,7 +5,6 @@ from typing import Any, Dict, Optional
 
 from ...models.resume import Resume
 from ..base import LatexCompiler
-from ..config import LatexConfig
 from ..utils.placeholder import PlaceholderManager
 from ..utils.sanitizer import sanitize_latex
 
@@ -18,13 +17,9 @@ class CoverLetterCompiler(LatexCompiler):
     to generate the final document.
     """
 
-    def __init__(self, config: Optional[LatexConfig] = None):
-        """Initialize the cover letter compiler.
-
-        Args:
-            config: Optional LaTeX configuration
-        """
-        super().__init__(config)
+    def __init__(self):
+        """Initialize the cover letter compiler."""
+        super().__init__()
         self.placeholder_manager = PlaceholderManager()
 
     async def generate_tex_content(
@@ -145,7 +140,7 @@ class CoverLetterCompiler(LatexCompiler):
         tex_content = await self.generate_tex_content(resume, template)
 
         # Create temporary file path
-        tex_path = Path(self.config.output_dir) / f"{resume.id}_cover_letter.tex"
+        tex_path = Path(self.output_dir) / f"{resume.id}_cover_letter.tex"
 
         # Compile to PDF
         return await self.compile_pdf(tex_path, tex_content)

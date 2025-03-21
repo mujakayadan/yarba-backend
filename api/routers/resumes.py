@@ -12,7 +12,7 @@ from core.services.resume_service import ResumeService
 
 from ..dependencies.services import get_generator_service, get_resume_service
 from ..middleware.auth import CurrentUser
-from ..schemas.resume import ResumeCreate, ResumeFilter, ResumeResponse, ResumeUpdate
+from ..schemas import ResumeCreate, ResumeFilter, ResumeResponse, ResumeUpdate
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -266,6 +266,7 @@ async def generate_resume(
             selected_sections=selected_sections,
             title=resume.title,
             template_id=resume.template_id,
+            resume_id=resume_id,
         )
 
         logger.info(f"Resume content generated: {resume_id}")

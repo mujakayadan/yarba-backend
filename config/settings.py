@@ -113,12 +113,19 @@ class LatexSettings(BaseSettings):
     output_dir: Path = Field(
         default=Path("output"), description="Directory for LaTeX output files"
     )
-    cleanup_temp_files: bool = Field(
-        default=True, description="Whether to clean up temporary files"
+    templates_dir: Path = Field(
+        default=Path("templates/latex"), description="Directory for LaTeX templates"
     )
     temp_extensions: List[str] = Field(
         default=[".aux", ".log", ".out"],
         description="Extensions of temporary files to clean up",
+    )
+    compiler_options: List[str] = Field(
+        default_factory=lambda: ["-interaction=nonstopmode"],
+        description="Command line options for the compiler",
+    )
+    cleanup_temp_files: bool = Field(
+        default=True, description="Whether to clean up temporary files"
     )
 
 
@@ -218,6 +225,36 @@ class APISettings(BaseSettings):
     )
 
 
+class PathSettings(BaseSettings):
+    """Path settings."""
+
+    base_dir: Path = Field(
+        default=Path().absolute(),
+        description="Base directory of the application",
+    )
+
+    temp_dir: Path = Field(
+        default=Path("temp"),
+        description="Directory for temporary files",
+    )
+
+    prompts_dir: Path = Field(
+        default=Path("core/prompts"),
+        description="Directory for prompt templates",
+    )
+
+    output_dir: Path = Field(
+        default=Path("output"),
+        description="Directory for output files",
+    )
+
+    @field_validator("temp_dir", "prompts_dir", "output_dir")
+    def create_directory_if_not_exists(cls, v: Path) -> Path:
+        """Create directory if it doesn't exist."""
+        v.mkdir(parents=True, exist_ok=True)
+        return v
+
+
 class Settings(BaseSettings):
     """Application settings."""
 
@@ -241,22 +278,52 @@ class Settings(BaseSettings):
     version: str = Field(default="1.0.0", description="Application version")
 
     # Testing
-    test_user_id: str = Field(
-        default=..., description="Test user ID", env="TEST_USER_ID"
+    test_user_id: Any = Field(
+        default="000000000000000000000000",
+        description="Test user ID",
+        env="TEST_USER_ID",
     )
+
+    @field_validator("test_user_id")
+    def validate_test_user_id(cls, v: str) -> Any:
+        """Convert string test_user_id to PydanticObjectId if valid."""
+        try:
+            from beanie.odm.fields import PydanticObjectId
+            from bson import ObjectId
+
+            if isinstance(v, str) and ObjectId.is_valid(v):
+                return PydanticObjectId(v)
+            else:
+                from config.logging_config import get_logger
+
+                logger = get_logger(__name__)
+                logger.warning(
+                    f"Invalid test_user_id format: {v}. Using default placeholder."
+                )
+                return PydanticObjectId("000000000000000000000000")
+        except ImportError:
+            # Handle case where bson or beanie is not available (e.g., during initial setup)
+            return v
 
     # Components
     database: DatabaseSettings = Field(
         default_factory=DatabaseSettings, description="Database settings"
     )
-    auth: AuthSettings = Field(default_factory=AuthSettings)
+    auth: AuthSettings = Field(
+        default_factory=AuthSettings, description="Auth settings"
+    )
     llm: LLMSettings = Field(default_factory=LLMSettings, description="LLM settings")
     ui: UISettings = Field(default_factory=UISettings, description="UI settings")
     latex: LatexSettings = Field(
         default_factory=LatexSettings, description="LaTeX settings"
     )
-    logging: LoggingSettings = Field(default_factory=LoggingSettings)
-    api: APISettings = Field(default_factory=APISettings)
+    logging: LoggingSettings = Field(
+        default_factory=LoggingSettings, description="Logging settings"
+    )
+    api: APISettings = Field(default_factory=APISettings, description="API settings")
+    paths: PathSettings = Field(
+        default_factory=PathSettings, description="Path settings"
+    )
 
     # Convenience properties
     @property

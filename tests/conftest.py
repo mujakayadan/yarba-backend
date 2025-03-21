@@ -17,6 +17,7 @@ from api.dependencies.database import (
     get_tex_template_repository,
     get_user_repository,
 )
+from api.main import app as fastapi_app
 from api.middleware.auth import get_current_user
 from core.models.portfolio import Portfolio
 from core.models.profile import Profile
@@ -36,13 +37,12 @@ from core.services.prompt_service import PromptService
 from core.services.resume_generation_service import ResumeGenerationService
 from core.services.resume_service import ResumeService
 from core.services.tex_service import TexService
-from main import create_app
 
 
 @pytest.fixture
 def app():
     """Create a FastAPI app for testing."""
-    return create_app()
+    return fastapi_app
 
 
 @pytest.fixture
