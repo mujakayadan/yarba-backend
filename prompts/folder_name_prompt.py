@@ -33,5 +33,16 @@ class FolderNamePrompt(BasePrompt):
         """Initialize the folder name prompt template."""
         super().__init__(TEMPLATE)
 
+    @property
+    def template(self):
+        """Get the template as a string."""
+        return self._template
 
+
+# Create an instance for direct use
 FOLDER_NAME_PROMPT = FolderNamePrompt()
+
+# Also expose the template directly to make it easier to access
+# This allows both approaches to work:
+# 1. FOLDER_NAME_PROMPT.template
+# 2. TEMPLATE

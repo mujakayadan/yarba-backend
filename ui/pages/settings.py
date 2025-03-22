@@ -98,55 +98,67 @@ class SettingsPage:
         self, model_type: str, model_name: str, temperature: float
     ) -> None:
         """
-        Save the LLM settings to the user's profile.
+        Save LLM settings to the database.
 
         Args:
-            model_type: The type of model (e.g., "Claude", "GPT")
-            model_name: The specific model name
-            temperature: The temperature setting for generation
+            model_type: The model type (e.g. OpenAI, Claude)
+            model_name: The model name (e.g. gpt-4, claude-3-opus)
+            temperature: The temperature (0.0-1.0)
         """
+        try:
+            # Get user ID from session state
+            user_id = st.session_state.get("user_id")
+            if not user_id:
+                logger.warning("No user ID found in session state")
+                st.error("No user ID found in session state")
+                return
 
-        async def _save():
-            async for uow in get_unit_of_work():
-                # Get current user
-                user_id = st.session_state.get("user_id")
-                if not user_id:
-                    logger.warning("No user ID found in session state")
-                    return
+            # Get profile directly from MongoDB using synchronous client
+            from pymongo import MongoClient
 
-                # Get profile
-                profile = await uow.profile_repository.get_by_user_id(user_id)
-                if not profile:
-                    logger.warning(f"No profile found for user ID: {user_id}")
-                    return
+            from core.database.connection import get_database_connection
+            from core.models.profile import Profile
 
-                # Create preferences if not exists
-                if not profile.preferences:
-                    profile.preferences = Preferences()
+            # Get database connection
+            db = get_database_connection()
 
-                # Create llm_preferences if not exists
-                if (
-                    not hasattr(profile.preferences, "llm_preferences")
-                    or not profile.preferences.llm_preferences
-                ):
-                    profile.preferences.llm_preferences = {}
+            # Get profile
+            profile_data = db.profiles.find_one({"user_id": user_id})
+            if not profile_data:
+                st.error("No profile found for the current user")
+                return
 
-                # Update LLM preferences
-                profile.preferences.llm_preferences.update(
-                    {
-                        "model_type": model_type,
-                        "model_name": model_name,
-                        "temperature": temperature,
-                        "updated_at": datetime.utcnow(),
-                    }
-                )
+            # Parse profile
+            profile = Profile.parse_obj(profile_data)
 
-                # Save profile
-                await profile.save()
-                logger.info(f"LLM settings saved for user ID: {user_id}")
+            # Update or create preferences
+            if not profile.preferences:
+                from core.models.profile import UserPreferences
 
-        # Run the async function
-        st.session_state.loop.run_until_complete(_save())
+                profile.preferences = UserPreferences()
+
+            # Create LLM preferences dictionary
+            llm_preferences = {
+                "model_type": model_type,
+                "model_name": model_name,
+                "temperature": temperature,
+            }
+
+            # Update profile preferences
+            profile.preferences.llm_preferences = llm_preferences
+
+            # Save to database
+            db.profiles.update_one(
+                {"_id": profile.id},
+                {"$set": {"preferences": profile.preferences.dict()}},
+            )
+
+            logger.debug(f"Saved LLM preferences: {llm_preferences}")
+            st.success("✅ LLM settings saved successfully")
+
+        except Exception as e:
+            logger.error(f"Error saving LLM settings: {e}")
+            st.error(f"An error occurred: {str(e)}")
 
     def _render_user_preferences(self) -> None:
         """Render the user preferences section."""
@@ -314,62 +326,67 @@ class SettingsPage:
         content_preferences: Dict[str, Dict[str, Any]],
     ) -> None:
         """
-        Save the user preferences to the user's profile.
+        Save user preferences to the database.
 
         Args:
-            sections_order: The order of sections in the resume
-            visible_sections: The sections that should be visible
-            content_preferences: Preferences for content display
+            sections_order: List of section names in order
+            visible_sections: List of visible section names
+            content_preferences: Dictionary of content preferences by section
         """
+        try:
+            # Get user ID from session state
+            user_id = st.session_state.get("user_id")
+            if not user_id:
+                logger.warning("No user ID found in session state")
+                st.error("No user ID found in session state")
+                return
 
-        async def _save():
-            async for uow in get_unit_of_work():
-                # Get current user
-                user_id = st.session_state.get("user_id")
-                if not user_id:
-                    logger.warning("No user ID found in session state")
-                    return
+            # Get profile directly from MongoDB using synchronous client
+            from pymongo import MongoClient
 
-                # Get profile
-                profile = await uow.profile_repository.get_by_user_id(user_id)
-                if not profile:
-                    logger.warning(f"No profile found for user ID: {user_id}")
-                    return
+            from core.database.connection import get_database_connection
+            from core.models.profile import Profile
 
-                # Create preferences if not exists
-                if not profile.preferences:
-                    profile.preferences = Preferences()
+            # Get database connection
+            db = get_database_connection()
 
-                # Create section_preferences if not exists
-                if (
-                    not hasattr(profile.preferences, "section_preferences")
-                    or not profile.preferences.section_preferences
-                ):
-                    profile.preferences.section_preferences = {}
+            # Get profile
+            profile_data = db.profiles.find_one({"user_id": user_id})
+            if not profile_data:
+                st.error("No profile found for the current user")
+                return
 
-                # Update section preferences
-                profile.preferences.section_preferences.update(
-                    {
-                        "sections_order": sections_order,
-                        "visible_sections": visible_sections,
-                    }
-                )
+            # Parse profile
+            profile = Profile.parse_obj(profile_data)
 
-                # Update content preferences
-                for pref_key, pref_value in content_preferences.items():
-                    if not hasattr(profile.preferences, pref_key) or not getattr(
-                        profile.preferences, pref_key
-                    ):
-                        setattr(profile.preferences, pref_key, {})
+            # Update or create preferences
+            if not profile.preferences:
+                from core.models.profile import UserPreferences
 
-                    getattr(profile.preferences, pref_key).update(pref_value)
+                profile.preferences = UserPreferences()
 
-                # Save profile
-                await profile.save()
-                logger.info(f"User preferences saved for user ID: {user_id}")
+            # Create section preferences dictionary
+            section_preferences = {
+                "sections_order": sections_order,
+                "visible_sections": visible_sections,
+                "content_preferences": content_preferences,
+            }
 
-        # Run the async function
-        st.session_state.loop.run_until_complete(_save())
+            # Update profile preferences
+            profile.preferences.section_preferences = section_preferences
+
+            # Save to database
+            db.profiles.update_one(
+                {"_id": profile.id},
+                {"$set": {"preferences": profile.preferences.dict()}},
+            )
+
+            logger.debug(f"Saved section preferences: {section_preferences}")
+            st.success("✅ User preferences saved successfully")
+
+        except Exception as e:
+            logger.error(f"Error saving user preferences: {e}")
+            st.error(f"An error occurred: {str(e)}")
 
     def _render_feature_flags(self) -> None:
         """Render the feature flags section."""
@@ -433,56 +450,69 @@ class SettingsPage:
         enable_grammar_check: bool,
     ) -> None:
         """
-        Save the feature flags to the user's profile.
+        Save feature flags to the database.
 
         Args:
             enable_ai_suggestions: Whether to enable AI suggestions
-            enable_auto_save: Whether to enable auto-save
+            enable_auto_save: Whether to enable auto save
             enable_spell_check: Whether to enable spell check
             enable_grammar_check: Whether to enable grammar check
         """
+        try:
+            # Get user ID from session state
+            user_id = st.session_state.get("user_id")
+            if not user_id:
+                logger.warning("No user ID found in session state")
+                st.error("No user ID found in session state")
+                return
 
-        async def _save():
-            async for uow in get_unit_of_work():
-                # Get current user
-                user_id = st.session_state.get("user_id")
-                if not user_id:
-                    logger.warning("No user ID found in session state")
-                    return
+            # Get profile directly from MongoDB using synchronous client
+            from pymongo import MongoClient
 
-                # Get profile
-                profile = await uow.profile_repository.get_by_user_id(user_id)
-                if not profile:
-                    logger.warning(f"No profile found for user ID: {user_id}")
-                    return
+            from core.database.connection import get_database_connection
+            from core.models.profile import Profile
 
-                # Create preferences if not exists
-                if not profile.preferences:
-                    profile.preferences = Preferences()
+            # Get database connection
+            db = get_database_connection()
 
-                # Create feature_preferences if not exists
-                if (
-                    not hasattr(profile.preferences, "feature_preferences")
-                    or not profile.preferences.feature_preferences
-                ):
-                    profile.preferences.feature_preferences = {}
+            # Get profile
+            profile_data = db.profiles.find_one({"user_id": user_id})
+            if not profile_data:
+                st.error("No profile found for the current user")
+                return
 
-                # Update feature preferences
-                profile.preferences.feature_preferences.update(
-                    {
-                        "enable_ai_suggestions": enable_ai_suggestions,
-                        "enable_auto_save": enable_auto_save,
-                        "enable_spell_check": enable_spell_check,
-                        "enable_grammar_check": enable_grammar_check,
-                    }
-                )
+            # Parse profile
+            profile = Profile.parse_obj(profile_data)
 
-                # Save profile
-                await profile.save()
-                logger.info(f"Feature flags saved for user ID: {user_id}")
+            # Update or create preferences
+            if not profile.preferences:
+                from core.models.profile import UserPreferences
 
-        # Run the async function
-        st.session_state.loop.run_until_complete(_save())
+                profile.preferences = UserPreferences()
+
+            # Create feature flags dictionary
+            feature_flags = {
+                "enable_ai_suggestions": enable_ai_suggestions,
+                "enable_auto_save": enable_auto_save,
+                "enable_spell_check": enable_spell_check,
+                "enable_grammar_check": enable_grammar_check,
+            }
+
+            # Update profile preferences
+            profile.preferences.feature_flags = feature_flags
+
+            # Save to database
+            db.profiles.update_one(
+                {"_id": profile.id},
+                {"$set": {"preferences": profile.preferences.dict()}},
+            )
+
+            logger.debug(f"Saved feature flags: {feature_flags}")
+            st.success("✅ Feature flags saved successfully")
+
+        except Exception as e:
+            logger.error(f"Error saving feature flags: {e}")
+            st.error(f"An error occurred: {str(e)}")
 
     def _get_current_profile(self) -> Optional[Profile]:
         """
@@ -491,19 +521,37 @@ class SettingsPage:
         Returns:
             Optional[Profile]: The user's profile, or None if not found
         """
+        # Check if we already have the profile in session state to avoid redundant DB calls
+        if "current_profile" in st.session_state:
+            return st.session_state.get("current_profile")
+
         profile = None
+        try:
+            # Get user ID from session state
+            user_id = st.session_state.get("user_id")
+            if not user_id:
+                logger.warning("No user ID found in session state")
+                return None
 
-        async def _get_profile():
-            async for uow in get_unit_of_work():
-                # Get current user
-                user_id = st.session_state.get("user_id")
-                if not user_id:
-                    logger.warning("No user ID found in session state")
-                    return None
+            # Get profile directly from MongoDB using synchronous client
+            from core.database.connection import get_database_connection
+            from core.models.profile import Profile
 
-                # Get profile
-                return await uow.profile_repository.get_by_user_id(user_id)
+            # Get database connection
+            db = get_database_connection()
 
-        # Run the async function
-        profile = st.session_state.loop.run_until_complete(_get_profile())
+            # Query the profile
+            profile_data = db.profiles.find_one({"user_id": user_id})
+            if profile_data:
+                # Convert the MongoDB document to a Pydantic model
+                profile = Profile.parse_obj(profile_data)
+                # Store in session state for future use
+                st.session_state["current_profile"] = profile
+            else:
+                logger.warning(f"No profile found for user ID: {user_id}")
+
+        except Exception as e:
+            logger.error(f"Error getting profile: {e}")
+            st.error(f"Failed to load profile: {str(e)}")
+
         return profile

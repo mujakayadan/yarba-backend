@@ -1,9 +1,14 @@
 """Profile repository implementation."""
 
+import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from beanie import PydanticObjectId
 from bson import ObjectId
+from bson.errors import InvalidId
+
+from config.logging_config import get_logger
 
 from ..models.profile import Preferences, Profile
 from ..models.resume import Resume
@@ -17,41 +22,81 @@ class ProfileRepository(BeanieRepository[Profile]):
     def __init__(self):
         """Initialize the repository."""
         super().__init__(Profile)
+        self.logger = get_logger(self.__class__.__name__)
+
+    def _ensure_object_id(self, id_value: Any) -> Optional[ObjectId]:
+        """Convert various ID types to ObjectId.
+
+        Args:
+            id_value: ID value to convert (str, ObjectId, PydanticObjectId, etc.)
+
+        Returns:
+            ObjectId or None if conversion fails
+        """
+        try:
+            if isinstance(id_value, ObjectId):
+                return id_value
+            elif isinstance(id_value, PydanticObjectId):
+                return ObjectId(str(id_value))
+            elif isinstance(id_value, str):
+                if ObjectId.is_valid(id_value):
+                    return ObjectId(id_value)
+                else:
+                    self.logger.warning(f"Invalid ObjectId format: {id_value}")
+                    return None
+            elif hasattr(id_value, "id"):  # For User objects
+                return self._ensure_object_id(id_value.id)
+            else:
+                # Try string conversion as last resort
+                str_value = str(id_value)
+                if ObjectId.is_valid(str_value):
+                    return ObjectId(str_value)
+                self.logger.warning(
+                    f"Could not convert {type(id_value)} to ObjectId: {id_value}"
+                )
+                return None
+        except Exception as e:
+            self.logger.error(f"Error converting to ObjectId: {e}")
+            return None
 
     async def get_by_user(self, user: User) -> Optional[Profile]:
-        """
-        Get profile for a user.
+        """Get profile for a user.
 
         Args:
-            user: User
+            user: User object
 
         Returns:
             Optional[Profile]: Profile if found, None otherwise
         """
-        return await Profile.find_one({"user_id": user.id})
+        if not user or not user.id:
+            self.logger.warning("Invalid user object provided")
+            return None
 
-    async def get_by_user_id(self, user_id: str) -> Optional[Profile]:
-        """
-        Get profile for a user by user ID.
+        object_id = self._ensure_object_id(user.id)
+        if not object_id:
+            return None
+
+        self.logger.debug(f"Getting profile for user: {object_id}")
+        return await Profile.find_one({"user_id": object_id})
+
+    async def get_by_user_id(self, user_id: Any) -> Optional[Profile]:
+        """Get profile for a user by user ID.
 
         Args:
-            user_id: User ID (string or ObjectId)
+            user_id: User ID (ObjectId, PydanticObjectId, str, or User object)
 
         Returns:
             Optional[Profile]: Profile if found, None otherwise
         """
-        # Try with the user_id as is
-        profile = await Profile.find_one({"user_id": user_id})
+        object_id = self._ensure_object_id(user_id)
+        if not object_id:
+            return None
 
-        # If not found and user_id is a string that could be an ObjectId, try converting
-        if not profile and isinstance(user_id, str) and ObjectId.is_valid(user_id):
-            profile = await Profile.find_one({"user_id": ObjectId(user_id)})
-
-        return profile
+        self.logger.debug(f"Getting profile by user_id: {object_id}")
+        return await Profile.find_one({"user_id": object_id})
 
     async def get_user(self, profile_id: str) -> Optional[User]:
-        """
-        Get the user associated with this profile.
+        """Get the user associated with this profile.
 
         Args:
             profile_id: Profile ID
@@ -59,14 +104,18 @@ class ProfileRepository(BeanieRepository[Profile]):
         Returns:
             Optional[User]: User if found, None otherwise
         """
-        profile = await Profile.find_one({"_id": profile_id})
+        object_id = self._ensure_object_id(profile_id)
+        if not object_id:
+            return None
+
+        profile = await Profile.find_one({"_id": object_id})
         if not profile:
             return None
+
         return await User.get(profile.user_id)
 
     async def get_resumes(self, profile_id: str) -> List[Resume]:
-        """
-        Get all resumes that use this profile.
+        """Get all resumes that use this profile.
 
         Args:
             profile_id: Profile ID
@@ -74,13 +123,16 @@ class ProfileRepository(BeanieRepository[Profile]):
         Returns:
             List[Resume]: List of resumes using this profile
         """
-        return await Resume.find({"profile_id": profile_id}).to_list()
+        object_id = self._ensure_object_id(profile_id)
+        if not object_id:
+            return []
+
+        return await Resume.find({"profile_id": object_id}).to_list()
 
     async def update_preferences(
         self, profile_id: str, preferences: Preferences
     ) -> bool:
-        """
-        Update preferences for a profile.
+        """Update preferences for a profile.
 
         Args:
             profile_id: Profile ID
@@ -89,7 +141,11 @@ class ProfileRepository(BeanieRepository[Profile]):
         Returns:
             bool: True if successful, False otherwise
         """
-        result = await Profile.find_one({"_id": profile_id})
+        object_id = self._ensure_object_id(profile_id)
+        if not object_id:
+            return False
+
+        result = await Profile.find_one({"_id": object_id})
         if not result:
             return False
 
@@ -101,8 +157,7 @@ class ProfileRepository(BeanieRepository[Profile]):
     async def update_personal_info(
         self, profile_id: str, personal_info: Dict[str, Any]
     ) -> bool:
-        """
-        Update personal information for a profile.
+        """Update personal information for a profile.
 
         Args:
             profile_id: Profile ID
@@ -111,7 +166,11 @@ class ProfileRepository(BeanieRepository[Profile]):
         Returns:
             bool: True if successful, False otherwise
         """
-        result = await Profile.find_one({"_id": profile_id})
+        object_id = self._ensure_object_id(profile_id)
+        if not object_id:
+            return False
+
+        result = await Profile.find_one({"_id": object_id})
         if not result:
             return False
 
@@ -124,9 +183,10 @@ class ProfileRepository(BeanieRepository[Profile]):
         await result.save()
         return True
 
-    async def create_for_user(self, user: User, full_name: str, email: str) -> Profile:
-        """
-        Create a new profile for a user.
+    async def create_for_user(
+        self, user: User, full_name: str, email: str
+    ) -> Optional[Profile]:
+        """Create a new profile for a user.
 
         Args:
             user: User
@@ -134,18 +194,22 @@ class ProfileRepository(BeanieRepository[Profile]):
             email: Email address
 
         Returns:
-            Profile: Created profile
+            Optional[Profile]: Created profile or None if creation fails
         """
-        profile = Profile(
-            user_id=user.id,
-            full_name=full_name,
-            email=email,
-            preferences=Preferences(),
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
-        )
-        await profile.create()
-        return profile
+        try:
+            profile = Profile(
+                user_id=user.id,
+                full_name=full_name,
+                email=email,
+                preferences=Preferences(),
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow(),
+            )
+            await profile.create()
+            return profile
+        except Exception as e:
+            self.logger.error(f"Error creating profile: {e}")
+            return None
 
     # Enhanced methods for direct section access
 

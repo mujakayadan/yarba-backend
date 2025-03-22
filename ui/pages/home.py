@@ -5,8 +5,12 @@ import streamlit as st
 
 from config import APP_CONSTANTS, FEATURE_FLAGS, get_logger
 from config.settings import settings
-from core.database.connection import get_async_database_connection
+from core.database.connection import (
+    get_async_database_connection,
+    get_database_connection,
+)
 from core.database.factory import get_unit_of_work
+from core.models.profile import Profile
 from core.services.generator_service import GeneratorService
 from core.services.job_service import JobService
 from core.services.latex_service import LatexService
@@ -54,62 +58,56 @@ class HomePage:
     def _load_user_preferences(self):
         """Load user preferences from database"""
         try:
-
-            async def _load():
-                # Get the unit of work
-                uow_generator = get_unit_of_work()
-                uow = await anext(uow_generator)
-                try:
-                    # Get current user's profile
-                    profile = await uow.profile_repository.get_by_user_id(
-                        st.session_state["user_id"]
-                    )
-
-                    if profile and profile.preferences:
-                        # Set LLM preferences for service initialization
-                        if (
-                            hasattr(profile.preferences, "llm_preferences")
-                            and profile.preferences.llm_preferences
-                        ):
-                            llm_prefs = profile.preferences.llm_preferences
-                            # Store preferences to be used when generating
-                            st.session_state["llm_preferences"] = {
-                                "model_type": llm_prefs.get("model_type", "Claude"),
-                                "model_name": llm_prefs.get(
-                                    "model_name", "claude-3-5-sonnet-20240620"
-                                ),
-                                "temperature": llm_prefs.get("temperature", 0.1),
-                            }
-                            logger.debug(f"Stored LLM preferences: {llm_prefs}")
-
-                        # Set section preferences
-                        if (
-                            hasattr(profile.preferences, "section_preferences")
-                            and profile.preferences.section_preferences
-                        ):
-                            section_prefs = profile.preferences.section_preferences
-                            st.session_state["section_preferences"] = section_prefs
-                            logger.debug(f"Loaded section preferences: {section_prefs}")
-
-                        logger.debug("User preferences loaded successfully")
-                    else:
-                        logger.warning("No profile or preferences found for user")
-                        # Set default preferences
-                        self._set_default_preferences()
-                finally:
-                    # Clean up - close the generator
-                    try:
-                        await uow_generator.aclose()
-                    except Exception as e:
-                        logger.error(f"Error closing unit of work: {e}")
-
-            # Run the async function
-            if "loop" in st.session_state:
-                st.session_state.loop.run_until_complete(_load())
-            else:
-                logger.error("No event loop available to load preferences")
+            # Get the current user ID
+            user_id = st.session_state.get("user_id")
+            if not user_id:
+                logger.warning("No user ID found in session state")
                 self._set_default_preferences()
+                return
 
+            # Use synchronous database connection to avoid event loop issues
+            from core.database.connection import get_database_connection
+
+            # Get database connection
+            db = get_database_connection()
+
+            # Get profile directly from the database
+            profile_data = db.profiles.find_one({"user_id": user_id})
+
+            if profile_data and profile_data.get("preferences"):
+                # Convert to Profile model
+                profile = Profile.parse_obj(profile_data)
+
+                # Set LLM preferences for service initialization
+                if (
+                    hasattr(profile.preferences, "llm_preferences")
+                    and profile.preferences.llm_preferences
+                ):
+                    llm_prefs = profile.preferences.llm_preferences
+                    # Store preferences to be used when generating
+                    st.session_state["llm_preferences"] = {
+                        "model_type": llm_prefs.get("model_type", "Claude"),
+                        "model_name": llm_prefs.get(
+                            "model_name", "claude-3-5-sonnet-20240620"
+                        ),
+                        "temperature": llm_prefs.get("temperature", 0.1),
+                    }
+                    logger.debug(f"Stored LLM preferences: {llm_prefs}")
+
+                # Set section preferences
+                if (
+                    hasattr(profile.preferences, "section_preferences")
+                    and profile.preferences.section_preferences
+                ):
+                    section_prefs = profile.preferences.section_preferences
+                    st.session_state["section_preferences"] = section_prefs
+                    logger.debug(f"Loaded section preferences: {section_prefs}")
+
+                logger.debug("User preferences loaded successfully")
+            else:
+                logger.warning("No profile or preferences found for user")
+                # Set default preferences
+                self._set_default_preferences()
         except Exception as e:
             logger.error(f"Error loading user preferences: {e}")
             # Set default preferences if loading fails
@@ -274,51 +272,54 @@ class HomePage:
                 st.markdown("### ⚙️ Current Configuration")
                 with st.expander("Model Settings"):
                     # Get preferences from database
-                    async def _get_model_settings():
-                        # Get the unit of work
-                        uow_generator = get_unit_of_work()
-                        uow = await anext(uow_generator)
+                    def _get_model_settings():
+                        """Get model settings from the database using a synchronous connection."""
                         try:
-                            profile = await uow.profile_repository.get_by_user_id(
-                                st.session_state["user_id"]
-                            )
-                            if (
-                                profile
-                                and profile.preferences
-                                and hasattr(profile.preferences, "llm_preferences")
-                            ):
-                                llm_prefs = profile.preferences.llm_preferences
-                                return (
-                                    llm_prefs.get("model_type", "Claude"),
-                                    llm_prefs.get(
-                                        "model_name", "claude-3-5-sonnet-20240620"
-                                    ),
-                                    llm_prefs.get("temperature", 0.1),
-                                )
-                            return None
-                        finally:
-                            # Clean up
-                            try:
-                                await uow_generator.aclose()
-                            except Exception as e:
-                                logger.error(f"Error closing unit of work: {e}")
+                            # Get the current user ID
+                            user_id = st.session_state.get("user_id")
+                            if not user_id:
+                                logger.warning("No user ID found in session state")
+                                return None
 
-                    if "loop" in st.session_state:
-                        llm_settings = st.session_state.loop.run_until_complete(
-                            _get_model_settings()
-                        )
-                        if llm_settings:
-                            model_type, model_name, temperature = llm_settings
-                            st.text(f"Model Type: {model_type}")
-                            st.text(f"Model: {model_name}")
-                            st.text(f"Temperature: {temperature}")
-                        else:
-                            # Fallback to model_selector
-                            model_type, model_name = self.model_selector.render()
-                            temperature = 0.1  # Default temperature
-                            st.text(f"Model Type: {model_type}")
-                            st.text(f"Model: {model_name}")
-                            st.text(f"Temperature: {temperature}")
+                            # Use synchronous database connection to avoid event loop issues
+                            from core.database.connection import get_database_connection
+                            from core.models.profile import Profile
+
+                            # Get database connection
+                            db = get_database_connection()
+
+                            # Get profile directly from the database
+                            profile_data = db.profiles.find_one({"user_id": user_id})
+
+                            if profile_data:
+                                # Convert to Profile model
+                                profile = Profile.parse_obj(profile_data)
+
+                                if (
+                                    profile.preferences
+                                    and hasattr(profile.preferences, "llm_preferences")
+                                    and profile.preferences.llm_preferences
+                                ):
+                                    llm_prefs = profile.preferences.llm_preferences
+                                    return (
+                                        llm_prefs.get("model_type", "Claude"),
+                                        llm_prefs.get(
+                                            "model_name", "claude-3-5-sonnet-20240620"
+                                        ),
+                                        llm_prefs.get("temperature", 0.1),
+                                    )
+                            return None
+                        except Exception as e:
+                            logger.error(f"Error getting model settings: {e}")
+                            return None
+
+                    # Get model settings
+                    llm_settings = _get_model_settings()
+                    if llm_settings:
+                        model_type, model_name, temperature = llm_settings
+                        st.text(f"Model Type: {model_type}")
+                        st.text(f"Model: {model_name}")
+                        st.text(f"Temperature: {temperature}")
                     else:
                         # Fallback to model_selector
                         model_type, model_name = self.model_selector.render()
@@ -416,10 +417,13 @@ class HomePage:
                                 uow_generator = get_unit_of_work()
                                 uow = await anext(uow_generator)
                                 try:
+                                    # Ensure user_id is a string
+                                    user_id = str(st.session_state["user_id"])
+
                                     # Get user's profile
                                     profile = (
                                         await uow.profile_repository.get_by_user_id(
-                                            st.session_state["user_id"]
+                                            user_id
                                         )
                                     )
 
@@ -431,7 +435,7 @@ class HomePage:
                                     # Get user's portfolios
                                     portfolios = (
                                         await uow.portfolio_repository.get_by_user_id(
-                                            st.session_state["user_id"]
+                                            user_id
                                         )
                                     )
 
@@ -441,11 +445,11 @@ class HomePage:
 
                                         # Create a default portfolio
                                         portfolio = Portfolio(
-                                            user_id=st.session_state["user_id"],
+                                            user_id=user_id,
                                             title="Default Portfolio",
                                             description="Default portfolio created automatically",
                                         )
-                                        await uow.portfolio_repository.save(portfolio)
+                                        await uow.portfolio_repository.create(portfolio)
                                         portfolio_id = portfolio.id
                                     else:
                                         portfolio_id = portfolios[0].id
@@ -465,7 +469,7 @@ class HomePage:
                                     from core.models.resume import Resume
 
                                     resume = Resume(
-                                        user_id=st.session_state["user_id"],
+                                        user_id=user_id,
                                         profile_id=profile.id,
                                         portfolio_id=portfolio_id,
                                         job_description=job_description,
@@ -500,6 +504,9 @@ class HomePage:
                         # Configure and use generator service
                         async def generate_documents():
                             try:
+                                # Ensure user_id is a string
+                                user_id = str(st.session_state["user_id"])
+
                                 # Get llm preferences from session state
                                 llm_prefs = st.session_state.get(
                                     "llm_preferences",
@@ -523,9 +530,7 @@ class HomePage:
                                     prompt_service = PromptService(
                                         user_repository=uow.profile_repository
                                     )
-                                    prompt_service.set_user_id(
-                                        st.session_state["user_id"]
-                                    )
+                                    prompt_service.set_user_id(user_id)
 
                                     llm_service = LLMService(
                                         profile_repository=uow.profile_repository,
@@ -534,9 +539,7 @@ class HomePage:
                                         temperature=llm_prefs.get("temperature"),
                                     )
                                     # Configure LLM for the current user
-                                    await llm_service.configure_for_user(
-                                        st.session_state["user_id"]
-                                    )
+                                    await llm_service.configure_for_user(user_id)
 
                                     latex_service = LatexService(
                                         preamble_repository=uow.preamble_repository,
@@ -569,7 +572,7 @@ class HomePage:
                                     # Generate the appropriate document type
                                     if doc_type == DocumentType.RESUME:
                                         result = await generator_service.generate_resume(
-                                            user_id=st.session_state["user_id"],
+                                            user_id=user_id,
                                             job_description=job_description,
                                             selected_sections=section_prefs,
                                             title=f"Resume for {company_name if company_name else 'Job Application'}",
@@ -580,14 +583,14 @@ class HomePage:
                                         pdf_content = (
                                             await generator_service.generate_pdf(
                                                 resume_id=result.id,
-                                                user_id=st.session_state["user_id"],
+                                                user_id=user_id,
                                             )
                                         )
                                         return {"resume": result, "pdf": pdf_content}
 
                                     elif doc_type == DocumentType.COVER_LETTER:
                                         result = await generator_service.generate_cover_letter(
-                                            user_id=st.session_state["user_id"],
+                                            user_id=user_id,
                                             job_description=job_description,
                                             title=f"Cover Letter for {company_name if company_name else 'Job Application'}",
                                             template_id="default",
@@ -597,7 +600,7 @@ class HomePage:
                                         pdf_content = (
                                             await generator_service.generate_pdf(
                                                 resume_id=result.id,
-                                                user_id=st.session_state["user_id"],
+                                                user_id=user_id,
                                             )
                                         )
                                         return {
@@ -608,7 +611,7 @@ class HomePage:
                                     else:  # Combined
                                         # Generate resume
                                         resume_result = await generator_service.generate_resume(
-                                            user_id=st.session_state["user_id"],
+                                            user_id=user_id,
                                             job_description=job_description,
                                             selected_sections=section_prefs,
                                             title=f"Resume for {company_name if company_name else 'Job Application'}",
@@ -618,7 +621,7 @@ class HomePage:
 
                                         # Generate cover letter
                                         cover_letter_result = await generator_service.generate_cover_letter(
-                                            user_id=st.session_state["user_id"],
+                                            user_id=user_id,
                                             job_description=job_description,
                                             title=f"Cover Letter for {company_name if company_name else 'Job Application'}",
                                             template_id="default",
@@ -628,14 +631,14 @@ class HomePage:
                                         resume_pdf = (
                                             await generator_service.generate_pdf(
                                                 resume_id=resume_result.id,
-                                                user_id=st.session_state["user_id"],
+                                                user_id=user_id,
                                             )
                                         )
 
                                         cover_letter_pdf = (
                                             await generator_service.generate_pdf(
                                                 resume_id=cover_letter_result.id,
-                                                user_id=st.session_state["user_id"],
+                                                user_id=user_id,
                                             )
                                         )
 

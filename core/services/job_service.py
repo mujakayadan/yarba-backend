@@ -39,7 +39,33 @@ class JobService:
         try:
             # Get folder name prompt which extracts company and job title
             if self.prompt_service:
-                folder_name_prompt = await self.prompt_service.get_folder_name_prompt()
+                try:
+                    # Try to get from prompt service
+                    folder_name_prompt = (
+                        await self.prompt_service.get_folder_name_prompt()
+                    )
+                except Exception as e:
+                    # If that fails, load it directly from the module
+                    self.logger.warning(
+                        f"Error loading folder name prompt from service: {e}"
+                    )
+                    try:
+                        # Import directly as fallback
+                        import importlib
+
+                        folder_name_prompt_module = importlib.import_module(
+                            "prompts.folder_name_prompt"
+                        )
+                        # Use the TEMPLATE directly
+                        folder_name_prompt = folder_name_prompt_module.TEMPLATE
+                    except Exception as e2:
+                        self.logger.error(
+                            f"Error loading folder name prompt directly: {e2}"
+                        )
+                        folder_name_prompt = """Based on the given job description, extract the company name and job title.
+                        Format the response exactly like this example: 'CompanyName|PositionName'.
+                        Use only alphanumeric characters, spaces, and underscores."""
+
                 company_name, job_title = await self._extract_company_and_title(
                     job_description, folder_name_prompt
                 )

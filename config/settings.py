@@ -183,6 +183,140 @@ class LoggingSettings(BaseSettings):
         return v
 
 
+class PreferenceSettings(BaseSettings):
+    """Default preference settings for user profiles.
+
+    These settings serve as fallbacks when user-specific preferences are not available
+    or when specific fields are missing.
+    """
+
+    # Career summary preferences
+    career_summary_min_words: int = Field(
+        default=15,
+        description="Minimum words in career summary",
+        env="PREF_CAREER_SUMMARY_MIN_WORDS",
+    )
+    career_summary_max_words: int = Field(
+        default=25,
+        description="Maximum words in career summary",
+        env="PREF_CAREER_SUMMARY_MAX_WORDS",
+    )
+
+    # Work experience preferences
+    work_experience_max_jobs: int = Field(
+        default=4,
+        description="Maximum number of jobs to include",
+        env="PREF_WORK_EXPERIENCE_MAX_JOBS",
+    )
+    work_experience_bullet_points_per_job: int = Field(
+        default=3,
+        description="Number of bullet points per job",
+        env="PREF_WORK_EXPERIENCE_BULLET_POINTS",
+    )
+
+    # Project preferences
+    project_max_projects: int = Field(
+        default=4,
+        description="Maximum number of projects to include",
+        env="PREF_PROJECT_MAX_PROJECTS",
+    )
+    project_bullet_points_per_project: int = Field(
+        default=3,
+        description="Number of bullet points per project",
+        env="PREF_PROJECT_BULLET_POINTS",
+    )
+
+    # Cover letter preferences
+    cover_letter_paragraphs: int = Field(
+        default=4,
+        description="Number of paragraphs in cover letter",
+        env="PREF_COVER_LETTER_PARAGRAPHS",
+    )
+    cover_letter_target_grade_level: int = Field(
+        default=12,
+        description="Target grade level for cover letter readability",
+        env="PREF_COVER_LETTER_GRADE_LEVEL",
+    )
+
+    # Skills preferences
+    skills_max_categories: int = Field(
+        default=5,
+        description="Maximum number of skill categories",
+        env="PREF_SKILLS_MAX_CATEGORIES",
+    )
+    skills_min_per_category: int = Field(
+        default=3,
+        description="Minimum skills per category",
+        env="PREF_SKILLS_MIN_PER_CATEGORY",
+    )
+    skills_max_per_category: int = Field(
+        default=10,
+        description="Maximum skills per category",
+        env="PREF_SKILLS_MAX_PER_CATEGORY",
+    )
+
+    # Education preferences
+    education_max_entries: int = Field(
+        default=3,
+        description="Maximum number of education entries",
+        env="PREF_EDUCATION_MAX_ENTRIES",
+    )
+    education_max_courses: int = Field(
+        default=4,
+        description="Maximum number of courses per education entry",
+        env="PREF_EDUCATION_MAX_COURSES",
+    )
+
+    # Awards preferences
+    awards_max_awards: int = Field(
+        default=4,
+        description="Maximum number of awards to include",
+        env="PREF_AWARDS_MAX_AWARDS",
+    )
+
+    # Publications preferences
+    publications_max_publications: int = Field(
+        default=3,
+        description="Maximum number of publications to include",
+        env="PREF_PUBLICATIONS_MAX_PUBLICATIONS",
+    )
+
+    # Get variable mapping for prompt templates
+    def get_prompt_variables(self) -> Dict[str, Any]:
+        """Get flattened dictionary of preferences for prompt variables.
+
+        Returns:
+            Dict[str, Any]: Dictionary of preference values in the format needed for prompt templates
+        """
+        values = self.model_dump()
+        result = {}
+
+        # Map from settings format to prompt variable format
+        mappings = {
+            "career_summary_min_words": "career_summary_details_min_words",
+            "career_summary_max_words": "career_summary_details_max_words",
+            "work_experience_max_jobs": "work_experience_details_max_jobs",
+            "work_experience_bullet_points_per_job": "work_experience_details_bullet_points_per_job",
+            "project_max_projects": "project_details_max_projects",
+            "project_bullet_points_per_project": "project_details_bullet_points_per_project",
+            "cover_letter_paragraphs": "cover_letter_details_paragraphs",
+            "cover_letter_target_grade_level": "cover_letter_details_target_grade_level",
+            "skills_max_categories": "skills_details_max_categories",
+            "skills_min_per_category": "skills_details_min_skills_per_category",
+            "skills_max_per_category": "skills_details_max_skills_per_category",
+            "education_max_entries": "education_details_max_entries",
+            "education_max_courses": "education_details_max_courses",
+            "awards_max_awards": "awards_details_max_awards",
+            "publications_max_publications": "publications_details_max_publications",
+        }
+
+        for key, prompt_key in mappings.items():
+            if key in values:
+                result[prompt_key] = values[key]
+
+        return result
+
+
 class APISettings(BaseSettings):
     """API settings."""
 
@@ -336,6 +470,10 @@ class Settings(BaseSettings):
     )
     logging: LoggingSettings = Field(
         default_factory=LoggingSettings, description="Logging settings"
+    )
+    preferences: PreferenceSettings = Field(
+        default_factory=PreferenceSettings,
+        description="Default user preference settings",
     )
     api: APISettings = Field(default_factory=APISettings, description="API settings")
     paths: PathSettings = Field(

@@ -2,6 +2,7 @@
 
 import asyncio
 from pathlib import Path
+from typing import Any, Callable, Coroutine
 
 import streamlit as st
 
@@ -26,6 +27,31 @@ from ui.pages.settings import SettingsPage
 
 logger = get_logger(__name__)
 settings = Settings()
+
+
+def run_async(coro_func: Callable[[], Coroutine]) -> Any:
+    """
+    Run an async function in a Streamlit-safe way.
+
+    Args:
+        coro_func: A function that returns a coroutine when called
+
+    Returns:
+        The result of the coroutine
+    """
+    try:
+        # Always create a new event loop to avoid reusing coroutines
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            # Call the function to get a fresh coroutine
+            return loop.run_until_complete(coro_func())
+        finally:
+            # Clean up properly
+            loop.close()
+    except Exception as e:
+        logger.error(f"Error running async function: {e}")
+        raise
 
 
 class StreamlitApp:
