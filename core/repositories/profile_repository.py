@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from beanie import PydanticObjectId
 from bson import ObjectId
@@ -59,6 +59,69 @@ class ProfileRepository(BeanieRepository[Profile]):
             self.logger.error(f"Error converting to ObjectId: {e}")
             return None
 
+    async def create(self, profile: Profile) -> Profile:
+        """Create a new profile.
+
+        Args:
+            profile: Profile object to create
+
+        Returns:
+            Profile: Created profile
+
+        Raises:
+            ValueError: If required fields are missing
+            Exception: If creation fails
+        """
+        try:
+            # Ensure timestamps are set
+            if not profile.created_at:
+                profile.created_at = datetime.utcnow()
+            if not profile.updated_at:
+                profile.updated_at = datetime.utcnow()
+
+            # Ensure user_id is valid ObjectId
+            if not profile.user_id or not self._ensure_object_id(profile.user_id):
+                raise ValueError(f"Invalid user_id: {profile.user_id}")
+
+            # Create the profile
+            self.logger.debug(f"Creating profile for user: {profile.user_id}")
+            await profile.create()
+            self.logger.info(f"Created profile with ID: {profile.id}")
+            return profile
+        except Exception as e:
+            self.logger.error(f"Error creating profile: {e}")
+            raise
+
+    async def update(self, profile: Profile) -> Profile:
+        """Update an existing profile.
+
+        Args:
+            profile: Profile object with updates
+
+        Returns:
+            Profile: Updated profile
+
+        Raises:
+            ValueError: If profile ID is invalid
+            Exception: If update fails
+        """
+        try:
+            # Ensure profile has an ID
+            if not profile.id:
+                raise ValueError("Profile ID is required for updates")
+
+            # Update timestamp
+            profile.updated_at = datetime.utcnow()
+
+            # Save the profile
+            self.logger.debug(f"Updating profile with ID: {profile.id}")
+            await profile.save()
+            self.logger.info(f"Updated profile for user: {profile.user_id}")
+            return profile
+        except Exception as e:
+            self.logger.error(f"Error updating profile: {e}")
+            raise
+
     async def get_by_user(self, user: User) -> Optional[Profile]:
         """Get profile for a user.
 
@@ -94,6 +157,24 @@ class ProfileRepository(BeanieRepository[Profile]):
 
         self.logger.debug(f"Getting profile by user_id: {object_id}")
         return await Profile.find_one({"user_id": object_id})
+
+    async def get_by_id(
+        self, profile_id: Union[str, PydanticObjectId, ObjectId]
+    ) -> Optional[Profile]:
+        """Get profile by its ID.
+
+        Args:
+            profile_id: Profile ID (ObjectId, PydanticObjectId, or str)
+
+        Returns:
+            Optional[Profile]: Profile if found, None otherwise
+        """
+        object_id = self._ensure_object_id(profile_id)
+        if not object_id:
+            return None
+
+        self.logger.debug(f"Getting profile by ID: {object_id}")
+        return await Profile.find_one({"_id": object_id})
 
     async def get_user(self, profile_id: str) -> Optional[User]:
         """Get the user associated with this profile.
@@ -201,6 +282,12 @@ class ProfileRepository(BeanieRepository[Profile]):
                 user_id=user.id,
                 full_name=full_name,
                 email=email,
+                phone="",
+                address="",
+                linkedin="",
+                github="",
+                website="",
+                life_story="",
                 preferences=Preferences(),
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow(),

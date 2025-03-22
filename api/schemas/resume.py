@@ -16,7 +16,15 @@ class ResumeBase(BaseModel):
 class ResumeCreate(ResumeBase):
     """Schema for resume creation."""
 
-    pass
+    job_description: Optional[str] = Field(
+        None, description="Job description to tailor the resume for"
+    )
+    selected_sections: Optional[Dict[str, str]] = Field(
+        None, description="Sections to include and their processing method"
+    )
+    llm_preferences: Optional[Dict[str, Any]] = Field(
+        None, description="LLM settings for generation"
+    )
 
 
 class ResumeUpdate(BaseModel):
@@ -65,7 +73,12 @@ class ResumeResponse(ResumeBase):
 class CoverLetterCreate(ResumeBase):
     """Schema for cover letter creation."""
 
-    pass
+    job_description: Optional[str] = Field(
+        None, description="Job description to tailor the cover letter for"
+    )
+    llm_preferences: Optional[Dict[str, Any]] = Field(
+        None, description="LLM settings for generation"
+    )
 
 
 class CoverLetterResponse(ResumeResponse):

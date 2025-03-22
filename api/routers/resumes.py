@@ -8,9 +8,16 @@ from config import get_logger
 from core.models.resume import Resume
 from core.models.user import User
 from core.services.generator_service import GeneratorService
+from core.services.job_service import JobService
+from core.services.profile_service import ProfileService
 from core.services.resume_service import ResumeService
 
-from ..dependencies.services import get_generator_service, get_resume_service
+from ..dependencies.services import (
+    get_generator_service,
+    get_job_service,
+    get_profile_service,
+    get_resume_service,
+)
 from ..middleware.auth import CurrentUser
 from ..schemas import ResumeCreate, ResumeFilter, ResumeResponse, ResumeUpdate
 
@@ -23,6 +30,9 @@ async def create_resume(
     request: ResumeCreate,
     current_user: CurrentUser,
     resume_service: ResumeService = Depends(get_resume_service),
+    job_service: JobService = Depends(get_job_service),
+    generator_service: GeneratorService = Depends(get_generator_service),
+    profile_service: ProfileService = Depends(get_profile_service),
 ) -> ResumeResponse:
     """
     Create a new resume.
@@ -31,6 +41,9 @@ async def create_resume(
         request: Resume creation request
         current_user: Current authenticated user
         resume_service: Resume service
+        job_service: Job service
+        generator_service: Generator service
+        profile_service: Profile service
 
     Returns:
         ResumeResponse: Created resume
@@ -39,11 +52,54 @@ async def create_resume(
         HTTPException: If resume creation fails
     """
     try:
+        # Create basic resume with title and template
         resume = await resume_service.create_resume(
             user_id=str(current_user.id),
             title=request.title,
             template_id=request.template_id,
         )
+
+        # If job description is provided, use it to enhance the resume
+        if request.job_description:
+            # Extract job info
+            job_info = await job_service.extract_job_info(request.job_description)
+
+            # Update resume with job information
+            resume = await resume_service.update_resume(
+                resume_id=str(resume.id),
+                user_id=str(current_user.id),
+                update_data={
+                    "job_description": request.job_description,
+                    "company_name": job_info.get("company_name"),
+                    "job_title": job_info.get("job_title"),
+                },
+            )
+
+            # Get user's profile for preferences
+            try:
+                profile = await profile_service.get_profile(current_user.id)
+
+                # Get selected sections from request or profile
+                selected_sections = request.selected_sections
+                if not selected_sections and profile and profile.preferences:
+                    if hasattr(profile.preferences, "section_preferences"):
+                        selected_sections = profile.preferences.section_preferences
+
+                # Generate resume content based on job description
+                if selected_sections:
+                    resume = await generator_service.generate_resume(
+                        user_id=str(current_user.id),
+                        job_description=request.job_description,
+                        selected_sections=selected_sections,
+                        title=resume.title,
+                        template_id=resume.template_id,
+                        resume_id=str(resume.id),
+                    )
+            except Exception as profile_error:
+                logger.warning(
+                    f"Error getting profile or generating content: {str(profile_error)}"
+                )
+                # Continue without generating content to avoid blocking resume creation
 
         logger.info(f"Resume created: {resume.id} for user {current_user.id}")
         return ResumeResponse.model_validate(resume)
@@ -52,7 +108,7 @@ async def create_resume(
         logger.error(f"Error creating resume: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create resume",
+            detail=f"Failed to create resume: {str(e)}",
         )
 
 

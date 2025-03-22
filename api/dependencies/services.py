@@ -1,10 +1,21 @@
-"""Service dependencies for FastAPI."""
+"""Service dependencies for the API.
+
+This module provides FastAPI dependencies for service layers.
+"""
+
+from typing import AsyncGenerator
 
 from fastapi import Depends
 
+from core.repositories.portfolio_repository import PortfolioRepository
+from core.repositories.profile_repository import ProfileRepository
+from core.repositories.resume_repository import ResumeRepository
+from core.repositories.user_repository import UserRepository
 from core.services.generator_service import GeneratorService
+from core.services.job_service import JobService
 from core.services.latex_service import LatexService
 from core.services.llm_service import LLMService
+from core.services.profile_service import ProfileService
 from core.services.prompt_service import PromptService
 from core.services.resume_service import ResumeService
 from core.services.tex_service import TexService
@@ -87,6 +98,26 @@ async def get_llm_service(
     )
 
 
+async def get_job_service(
+    llm_service: LLMService = Depends(get_llm_service),
+    prompt_service: PromptService = Depends(get_prompt_service),
+) -> JobService:
+    """
+    Get the job service.
+
+    Args:
+        llm_service: LLM service
+        prompt_service: Prompt service
+
+    Returns:
+        JobService: Job service
+    """
+    return JobService(
+        llm_service=llm_service,
+        prompt_service=prompt_service,
+    )
+
+
 async def get_resume_service(
     resume_repo: ResumeRepo,
 ) -> ResumeService:
@@ -129,3 +160,26 @@ async def get_generator_service(
         llm_service=llm_service,
         latex_service=latex_service,
     )
+
+
+async def get_profile_service() -> AsyncGenerator[ProfileService, None]:
+    """Get a profile service.
+
+    Yields:
+        ProfileService: Profile service instance
+    """
+    profile_repo = ProfileRepository()
+    user_repo = UserRepository()
+    yield ProfileService(profile_repo, user_repo)
+
+
+# Add other services as needed
+# async def get_resume_service() -> AsyncGenerator[ResumeService, None]:
+#     """Get a resume service.
+#
+#     Yields:
+#         ResumeService: Resume service instance
+#     """
+#     resume_repo = ResumeRepository()
+#     profile_repo = ProfileRepository()
+#     yield ResumeService(resume_repo, profile_repo)

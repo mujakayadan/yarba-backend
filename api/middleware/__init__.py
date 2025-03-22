@@ -2,7 +2,8 @@
 
 from fastapi import FastAPI
 
-from config import settings
+# Fix imports - use explicit imports from config modules
+from config.settings import settings
 
 from .auth import CurrentSuperuser, CurrentUser, get_current_user, verify_token
 from .error_handler import add_error_handler_middleware

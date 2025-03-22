@@ -1,8 +1,9 @@
 """Authentication service for user management and authentication."""
 
 from datetime import datetime, timedelta
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
+from fastapi import HTTPException, status
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
@@ -60,12 +61,12 @@ class AuthService:
         """
         return pwd_context.hash(password)
 
-    async def authenticate_user(self, email: str, password: str) -> User:
+    async def authenticate_user(self, username_or_email: str, password: str) -> User:
         """
         Authenticate a user.
 
         Args:
-            email: User email
+            username_or_email: User username or email
             password: User password
 
         Returns:
@@ -74,21 +75,26 @@ class AuthService:
         Raises:
             UnauthorizedException: If authentication fails
         """
-        user = await self.user_repository.get_by_email(email)
+        # Try to get user by username first
+        user = await self.user_repository.get_by_username(username_or_email)
+
+        # If not found, try by email
+        if not user:
+            user = await self.user_repository.get_by_email(username_or_email)
 
         if not user:
             self.logger.warning(
-                f"Authentication failed: User with email {email} not found"
+                f"Authentication failed: User with username/email {username_or_email} not found"
             )
-            raise UnauthorizedException("Invalid email or password")
+            raise UnauthorizedException("Invalid username/email or password")
 
         if not user.is_active:
-            self.logger.warning(f"Authentication failed: User {email} is inactive")
+            self.logger.warning(f"Authentication failed: User {user.email} is inactive")
             raise UnauthorizedException("User account is inactive")
 
         if user.account_locked_until and user.account_locked_until > datetime.utcnow():
             self.logger.warning(
-                f"Authentication failed: User {email} account is locked"
+                f"Authentication failed: User {user.email} account is locked"
             )
             raise UnauthorizedException(
                 f"Account is locked until {user.account_locked_until.isoformat()}"
@@ -96,33 +102,66 @@ class AuthService:
 
         if not self.verify_password(password, user.hashed_password):
             # Increment login attempts
-            login_attempts = await self.user_repository.increment_login_attempts(email)
+            login_attempts = await self.user_repository.increment_login_attempts(
+                user.email
+            )
 
             # Lock account if too many failed attempts
             if login_attempts >= settings.auth.max_login_attempts:
                 lock_until = datetime.utcnow() + timedelta(
                     minutes=settings.auth.account_lockout_minutes
                 )
-                await self.user_repository.lock_account(email, lock_until)
+                await self.user_repository.lock_account(user.email, lock_until)
                 self.logger.warning(
-                    f"Account locked: User {email} exceeded login attempts"
+                    f"Account locked: User {user.email} exceeded login attempts"
                 )
                 raise UnauthorizedException(
                     f"Too many failed login attempts. Account locked until {lock_until.isoformat()}"
                 )
 
             self.logger.warning(
-                f"Authentication failed: Invalid password for user {email}"
+                f"Authentication failed: Invalid password for user {user.email}"
             )
-            raise UnauthorizedException("Invalid email or password")
+            raise UnauthorizedException("Invalid username/email or password")
 
         # Reset login attempts on successful login
-        await self.user_repository.reset_login_attempts(email)
+        await self.user_repository.reset_login_attempts(user.email)
 
         # Update last login timestamp
         await self.user_repository.update_last_login(user.id)
 
         return user
+
+    async def login(self, username_or_email: str, password: str) -> Dict[str, Any]:
+        """
+        Perform a login operation.
+
+        Args:
+            username_or_email: Username or email
+            password: Password
+
+        Returns:
+            Dict: Access token and token type
+
+        Raises:
+            HTTPException: If login fails
+        """
+        try:
+            user = await self.authenticate_user(username_or_email, password)
+            access_token = self.create_access_token(data={"sub": user.email})
+            return {"access_token": access_token, "token_type": "bearer"}
+        except UnauthorizedException as e:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=str(e),
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        except Exception as e:
+            self.logger.error(f"Login error: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Login failed due to an internal error",
+            )
 
     def create_access_token(
         self, data: Dict, expires_delta: Optional[timedelta] = None
@@ -143,7 +182,7 @@ class AuthService:
             expire = datetime.utcnow() + expires_delta
         else:
             expire = datetime.utcnow() + timedelta(
-                minutes=settings.auth.access_token_expire_minutes
+                minutes=settings.auth.jwt_access_token_expire_minutes
             )
 
         to_encode.update({"exp": expire})

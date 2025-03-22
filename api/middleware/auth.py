@@ -6,9 +6,10 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import ExpiredSignatureError, JWTError, jwt
 
-from api.dependencies.database import UserRepository
 from config import get_logger, settings
+from core.database.factory import get_user_repository
 from core.models.user import User
+from core.repositories.user_repository import UserRepository
 
 logger = get_logger(__name__)
 security = HTTPBearer(auto_error=False)
@@ -74,7 +75,7 @@ async def verify_token(
 
 async def get_current_user(
     payload: Dict = Depends(verify_token),
-    user_repo: UserRepository = Depends(),
+    user_repo: UserRepository = Depends(get_user_repository),
 ) -> User:
     """
     Get the current authenticated user.
@@ -99,8 +100,8 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Get user from database
-    user = await user_repo.find_one({"email": email})
+    # Get user from database using the correct repository method
+    user = await user_repo.get_by_email(email)
     if user is None:
         logger.warning(f"User with email {email} not found")
         raise HTTPException(
@@ -109,21 +110,37 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Check if user is active
-    if not user.is_active:
+    return user
+
+
+async def get_current_active_user(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """
+    Get the current active authenticated user.
+
+    Args:
+        current_user: Current authenticated user
+
+    Returns:
+        User: Current active user
+
+    Raises:
+        HTTPException: If user is not active
+    """
+    if not current_user.is_active:
         logger.warning(
-            f"Inactive user {email} attempted to access {payload.get('path', 'unknown')}"
+            f"Inactive user {current_user.email} attempted to access protected resource"
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Inactive user",
         )
-
-    return user
+    return current_user
 
 
 async def get_current_active_superuser(
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: User = Depends(get_current_active_user),
 ) -> User:
     """
     Get the current authenticated superuser.
@@ -151,4 +168,5 @@ async def get_current_active_superuser(
 
 # Type aliases for dependency injection
 CurrentUser = Annotated[User, Depends(get_current_user)]
+CurrentActiveUser = Annotated[User, Depends(get_current_active_user)]
 CurrentSuperuser = Annotated[User, Depends(get_current_active_superuser)]

@@ -82,7 +82,11 @@ class ResumeService:
         return await self.resume_repository.get_latest_by_user_id(user_id)
 
     async def create_resume(
-        self, user_id: str, title: str, template_id: str = "default"
+        self,
+        user_id: str,
+        title: str,
+        template_id: str = "default",
+        is_cover_letter: bool = False,
     ) -> Resume:
         """
         Create a new resume.
@@ -91,6 +95,7 @@ class ResumeService:
             user_id: User ID
             title: Resume title
             template_id: Template ID
+            is_cover_letter: Whether this is a cover letter
 
         Returns:
             Resume: Created resume
@@ -107,10 +112,17 @@ class ResumeService:
             user=user,
             title=title,
             template_id=template_id,
+            is_cover_letter=is_cover_letter,
         )
 
         created_resume = await self.resume_repository.create(resume)
-        self.logger.info(f"Resume created: {created_resume.id} for user {user_id}")
+
+        if is_cover_letter:
+            self.logger.info(
+                f"Cover letter created: {created_resume.id} for user {user_id}"
+            )
+        else:
+            self.logger.info(f"Resume created: {created_resume.id} for user {user_id}")
 
         return created_resume
 

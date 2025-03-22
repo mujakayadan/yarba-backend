@@ -4,7 +4,8 @@ from typing import Annotated
 
 from fastapi import Depends
 
-from core.database import (
+# Import factory functions from core.database.factory
+from core.database.factory import (
     get_portfolio_repository,
     get_preamble_repository,
     get_profile_repository,

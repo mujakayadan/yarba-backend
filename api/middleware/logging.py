@@ -4,13 +4,16 @@ import time
 from typing import Callable
 
 from fastapi import FastAPI, Request, Response
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.requests import Request
+from starlette.responses import Response
 
-from config import get_logger
+from config.logging_config import get_logger
 
 logger = get_logger(__name__)
 
 
-class RequestLoggingMiddleware:
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
     """Middleware for logging requests and responses."""
 
     def __init__(
@@ -29,12 +32,14 @@ class RequestLoggingMiddleware:
             log_response_body: Whether to log response bodies
             exclude_paths: List of paths to exclude from logging
         """
-        self.app = app
+        super().__init__(app)
         self.log_request_body = log_request_body
         self.log_response_body = log_response_body
         self.exclude_paths = exclude_paths or ["/docs", "/redoc", "/openapi.json"]
 
-    async def __call__(self, request: Request, call_next: Callable) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         """
         Process the request with logging.
 

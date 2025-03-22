@@ -24,6 +24,12 @@ class LoginRequest(BaseModel):
 class RegisterRequest(BaseModel):
     """Register request schema."""
 
+    username: str = Field(
+        ...,
+        min_length=3,
+        max_length=50,
+        description="Username must be between 3 and 50 characters, containing only letters, numbers, dots, underscores and hyphens",
+    )
     email: EmailStr = Field(..., description="User's email address")
     password: str = Field(
         ...,
@@ -34,6 +40,25 @@ class RegisterRequest(BaseModel):
     full_name: str = Field(
         ..., min_length=2, max_length=100, description="User's full name"
     )
+
+    @field_validator("username")
+    def validate_username(cls, v: str) -> str:
+        """Validate username format.
+
+        Args:
+            v: Username to validate
+
+        Returns:
+            str: Validated username
+
+        Raises:
+            ValueError: If username contains invalid characters
+        """
+        if not re.match(r"^[a-zA-Z0-9._-]+$", v):
+            raise ValueError(
+                "Username can only contain letters, numbers, dots, underscores, and hyphens"
+            )
+        return v.lower()  # Convert to lowercase for consistency
 
     @field_validator("password")
     def validate_password(cls, v: str) -> str:

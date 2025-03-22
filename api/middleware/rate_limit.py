@@ -2,11 +2,15 @@
 
 import time
 from collections import defaultdict
-from typing import Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from fastapi import FastAPI, HTTPException, Request, Response, status
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.requests import Request
+from starlette.responses import Response
 
-from config import get_logger, settings
+from config.logging_config import get_logger
+from config.settings import settings
 
 logger = get_logger(__name__)
 
@@ -19,7 +23,7 @@ DEFAULT_RATE_LIMIT = 60  # requests per minute
 DEFAULT_RATE_LIMIT_WINDOW = 60  # seconds
 
 
-class RateLimitMiddleware:
+class RateLimitMiddleware(BaseHTTPMiddleware):
     """Rate limiting middleware for FastAPI."""
 
     def __init__(
@@ -40,7 +44,7 @@ class RateLimitMiddleware:
             exclude_paths: List of paths to exclude from rate limiting
             get_key: Function to get the rate limit key (defaults to client IP)
         """
-        self.app = app
+        super().__init__(app)
         self.rate_limit = rate_limit
         self.window = window
         self.exclude_paths = exclude_paths or ["/docs", "/redoc", "/openapi.json", "/"]
@@ -50,7 +54,9 @@ class RateLimitMiddleware:
             f"Rate limiting middleware initialized: {rate_limit} requests per {window} seconds"
         )
 
-    async def __call__(self, request: Request, call_next):
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         """
         Process the request with rate limiting.
 
@@ -73,9 +79,9 @@ class RateLimitMiddleware:
 
         if is_rate_limited:
             logger.warning(f"Rate limit exceeded for {key} on {request.url.path}")
-            raise HTTPException(
+            return Response(
+                content="Rate limit exceeded. Please try again later.",
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Rate limit exceeded. Please try again later.",
                 headers=headers,
             )
 

@@ -5,14 +5,18 @@ from typing import Any, Callable, Dict, Optional
 
 from fastapi import FastAPI, Request, Response, status
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.requests import Request
+from starlette.responses import Response
 
-from config import get_logger, settings
+from config import settings
+from config.logging_config import get_logger
 from core.exceptions.base import AppException
 
 logger = get_logger(__name__)
 
 
-class ErrorHandlerMiddleware:
+class ErrorHandlerMiddleware(BaseHTTPMiddleware):
     """Middleware for handling errors and exceptions."""
 
     def __init__(
@@ -27,10 +31,12 @@ class ErrorHandlerMiddleware:
             app: FastAPI application
             debug: Whether to include debug information in error responses
         """
-        self.app = app
+        super().__init__(app)
         self.debug = debug
 
-    async def __call__(self, request: Request, call_next: Callable) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         """
         Process the request with error handling.
 

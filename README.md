@@ -66,6 +66,45 @@ poetry run uvicorn api.main:app --reload
 poetry run streamlit run ui/streamlit_app.py
 ```
 
+## Running the API Server
+
+There are several ways to run the API server:
+
+### Method 1: Using the main.py script directly
+
+```bash
+poetry run python api/main.py
+```
+
+This will start the API server with default settings.
+
+### Method 2: Using the helper script (recommended)
+
+```bash
+poetry run python scripts/run_api.py
+```
+
+This provides more options for configuration:
+
+```bash
+# Run with auto-reload for development
+poetry run python scripts/run_api.py --reload
+
+# Specify host and port
+poetry run python scripts/run_api.py --host 0.0.0.0 --port 5000
+
+# Set log level
+poetry run python scripts/run_api.py --log-level debug
+```
+
+### Method 3: Using uvicorn directly
+
+```bash
+poetry run uvicorn api.main:app --reload
+```
+
+The API documentation will be available at http://127.0.0.1:8000/docs once the server is running.
+
 ## Database Migrations
 
 This project uses Beanie's built-in migration system:

@@ -146,8 +146,10 @@ class UserRepository(BeanieRepository[User]):
         if not user:
             return False
 
+        current_time = datetime.utcnow()
         user.login_attempts = 0
-        user.account_locked_until = None
+        user.account_locked_until = current_time
+        user.last_active = current_time
         await user.save()
         return True
 

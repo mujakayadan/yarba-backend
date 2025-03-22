@@ -6,14 +6,28 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from config import API_TAGS_METADATA, API_V1_PREFIX, configure_logging, settings
+# Fix middleware import
+from api.middleware import setup_middlewares
+
+# Fix imports - use explicit imports from config modules
+from config.logging_config import configure_logging, get_logger
+from config.settings import settings
 from core.database.init import init_db
 
-from .middleware import setup_middlewares
+# Define API constants that were missing from config
+API_V1_PREFIX = "/api/v1"
+API_TAGS_METADATA = [
+    {"name": "auth", "description": "Authentication operations"},
+    {"name": "profiles", "description": "User profile management"},
+    {"name": "resumes", "description": "Resume operations"},
+    {"name": "cover-letters", "description": "Cover letter operations"},
+    {"name": "portfolios", "description": "Portfolio operations"},
+    {"name": "health", "description": "Application health checks"},
+]
 
 # Configure logging
 configure_logging()
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @asynccontextmanager
@@ -66,7 +80,7 @@ app.add_middleware(
 setup_middlewares(app)
 
 # Import and include routers
-from .routers import auth, cover_letters, portfolios, profiles, resumes
+from api.routers import auth, cover_letters, portfolios, profiles, resumes
 
 app.include_router(auth.router, prefix=f"{API_V1_PREFIX}/auth", tags=["auth"])
 app.include_router(resumes.router, prefix=f"{API_V1_PREFIX}/resumes", tags=["resumes"])

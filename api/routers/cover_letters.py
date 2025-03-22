@@ -8,9 +8,16 @@ from config import get_logger
 from core.models.resume import Resume
 from core.models.user import User
 from core.services.generator_service import GeneratorService
+from core.services.job_service import JobService
+from core.services.profile_service import ProfileService
 from core.services.resume_service import ResumeService
 
-from ..dependencies.services import get_generator_service, get_resume_service
+from ..dependencies.services import (
+    get_generator_service,
+    get_job_service,
+    get_profile_service,
+    get_resume_service,
+)
 from ..middleware.auth import CurrentUser
 from ..schemas import CoverLetterCreate, CoverLetterResponse, ResumeFilter, ResumeUpdate
 
@@ -25,6 +32,9 @@ async def create_cover_letter(
     request: CoverLetterCreate,
     current_user: CurrentUser,
     resume_service: ResumeService = Depends(get_resume_service),
+    job_service: JobService = Depends(get_job_service),
+    generator_service: GeneratorService = Depends(get_generator_service),
+    profile_service: ProfileService = Depends(get_profile_service),
 ) -> CoverLetterResponse:
     """
     Create a new cover letter.
@@ -33,6 +43,9 @@ async def create_cover_letter(
         request: Cover letter creation request
         current_user: Current authenticated user
         resume_service: Resume service
+        job_service: Job service to extract job information
+        generator_service: Generator service for content generation
+        profile_service: Profile service to get user preferences
 
     Returns:
         CoverLetterResponse: Created cover letter
@@ -49,6 +62,54 @@ async def create_cover_letter(
             is_cover_letter=True,
         )
 
+        # If job description is provided, use it to enhance the cover letter
+        if request.job_description:
+            # Extract job info
+            job_info = await job_service.extract_job_info(request.job_description)
+
+            # Update cover letter with job information
+            resume = await resume_service.update_resume(
+                resume_id=str(resume.id),
+                user_id=str(current_user.id),
+                update_data={
+                    "job_description": request.job_description,
+                    "company_name": job_info.get("company_name"),
+                    "job_title": job_info.get("job_title"),
+                },
+            )
+
+            # Generate cover letter content immediately if job description is provided
+            try:
+                # Get user's llm preferences from profile or request
+                llm_preferences = request.llm_preferences
+                if not llm_preferences:
+                    try:
+                        profile = await profile_service.get_profile(current_user.id)
+                        if (
+                            profile
+                            and profile.preferences
+                            and hasattr(profile.preferences, "llm_preferences")
+                        ):
+                            llm_preferences = profile.preferences.llm_preferences
+                    except Exception as profile_error:
+                        logger.warning(
+                            f"Error getting profile preferences: {str(profile_error)}"
+                        )
+
+                # Generate cover letter content
+                resume = await generator_service.generate_cover_letter(
+                    user_id=str(current_user.id),
+                    job_description=request.job_description,
+                    title=resume.title,
+                    template_id=resume.template_id,
+                    resume_id=str(resume.id),
+                )
+            except Exception as gen_error:
+                logger.warning(
+                    f"Error generating cover letter content: {str(gen_error)}"
+                )
+                # Continue without content generation to avoid blocking cover letter creation
+
         logger.info(f"Cover letter created: {resume.id} for user {current_user.id}")
         return CoverLetterResponse.model_validate(resume)
 
@@ -56,7 +117,7 @@ async def create_cover_letter(
         logger.error(f"Error creating cover letter: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create cover letter",
+            detail=f"Failed to create cover letter: {str(e)}",
         )
 
 

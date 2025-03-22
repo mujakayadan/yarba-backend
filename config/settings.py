@@ -30,30 +30,37 @@ class AuthSettings(BaseSettings):
     jwt_secret_key: SecretStr = Field(
         default="your-secret-key",
         description="Secret key for JWT token generation",
+        env="JWT_SECRET_KEY",
     )
     jwt_algorithm: str = Field(
         default="HS256",
         description="Algorithm for JWT token generation",
+        env="JWT_ALGORITHM",
     )
     jwt_access_token_expire_minutes: int = Field(
         default=30,
         description="Access token expiration time in minutes",
+        env="JWT_ACCESS_TOKEN_EXPIRE_MINUTES",
     )
     password_reset_token_expire_hours: int = Field(
         default=24,
         description="Password reset token expiration time in hours",
+        env="PASSWORD_RESET_TOKEN_EXPIRE_HOURS",
     )
     verification_token_expire_hours: int = Field(
         default=48,
         description="Email verification token expiration time in hours",
+        env="VERIFICATION_TOKEN_EXPIRE_HOURS",
     )
     max_login_attempts: int = Field(
         default=5,
         description="Maximum number of login attempts before account lockout",
+        env="MAX_LOGIN_ATTEMPTS",
     )
     account_lockout_minutes: int = Field(
         default=15,
         description="Account lockout time in minutes after max login attempts",
+        env="ACCOUNT_LOCKOUT_MINUTES",
     )
 
 
@@ -505,6 +512,26 @@ class Settings(BaseSettings):
     def jwt_access_token_expire_minutes(self) -> int:
         """Get JWT access token expiration time."""
         return self.auth.jwt_access_token_expire_minutes
+
+    @property
+    def password_reset_token_expire_hours(self) -> int:
+        """Get password reset token expiration time."""
+        return self.auth.password_reset_token_expire_hours
+
+    @property
+    def verification_token_expire_hours(self) -> int:
+        """Get verification token expiration time."""
+        return self.auth.verification_token_expire_hours
+
+    @property
+    def max_login_attempts(self) -> int:
+        """Get maximum login attempts."""
+        return self.auth.max_login_attempts
+
+    @property
+    def account_lockout_minutes(self) -> int:
+        """Get account lockout time."""
+        return self.auth.account_lockout_minutes
 
     @property
     def cors_origins(self) -> List[Union[str, AnyHttpUrl]]:

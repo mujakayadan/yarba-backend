@@ -14,6 +14,7 @@ from ..repositories.resume_repository import ResumeRepository
 from ..repositories.tex_header_repository import TexHeaderRepository
 from ..repositories.tex_template_repository import TexTemplateRepository
 from ..repositories.user_repository import UserRepository
+from ..services.auth_service import AuthService
 from .connection import get_async_database_connection
 from .unit_of_work import AsyncMongoUnitOfWork
 
@@ -103,3 +104,13 @@ async def get_unit_of_work() -> AsyncGenerator[AsyncMongoUnitOfWork, None]:
     """
     async with AsyncMongoUnitOfWork() as uow:
         yield uow
+
+
+async def get_auth_service() -> AsyncGenerator[AuthService, None]:
+    """Get an authentication service.
+
+    Yields:
+        AuthService: Authentication service instance
+    """
+    user_repo = UserRepository()
+    yield AuthService(user_repository=user_repo)
