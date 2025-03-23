@@ -45,6 +45,7 @@ flake8-comprehensions = "^3.16.0"
 flake8-black = "^0.3.6"
 pre-commit = "^4.2.0"
 bcrypt = "4.0.1"
+mongomock-motor = "^0.0.35"
 
 [tool.black]
 line-length = 88

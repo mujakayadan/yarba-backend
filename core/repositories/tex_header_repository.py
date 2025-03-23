@@ -1,6 +1,6 @@
 """TeX header repository implementation with support for different component types."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from config.logging_config import get_logger
@@ -167,8 +167,8 @@ class TexHeaderRepository(BeanieRepository[TexHeader]):
             content=content,
             category=category,
             is_default=is_default,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         await header.create()
         return header
@@ -189,7 +189,7 @@ class TexHeaderRepository(BeanieRepository[TexHeader]):
             return None
 
         header.content = content
-        header.updated_at = datetime.utcnow()
+        header.updated_at = datetime.now(timezone.utc)
         await header.save()
 
         # Update cache if header is in cache

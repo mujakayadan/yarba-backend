@@ -1,8 +1,9 @@
 """Portfolio repository implementation."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from beanie import PydanticObjectId
 from bson.objectid import ObjectId
 
 from core.models.profile import Profile
@@ -41,7 +42,7 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         """
         return await Portfolio.find({"user_id": user.id}).to_list()
 
-    async def get_by_user_id(self, user_id: str) -> List[Portfolio]:
+    async def get_by_user_id(self, user_id: PydanticObjectId) -> List[Portfolio]:
         """
         Get all portfolios for a user by user ID.
 
@@ -65,7 +66,7 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         """
         return await Portfolio.find({"profile_id": profile.id}).to_list()
 
-    async def get_by_profile_id(self, profile_id: str) -> List[Portfolio]:
+    async def get_by_profile_id(self, profile_id: PydanticObjectId) -> List[Portfolio]:
         """
         Get all portfolios for a profile by profile ID.
 
@@ -89,7 +90,9 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         """
         return await Portfolio.find_one({"user_id": user.id, "is_active": True})
 
-    async def get_active_by_user_id(self, user_id: str) -> Optional[Portfolio]:
+    async def get_active_by_user_id(
+        self, user_id: PydanticObjectId
+    ) -> Optional[Portfolio]:
         """
         Get the active portfolio for a user by user ID.
 
@@ -119,7 +122,9 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         """
         return await Portfolio.find({"is_active": True}).to_list()
 
-    async def update_skills(self, portfolio_id: str, skills: List[Skill]) -> bool:
+    async def update_skills(
+        self, portfolio_id: PydanticObjectId, skills: List[Skill]
+    ) -> bool:
         """
         Update skills for a portfolio.
 
@@ -135,12 +140,12 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
             return False
 
         result.skills = skills
-        result.updated_at = datetime.utcnow()
+        result.updated_at = datetime.now(timezone.utc)
         await result.save()
         return True
 
     async def update_work_experience(
-        self, portfolio_id: str, work_experience: List[WorkExperience]
+        self, portfolio_id: PydanticObjectId, work_experience: List[WorkExperience]
     ) -> bool:
         """
         Update work experience for a portfolio.
@@ -157,12 +162,12 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
             return False
 
         result.work_experience = work_experience
-        result.updated_at = datetime.utcnow()
+        result.updated_at = datetime.now(timezone.utc)
         await result.save()
         return True
 
     async def update_education(
-        self, portfolio_id: str, education: List[Education]
+        self, portfolio_id: PydanticObjectId, education: List[Education]
     ) -> bool:
         """
         Update education for a portfolio.
@@ -179,11 +184,13 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
             return False
 
         result.education = education
-        result.updated_at = datetime.utcnow()
+        result.updated_at = datetime.now(timezone.utc)
         await result.save()
         return True
 
-    async def update_projects(self, portfolio_id: str, projects: List[Project]) -> bool:
+    async def update_projects(
+        self, portfolio_id: PydanticObjectId, projects: List[Project]
+    ) -> bool:
         """
         Update projects for a portfolio.
 
@@ -199,11 +206,13 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
             return False
 
         result.projects = projects
-        result.updated_at = datetime.utcnow()
+        result.updated_at = datetime.now(timezone.utc)
         await result.save()
         return True
 
-    async def update_awards(self, portfolio_id: str, awards: List[Award]) -> bool:
+    async def update_awards(
+        self, portfolio_id: PydanticObjectId, awards: List[Award]
+    ) -> bool:
         """
         Update awards for a portfolio.
 
@@ -219,12 +228,12 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
             return False
 
         result.awards = awards
-        result.updated_at = datetime.utcnow()
+        result.updated_at = datetime.now(timezone.utc)
         await result.save()
         return True
 
     async def update_publications(
-        self, portfolio_id: str, publications: List[Publication]
+        self, portfolio_id: PydanticObjectId, publications: List[Publication]
     ) -> bool:
         """
         Update publications for a portfolio.
@@ -241,12 +250,12 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
             return False
 
         result.publications = publications
-        result.updated_at = datetime.utcnow()
+        result.updated_at = datetime.now(timezone.utc)
         await result.save()
         return True
 
     async def update_career_summary(
-        self, portfolio_id: str, career_summary: CareerSummary
+        self, portfolio_id: PydanticObjectId, career_summary: CareerSummary
     ) -> bool:
         """
         Update career summary for a portfolio.
@@ -263,12 +272,12 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
             return False
 
         result.career_summary = career_summary
-        result.updated_at = datetime.utcnow()
+        result.updated_at = datetime.now(timezone.utc)
         await result.save()
         return True
 
     async def create_for_user(
-        self, user_id: str, profile_id: Optional[str] = None
+        self, user_id: PydanticObjectId, profile_id: Optional[PydanticObjectId] = None
     ) -> Portfolio:
         """
         Create a new portfolio for a user.
@@ -280,7 +289,7 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         Returns:
             The created portfolio
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         portfolio = Portfolio(
             user_id=ObjectId(user_id),
             profile_id=ObjectId(profile_id) if profile_id else None,
@@ -305,14 +314,14 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         await portfolio.insert()
         return portfolio
 
-    async def get_user(self, portfolio_id: str) -> Optional[User]:
+    async def get_user(self, portfolio_id: PydanticObjectId) -> Optional[User]:
         """Get the user associated with this portfolio."""
         portfolio = await Portfolio.find_one({"_id": portfolio_id})
         if not portfolio:
             return None
         return await User.get(portfolio.user_id)
 
-    async def get_profile(self, portfolio_id: str) -> Optional[Profile]:
+    async def get_profile(self, portfolio_id: PydanticObjectId) -> Optional[Profile]:
         """Get the profile associated with this portfolio."""
         portfolio = await Portfolio.find_one({"_id": portfolio_id})
         if not portfolio or not portfolio.profile_id:
@@ -321,7 +330,9 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
 
     # Enhanced methods for direct section access
 
-    async def get_portfolio_by_user_id(self, user_id: str) -> Optional[Portfolio]:
+    async def get_portfolio_by_user_id(
+        self, user_id: PydanticObjectId
+    ) -> Optional[Portfolio]:
         """
         Get a portfolio by user ID, handling ObjectId conversion.
 
@@ -344,7 +355,9 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
 
         return portfolio
 
-    async def get_career_summary(self, user_id: str) -> Optional[CareerSummary]:
+    async def get_career_summary(
+        self, user_id: PydanticObjectId
+    ) -> Optional[CareerSummary]:
         """
         Get career summary for a user.
 
@@ -357,7 +370,7 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         portfolio = await self.get_portfolio_by_user_id(user_id)
         return portfolio.career_summary if portfolio else None
 
-    async def get_skills(self, user_id: str) -> List[Skill]:
+    async def get_skills(self, user_id: PydanticObjectId) -> List[Skill]:
         """
         Get skills for a user.
 
@@ -370,7 +383,9 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         portfolio = await self.get_portfolio_by_user_id(user_id)
         return portfolio.skills if portfolio and portfolio.skills else []
 
-    async def get_work_experience(self, user_id: str) -> List[WorkExperience]:
+    async def get_work_experience(
+        self, user_id: PydanticObjectId
+    ) -> List[WorkExperience]:
         """
         Get work experience for a user.
 
@@ -385,7 +400,7 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
             portfolio.work_experience if portfolio and portfolio.work_experience else []
         )
 
-    async def get_education(self, user_id: str) -> List[Education]:
+    async def get_education(self, user_id: PydanticObjectId) -> List[Education]:
         """
         Get education for a user.
 
@@ -398,7 +413,7 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         portfolio = await self.get_portfolio_by_user_id(user_id)
         return portfolio.education if portfolio and portfolio.education else []
 
-    async def get_projects(self, user_id: str) -> List[Project]:
+    async def get_projects(self, user_id: PydanticObjectId) -> List[Project]:
         """
         Get projects for a user.
 
@@ -411,7 +426,7 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         portfolio = await self.get_portfolio_by_user_id(user_id)
         return portfolio.projects if portfolio and portfolio.projects else []
 
-    async def get_awards(self, user_id: str) -> List[Award]:
+    async def get_awards(self, user_id: PydanticObjectId) -> List[Award]:
         """
         Get awards for a user.
 
@@ -424,7 +439,7 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         portfolio = await self.get_portfolio_by_user_id(user_id)
         return portfolio.awards if portfolio and portfolio.awards else []
 
-    async def get_publications(self, user_id: str) -> List[Publication]:
+    async def get_publications(self, user_id: PydanticObjectId) -> List[Publication]:
         """
         Get publications for a user.
 
@@ -437,7 +452,7 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         portfolio = await self.get_portfolio_by_user_id(user_id)
         return portfolio.publications if portfolio and portfolio.publications else []
 
-    async def get_certifications(self, user_id: str) -> List[str]:
+    async def get_certifications(self, user_id: PydanticObjectId) -> List[str]:
         """
         Get certifications for a user.
 
@@ -452,7 +467,9 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
             portfolio.certifications if portfolio and portfolio.certifications else []
         )
 
-    async def get_custom_sections(self, user_id: str) -> Optional[CustomSections]:
+    async def get_custom_sections(
+        self, user_id: PydanticObjectId
+    ) -> Optional[CustomSections]:
         """
         Get custom sections config for a user.
 

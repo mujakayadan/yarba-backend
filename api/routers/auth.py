@@ -1,6 +1,6 @@
 """Authentication router."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Annotated, Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -59,7 +59,7 @@ async def register(
             )
 
         # Create new user with default values for date fields
-        current_time = datetime.utcnow()
+        current_time = datetime.now(timezone.utc)
         future_date = current_time + timedelta(
             days=365
         )  # Default expiration 1 year in future

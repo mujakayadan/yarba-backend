@@ -1,9 +1,9 @@
 """User model for MongoDB using Beanie ODM."""
 
-from datetime import datetime
-from typing import List, Optional
+from datetime import datetime, timezone
+from typing import Optional
 
-from beanie import Document, PydanticObjectId
+from beanie import Document
 from pydantic import EmailStr, Field
 
 from core.auth.password import get_password_hash, verify_password
@@ -33,8 +33,8 @@ class User(Document):
 
     # Tracking fields
     last_active: Optional[datetime] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     @property
     def is_locked(self) -> bool:
@@ -45,7 +45,7 @@ class User(Document):
         """
         return (
             self.account_locked_until is not None
-            and self.account_locked_until > datetime.utcnow()
+            and self.account_locked_until > datetime.now(timezone.utc)
         )
 
     @classmethod
@@ -85,5 +85,7 @@ class User(Document):
         name = "users"
         use_state_management = True
         bson_encoders = {
-            datetime: lambda x: x,
+            datetime: lambda dt: (
+                dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
+            ),
         }

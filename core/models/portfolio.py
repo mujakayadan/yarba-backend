@@ -1,6 +1,6 @@
 """Portfolio models for the RBT database."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Union
 
 from beanie import Document, Link, PydanticObjectId
@@ -153,11 +153,12 @@ class Portfolio(Document):
     version: str = Field(default="1.0", description="Version of the portfolio.")
 
     created_at: datetime = Field(
-        default_factory=datetime.utcnow, description="When the portfolio was created."
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="When the portfolio was created.",
     )
 
     updated_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=lambda: datetime.now(timezone.utc),
         description="When the portfolio was last updated.",
     )
 

@@ -7,10 +7,15 @@ from typing import AsyncGenerator
 
 from fastapi import Depends
 
-from core.repositories.portfolio_repository import PortfolioRepository
-from core.repositories.profile_repository import ProfileRepository
-from core.repositories.resume_repository import ResumeRepository
-from core.repositories.user_repository import UserRepository
+from core.database.factory import (
+    get_portfolio_repository,
+    get_preamble_repository,
+    get_profile_repository,
+    get_resume_repository,
+    get_tex_header_repository,
+    get_tex_template_repository,
+    get_user_repository,
+)
 from core.services.generator_service import GeneratorService
 from core.services.job_service import JobService
 from core.services.latex_service import LatexService
@@ -20,20 +25,11 @@ from core.services.prompt_service import PromptService
 from core.services.resume_service import ResumeService
 from core.services.tex_service import TexService
 
-from .database import (
-    PortfolioRepo,
-    PreambleRepo,
-    ProfileRepo,
-    ResumeRepo,
-    TexHeaderRepo,
-    TexTemplateRepo,
-)
-
 
 async def get_tex_service(
-    header_repo: TexHeaderRepo,
-    template_repo: TexTemplateRepo,
-    preamble_repo: PreambleRepo,
+    header_repo: get_tex_header_repository,
+    template_repo: get_tex_template_repository,
+    preamble_repo: get_preamble_repository,
 ) -> TexService:
     """
     Get the TeX service.
@@ -79,7 +75,7 @@ async def get_prompt_service() -> PromptService:
 
 
 async def get_llm_service(
-    profile_repo: ProfileRepo,
+    profile_repo: get_profile_repository,
     prompt_service: PromptService = Depends(get_prompt_service),
 ) -> LLMService:
     """
@@ -119,7 +115,8 @@ async def get_job_service(
 
 
 async def get_resume_service(
-    resume_repo: ResumeRepo,
+    user_repo: get_user_repository,
+    resume_repo: get_resume_repository,
 ) -> ResumeService:
     """
     Get the resume service.
@@ -130,13 +127,13 @@ async def get_resume_service(
     Returns:
         ResumeService: Resume service
     """
-    return ResumeService(resume_repository=resume_repo)
+    return ResumeService(user_repository=user_repo, resume_repository=resume_repo)
 
 
 async def get_generator_service(
-    resume_repo: ResumeRepo,
-    profile_repo: ProfileRepo,
-    portfolio_repo: PortfolioRepo,
+    resume_repo: get_resume_repository,
+    profile_repo: get_profile_repository,
+    portfolio_repo: get_portfolio_repository,
     llm_service: LLMService = Depends(get_llm_service),
     latex_service: LatexService = Depends(get_latex_service),
 ) -> GeneratorService:
@@ -168,8 +165,8 @@ async def get_profile_service() -> AsyncGenerator[ProfileService, None]:
     Yields:
         ProfileService: Profile service instance
     """
-    profile_repo = ProfileRepository()
-    user_repo = UserRepository()
+    profile_repo = get_profile_repository()
+    user_repo = get_user_repository()
     yield ProfileService(profile_repo, user_repo)
 
 

@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Generic, List, Optional, Type, TypeVar
 
-from beanie import Document
+from beanie import Document, PydanticObjectId
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel
@@ -18,7 +18,7 @@ class BaseRepository(ABC, Generic[T]):
     """Base repository interface for database operations."""
 
     @abstractmethod
-    async def get_by_id(self, id: str) -> Optional[T]:
+    async def get_by_id(self, id: PydanticObjectId) -> Optional[T]:
         """
         Get a document by ID.
 
@@ -54,7 +54,7 @@ class BaseRepository(ABC, Generic[T]):
         pass
 
     @abstractmethod
-    async def update(self, id: str, entity: T) -> Optional[T]:
+    async def update(self, id: PydanticObjectId, entity: T) -> Optional[T]:
         """
         Update a document.
 
@@ -68,7 +68,7 @@ class BaseRepository(ABC, Generic[T]):
         pass
 
     @abstractmethod
-    async def delete(self, id: str) -> bool:
+    async def delete(self, id: PydanticObjectId) -> bool:
         """
         Delete a document.
 
@@ -93,7 +93,7 @@ class BeanieRepository(BaseRepository[T]):
         """
         self.model_class = model_class
 
-    async def get_by_id(self, id: str) -> Optional[T]:
+    async def get_by_id(self, id: PydanticObjectId) -> Optional[T]:
         """
         Get a document by ID.
 
@@ -127,7 +127,7 @@ class BeanieRepository(BaseRepository[T]):
         await entity.insert()
         return entity
 
-    async def update(self, id: str, entity: T) -> Optional[T]:
+    async def update(self, id: PydanticObjectId, entity: T) -> Optional[T]:
         """
         Update a document.
 
@@ -145,7 +145,7 @@ class BeanieRepository(BaseRepository[T]):
         await entity.replace()
         return entity
 
-    async def delete(self, id: str) -> bool:
+    async def delete(self, id: PydanticObjectId) -> bool:
         """
         Delete a document.
 
@@ -205,7 +205,7 @@ class BaseRepository(Generic[T]):
 
         return document
 
-    async def find_by_id(self, id: str) -> Optional[Dict[str, Any]]:
+    async def find_by_id(self, id: PydanticObjectId) -> Optional[Dict[str, Any]]:
         """Find a document by ID.
 
         Args:
@@ -255,7 +255,9 @@ class BaseRepository(Generic[T]):
 
         return documents
 
-    async def update(self, id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    async def update(
+        self, id: PydanticObjectId, data: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Update a document.
 
         Args:
@@ -281,7 +283,7 @@ class BaseRepository(Generic[T]):
 
         return updated_document
 
-    async def delete(self, id: str) -> bool:
+    async def delete(self, id: PydanticObjectId) -> bool:
         """Delete a document.
 
         Args:

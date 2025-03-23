@@ -1,9 +1,12 @@
 """Tests for resume generation service."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
+from beanie import PydanticObjectId
+from pydantic import EmailStr
 
+from core.models import Education, Skill, WorkExperience
 from core.models.portfolio import Portfolio
 from core.models.profile import Profile
 from core.models.resume import Resume
@@ -39,17 +42,14 @@ def mock_profile_repository():
 
     # Setup mock profile
     profile = Profile(
-        user_id="test_user",
-        name="Test User",
-        email="test@example.com",
+        user_id=PydanticObjectId("test_user"),
+        full_name="Test User",
+        email=EmailStr(),
         phone="+1234567890",
-        location="Test City",
-        title="Software Engineer",
-        summary="Experienced software engineer",
-        links={
-            "linkedin": "https://linkedin.com/in/testuser",
-            "github": "https://github.com/testuser",
-        },
+        address="Test City",
+        linkedin="https://linkedin.com/in/testuser",
+        github="https://github.com/testuser",
+        life_story="Experienced software engineer",
     )
 
     repo.get_by_id.return_value = profile
@@ -64,34 +64,31 @@ def mock_portfolio_repository():
 
     # Setup mock portfolio
     portfolio = Portfolio(
-        user_id="test_user",
-        name="Test Portfolio",
+        user_id=PydanticObjectId("test_user"),
         work_experience=[
-            {
-                "company": "Test Company",
-                "position": "Software Engineer",
-                "start_date": "2020-01-01",
-                "end_date": "2022-01-01",
-                "description": "Worked on test projects",
-                "technologies": ["Python", "JavaScript"],
-                "is_featured": True,
-                "tags": ["backend", "frontend"],
-            }
+            WorkExperience(
+                job_title="Test Job Title",
+                company="Test Company",
+                location="Test Location",
+                time="time",
+                responsibilities=["Test Responsibilities 1", "Test Responsibilities 2"],
+            )
         ],
         education=[
-            {
-                "institution": "Test University",
-                "degree": "B.S. Computer Science",
-                "start_date": "2016-01-01",
-                "end_date": "2020-01-01",
-                "description": "Studied computer science",
-                "is_featured": True,
-                "tags": ["education"],
-            }
+            Education(
+                degree_type="B.S.",
+                degree="Computer Science",
+                university_name="Test University",
+                time="2016-2020",
+                location="Test Location",
+                GPA="3.8",
+                transcript=["Computer Science 101", "Data Structures", "Algorithms"],
+            )
         ],
         skills=[
-            {"name": "Python", "level": 5, "category": "programming"},
-            {"name": "JavaScript", "level": 4, "category": "programming"},
+            Skill(category="programming", skills=["Python", "JavaScript"]),
+            Skill(category="databases", skills=["MongoDB", "PostgreSQL"]),
+            Skill(category="frameworks", skills=["FastAPI", "Django"]),
         ],
     )
 
@@ -107,12 +104,10 @@ def mock_resume_repository():
 
     # Setup mock resume
     resume = Resume(
-        user_id="test_user",
-        name="Test Resume",
-        profile_id="profile123",
-        portfolio_id="portfolio123",
-        sections=["summary", "work_experience", "education", "skills"],
-        template_name="modern",
+        user_id=PydanticObjectId("test_user"),
+        profile_id=PydanticObjectId("profile123"),
+        portfolio_id=PydanticObjectId("portfolio123"),
+        template_id="modern",
         content={
             "summary": "Test summary",
             "work_experience": "Test work experience",
@@ -145,8 +140,8 @@ async def test_generation_service_init(
     )
 
     # Verify all dependencies are set
-    assert service.llm == mock_llm
-    assert service.tex == mock_tex_service
+    assert service.llm_service == mock_llm
+    assert service.tex_service == mock_tex_service
     assert service.profile_repository == mock_profile_repository
     assert service.portfolio_repository == mock_portfolio_repository
     assert service.resume_repository == mock_resume_repository
@@ -167,9 +162,8 @@ async def test_generate_resume_content(
 
     # Test generate resume content
     result = await service.generate_resume_content(
-        user_id="test_user",
         resume_id="resume123",
-        job_description="Test job description",
+        regenerate_sections=["Test job description"],
     )
 
     # Verify repositories were called

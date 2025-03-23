@@ -2,7 +2,7 @@
 
 import os
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -221,7 +221,7 @@ class LatexService:
                 "email": profile.email if profile else "",
                 "phone": profile.phone if profile else "",
                 "location": profile.location if profile else "",
-                "date": datetime.now().strftime("%B %d, %Y"),
+                "date": datetime.now(timezone.utc).strftime("%B %d, %Y"),
                 "company_name": company_name,
                 "job_title": job_title,
                 "cover_letter_text": cover_letter_text,

@@ -5,15 +5,14 @@ from typing import Optional
 from beanie import PydanticObjectId
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Path, status
-from pydantic import BaseModel, EmailStr, Field, validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
+from api.dependencies.auth import get_current_active_user
+from api.dependencies.services import get_profile_service
 from core.exceptions.base import NotFoundException
 from core.models.profile import Preferences, Profile
 from core.models.user import User
 from core.services.profile_service import ProfileService
-
-from ..dependencies.auth import get_current_active_user
-from ..dependencies.services import get_profile_service
 
 router = APIRouter()
 
@@ -72,7 +71,8 @@ class ObjectIdPath(BaseModel):
 
     id: str = Field(..., description="ObjectId string")
 
-    @validator("id")
+    @classmethod
+    @field_validator("id")
     def validate_object_id(cls, v):
         if not ObjectId.is_valid(v):
             raise ValueError("Invalid ObjectId format")
@@ -142,16 +142,15 @@ async def create_profile(
         # Create profile
         profile = Profile(
             user_id=current_user.id,
-            first_name=profile_data.first_name,
-            last_name=profile_data.last_name,
+            full_name=profile_data.first_name + " " + profile_data.last_name,
             email=profile_data.email,
-            phone=profile_data.phone,
-            location=profile_data.location,
-            website=profile_data.website,
-            github=profile_data.github,
-            linkedin=profile_data.linkedin,
-            twitter=profile_data.twitter,
-            bio=profile_data.bio,
+            # phone=profile_data.phone,
+            # address=profile_data.location,
+            # linkedin=profile_data.linkedin,
+            # github=profile_data.github,
+            # website=profile_data.website,
+            # signature=profile_data.signature,
+            # life_story=profile_data.life_story,
             preferences=preferences,
         )
 
@@ -187,7 +186,7 @@ async def update_my_profile(
         profile = await profile_service.get_profile(current_user.id)
 
         # Update profile fields
-        for field, value in profile_data.dict(exclude_unset=True).items():
+        for field, value in profile_data.model_dump(exclude_unset=True).items():
             setattr(profile, field, value)
 
         # Save through service
@@ -231,7 +230,7 @@ async def update_my_preferences(
             profile.preferences = Preferences()
 
         # Update preferences fields
-        for field, value in preferences_data.dict(exclude_unset=True).items():
+        for field, value in preferences_data.model_dump(exclude_unset=True).items():
             if value is not None:
                 if not hasattr(profile.preferences, field):
                     setattr(profile.preferences, field, {})

@@ -1,6 +1,6 @@
 """TeX template repository implementation."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from config.logging_config import get_logger
@@ -98,8 +98,8 @@ class TexTemplateRepository(BeanieRepository[TexTemplate]):
             content=content,
             type=template_type,
             is_default=is_default,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         await template.create()
         return template
@@ -151,7 +151,7 @@ class TexTemplateRepository(BeanieRepository[TexTemplate]):
             return None
 
         template.content = content
-        template.updated_at = datetime.utcnow()
+        template.updated_at = datetime.now(timezone.utc)
         await template.save()
 
         # Update cache if template is in cache

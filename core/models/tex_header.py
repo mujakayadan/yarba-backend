@@ -1,6 +1,6 @@
 """TexHeader model for storing reusable LaTeX headers or snippets."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from beanie import Document, PydanticObjectId
@@ -24,10 +24,12 @@ class TexHeader(Document):
         default=False, description="Indicates if this is a default header."
     )
     created_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Creation timestamp."
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="Creation timestamp.",
     )
     updated_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Last update timestamp."
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="Last update timestamp.",
     )
 
     model_config = {

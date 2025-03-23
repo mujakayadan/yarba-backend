@@ -1,6 +1,6 @@
 """Resume model for MongoDB using Beanie ODM."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from beanie import Document, Link, PydanticObjectId
@@ -69,8 +69,8 @@ class Resume(Document):
     llm_settings: LLMSettings = Field(default_factory=LLMSettings)
 
     # Metadata
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     model_config = {
         "validate_assignment": True,

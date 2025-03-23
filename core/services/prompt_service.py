@@ -1,10 +1,9 @@
 """Prompt service for loading and managing prompts."""
 
 import importlib
-import logging
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 # Add project root to Python path when running as script
 if __name__ == "__main__":
@@ -28,7 +27,7 @@ class PromptService:
     def __init__(
         self,
         user_repository: Optional[UserRepository] = None,
-        user_id: Optional[Union[str, PydanticObjectId]] = None,
+        user_id: Optional[PydanticObjectId] = None,
     ):
         """
         Initialize the prompt service.
@@ -37,13 +36,15 @@ class PromptService:
             user_repository: User repository for personalized prompts
             user_id: User ID for personalized prompts
         """
-        self.prompts_dir = "prompts"  # The Python module where prompts are stored
-        self.user_repository = user_repository
-        self.user_id = user_id
+        self.prompts_dir = settings.PROMPTS_DIR
+        self.user_repository: Optional[UserRepository] = user_repository
+        self.user_id: Optional[PydanticObjectId] = user_id
         self.logger = get_logger(self.__class__.__name__)
         logger.debug(f"Initialized PromptService with user_id: {user_id}")
 
-    async def _get_user_preferences(self, user_id: str) -> Optional[Dict[str, Any]]:
+    async def _get_user_preferences(
+        self, user_id: PydanticObjectId
+    ) -> Optional[Dict[str, Any]]:
         """
         Get user preferences using the repository.
 
@@ -248,7 +249,7 @@ class PromptService:
                 result[name] = f"Error: {str(e)}"
         return result
 
-    def set_user_id(self, user_id: Optional[Union[str, PydanticObjectId]]) -> None:
+    def set_user_id(self, user_id: Optional[PydanticObjectId]) -> None:
         """
         Set or change the user ID for personalized prompts.
 

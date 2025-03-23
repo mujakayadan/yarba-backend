@@ -1,11 +1,13 @@
 """Authentication service for user management and authentication."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional, Tuple
 
+from beanie import PydanticObjectId
 from fastapi import HTTPException, status
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+from pydantic import EmailStr
 
 from config.logging_config import get_logger
 from config.settings import Settings
@@ -92,7 +94,9 @@ class AuthService:
             self.logger.warning(f"Authentication failed: User {user.email} is inactive")
             raise UnauthorizedException("User account is inactive")
 
-        if user.account_locked_until and user.account_locked_until > datetime.utcnow():
+        if user.account_locked_until and user.account_locked_until > datetime.now(
+            timezone.utc
+        ):
             self.logger.warning(
                 f"Authentication failed: User {user.email} account is locked"
             )
@@ -108,7 +112,7 @@ class AuthService:
 
             # Lock account if too many failed attempts
             if login_attempts >= settings.auth.max_login_attempts:
-                lock_until = datetime.utcnow() + timedelta(
+                lock_until = datetime.now(timezone.utc) + timedelta(
                     minutes=settings.auth.account_lockout_minutes
                 )
                 await self.user_repository.lock_account(user.email, lock_until)
@@ -179,9 +183,9 @@ class AuthService:
         to_encode = data.copy()
 
         if expires_delta:
-            expire = datetime.utcnow() + expires_delta
+            expire = datetime.now(timezone.utc) + expires_delta
         else:
-            expire = datetime.utcnow() + timedelta(
+            expire = datetime.now(timezone.utc) + timedelta(
                 minutes=settings.auth.jwt_access_token_expire_minutes
             )
 
@@ -195,7 +199,9 @@ class AuthService:
 
         return encoded_jwt
 
-    async def register_user(self, email: str, password: str, full_name: str) -> User:
+    async def register_user(
+        self, email: EmailStr, password: str, full_name: str
+    ) -> User:
         """
         Register a new user.
 
@@ -224,9 +230,9 @@ class AuthService:
         user = User(
             email=email,
             hashed_password=hashed_password,
-            full_name=full_name,
+            username=full_name,
             is_active=True,
-            is_verified=False,
+            email_verified=False,
         )
 
         created_user = await self.user_repository.create(user)
@@ -234,7 +240,7 @@ class AuthService:
 
         return created_user
 
-    async def get_user_by_id(self, user_id: str) -> User:
+    async def get_user_by_id(self, user_id: PydanticObjectId) -> User:
         """
         Get a user by ID.
 
@@ -254,7 +260,7 @@ class AuthService:
 
         return user
 
-    async def get_user_by_email(self, email: str) -> User:
+    async def get_user_by_email(self, email: EmailStr) -> User:
         """
         Get a user by email.
 
@@ -274,7 +280,7 @@ class AuthService:
 
         return user
 
-    async def update_user(self, user_id: str, update_data: Dict) -> User:
+    async def update_user(self, user_id: PydanticObjectId, update_data: Dict) -> User:
         """
         Update a user.
 
@@ -300,7 +306,7 @@ class AuthService:
             user.hashed_password = self.get_password_hash(update_data["password"])
 
         # Update timestamp
-        user.updated_at = datetime.utcnow()
+        user.updated_at = datetime.now(timezone.utc)
 
         updated_user = await self.user_repository.update(user_id, user)
         if not updated_user:
@@ -342,7 +348,7 @@ class AuthService:
             self.logger.warning(f"Token verification failed: {str(e)}")
             raise UnauthorizedException("Invalid token")
 
-    async def deactivate_user(self, user_id: str) -> User:
+    async def deactivate_user(self, user_id: PydanticObjectId) -> User:
         """
         Deactivate a user.
 
@@ -358,7 +364,7 @@ class AuthService:
         user = await self.get_user_by_id(user_id)
 
         user.is_active = False
-        user.updated_at = datetime.utcnow()
+        user.updated_at = datetime.now(timezone.utc)
 
         updated_user = await self.user_repository.update(user_id, user)
         if not updated_user:

@@ -1,6 +1,6 @@
 """TexTemplate model for storing LaTeX document templates."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from beanie import Document
@@ -24,10 +24,12 @@ class TexTemplate(Document):
         default=False, description="Indicates if this is a default template."
     )
     created_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Creation timestamp."
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="Creation timestamp.",
     )
     updated_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Last update timestamp."
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="Last update timestamp.",
     )
 
     model_config = {

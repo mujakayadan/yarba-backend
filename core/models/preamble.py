@@ -1,6 +1,6 @@
 """Preamble model for storing LaTeX preamble content."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from beanie import Document, PydanticObjectId
@@ -24,10 +24,12 @@ class Preamble(Document):
         default=False, description="Indicates if this is a default preamble."
     )
     created_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Creation timestamp."
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="Creation timestamp.",
     )
     updated_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Last update timestamp."
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="Last update timestamp.",
     )
 
     model_config = {

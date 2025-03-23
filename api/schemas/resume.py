@@ -3,6 +3,7 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from beanie import PydanticObjectId
 from pydantic import BaseModel, Field
 
 
@@ -52,9 +53,9 @@ class ResumeResponse(ResumeBase):
     """Response schema for resume."""
 
     id: str = Field(..., description="Resume ID")
-    user_id: str = Field(..., description="User ID")
-    profile_id: str = Field(..., description="Profile ID")
-    portfolio_id: str = Field(..., description="Portfolio ID")
+    user_id: PydanticObjectId = Field(..., description="User ID")
+    profile_id: PydanticObjectId = Field(..., description="Profile ID")
+    portfolio_id: PydanticObjectId = Field(..., description="Portfolio ID")
     job_title: Optional[str] = Field(None, description="Job title")
     company_name: Optional[str] = Field(None, description="Company name")
     job_description: Optional[str] = Field(None, description="Job description")

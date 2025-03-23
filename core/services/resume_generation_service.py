@@ -1,7 +1,7 @@
 """Service for resume generation using LLM."""
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from beanie import PydanticObjectId
@@ -49,7 +49,7 @@ class ResumeGenerationService:
 
         # Create services if not provided
         self.prompt_service = prompt_service or PromptService(
-            user_repository=profile_repository
+            user_repository=ProfileRepository()
         )
         self.llm_service = llm_service or LLMService(
             profile_repository=profile_repository,
@@ -258,7 +258,7 @@ class ResumeGenerationService:
                 # Continue with other sections even if one fails
 
         # Update resume
-        resume.updated_at = datetime.utcnow()
+        resume.updated_at = datetime.now(timezone.utc)
         await self.resume_repository.update(resume)
 
         return resume.content
@@ -306,7 +306,7 @@ class ResumeGenerationService:
 
             # Update resume
             resume.cover_letter_content = cover_letter
-            resume.updated_at = datetime.utcnow()
+            resume.updated_at = datetime.now(timezone.utc)
             await self.resume_repository.update(resume)
 
             return cover_letter

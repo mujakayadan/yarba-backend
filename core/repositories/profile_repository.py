@@ -1,7 +1,7 @@
 """Profile repository implementation."""
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Union
 
 from beanie import PydanticObjectId
@@ -75,9 +75,9 @@ class ProfileRepository(BeanieRepository[Profile]):
         try:
             # Ensure timestamps are set
             if not profile.created_at:
-                profile.created_at = datetime.utcnow()
+                profile.created_at = datetime.now(timezone.utc)
             if not profile.updated_at:
-                profile.updated_at = datetime.utcnow()
+                profile.updated_at = datetime.now(timezone.utc)
 
             # Ensure user_id is valid ObjectId
             if not profile.user_id or not self._ensure_object_id(profile.user_id):
@@ -111,7 +111,7 @@ class ProfileRepository(BeanieRepository[Profile]):
                 raise ValueError("Profile ID is required for updates")
 
             # Update timestamp
-            profile.updated_at = datetime.utcnow()
+            profile.updated_at = datetime.now(timezone.utc)
 
             # Save the profile
             self.logger.debug(f"Updating profile with ID: {profile.id}")
@@ -231,7 +231,7 @@ class ProfileRepository(BeanieRepository[Profile]):
             return False
 
         result.preferences = preferences
-        result.updated_at = datetime.utcnow()
+        result.updated_at = datetime.now(timezone.utc)
         await result.save()
         return True
 
@@ -260,7 +260,7 @@ class ProfileRepository(BeanieRepository[Profile]):
             if hasattr(result, key):
                 setattr(result, key, value)
 
-        result.updated_at = datetime.utcnow()
+        result.updated_at = datetime.now(timezone.utc)
         await result.save()
         return True
 
@@ -289,8 +289,8 @@ class ProfileRepository(BeanieRepository[Profile]):
                 website="",
                 life_story="",
                 preferences=Preferences(),
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
             )
             await profile.create()
             return profile
@@ -300,7 +300,9 @@ class ProfileRepository(BeanieRepository[Profile]):
 
     # Enhanced methods for direct section access
 
-    async def get_personal_information(self, user_id: str) -> Optional[Profile]:
+    async def get_personal_information(
+        self, user_id: PydanticObjectId
+    ) -> Optional[Profile]:
         """
         Get personal information for a user.
 
@@ -312,7 +314,7 @@ class ProfileRepository(BeanieRepository[Profile]):
         """
         return await self.get_by_user_id(user_id)
 
-    async def get_preferences(self, user_id: str) -> Optional[Preferences]:
+    async def get_preferences(self, user_id: PydanticObjectId) -> Optional[Preferences]:
         """
         Get user preferences.
 
@@ -325,7 +327,9 @@ class ProfileRepository(BeanieRepository[Profile]):
         profile = await self.get_by_user_id(user_id)
         return profile.preferences if profile else None
 
-    async def get_section_preferences(self, user_id: str) -> Dict[str, str]:
+    async def get_section_preferences(
+        self, user_id: PydanticObjectId
+    ) -> Dict[str, str]:
         """
         Get section preferences.
 
@@ -346,7 +350,7 @@ class ProfileRepository(BeanieRepository[Profile]):
 
         return profile.preferences.section_preferences
 
-    async def get_api_keys(self, user_id: str) -> Dict[str, str]:
+    async def get_api_keys(self, user_id: PydanticObjectId) -> Dict[str, str]:
         """
         Get API keys for a user.
 

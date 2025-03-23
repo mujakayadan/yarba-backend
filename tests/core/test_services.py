@@ -4,24 +4,24 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from ...core.exceptions.base import (
+from core.exceptions.base import (
     BadRequestException,
     NotFoundException,
     UnauthorizedException,
 )
-from ...core.services.auth_service import AuthService
-from ...core.services.generator_service import GeneratorService
-from ...core.services.latex_service import LaTeXService
-from ...core.services.resume_service import ResumeService
+from core.services.auth_service import AuthService
+from core.services.generator_service import GeneratorService
+from core.services.latex_service import LatexService
+from core.services.resume_service import ResumeService
 
 
 @pytest.fixture
 def mock_user_repository():
     """Fixture for mocking user repository."""
     repository = AsyncMock()
-    repository.find_by_email = AsyncMock()
+    repository.get_by_email = AsyncMock()
     repository.create = AsyncMock()
-    repository.find_by_id = AsyncMock()
+    repository.get_by_id = AsyncMock()
     return repository
 
 
@@ -29,8 +29,8 @@ def mock_user_repository():
 def mock_resume_repository():
     """Fixture for mocking resume repository."""
     repository = AsyncMock()
-    repository.find_by_id = AsyncMock()
-    repository.find_all = AsyncMock()
+    repository.get_by_id = AsyncMock()
+    repository.get_all = AsyncMock()
     repository.create = AsyncMock()
     repository.update = AsyncMock()
     repository.delete = AsyncMock()
@@ -60,7 +60,7 @@ class TestAuthService:
     async def test_register_user_success(self, mock_user_repository):
         """Test successful user registration."""
         # Arrange
-        mock_user_repository.find_by_email.return_value = None
+        mock_user_repository.get_by_email.return_value = None
         mock_user_repository.create.return_value = {
             "id": "123",
             "email": "test@example.com",
@@ -78,14 +78,14 @@ class TestAuthService:
         # Assert
         assert result["id"] == "123"
         assert result["email"] == "test@example.com"
-        mock_user_repository.find_by_email.assert_called_once_with("test@example.com")
+        mock_user_repository.get_by_email.assert_called_once_with("test@example.com")
         mock_user_repository.create.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_register_user_email_exists(self, mock_user_repository):
         """Test user registration with existing email."""
         # Arrange
-        mock_user_repository.find_by_email.return_value = {
+        mock_user_repository.get_by_email.return_value = {
             "id": "123",
             "email": "test@example.com",
         }
@@ -100,8 +100,8 @@ class TestAuthService:
                 full_name="Test User",
             )
 
-        assert "already exists" in str(excinfo.value)
-        mock_user_repository.find_by_email.assert_called_once_with("test@example.com")
+        assert "Email already registered" in str(excinfo.value)
+        mock_user_repository.get_by_email.assert_called_once_with("test@example.com")
         mock_user_repository.create.assert_not_called()
 
     @pytest.mark.asyncio
@@ -109,9 +109,9 @@ class TestAuthService:
         """Test successful user login."""
         # Arrange
         # Mock a user with a hashed password
-        with patch("new_structure.core.utils.password.verify_password") as mock_verify:
+        with patch("core.utils.password.verify_password") as mock_verify:
             mock_verify.return_value = True
-            mock_user_repository.find_by_email.return_value = {
+            mock_user_repository.get_by_email.return_value = {
                 "id": "123",
                 "email": "test@example.com",
                 "hashed_password": "hashed_password",
@@ -120,9 +120,7 @@ class TestAuthService:
             auth_service = AuthService(user_repository=mock_user_repository)
 
             # Act
-            with patch(
-                "new_structure.core.utils.jwt.create_access_token"
-            ) as mock_create_token:
+            with patch("core.utils.jwt.create_access_token") as mock_create_token:
                 mock_create_token.return_value = "test_token"
                 result = await auth_service.login_user(
                     email="test@example.com",
@@ -132,7 +130,7 @@ class TestAuthService:
             # Assert
             assert result["access_token"] == "test_token"
             assert result["token_type"] == "bearer"
-            mock_user_repository.find_by_email.assert_called_once_with(
+            mock_user_repository.get_by_email.assert_called_once_with(
                 "test@example.com"
             )
             mock_verify.assert_called_once()
@@ -142,7 +140,7 @@ class TestAuthService:
     async def test_login_user_not_found(self, mock_user_repository):
         """Test user login with non-existent email."""
         # Arrange
-        mock_user_repository.find_by_email.return_value = None
+        mock_user_repository.get_by_email.return_value = None
 
         auth_service = AuthService(user_repository=mock_user_repository)
 
@@ -154,16 +152,16 @@ class TestAuthService:
             )
 
         assert "Invalid credentials" in str(excinfo.value)
-        mock_user_repository.find_by_email.assert_called_once_with("test@example.com")
+        mock_user_repository.get_by_email.assert_called_once_with("test@example.com")
 
     @pytest.mark.asyncio
     async def test_login_user_invalid_password(self, mock_user_repository):
         """Test user login with invalid password."""
         # Arrange
         # Mock a user with a hashed password
-        with patch("new_structure.core.utils.password.verify_password") as mock_verify:
+        with patch("core.utils.password.verify_password") as mock_verify:
             mock_verify.return_value = False
-            mock_user_repository.find_by_email.return_value = {
+            mock_user_repository.get_by_email.return_value = {
                 "id": "123",
                 "email": "test@example.com",
                 "hashed_password": "hashed_password",
@@ -179,7 +177,7 @@ class TestAuthService:
                 )
 
             assert "Invalid credentials" in str(excinfo.value)
-            mock_user_repository.find_by_email.assert_called_once_with(
+            mock_user_repository.get_by_email.assert_called_once_with(
                 "test@example.com"
             )
             mock_verify.assert_called_once()
@@ -194,7 +192,7 @@ class TestResumeService:
     ):
         """Test successful resume creation."""
         # Arrange
-        mock_user_repository.find_by_id.return_value = {
+        mock_user_repository.get_by_id.return_value = {
             "id": "user123",
             "email": "test@example.com",
         }
@@ -220,7 +218,7 @@ class TestResumeService:
         assert result["id"] == "resume123"
         assert result["title"] == "Test Resume"
         assert result["user_id"] == "user123"
-        mock_user_repository.find_by_id.assert_called_once_with("user123")
+        mock_user_repository.get_by_id.assert_called_once_with("user123")
         mock_resume_repository.create.assert_called_once()
 
     @pytest.mark.asyncio
@@ -229,7 +227,7 @@ class TestResumeService:
     ):
         """Test resume creation with non-existent user."""
         # Arrange
-        mock_user_repository.find_by_id.return_value = None
+        mock_user_repository.get_by_id.return_value = None
 
         resume_service = ResumeService(
             resume_repository=mock_resume_repository,
@@ -245,14 +243,14 @@ class TestResumeService:
             )
 
         assert "User not found" in str(excinfo.value)
-        mock_user_repository.find_by_id.assert_called_once_with("user123")
+        mock_user_repository.get_by_id.assert_called_once_with("user123")
         mock_resume_repository.create.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_resume_by_id_success(self, mock_resume_repository):
         """Test successful resume retrieval by ID."""
         # Arrange
-        mock_resume_repository.find_by_id.return_value = {
+        mock_resume_repository.get_by_id.return_value = {
             "id": "resume123",
             "title": "Test Resume",
             "user_id": "user123",
@@ -273,13 +271,13 @@ class TestResumeService:
         assert result["id"] == "resume123"
         assert result["title"] == "Test Resume"
         assert result["user_id"] == "user123"
-        mock_resume_repository.find_by_id.assert_called_once_with("resume123")
+        mock_resume_repository.get_by_id.assert_called_once_with("resume123")
 
     @pytest.mark.asyncio
     async def test_get_resume_by_id_not_found(self, mock_resume_repository):
         """Test resume retrieval with non-existent ID."""
         # Arrange
-        mock_resume_repository.find_by_id.return_value = None
+        mock_resume_repository.get_by_id.return_value = None
 
         resume_service = ResumeService(
             resume_repository=mock_resume_repository,
@@ -294,13 +292,13 @@ class TestResumeService:
             )
 
         assert "Resume not found" in str(excinfo.value)
-        mock_resume_repository.find_by_id.assert_called_once_with("resume123")
+        mock_resume_repository.get_by_id.assert_called_once_with("resume123")
 
     @pytest.mark.asyncio
     async def test_get_resume_by_id_unauthorized(self, mock_resume_repository):
         """Test resume retrieval with unauthorized user."""
         # Arrange
-        mock_resume_repository.find_by_id.return_value = {
+        mock_resume_repository.get_by_id.return_value = {
             "id": "resume123",
             "title": "Test Resume",
             "user_id": "other_user",
@@ -319,7 +317,7 @@ class TestResumeService:
             )
 
         assert "not authorized" in str(excinfo.value)
-        mock_resume_repository.find_by_id.assert_called_once_with("resume123")
+        mock_resume_repository.get_by_id.assert_called_once_with("resume123")
 
 
 class TestLaTeXService:
@@ -335,7 +333,7 @@ class TestLaTeXService:
                 mock_exists.return_value = True
 
                 with patch("builtins.open", MagicMock()):
-                    latex_service = LaTeXService()
+                    latex_service = LatexService()
 
                     # Act
                     result = latex_service.generate_pdf(
@@ -359,7 +357,7 @@ class TestLaTeXService:
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=1)
 
-            latex_service = LaTeXService()
+            latex_service = LatexService()
 
             # Act
             result = latex_service.generate_pdf(

@@ -1,6 +1,6 @@
 """Preamble repository implementation."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from ..models.preamble import Preamble
@@ -73,12 +73,12 @@ class PreambleRepository(BeanieRepository[Preamble]):
 
         # Remove default flag from other preambles of the same type
         await Preamble.find({"type": preamble.type, "is_default": True}).update(
-            {"$set": {"is_default": False, "updated_at": datetime.utcnow()}}
+            {"$set": {"is_default": False, "updated_at": datetime.now(timezone.utc)}}
         )
 
         # Set this preamble as default
         preamble.is_default = True
-        preamble.updated_at = datetime.utcnow()
+        preamble.updated_at = datetime.now(timezone.utc)
         await preamble.save()
         return True
 
@@ -104,7 +104,12 @@ class PreambleRepository(BeanieRepository[Preamble]):
         if is_default:
             # Remove default flag from other preambles of the same type
             await Preamble.find({"type": preamble_type, "is_default": True}).update(
-                {"$set": {"is_default": False, "updated_at": datetime.utcnow()}}
+                {
+                    "$set": {
+                        "is_default": False,
+                        "updated_at": datetime.now(timezone.utc),
+                    }
+                }
             )
 
         preamble = Preamble(
@@ -112,8 +117,8 @@ class PreambleRepository(BeanieRepository[Preamble]):
             content=content,
             type=preamble_type,
             is_default=is_default,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         await preamble.create()
         return preamble
@@ -139,12 +144,17 @@ class PreambleRepository(BeanieRepository[Preamble]):
         if set_as_default:
             # Remove default flag from other preambles of the same type
             await Preamble.find({"type": preamble.type, "is_default": True}).update(
-                {"$set": {"is_default": False, "updated_at": datetime.utcnow()}}
+                {
+                    "$set": {
+                        "is_default": False,
+                        "updated_at": datetime.now(timezone.utc),
+                    }
+                }
             )
             preamble.is_default = True
 
         preamble.content = content
-        preamble.updated_at = datetime.utcnow()
+        preamble.updated_at = datetime.now(timezone.utc)
         await preamble.save()
         return preamble
 

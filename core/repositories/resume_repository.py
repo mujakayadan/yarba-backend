@@ -1,8 +1,9 @@
 """Resume repository implementation."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
+from beanie import PydanticObjectId
 from pydantic import BaseModel
 
 from ..models.portfolio import Portfolio
@@ -130,7 +131,7 @@ class ResumeRepository(BeanieRepository[Resume]):
         """
         return await Resume.find({"user_id": user.id}).to_list()
 
-    async def get_by_user_id(self, user_id: str) -> List[Resume]:
+    async def get_by_user_id(self, user_id: PydanticObjectId) -> List[Resume]:
         """
         Get all resumes for a user by user ID.
 
@@ -205,7 +206,9 @@ class ResumeRepository(BeanieRepository[Resume]):
         )
         return resumes[0] if resumes else None
 
-    async def get_latest_by_user_id(self, user_id: str) -> Optional[Resume]:
+    async def get_latest_by_user_id(
+        self, user_id: PydanticObjectId
+    ) -> Optional[Resume]:
         """
         Get the latest resume for a user by user ID.
 
@@ -220,7 +223,7 @@ class ResumeRepository(BeanieRepository[Resume]):
         )
         return resumes[0] if resumes else None
 
-    async def get_by_template(self, template_id: str) -> List[Resume]:
+    async def get_by_template(self, template_id: PydanticObjectId) -> List[Resume]:
         """
         Get all resumes for a template.
 
@@ -280,7 +283,7 @@ class ResumeRepository(BeanieRepository[Resume]):
             return False
 
         result.content = content
-        result.updated_at = datetime.utcnow()
+        result.updated_at = datetime.now(timezone.utc)
         await result.save()
         return True
 
@@ -300,7 +303,7 @@ class ResumeRepository(BeanieRepository[Resume]):
             return False
 
         result.resume_pdf = pdf_data
-        result.updated_at = datetime.utcnow()
+        result.updated_at = datetime.now(timezone.utc)
         await result.save()
         return True
 
@@ -325,7 +328,7 @@ class ResumeRepository(BeanieRepository[Resume]):
         result.cover_letter_content = content
         if pdf_data:
             result.cover_letter_pdf = pdf_data
-        result.updated_at = datetime.utcnow()
+        result.updated_at = datetime.now(timezone.utc)
         await result.save()
         return True
 
@@ -345,7 +348,7 @@ class ResumeRepository(BeanieRepository[Resume]):
             return False
 
         result.portfolio_id = portfolio_id
-        result.updated_at = datetime.utcnow()
+        result.updated_at = datetime.now(timezone.utc)
         await result.save()
         return True
 
@@ -380,8 +383,8 @@ class ResumeRepository(BeanieRepository[Resume]):
             content=original.content,
             custom_sections=original.custom_sections,
             llm_settings=original.llm_settings,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
 
         await new_resume.create()
@@ -422,8 +425,8 @@ class ResumeRepository(BeanieRepository[Resume]):
                 max_tokens=4000,
                 system_prompt_version="v2.3",
             ),
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         await resume.create()
         return resume
