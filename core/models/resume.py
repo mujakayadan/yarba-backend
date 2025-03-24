@@ -46,7 +46,7 @@ class Resume(Document):
     portfolio: Optional[Link[Portfolio]] = None
 
     title: Optional[str] = "My Resume"
-    version: Optional[int] = 1
+    version: Optional[int] = None
     template_id: Optional[str] = "default"
 
     # Job targeting information

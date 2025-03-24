@@ -2,8 +2,22 @@
 
 from typing import Annotated, List, Optional
 
+from beanie import PydanticObjectId
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
+from api.dependencies.services import (
+    get_generator_service,
+    get_job_service,
+    get_profile_service,
+    get_resume_service,
+)
+from api.middleware.auth import CurrentUser
+from api.schemas import (
+    CoverLetterCreate,
+    CoverLetterResponse,
+    ResumeFilter,
+    ResumeUpdate,
+)
 from config import get_logger
 from core.models.resume import Resume
 from core.models.user import User
@@ -11,15 +25,6 @@ from core.services.generator_service import GeneratorService
 from core.services.job_service import JobService
 from core.services.profile_service import ProfileService
 from core.services.resume_service import ResumeService
-
-from ..dependencies.services import (
-    get_generator_service,
-    get_job_service,
-    get_profile_service,
-    get_resume_service,
-)
-from ..middleware.auth import CurrentUser
-from ..schemas import CoverLetterCreate, CoverLetterResponse, ResumeFilter, ResumeUpdate
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -54,12 +59,26 @@ async def create_cover_letter(
         HTTPException: If cover letter creation fails
     """
     try:
-        # Create a resume with is_cover_letter=True
+        # First, try to get the user's profile
+        try:
+            profile = await profile_service.get_profile(current_user.id)
+            profile_id = profile.id
+        except Exception as e:
+            logger.warning(
+                f"Error getting profile for user {current_user.id}: {str(e)}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User profile not found. Please create a profile first.",
+            )
+
+        # Create a resume with is_cover_letter=True and all available fields
         resume = await resume_service.create_resume(
-            user_id=str(current_user.id),
-            title=request.title,
-            template_id=request.template_id,
+            user_id=PydanticObjectId(current_user.id),
+            profile_id=profile_id,
+            job_description=getattr(request, "job_description", None),
             is_cover_letter=True,
+            template_id=request.template_id,
         )
 
         # If job description is provided, use it to enhance the cover letter
@@ -69,8 +88,8 @@ async def create_cover_letter(
 
             # Update cover letter with job information
             resume = await resume_service.update_resume(
-                resume_id=str(resume.id),
-                user_id=str(current_user.id),
+                resume_id=resume.id,
+                user_id=current_user.id,
                 update_data={
                     "job_description": request.job_description,
                     "company_name": job_info.get("company_name"),
@@ -98,11 +117,9 @@ async def create_cover_letter(
 
                 # Generate cover letter content
                 resume = await generator_service.generate_cover_letter(
-                    user_id=str(current_user.id),
+                    user_id=current_user.id,
                     job_description=request.job_description,
-                    title=resume.title,
-                    template_id=resume.template_id,
-                    resume_id=str(resume.id),
+                    resume_id=resume.id,
                 )
             except Exception as gen_error:
                 logger.warning(
@@ -158,7 +175,7 @@ async def get_cover_letters(
 
         # Get cover letters
         resumes = await resume_service.filter_resumes(
-            user_id=str(current_user.id),
+            user_id=current_user.id,
             filter_params=filter_params,
         )
 
@@ -174,7 +191,7 @@ async def get_cover_letters(
 
 @router.get("/{cover_letter_id}", response_model=CoverLetterResponse)
 async def get_cover_letter(
-    cover_letter_id: Annotated[str, Path(description="Cover letter ID")],
+    cover_letter_id: Annotated[PydanticObjectId, Path(description="Cover letter ID")],
     current_user: CurrentUser,
     resume_service: ResumeService = Depends(get_resume_service),
 ) -> CoverLetterResponse:
@@ -195,7 +212,7 @@ async def get_cover_letter(
     try:
         resume = await resume_service.get_resume_by_id(
             resume_id=cover_letter_id,
-            user_id=str(current_user.id),
+            user_id=current_user.id,
         )
 
         if not resume.is_cover_letter:
@@ -216,7 +233,7 @@ async def get_cover_letter(
 
 @router.put("/{cover_letter_id}", response_model=CoverLetterResponse)
 async def update_cover_letter(
-    cover_letter_id: Annotated[str, Path(description="Cover letter ID")],
+    cover_letter_id: Annotated[PydanticObjectId, Path(description="Cover letter ID")],
     request: ResumeUpdate,
     current_user: CurrentUser,
     resume_service: ResumeService = Depends(get_resume_service),
@@ -240,7 +257,7 @@ async def update_cover_letter(
         # Verify it's a cover letter
         resume = await resume_service.get_resume_by_id(
             resume_id=cover_letter_id,
-            user_id=str(current_user.id),
+            user_id=current_user.id,
         )
 
         if not resume.is_cover_letter:
@@ -255,7 +272,7 @@ async def update_cover_letter(
         # Update cover letter
         updated_resume = await resume_service.update_resume(
             resume_id=cover_letter_id,
-            user_id=str(current_user.id),
+            user_id=current_user.id,
             update_data=update_data,
         )
 
@@ -274,7 +291,7 @@ async def update_cover_letter(
 
 @router.delete("/{cover_letter_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_cover_letter(
-    cover_letter_id: Annotated[str, Path(description="Cover letter ID")],
+    cover_letter_id: Annotated[PydanticObjectId, Path(description="Cover letter ID")],
     current_user: CurrentUser,
     resume_service: ResumeService = Depends(get_resume_service),
 ) -> None:
@@ -293,7 +310,7 @@ async def delete_cover_letter(
         # Verify it's a cover letter
         resume = await resume_service.get_resume_by_id(
             resume_id=cover_letter_id,
-            user_id=str(current_user.id),
+            user_id=current_user.id,
         )
 
         if not resume.is_cover_letter:
@@ -305,7 +322,7 @@ async def delete_cover_letter(
         # Delete cover letter
         result = await resume_service.delete_resume(
             resume_id=cover_letter_id,
-            user_id=str(current_user.id),
+            user_id=current_user.id,
         )
 
         if not result:
@@ -328,7 +345,7 @@ async def delete_cover_letter(
 
 @router.post("/{cover_letter_id}/generate", response_model=CoverLetterResponse)
 async def generate_cover_letter(
-    cover_letter_id: Annotated[str, Path(description="Cover letter ID")],
+    cover_letter_id: Annotated[PydanticObjectId, Path(description="Cover letter ID")],
     job_description: str,
     current_user: CurrentUser,
     generator_service: GeneratorService = Depends(get_generator_service),
@@ -354,7 +371,7 @@ async def generate_cover_letter(
         # Verify it's a cover letter
         resume = await resume_service.get_resume_by_id(
             resume_id=cover_letter_id,
-            user_id=str(current_user.id),
+            user_id=current_user.id,
         )
 
         if not resume.is_cover_letter:
@@ -365,10 +382,8 @@ async def generate_cover_letter(
 
         # Generate cover letter content
         updated_resume = await generator_service.generate_cover_letter(
-            user_id=str(current_user.id),
+            user_id=current_user.id,
             job_description=job_description,
-            title=resume.title,
-            template_id=resume.template_id,
             resume_id=cover_letter_id,
         )
 
@@ -389,7 +404,7 @@ async def generate_cover_letter(
 
 @router.get("/{cover_letter_id}/pdf")
 async def get_cover_letter_pdf(
-    cover_letter_id: Annotated[str, Path(description="Cover letter ID")],
+    cover_letter_id: Annotated[PydanticObjectId, Path(description="Cover letter ID")],
     current_user: CurrentUser,
     generator_service: GeneratorService = Depends(get_generator_service),
     resume_service: ResumeService = Depends(get_resume_service),
@@ -413,7 +428,7 @@ async def get_cover_letter_pdf(
         # Verify it's a cover letter
         resume = await resume_service.get_resume_by_id(
             resume_id=cover_letter_id,
-            user_id=str(current_user.id),
+            user_id=current_user.id,
         )
 
         if not resume.is_cover_letter:
@@ -425,7 +440,7 @@ async def get_cover_letter_pdf(
         # Generate PDF
         pdf_content = await generator_service.generate_pdf(
             resume_id=cover_letter_id,
-            user_id=str(current_user.id),
+            user_id=current_user.id,
         )
 
         logger.info(f"PDF generated for cover letter: {cover_letter_id}")

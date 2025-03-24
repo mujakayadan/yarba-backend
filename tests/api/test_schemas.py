@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from ...api.schemas import (
+from api.schemas import (
     CoverLetterCreate,
     CoverLetterResponse,
     LoginRequest,

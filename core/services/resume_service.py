@@ -5,8 +5,6 @@ from typing import Dict, List, Optional
 
 from beanie import PydanticObjectId
 
-from config import settings
-
 from ..exceptions.base import NotFoundException
 from ..models.resume import Resume
 from ..repositories.resume_repository import ResumeFilter, ResumeRepository
@@ -52,9 +50,15 @@ class ResumeService:
         """
         resume = await self.resume_repository.get_by_id(resume_id)
 
-        if not resume or str(resume.user.id) != user_id:
+        if not resume:
+            self.logger.warning(f"Resume not found: {resume_id}")
+            raise NotFoundException("Resume not found")
+
+        # Check if the resume belongs to the user
+        # Use user_id field directly instead of going through the Link object
+        if resume.user_id != user_id:
             self.logger.warning(
-                f"Resume not found or access denied: {resume_id} for user {user_id}"
+                f"Access denied: Resume {resume_id} does not belong to user {user_id}"
             )
             raise NotFoundException("Resume not found")
 
@@ -87,6 +91,13 @@ class ResumeService:
     async def create_resume(
         self,
         user_id: PydanticObjectId,
+        profile_id: Optional[PydanticObjectId] = None,
+        portfolio_id: Optional[PydanticObjectId] = None,
+        title: Optional[str] = None,
+        company_name: Optional[str] = None,
+        job_title: Optional[str] = None,
+        job_description: Optional[str] = None,
+        template_id: Optional[str] = None,
         is_cover_letter: bool = False,
     ) -> Resume:
         """
@@ -94,6 +105,13 @@ class ResumeService:
 
         Args:
             user_id: User ID
+            profile_id: Profile ID (optional - if not provided, will look for user's default profile)
+            portfolio_id: Portfolio ID (optional)
+            title: Resume title (optional)
+            company_name: Company name (optional)
+            job_title: Job title (optional)
+            job_description: Job description (optional)
+            template_id: Template ID (optional)
             is_cover_letter: Whether this is a cover letter
 
         Returns:
@@ -107,7 +125,36 @@ class ResumeService:
             self.logger.warning(f"User not found: {user_id}")
             raise NotFoundException("User not found")
 
-        resume = Resume(user=user, user_id=user_id)
+        # If profile_id is not provided, try to get the user's default profile
+        if not profile_id:
+            from core.repositories.profile_repository import ProfileRepository
+
+            profile_repo = ProfileRepository()
+            profile = await profile_repo.get_by_user_id(user_id)
+            if not profile:
+                self.logger.warning(f"No profile found for user: {user_id}")
+                raise NotFoundException(
+                    "User profile not found. Please create a profile first."
+                )
+            profile_id = profile.id
+
+        # Create a new resume with required fields
+        resume = Resume(
+            user_id=user_id,
+            profile_id=profile_id,
+            portfolio_id=portfolio_id if portfolio_id else PydanticObjectId(),
+            title=title or ("My Resume" if not is_cover_letter else "My Cover Letter"),
+            version=1,
+            template_id=template_id or "default",
+            company_name=company_name or "",
+            job_title=job_title or "",
+            job_description=job_description or "",
+            content={},
+            custom_sections=[],
+            resume_pdf=b"" if not is_cover_letter else b"",
+            cover_letter_content="" if is_cover_letter else "",
+            cover_letter_pdf=b"" if is_cover_letter else b"",
+        )
 
         created_resume = await self.resume_repository.create(resume)
 
@@ -218,7 +265,7 @@ class ResumeService:
 
         Args:
             user_id: User ID
-            filter_params: Filter parameters
+            filter_params: Filter parameters (from API schema)
 
         Returns:
             List[Resume]: List of filtered resumes
@@ -231,4 +278,24 @@ class ResumeService:
             self.logger.warning(f"User not found: {user_id}")
             raise NotFoundException("User not found")
 
-        return await self.resume_repository.get_by_filter(user, filter_params)
+        # Convert API schema filter to repository filter
+        from core.repositories.resume_repository import ResumeFilter as RepositoryFilter
+
+        # Create an empty repository filter
+        repo_filter = RepositoryFilter()
+
+        # Map API filter fields to repository filter fields when they exist
+        if (
+            hasattr(filter_params, "template_id")
+            and filter_params.template_id is not None
+        ):
+            repo_filter.template_id = filter_params.template_id
+
+        if hasattr(filter_params, "version") and filter_params.version is not None:
+            repo_filter.version = filter_params.version
+
+        if hasattr(filter_params, "title") and filter_params.title:
+            repo_filter.title_contains = filter_params.title
+
+        # Get all resumes with the repository filter
+        return await self.resume_repository.get_by_filter(user, repo_filter)

@@ -201,8 +201,6 @@ class GeneratorService:
         self,
         user_id: PydanticObjectId,
         job_description: str,
-        title: str,
-        template_id: str,
         resume_id: Optional[PydanticObjectId] = None,
     ) -> Resume:
         """
@@ -211,8 +209,6 @@ class GeneratorService:
         Args:
             user_id: User ID
             job_description: Job description
-            title: Cover letter title
-            template_id: Template ID
             resume_id: Optional existing cover letter ID to update
 
         Returns:
@@ -231,10 +227,8 @@ class GeneratorService:
             if not resume:
                 resume = await self.resume_repository.create(
                     user_id=user_id,
-                    title=title,
                     profile_id=str(profile.id),
                     portfolio_id=str(portfolio.id),
-                    template_id=template_id,
                     job_description=job_description,
                     content={},
                     is_cover_letter=True,

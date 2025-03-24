@@ -197,6 +197,21 @@ class PreferenceSettings(BaseSettings):
     or when specific fields are missing.
     """
 
+    # Default section preferences
+    section_preferences: Dict[str, str] = Field(
+        default={
+            "personal_information": "Hardcode",
+            "career_summary": "Process",
+            "skills": "Process",
+            "work_experience": "Process",
+            "education": "Process",
+            "projects": "Process",
+            "awards": "Hardcode",
+            "publications": "Hardcode",
+        },
+        description="Default section processing methods",
+    )
+
     # Career summary preferences
     career_summary_min_words: int = Field(
         default=15,

@@ -14,6 +14,7 @@ from api.dependencies.services import (
 from api.middleware.auth import CurrentUser
 from api.schemas import ResumeCreate, ResumeFilter, ResumeResponse, ResumeUpdate
 from config import get_logger
+from config.settings import settings
 from core.services.generator_service import GeneratorService
 from core.services.job_service import JobService
 from core.services.profile_service import ProfileService
@@ -51,8 +52,25 @@ async def create_resume(
     """
     try:
         # Create basic resume with title and template
+        # First, try to get the user's profile
+        try:
+            profile = await profile_service.get_profile(current_user.id)
+            profile_id = profile.id
+        except Exception as e:
+            logger.warning(
+                f"Error getting profile for user {current_user.id}: {str(e)}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User profile not found. Please create a profile first.",
+            )
+
+        # Create the resume with the profile ID and other fields
         resume = await resume_service.create_resume(
-            user_id=PydanticObjectId(current_user.id), is_cover_letter=False
+            user_id=PydanticObjectId(current_user.id),
+            profile_id=profile_id,
+            job_description=getattr(request, "job_description", None),
+            is_cover_letter=False,
         )
 
         # If job description is provided, use it to enhance the resume
@@ -80,6 +98,10 @@ async def create_resume(
                 if not selected_sections and profile and profile.preferences:
                     if hasattr(profile.preferences, "section_preferences"):
                         selected_sections = profile.preferences.section_preferences
+                    else:
+                        selected_sections = settings.preferences.section_preferences
+                elif not selected_sections:
+                    selected_sections = settings.preferences.section_preferences
 
                 # Generate resume content based on job description
                 if selected_sections:
@@ -126,7 +148,7 @@ async def get_resumes(
         List[ResumeResponse]: List of resumes
     """
     try:
-        # Create filter
+        # Create filter using the API schema ResumeFilter
         filter_params = ResumeFilter(
             skip=skip,
             limit=limit,
@@ -138,7 +160,11 @@ async def get_resumes(
             filter_params=filter_params,
         )
 
-        return [ResumeResponse.model_validate(resume) for resume in resumes]
+        # Apply pagination manually since we're using API pagination
+        paginated_resumes = resumes[skip : skip + limit]
+
+        # Let Pydantic handle the conversion automatically
+        return [ResumeResponse.model_validate(resume) for resume in paginated_resumes]
 
     except Exception as e:
         logger.error(f"Error getting resumes: {str(e)}")

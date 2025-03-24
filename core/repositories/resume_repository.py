@@ -14,7 +14,12 @@ from .base_repository import BeanieRepository
 
 
 class ResumeFilter(BaseModel):
-    """Filter model for resume queries."""
+    """Repository filter model for database queries.
+
+    This class is used internally by the repository to filter resumes
+    in the database. It is different from the API-level ResumeFilter
+    which is used for API request validation.
+    """
 
     template_id: Optional[str] = None
     version: Optional[int] = None

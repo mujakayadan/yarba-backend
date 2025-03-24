@@ -40,11 +40,17 @@ class ResumeUpdate(BaseModel):
 
 
 class ResumeFilter(BaseModel):
-    """Schema for resume filtering."""
+    """Schema for API resume filtering and pagination.
+
+    This class is used for API request validation and represents
+    filtering parameters that users can specify in their requests.
+    It is different from the repository-level ResumeFilter.
+    """
 
     title: Optional[str] = Field(None, description="Filter by title")
     template_id: Optional[str] = Field(None, description="Filter by template ID")
     is_cover_letter: Optional[bool] = Field(None, description="Filter by document type")
+    version: Optional[int] = Field(None, description="Filter by version")
     skip: int = Field(0, ge=0, description="Number of resumes to skip")
     limit: int = Field(10, ge=1, le=100, description="Number of resumes to return")
 
@@ -52,10 +58,10 @@ class ResumeFilter(BaseModel):
 class ResumeResponse(ResumeBase):
     """Response schema for resume."""
 
-    id: str = Field(..., description="Resume ID")
+    id: PydanticObjectId = Field(..., description="Resume ID")
     user_id: PydanticObjectId = Field(..., description="User ID")
     profile_id: PydanticObjectId = Field(..., description="Profile ID")
-    portfolio_id: PydanticObjectId = Field(..., description="Portfolio ID")
+    portfolio_id: Optional[PydanticObjectId] = Field(None, description="Portfolio ID")
     job_title: Optional[str] = Field(None, description="Job title")
     company_name: Optional[str] = Field(None, description="Company name")
     job_description: Optional[str] = Field(None, description="Job description")
@@ -68,6 +74,7 @@ class ResumeResponse(ResumeBase):
         """Pydantic config."""
 
         from_attributes = True
+        json_encoders = {PydanticObjectId: str}
 
 
 # Cover letter schemas
