@@ -87,7 +87,7 @@ class GeneratorService:
                 raise ValueError(f"Resume with ID {resume_id} not found")
 
             # Verify resume belongs to user (convert both to strings for comparison)
-            if str(resume.user_id) != str(user_id):
+            if resume.user_id != user_id:
                 raise ValueError(
                     f"Resume with ID {resume_id} does not belong to user {user_id}"
                 )
@@ -126,8 +126,8 @@ class GeneratorService:
             if not resume:
                 resume = await self.resume_repository.create(
                     user_id=user_id,
-                    profile_id=str(profile.id),
-                    portfolio_id=str(portfolio.id),
+                    profile_id=profile.id,
+                    portfolio_id=portfolio.id,
                     job_description=job_description,
                     content={},
                     is_cover_letter=False,
@@ -136,8 +136,8 @@ class GeneratorService:
                 # Update job description
                 resume.job_description = job_description
                 resume = await self.resume_repository.update(
-                    id=str(resume.id),
-                    update_data={"job_description": job_description},
+                    id=resume.id,
+                    data={"job_description": job_description},
                 )
 
             # Process each selected section
@@ -187,8 +187,8 @@ class GeneratorService:
 
             # Update resume content
             resume = await self.resume_repository.update(
-                id=str(resume.id),
-                update_data={"content": content},
+                id=resume.id,
+                data={"content": content},
             )
 
             return resume
@@ -227,8 +227,8 @@ class GeneratorService:
             if not resume:
                 resume = await self.resume_repository.create(
                     user_id=user_id,
-                    profile_id=str(profile.id),
-                    portfolio_id=str(portfolio.id),
+                    profile_id=profile.id,
+                    portfolio_id=portfolio.id,
                     job_description=job_description,
                     content={},
                     is_cover_letter=True,
@@ -243,8 +243,8 @@ class GeneratorService:
                 # Update job description
                 resume.job_description = job_description
                 resume = await self.resume_repository.update(
-                    id=str(resume.id),
-                    update_data={"job_description": job_description},
+                    id=resume.id,
+                    data={"job_description": job_description},
                 )
 
             # Generate cover letter content
@@ -256,8 +256,8 @@ class GeneratorService:
             # Update resume content
             content = {"cover_letter": cover_letter_content}
             resume = await self.resume_repository.update(
-                id=str(resume.id),
-                update_data={"content": content},
+                id=resume.id,
+                data={"content": content},
             )
 
             return resume
@@ -291,7 +291,7 @@ class GeneratorService:
                 raise ValueError(f"Document with ID {resume_id} not found")
 
             # Verify ownership
-            if str(resume.user_id) != user_id:
+            if resume.user_id != user_id:
                 raise ValueError(
                     f"Document with ID {resume_id} does not belong to user {user_id}"
                 )

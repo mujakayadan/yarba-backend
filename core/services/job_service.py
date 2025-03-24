@@ -1,7 +1,8 @@
 """Service for handling job-related operations."""
 
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
+from config.constants import APP_CONSTANTS, FEATURE_FLAGS
 from config.logging_config import get_logger
 from core.services.llm_service import LLMService
 from core.services.prompt_service import PromptService
@@ -37,49 +38,22 @@ class JobService:
             Dictionary containing extracted job information (company_name, job_title)
         """
         try:
-            # Get folder name prompt which extracts company and job title
-            if self.prompt_service:
-                try:
-                    # Try to get from prompt service
-                    folder_name_prompt = (
-                        await self.prompt_service.get_folder_name_prompt()
-                    )
-                except Exception as e:
-                    # If that fails, load it directly from the module
-                    self.logger.warning(
-                        f"Error loading folder name prompt from service: {e}"
-                    )
-                    try:
-                        # Import directly as fallback
-                        import importlib
+            # Use LLM service to extract company name and job title
+            company_name, job_title = (
+                await self.llm_service.extract_job_title_and_company(job_description)
+            )
 
-                        folder_name_prompt_module = importlib.import_module(
-                            "prompts.folder_name_prompt"
-                        )
-                        # Use the TEMPLATE directly
-                        folder_name_prompt = folder_name_prompt_module.TEMPLATE
-                    except Exception as e2:
-                        self.logger.error(
-                            f"Error loading folder name prompt directly: {e2}"
-                        )
-                        folder_name_prompt = """Based on the given job description, extract the company name and job title.
-                        Format the response exactly like this example: 'CompanyName|PositionName'.
-                        Use only alphanumeric characters, spaces, and underscores."""
-
-                company_name, job_title = await self._extract_company_and_title(
-                    job_description, folder_name_prompt
-                )
-            else:
-                self.logger.warning(
-                    "Prompt service not available, using fallback method"
-                )
-                company_name, job_title = "unknown_company", "unknown_position"
+            # Check for security clearance if feature is enabled
+            requires_clearance = False
+            if FEATURE_FLAGS.get("check_clearance", False):
+                requires_clearance = self.check_security_clearance(job_description)
 
             # Return the job info dictionary
             return {
                 "company_name": company_name,
                 "job_title": job_title,
                 "job_description": job_description,
+                "requires_clearance": requires_clearance,
             }
         except Exception as e:
             self.logger.error(f"Error extracting job info: {str(e)}")
@@ -87,45 +61,31 @@ class JobService:
                 "company_name": "unknown_company",
                 "job_title": "unknown_position",
                 "job_description": job_description,
+                "requires_clearance": False,
             }
 
-    async def _extract_company_and_title(
-        self, job_description: str, folder_name_prompt: str
-    ) -> Tuple[str, str]:
+    def check_security_clearance(self, job_description: str) -> bool:
         """
-        Extract company name and job title using the folder name prompt.
+        Check if the job description requires security clearance.
 
         Args:
             job_description: The job description text
-            folder_name_prompt: The folder name prompt template
 
         Returns:
-            Tuple of (company_name, job_title)
+            bool: True if the job requires security clearance, False otherwise
         """
         try:
-            # Use the LLM service to get the completion
-            system_prompt = "You are a helpful assistant that extracts company names and job titles."
+            # Convert job description to lowercase for case-insensitive matching
+            job_desc_lower = job_description.lower()
 
-            response = await self.llm_service.get_completion(
-                prompt=f"{folder_name_prompt}\n\nJob Description:\n{job_description}",
-                system_prompt=system_prompt,
-            )
+            # Check for any security clearance keywords
+            for keyword in APP_CONSTANTS.get("clearance_keywords", []):
+                if keyword.lower() in job_desc_lower:
+                    self.logger.info(f"Found security clearance requirement: {keyword}")
+                    return True
 
-            # Parse the response (expected format: company_name|job_title)
-            if "|" in response:
-                parts = response.strip().split("|")
-                if len(parts) == 2:
-                    company_name, job_title = parts
-                    # Clean the values
-                    company_name = company_name.strip().lower().replace(" ", "_")
-                    job_title = job_title.strip().lower().replace(" ", "_")
-                    return company_name, job_title
+            return False
 
-            # If parsing fails, return default values
-            self.logger.warning(
-                f"Failed to parse company/title from response: {response}"
-            )
-            return "unknown_company", "unknown_position"
         except Exception as e:
-            self.logger.error(f"Error in _extract_company_and_title: {str(e)}")
-            return "unknown_company", "unknown_position"
+            self.logger.error(f"Error checking security clearance: {str(e)}")
+            return False

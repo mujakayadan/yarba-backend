@@ -54,6 +54,9 @@ class Resume(Document):
     job_title: Optional[str] = None
     job_description: str = Field(default="")
 
+    # Flag to differentiate between resumes and cover letters
+    is_cover_letter: bool = Field(default=False)
+
     # Content can be either structured data or LaTeX string
     content: Dict[str, Any] = Field(default_factory=dict)
 

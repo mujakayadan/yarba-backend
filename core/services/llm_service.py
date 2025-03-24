@@ -1,7 +1,7 @@
 """Service for LLM operations using LiteLLM as an abstraction layer."""
 
 import asyncio
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import litellm
 from beanie.odm.fields import PydanticObjectId
@@ -386,3 +386,47 @@ Resume Content:
         except Exception as e:
             self.logger.error(f"Error generating cover letter: {e}")
             raise
+
+    async def extract_job_title_and_company(
+        self, job_description: str
+    ) -> Tuple[str, str]:
+        """
+        Extract job title and company name from a job description using LLM.
+
+        Args:
+            job_description: The job description text
+
+        Returns:
+            Tuple of (company_name, job_title)
+        """
+        try:
+            # Get the folder name prompt
+            folder_name_prompt = await self.prompt_service.get_folder_name_prompt()
+
+            # Use the LLM service to get the completion
+            system_prompt = await self.prompt_service.get_system_prompt()
+
+            response = await self.get_completion(
+                prompt=f"{folder_name_prompt}\n\nJob Description:\n{job_description}",
+                system_prompt=system_prompt,
+            )
+
+            # Parse the response (expected format: company_name|job_title)
+            if "|" in response:
+                parts = response.strip().split("|")
+                if len(parts) == 2:
+                    company_name, job_title = parts
+                    # Clean the values
+                    company_name = company_name.strip().lower().replace(" ", "_")
+                    job_title = job_title.strip().lower().replace(" ", "_")
+                    return company_name, job_title
+
+            # If parsing fails, return default values
+            self.logger.warning(
+                f"Failed to parse company/title from response: {response}"
+            )
+            return "unknown_company", "unknown_position"
+
+        except Exception as e:
+            self.logger.error(f"Error extracting job title and company: {e}")
+            return "unknown_company", "unknown_position"
