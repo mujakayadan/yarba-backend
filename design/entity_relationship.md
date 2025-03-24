@@ -5,12 +5,19 @@ erDiagram
     User ||--o{ Profile : "has"
     User ||--o{ Portfolio : "has"
     User ||--o{ Resume : "has"
+    User ||--o{ CoverLetter : "has"
     Profile ||--o{ Resume : "used in"
+    Profile ||--o{ CoverLetter : "used in"
     Portfolio ||--o{ Resume : "used in"
+    Portfolio ||--o{ CoverLetter : "used in"
     Resume }o--|| Portfolio : "references"
     Resume }o--|| Profile : "references"
     Resume }o--|| Preamble : "uses"
     Resume }o--|| TexHeader : "uses many"
+    Resume ||--o{ CoverLetter : "referenced by"
+    CoverLetter }o--|| Resume : "references"
+    CoverLetter }o--|| Portfolio : "references"
+    CoverLetter }o--|| Profile : "references"
 
     User {
         ObjectId id PK
@@ -85,6 +92,24 @@ erDiagram
         object content "{ structured resume content }"
         array custom_sections "[ { title, content, order, is_visible } ]"
         binary resume_pdf
+        object llm_settings "{ model_type, model_name, temperature, p_value, etc. }"
+        datetime created_at
+        datetime updated_at
+    }
+
+    CoverLetter {
+        ObjectId id PK
+        ObjectId user_id FK
+        ObjectId profile_id FK
+        ObjectId portfolio_id FK
+        ObjectId resume_id FK
+        string title
+        int version
+        string template_id
+        string company_name
+        string job_title
+        string job_description
+        object content "{ structured resume content }"
         string cover_letter_content
         binary cover_letter_pdf
         object llm_settings "{ model_type, model_name, temperature, p_value, etc. }"
@@ -146,6 +171,16 @@ A specific resume document created by a user.
 - Includes AI generation parameters as an object (llm_settings)
 - Linked to a user via user_id
 
+### CoverLetter
+A cover letter document created by a user, typically based on a resume.
+- References a profile for personal information
+- References a portfolio for professional information
+- References a resume that it's based on
+- Contains job targeting information
+- Stores both content and generated PDF
+- Includes AI generation parameters as an object (llm_settings)
+- Linked to a user via user_id
+
 ### Preamble
 LaTeX preambles used for resume and cover letter generation.
 - Contains LaTeX code for document setup
@@ -162,10 +197,12 @@ LaTeX headers used for custom LaTeX code generation.
 
 ## Key Relationships
 
-- A User can have multiple Profiles, Portfolios, and Resumes
-- A Profile can be used in multiple Resumes
-- A Portfolio can be used in multiple Resumes
+- A User can have multiple Profiles, Portfolios, Resumes, and Cover Letters
+- A Profile can be used in multiple Resumes and Cover Letters
+- A Portfolio can be used in multiple Resumes and Cover Letters
 - A Resume references one Profile (for personal info) and one Portfolio (for professional info)
+- A Resume can be referenced by multiple Cover Letters
+- A Cover Letter references one Resume (as its base), one Profile, and one Portfolio
 - A Resume uses one Preamble and multiple TexHeaders for LaTeX generation
 
 ## Object Structures

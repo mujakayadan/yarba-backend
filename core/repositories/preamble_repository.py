@@ -1,7 +1,9 @@
 """Preamble repository implementation."""
 
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Dict, List, Optional
+
+from config.logging_config import get_logger
 
 from ..models.preamble import Preamble
 from .base_repository import BeanieRepository
@@ -13,6 +15,7 @@ class PreambleRepository(BeanieRepository[Preamble]):
     def __init__(self):
         """Initialize the repository."""
         super().__init__(Preamble)
+        self.logger = get_logger(__name__)
 
     async def get_by_name(
         self, name: str, preamble_type: str = "resume_preamble"
@@ -157,6 +160,10 @@ class PreambleRepository(BeanieRepository[Preamble]):
         preamble.updated_at = datetime.now(timezone.utc)
         await preamble.save()
         return preamble
+
+    async def clear_cache(self) -> None:
+        """Clear the header cache."""
+        self.logger.debug("Preamble cache cleared")
 
 
 async def get_preamble_repository(self) -> PreambleRepository:

@@ -1,42 +1,19 @@
-"""Resume model for MongoDB using Beanie ODM."""
+"""CoverLetter model for MongoDB using Beanie ODM."""
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from beanie import Document, Link, PydanticObjectId
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from .portfolio import Portfolio
 from .profile import Profile
+from .resume import LLMSettings, Resume
 from .user import User
 
 
-class ResumeSection(BaseModel):
-    """Base class for resume sections."""
-
-    title: str
-    content: str
-    order: int = 0
-    is_visible: bool = True
-
-    model_config = {"validate_assignment": True}
-
-
-class LLMSettings(BaseModel):
-    """LLM settings for resume generation."""
-
-    model_type: Optional[str] = None
-    model_name: Optional[str] = None
-    temperature: Optional[float] = None
-    p_value: Optional[float] = None
-    max_tokens: Optional[int] = None
-    system_prompt_version: Optional[str] = None
-
-    model_config = {"validate_assignment": True}
-
-
-class Resume(Document):
-    """Resume model for MongoDB using Beanie ODM."""
+class CoverLetter(Document):
+    """CoverLetter model for MongoDB using Beanie ODM."""
 
     user_id: PydanticObjectId
     user: Optional[Link[User]] = None
@@ -44,8 +21,10 @@ class Resume(Document):
     profile: Optional[Link[Profile]] = None
     portfolio_id: Optional[PydanticObjectId] = None
     portfolio: Optional[Link[Portfolio]] = None
+    resume_id: Optional[PydanticObjectId] = None
+    resume: Optional[Link[Resume]] = None
 
-    title: Optional[str] = "My Resume"
+    title: Optional[str] = "My Cover Letter"
     version: Optional[int] = None
     template_id: Optional[str] = "default"
 
@@ -56,12 +35,8 @@ class Resume(Document):
 
     # Content can be either structured data or LaTeX string
     content: Dict[str, Any] = Field(default_factory=dict)
-
-    # Custom sections
-    custom_sections: List[ResumeSection] = Field(default_factory=list)
-
-    # Generated PDFs
-    resume_pdf: Optional[bytes] = None
+    cover_letter_content: Optional[str] = None
+    cover_letter_pdf: Optional[bytes] = None
 
     # AI generation parameters
     llm_settings: LLMSettings = Field(default_factory=LLMSettings)
@@ -81,9 +56,9 @@ class Resume(Document):
     class Settings:
         """Beanie document settings."""
 
-        name = "resumes"
+        name = "cover_letters"
         use_state_management = True
-        indexes = ["user_id", "profile_id", "portfolio_id"]
+        indexes = ["user_id", "profile_id", "portfolio_id", "resume_id"]
         bson_encoders = {
             datetime: lambda x: x,
         }

@@ -12,6 +12,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 from config.logging_config import get_logger
 from config.settings import Settings
+from core.models.cover_letter import CoverLetter
 from core.models.portfolio import Portfolio
 from core.models.preamble import Preamble
 from core.models.profile import Profile
@@ -44,6 +45,8 @@ async def init_db() -> Optional[AsyncIOMotorClient]:
             User,
             # Resume models
             Resume,
+            # Cover letter models
+            CoverLetter,
             # Profile models
             Profile,
             # Portfolio models

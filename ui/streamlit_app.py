@@ -161,6 +161,7 @@ class StreamlitApp:
                 from beanie import init_beanie
 
                 from core.database.connection import get_async_database_connection
+                from core.models.cover_letter import CoverLetter
                 from core.models.portfolio import Portfolio
                 from core.models.preamble import Preamble
                 from core.models.profile import Profile
@@ -181,6 +182,7 @@ class StreamlitApp:
                             Profile,
                             Portfolio,
                             Resume,
+                            CoverLetter,
                             Preamble,
                             TexHeader,
                             TexTemplate,

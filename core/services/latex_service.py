@@ -1,16 +1,16 @@
 """LaTeX service for LaTeX document generation."""
 
-import os
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict
+
+from beanie import PydanticObjectId
 
 from config.logging_config import get_logger
 from config.settings import Settings
 from core.exceptions.base import InternalServerException
 from core.latex.compilers import CoverLetterCompiler, ResumeCompiler
-from core.models.portfolio import Portfolio
 from core.models.profile import Profile
 from core.models.resume import Resume
 from core.repositories.preamble_repository import PreambleRepository
@@ -64,12 +64,12 @@ class LatexService:
             self.logger.error(f"Error getting default preamble: {e}")
             return ""
 
-    async def get_preamble(self, preamble_id: Union[str, None] = None) -> str:
+    async def get_preamble(self, preamble_id: PydanticObjectId) -> str:
         """
         Get LaTeX preamble by ID.
 
         Args:
-            preamble_id: Preamble ID or None for default
+            preamble_id: PydanticObjectId
 
         Returns:
             str: LaTeX preamble content
@@ -135,7 +135,6 @@ class LatexService:
         self,
         resume: Resume,
         profile: Profile,
-        portfolio: Portfolio,
     ) -> str:
         """
         Generate LaTeX for a resume.
@@ -143,7 +142,6 @@ class LatexService:
         Args:
             resume: Resume model
             profile: Profile model
-            portfolio: Portfolio model
 
         Returns:
             str: LaTeX document
@@ -161,11 +159,13 @@ class LatexService:
             params = {
                 "header": header,
                 "preamble": preamble,
-                "name": profile.name if profile else "",
+                "name": profile.full_name if profile else "",
                 "email": profile.email if profile else "",
                 "phone": profile.phone if profile else "",
-                "location": profile.location if profile else "",
-                "links": self._format_links(profile.links if profile else {}),
+                "location": profile.address if profile else "",
+                "links": self._format_links(
+                    {profile.email, profile.linkedin, profile.github} if profile else {}
+                ),
                 "summary": content.get("summary", ""),
                 "skills": content.get("skills", ""),
                 "work_experience": content.get("work_experience", ""),
@@ -186,7 +186,6 @@ class LatexService:
         self,
         resume: Resume,
         profile: Profile,
-        portfolio: Portfolio,
     ) -> str:
         """
         Generate LaTeX for a cover letter.
@@ -194,7 +193,6 @@ class LatexService:
         Args:
             resume: Resume model (containing cover letter content)
             profile: Profile model
-            portfolio: Portfolio model
 
         Returns:
             str: LaTeX document
@@ -210,17 +208,17 @@ class LatexService:
             cover_letter_text = content.get("cover_letter", "")
 
             # Get application details
-            company_name = resume.company_details or ""
-            job_title = resume.job_position or ""
+            company_name = resume.company_name or ""
+            job_title = resume.job_title or ""
 
             # Combine parameters
             params = {
                 "header": header,
                 "preamble": preamble,
-                "name": profile.name if profile else "",
+                "name": profile.full_name if profile else "",
                 "email": profile.email if profile else "",
                 "phone": profile.phone if profile else "",
-                "location": profile.location if profile else "",
+                "address": profile.address if profile else "",
                 "date": datetime.now(timezone.utc).strftime("%B %d, %Y"),
                 "company_name": company_name,
                 "job_title": job_title,

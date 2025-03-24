@@ -1,7 +1,10 @@
 """Tex service for handling TeX templates, headers, and preambles."""
 
 import logging
-from typing import Any, Dict, List, Optional
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Union
+
+from beanie import PydanticObjectId
 
 from core.repositories.preamble_repository import (
     PreambleRepository,
@@ -15,6 +18,11 @@ from core.repositories.tex_template_repository import (
     TexTemplateRepository,
     get_tex_template_repository,
 )
+
+from ..models.cover_letter import CoverLetter
+from ..models.portfolio import Portfolio
+from ..models.profile import Profile
+from ..models.resume import Resume
 
 
 class TexService:
@@ -191,3 +199,190 @@ class TexService:
         self.template_repository.clear_cache()
         self.preamble_repository.clear_cache()
         self.logger.debug("All TeX caches cleared")
+
+    async def generate_resume_latex(
+        self,
+        resume: Resume,
+        profile: Optional[Profile] = None,
+        portfolio: Optional[Portfolio] = None,
+    ) -> str:
+        """
+        Generate LaTeX code for a resume.
+
+        Args:
+            resume: Resume data
+            profile: Profile data
+            portfolio: Portfolio data
+
+        Returns:
+            str: LaTeX code
+        """
+        # Implementation details for generating resume LaTeX
+        # ...
+        pass
+
+    async def generate_cover_letter_latex(
+        self,
+        cover_letter: Union[
+            CoverLetter, Resume
+        ],  # Support both CoverLetter and old Resume models
+        profile: Profile,
+        portfolio: Optional[Portfolio] = None,
+    ) -> str:
+        """
+        Generate LaTeX code for a cover letter.
+
+        Args:
+            cover_letter: Cover letter data or Resume with cover letter
+            profile: Profile data
+            portfolio: Portfolio data
+
+        Returns:
+            str: LaTeX code
+        """
+        try:
+            # Determine if we're using a Resume or CoverLetter model
+            using_resume_model = isinstance(cover_letter, Resume)
+
+            # Get appropriate content based on model type
+            if using_resume_model:
+                # Legacy support for Resume model with is_cover_letter=True
+                cover_letter_text = cover_letter.cover_letter_content or ""
+                company_name = cover_letter.company_name or ""
+                job_title = cover_letter.job_title or ""
+            else:
+                # New CoverLetter model
+                cover_letter_text = cover_letter.cover_letter_content or ""
+                company_name = cover_letter.company_name or ""
+                job_title = cover_letter.job_title or ""
+
+            # Load template
+            template = await self._get_template("cover_letter")
+
+            # Load preamble
+            preamble = await self._get_preamble()
+
+            # Extract personal info from profile
+            name = getattr(profile, "full_name", "")
+            email = getattr(profile, "email", "")
+            phone = getattr(profile, "phone", "")
+            address = getattr(profile, "address", "")
+
+            # Format date
+            date = datetime.now(timezone.utc).strftime("%B %d, %Y")
+
+            # Create LaTeX document
+            latex = f"""
+{preamble}
+
+\\begin{{document}}
+
+% Header
+\\begin{{center}}
+{{{name}}} \\\\
+{email} | {phone} \\\\
+{address} \\\\
+\\end{{center}}
+
+% Date
+{date}
+
+% Recipient
+\\vspace{{1em}}
+{company_name} \\\\
+RE: {job_title} \\\\
+\\vspace{{1em}}
+
+% Salutation
+Dear Hiring Manager,
+
+% Content
+\\vspace{{1em}}
+{cover_letter_text}
+\\vspace{{1em}}
+
+% Closing
+Sincerely,
+
+\\vspace{{2em}}
+{name}
+
+\\end{{document}}
+"""
+            return latex
+
+        except Exception as e:
+            self.logger.error(f"Error generating cover letter LaTeX: {e}")
+            raise
+
+    async def compile_latex_to_pdf(self, latex: str) -> bytes:
+        """
+        Compile LaTeX to PDF.
+
+        Args:
+            latex: LaTeX code
+
+        Returns:
+            bytes: PDF content
+        """
+        # Implementation details for compiling LaTeX to PDF
+        # ...
+        pass
+
+    async def _get_template(self, template_type: str) -> str:
+        """
+        Get a template.
+
+        Args:
+            template_type: Template type
+
+        Returns:
+            str: Template content
+        """
+        if not self.template_repository:
+            # Return a default template if no repository available
+            if template_type == "cover_letter":
+                return """\\documentclass[11pt]{article}
+\\usepackage[margin=1in]{geometry}
+\\usepackage{hyperref}
+\\begin{document}
+{content}
+\\end{document}"""
+            else:
+                return """\\documentclass[11pt]{article}
+\\usepackage[margin=1in]{geometry}
+\\usepackage{hyperref}
+\\begin{document}
+{content}
+\\end{document}"""
+
+        # Get template from repository
+        template = await self.template_repository.get_by_type(template_type)
+        if not template:
+            self.logger.warning(f"Template {template_type} not found")
+            return ""
+
+        return template.content
+
+    async def _get_preamble(self) -> str:
+        """
+        Get a preamble.
+
+        Returns:
+            str: Preamble content
+        """
+        if not self.preamble_repository:
+            # Return a default preamble if no repository available
+            return """\\documentclass[11pt]{article}
+\\usepackage[margin=1in]{geometry}
+\\usepackage{hyperref}"""
+
+        # Get preamble from repository
+        preamble = await self.preamble_repository.get_default()
+        if not preamble:
+            self.logger.warning("Default preamble not found")
+            return """\\documentclass[11pt]{article}
+\\usepackage[margin=1in]{geometry}
+\\usepackage{hyperref}"""
+
+        return preamble.content

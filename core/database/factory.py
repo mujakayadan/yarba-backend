@@ -7,13 +7,8 @@ from typing import AsyncGenerator
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from ..repositories.portfolio_repository import PortfolioRepository
-from ..repositories.preamble_repository import PreambleRepository
-from ..repositories.profile_repository import ProfileRepository
-from ..repositories.resume_repository import ResumeRepository
-from ..repositories.tex_header_repository import TexHeaderRepository
-from ..repositories.tex_template_repository import TexTemplateRepository
-from ..repositories.user_repository import UserRepository
+from core.repositories import *
+
 from ..services.auth_service import AuthService
 from .connection import get_async_database_connection
 from .unit_of_work import AsyncMongoUnitOfWork
@@ -67,6 +62,15 @@ async def get_resume_repository() -> AsyncGenerator[ResumeRepository, None]:
         ResumeRepository: Resume repository instance
     """
     yield ResumeRepository()
+
+
+async def get_cover_letter_repository() -> AsyncGenerator[CoverLetterRepository, None]:
+    """Get a cover letter repository.
+
+    Yields:
+        CoverLetterRepository: Cover letter repository instance
+    """
+    yield CoverLetterRepository()
 
 
 async def get_preamble_repository() -> AsyncGenerator[PreambleRepository, None]:

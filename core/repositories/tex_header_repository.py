@@ -138,7 +138,7 @@ class TexHeaderRepository(BeanieRepository[TexHeader]):
             self.logger.error(f"ValueError in header '{header.name}': {e}")
             raise ValueError(f"Error formatting header '{header.name}': {e}")
 
-    def clear_cache(self) -> None:
+    async def clear_cache(self) -> None:
         """Clear the header cache."""
         self._cached_headers.clear()
         self.logger.debug("Header cache cleared")

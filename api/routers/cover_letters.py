@@ -1,191 +1,82 @@
-"""Cover letters router."""
+"""API router for cover letter endpoints."""
 
+import logging
 from typing import Annotated, List, Optional
 
 from beanie import PydanticObjectId
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, status
 
-from api.dependencies.services import (
-    get_generator_service,
+from config.logging_config import get_logger
+from core.services.cover_letter_generation_service import CoverLetterGenerationService
+from core.services.cover_letter_service import CoverLetterService
+from core.services.job_service import JobService
+
+from ..dependencies.auth import CurrentUser, get_current_active_user
+from ..dependencies.services import (
+    get_cover_letter_generation_service,
+    get_cover_letter_service,
     get_job_service,
-    get_profile_service,
-    get_resume_service,
 )
-from api.middleware.auth import CurrentUser
-from api.schemas import (
+from ..schemas.cover_letter import (
     CoverLetterCreate,
     CoverLetterResponse,
-    ResumeFilter,
-    ResumeUpdate,
+    CoverLetterUpdate,
 )
-from config import get_logger
-from core.models.resume import Resume
-from core.models.user import User
-from core.services.generator_service import GeneratorService
-from core.services.job_service import JobService
-from core.services.profile_service import ProfileService
-from core.services.resume_service import ResumeService
 
-router = APIRouter()
 logger = get_logger(__name__)
 
-
-@router.post(
-    "", response_model=CoverLetterResponse, status_code=status.HTTP_201_CREATED
-)
-async def create_cover_letter(
-    request: CoverLetterCreate,
-    current_user: CurrentUser,
-    resume_service: ResumeService = Depends(get_resume_service),
-    job_service: JobService = Depends(get_job_service),
-    generator_service: GeneratorService = Depends(get_generator_service),
-    profile_service: ProfileService = Depends(get_profile_service),
-) -> CoverLetterResponse:
-    """
-    Create a new cover letter.
-
-    Args:
-        request: Cover letter creation request
-        current_user: Current authenticated user
-        resume_service: Resume service
-        job_service: Job service to extract job information
-        generator_service: Generator service for content generation
-        profile_service: Profile service to get user preferences
-
-    Returns:
-        CoverLetterResponse: Created cover letter
-
-    Raises:
-        HTTPException: If cover letter creation fails
-    """
-    try:
-        # First, try to get the user's profile
-        try:
-            profile = await profile_service.get_profile(current_user.id)
-            profile_id = profile.id
-        except Exception as e:
-            logger.warning(
-                f"Error getting profile for user {current_user.id}: {str(e)}"
-            )
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User profile not found. Please create a profile first.",
-            )
-
-        # Create a resume with is_cover_letter=True and all available fields
-        resume = await resume_service.create_resume(
-            user_id=PydanticObjectId(current_user.id),
-            profile_id=profile_id,
-            job_description=getattr(request, "job_description", None),
-            is_cover_letter=True,
-            template_id=request.template_id,
-        )
-
-        # If job description is provided, use it to enhance the cover letter
-        if request.job_description:
-            # Extract job info
-            job_info = await job_service.extract_job_info(request.job_description)
-
-            # Update cover letter with job information
-            resume = await resume_service.update_resume(
-                resume_id=resume.id,
-                user_id=current_user.id,
-                update_data={
-                    "job_description": request.job_description,
-                    "company_name": job_info.get("company_name"),
-                    "job_title": job_info.get("job_title"),
-                },
-            )
-
-            # Generate cover letter content immediately if job description is provided
-            try:
-                # Get user's llm preferences from profile or request
-                llm_preferences = request.llm_preferences
-                if not llm_preferences:
-                    try:
-                        profile = await profile_service.get_profile(current_user.id)
-                        if (
-                            profile
-                            and profile.preferences
-                            and hasattr(profile.preferences, "llm_preferences")
-                        ):
-                            llm_preferences = profile.preferences.llm_preferences
-                    except Exception as profile_error:
-                        logger.warning(
-                            f"Error getting profile preferences: {str(profile_error)}"
-                        )
-
-                # Generate cover letter content
-                resume = await generator_service.generate_cover_letter(
-                    user_id=current_user.id,
-                    job_description=request.job_description,
-                    resume_id=resume.id,
-                )
-            except Exception as gen_error:
-                logger.warning(
-                    f"Error generating cover letter content: {str(gen_error)}"
-                )
-                # Continue without content generation to avoid blocking cover letter creation
-
-        logger.info(f"Cover letter created: {resume.id} for user {current_user.id}")
-        return CoverLetterResponse.model_validate(resume)
-
-    except Exception as e:
-        logger.error(f"Error creating cover letter: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create cover letter: {str(e)}",
-        )
+router = APIRouter(prefix="/cover-letters", tags=["Cover Letters"])
 
 
 @router.get("", response_model=List[CoverLetterResponse])
 async def get_cover_letters(
     current_user: CurrentUser,
-    title: Optional[str] = Query(None, description="Filter by title"),
+    cover_letter_service: CoverLetterService = Depends(get_cover_letter_service),
+    title: Optional[str] = Query(None, description="Filter by title (partial match)"),
     template_id: Optional[str] = Query(None, description="Filter by template ID"),
-    skip: int = Query(0, ge=0, description="Number of cover letters to skip"),
-    limit: int = Query(
-        10, ge=1, le=100, description="Number of cover letters to return"
+    resume_id: Optional[PydanticObjectId] = Query(
+        None, description="Filter by resume ID"
     ),
-    resume_service: ResumeService = Depends(get_resume_service),
 ) -> List[CoverLetterResponse]:
     """
-    Get all cover letters for the current user.
+    Get all cover letters for current user with optional filtering.
 
     Args:
         current_user: Current authenticated user
-        title: Optional title filter
-        template_id: Optional template ID filter
-        skip: Number of cover letters to skip
-        limit: Number of cover letters to return
-        resume_service: Resume service
+        cover_letter_service: Cover letter service
+        title: Title to filter by (partial match)
+        template_id: Template ID to filter by
+        resume_id: Resume ID to filter by
 
     Returns:
         List[CoverLetterResponse]: List of cover letters
     """
     try:
-        # Create filter
-        filter_params = ResumeFilter(
-            title=title,
+        from core.repositories.cover_letter_repository import CoverLetterFilter
+
+        # Create filter from query parameters
+        filter_params = CoverLetterFilter(
+            title_contains=title,
             template_id=template_id,
-            skip=skip,
-            limit=limit,
-            is_cover_letter=True,
+            resume_id=str(resume_id) if resume_id else None,
         )
 
-        # Get cover letters
-        resumes = await resume_service.filter_resumes(
+        # Get filtered cover letters
+        cover_letters = await cover_letter_service.filter_cover_letters(
             user_id=current_user.id,
             filter_params=filter_params,
         )
 
-        return [CoverLetterResponse.model_validate(resume) for resume in resumes]
+        logger.info(
+            f"Retrieved {len(cover_letters)} cover letters for user {current_user.username}"
+        )
+        return [CoverLetterResponse.model_validate(cl) for cl in cover_letters]
 
     except Exception as e:
-        logger.error(f"Error getting cover letters: {str(e)}")
+        logger.error(f"Error retrieving cover letters: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get cover letters",
+            detail="Failed to retrieve cover letters",
         )
 
 
@@ -193,7 +84,7 @@ async def get_cover_letters(
 async def get_cover_letter(
     cover_letter_id: Annotated[PydanticObjectId, Path(description="Cover letter ID")],
     current_user: CurrentUser,
-    resume_service: ResumeService = Depends(get_resume_service),
+    cover_letter_service: CoverLetterService = Depends(get_cover_letter_service),
 ) -> CoverLetterResponse:
     """
     Get a cover letter by ID.
@@ -201,91 +92,139 @@ async def get_cover_letter(
     Args:
         cover_letter_id: Cover letter ID
         current_user: Current authenticated user
-        resume_service: Resume service
+        cover_letter_service: Cover letter service
 
     Returns:
-        CoverLetterResponse: Cover letter
-
-    Raises:
-        HTTPException: If cover letter not found
+        CoverLetterResponse: Cover letter data
     """
     try:
-        resume = await resume_service.get_resume_by_id(
-            resume_id=cover_letter_id,
+        cover_letter = await cover_letter_service.get_cover_letter_by_id(
+            cover_letter_id=cover_letter_id,
             user_id=current_user.id,
         )
 
-        if not resume.is_cover_letter:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Cover letter not found",
-            )
-
-        return CoverLetterResponse.model_validate(resume)
+        logger.info(
+            f"Retrieved cover letter {cover_letter_id} for user {current_user.username}"
+        )
+        return CoverLetterResponse.model_validate(cover_letter)
 
     except Exception as e:
-        logger.error(f"Error getting cover letter {cover_letter_id}: {str(e)}")
+        logger.error(f"Error retrieving cover letter {cover_letter_id}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Cover letter not found",
         )
 
 
-@router.put("/{cover_letter_id}", response_model=CoverLetterResponse)
+@router.post(
+    "", response_model=CoverLetterResponse, status_code=status.HTTP_201_CREATED
+)
+async def create_cover_letter(
+    cover_letter_data: Annotated[
+        CoverLetterCreate, Body(description="Cover letter data")
+    ],
+    current_user: CurrentUser,
+    cover_letter_service: CoverLetterService = Depends(get_cover_letter_service),
+    job_service: JobService = Depends(get_job_service),
+) -> CoverLetterResponse:
+    """
+    Create a new cover letter.
+
+    Args:
+        cover_letter_data: Cover letter creation data
+        current_user: Current authenticated user
+        cover_letter_service: Cover letter service
+        job_service: Job service for extracting job information
+
+    Returns:
+        CoverLetterResponse: Created cover letter
+    """
+    try:
+        # Extract job information from job description if provided
+        company_name = cover_letter_data.company_name
+        job_title = cover_letter_data.job_title
+
+        if cover_letter_data.job_description and (not company_name or not job_title):
+            try:
+                job_info = await job_service.extract_job_info(
+                    cover_letter_data.job_description
+                )
+                if not company_name and "company_name" in job_info:
+                    company_name = job_info["company_name"]
+                if not job_title and "job_title" in job_info:
+                    job_title = job_info["job_title"]
+            except Exception as e:
+                logger.warning(f"Error extracting job info: {str(e)}")
+                # Continue even if job info extraction fails
+
+        # Create cover letter
+        cover_letter = await cover_letter_service.create_cover_letter(
+            user_id=current_user.id,
+            profile_id=cover_letter_data.profile_id,
+            portfolio_id=cover_letter_data.portfolio_id,
+            resume_id=cover_letter_data.resume_id,
+            title=cover_letter_data.title,
+            company_name=company_name,
+            job_title=job_title,
+            job_description=cover_letter_data.job_description,
+            template_id=cover_letter_data.template_id,
+        )
+
+        logger.info(
+            f"Created cover letter {cover_letter.id} for user {current_user.username}"
+        )
+        return CoverLetterResponse.model_validate(cover_letter)
+
+    except Exception as e:
+        logger.error(f"Error creating cover letter: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create cover letter",
+        )
+
+
+@router.patch("/{cover_letter_id}", response_model=CoverLetterResponse)
 async def update_cover_letter(
     cover_letter_id: Annotated[PydanticObjectId, Path(description="Cover letter ID")],
-    request: ResumeUpdate,
+    cover_letter_data: Annotated[
+        CoverLetterUpdate, Body(description="Cover letter update data")
+    ],
     current_user: CurrentUser,
-    resume_service: ResumeService = Depends(get_resume_service),
+    cover_letter_service: CoverLetterService = Depends(get_cover_letter_service),
 ) -> CoverLetterResponse:
     """
     Update a cover letter.
 
     Args:
         cover_letter_id: Cover letter ID
-        request: Cover letter update request
+        cover_letter_data: Cover letter update data
         current_user: Current authenticated user
-        resume_service: Resume service
+        cover_letter_service: Cover letter service
 
     Returns:
         CoverLetterResponse: Updated cover letter
-
-    Raises:
-        HTTPException: If cover letter not found or update fails
     """
     try:
-        # Verify it's a cover letter
-        resume = await resume_service.get_resume_by_id(
-            resume_id=cover_letter_id,
-            user_id=current_user.id,
-        )
-
-        if not resume.is_cover_letter:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Cover letter not found",
-            )
-
-        # Convert request to dict
-        update_data = request.model_dump(exclude_unset=True)
+        # Get raw data from Pydantic model
+        update_data = cover_letter_data.model_dump(exclude_unset=True)
 
         # Update cover letter
-        updated_resume = await resume_service.update_resume(
-            resume_id=cover_letter_id,
+        updated_cover_letter = await cover_letter_service.update_cover_letter(
+            cover_letter_id=cover_letter_id,
             user_id=current_user.id,
-            update_data=update_data,
+            **update_data,
         )
 
-        logger.info(f"Cover letter updated: {cover_letter_id}")
-        return CoverLetterResponse.model_validate(updated_resume)
+        logger.info(
+            f"Updated cover letter {cover_letter_id} for user {current_user.username}"
+        )
+        return CoverLetterResponse.model_validate(updated_cover_letter)
 
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Error updating cover letter {cover_letter_id}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cover letter not found or update failed",
+            detail="Cover letter not found",
         )
 
 
@@ -293,7 +232,7 @@ async def update_cover_letter(
 async def delete_cover_letter(
     cover_letter_id: Annotated[PydanticObjectId, Path(description="Cover letter ID")],
     current_user: CurrentUser,
-    resume_service: ResumeService = Depends(get_resume_service),
+    cover_letter_service: CoverLetterService = Depends(get_cover_letter_service),
 ) -> None:
     """
     Delete a cover letter.
@@ -301,94 +240,72 @@ async def delete_cover_letter(
     Args:
         cover_letter_id: Cover letter ID
         current_user: Current authenticated user
-        resume_service: Resume service
-
-    Raises:
-        HTTPException: If cover letter not found or deletion fails
+        cover_letter_service: Cover letter service
     """
     try:
-        # Verify it's a cover letter
-        resume = await resume_service.get_resume_by_id(
-            resume_id=cover_letter_id,
+        await cover_letter_service.delete_cover_letter(
+            cover_letter_id=cover_letter_id,
             user_id=current_user.id,
         )
 
-        if not resume.is_cover_letter:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Cover letter not found",
-            )
-
-        # Delete cover letter
-        result = await resume_service.delete_resume(
-            resume_id=cover_letter_id,
-            user_id=current_user.id,
+        logger.info(
+            f"Deleted cover letter {cover_letter_id} for user {current_user.username}"
         )
 
-        if not result:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Cover letter not found",
-            )
-
-        logger.info(f"Cover letter deleted: {cover_letter_id}")
-
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Error deleting cover letter {cover_letter_id}: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete cover letter",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Cover letter not found",
         )
 
 
 @router.post("/{cover_letter_id}/generate", response_model=CoverLetterResponse)
 async def generate_cover_letter(
     cover_letter_id: Annotated[PydanticObjectId, Path(description="Cover letter ID")],
-    job_description: str,
     current_user: CurrentUser,
-    generator_service: GeneratorService = Depends(get_generator_service),
-    resume_service: ResumeService = Depends(get_resume_service),
+    regenerate: bool = Query(
+        False, description="Whether to regenerate even if content exists"
+    ),
+    cover_letter_service: CoverLetterService = Depends(get_cover_letter_service),
+    generation_service: CoverLetterGenerationService = Depends(
+        get_cover_letter_generation_service
+    ),
 ) -> CoverLetterResponse:
     """
     Generate cover letter content based on job description.
 
     Args:
         cover_letter_id: Cover letter ID
-        job_description: Job description
         current_user: Current authenticated user
-        generator_service: Generator service
-        resume_service: Resume service
+        regenerate: Whether to regenerate even if content exists
+        cover_letter_service: Cover letter service
+        generation_service: Cover letter generation service
 
     Returns:
         CoverLetterResponse: Updated cover letter with generated content
-
-    Raises:
-        HTTPException: If cover letter not found or generation fails
     """
     try:
-        # Verify it's a cover letter
-        resume = await resume_service.get_resume_by_id(
-            resume_id=cover_letter_id,
+        # Verify cover letter exists and belongs to user
+        cover_letter = await cover_letter_service.get_cover_letter_by_id(
+            cover_letter_id=cover_letter_id,
             user_id=current_user.id,
         )
 
-        if not resume.is_cover_letter:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Cover letter not found",
-            )
-
-        # Generate cover letter content
-        updated_resume = await generator_service.generate_cover_letter(
-            user_id=current_user.id,
-            job_description=job_description,
-            resume_id=cover_letter_id,
+        # Generate content
+        await generation_service.generate_cover_letter_content(
+            cover_letter_id=cover_letter_id,
+            regenerate=regenerate,
         )
 
-        logger.info(f"Cover letter content generated: {cover_letter_id}")
-        return CoverLetterResponse.model_validate(updated_resume)
+        # Get updated cover letter
+        updated_cover_letter = await cover_letter_service.get_cover_letter_by_id(
+            cover_letter_id=cover_letter_id,
+            user_id=current_user.id,
+        )
+
+        logger.info(f"Generated cover letter content for {cover_letter_id}")
+        return CoverLetterResponse.model_validate(updated_cover_letter)
 
     except HTTPException:
         raise
@@ -402,48 +319,45 @@ async def generate_cover_letter(
         )
 
 
-@router.get("/{cover_letter_id}/pdf")
-async def get_cover_letter_pdf(
+@router.post("/{cover_letter_id}/pdf", response_model=bytes)
+async def generate_cover_letter_pdf(
     cover_letter_id: Annotated[PydanticObjectId, Path(description="Cover letter ID")],
     current_user: CurrentUser,
-    generator_service: GeneratorService = Depends(get_generator_service),
-    resume_service: ResumeService = Depends(get_resume_service),
+    regenerate: bool = Query(
+        False, description="Whether to regenerate PDF even if exists"
+    ),
+    cover_letter_service: CoverLetterService = Depends(get_cover_letter_service),
+    generation_service: CoverLetterGenerationService = Depends(
+        get_cover_letter_generation_service
+    ),
 ) -> bytes:
     """
-    Get cover letter as PDF.
+    Generate PDF for a cover letter.
 
     Args:
         cover_letter_id: Cover letter ID
         current_user: Current authenticated user
-        generator_service: Generator service
-        resume_service: Resume service
+        regenerate: Whether to regenerate PDF even if exists
+        cover_letter_service: Cover letter service
+        generation_service: Cover letter generation service
 
     Returns:
         bytes: PDF content
-
-    Raises:
-        HTTPException: If cover letter not found or PDF generation fails
     """
     try:
-        # Verify it's a cover letter
-        resume = await resume_service.get_resume_by_id(
-            resume_id=cover_letter_id,
+        # Verify cover letter exists and belongs to user
+        cover_letter = await cover_letter_service.get_cover_letter_by_id(
+            cover_letter_id=cover_letter_id,
             user_id=current_user.id,
         )
-
-        if not resume.is_cover_letter:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Cover letter not found",
-            )
 
         # Generate PDF
-        pdf_content = await generator_service.generate_pdf(
-            resume_id=cover_letter_id,
-            user_id=current_user.id,
+        pdf_content = await generation_service.generate_pdf(
+            cover_letter_id=cover_letter_id,
+            regenerate=regenerate,
         )
 
-        logger.info(f"PDF generated for cover letter: {cover_letter_id}")
+        logger.info(f"Generated PDF for cover letter {cover_letter_id}")
         return pdf_content
 
     except HTTPException:

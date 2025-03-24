@@ -3,11 +3,10 @@
 This module provides FastAPI dependencies for service layers.
 """
 
-from typing import AsyncGenerator
-
 from fastapi import Depends
 
 from core.database.factory import (
+    get_cover_letter_repository,
     get_portfolio_repository,
     get_preamble_repository,
     get_profile_repository,
@@ -16,12 +15,21 @@ from core.database.factory import (
     get_tex_template_repository,
     get_user_repository,
 )
+from core.repositories.cover_letter_repository import CoverLetterRepository
+from core.repositories.portfolio_repository import PortfolioRepository
+from core.repositories.profile_repository import ProfileRepository
+from core.repositories.resume_repository import ResumeRepository
+from core.repositories.user_repository import UserRepository
+from core.services.cover_letter_generation_service import CoverLetterGenerationService
+from core.services.cover_letter_service import CoverLetterService
 from core.services.generator_service import GeneratorService
 from core.services.job_service import JobService
 from core.services.latex_service import LatexService
 from core.services.llm_service import LLMService
+from core.services.portfolio_service import PortfolioService
 from core.services.profile_service import ProfileService
 from core.services.prompt_service import PromptService
+from core.services.resume_generation_service import ResumeGenerationService
 from core.services.resume_service import ResumeService
 from core.services.tex_service import TexService
 
@@ -136,6 +144,7 @@ async def get_generator_service(
     resume_repo=Depends(get_resume_repository),
     profile_repo=Depends(get_profile_repository),
     portfolio_repo=Depends(get_portfolio_repository),
+    cover_letter_repo=Depends(get_cover_letter_repository),
     llm_service: LLMService = Depends(get_llm_service),
     latex_service: LatexService = Depends(get_latex_service),
 ) -> GeneratorService:
@@ -148,6 +157,7 @@ async def get_generator_service(
         resume_repository=resume_repo,
         profile_repository=profile_repo,
         portfolio_repository=portfolio_repo,
+        cover_letter_repository=cover_letter_repo,
         llm_service=llm_service,
         latex_service=latex_service,
     )
@@ -179,3 +189,141 @@ async def get_profile_service(
 #     resume_repo = ResumeRepository()
 #     profile_repo = ProfileRepository()
 #     yield ResumeService(resume_repo, profile_repo)
+
+
+def get_user_repository() -> UserRepository:
+    """Get a user repository.
+
+    Returns:
+        UserRepository: User repository
+    """
+    return UserRepository()
+
+
+def get_profile_repository() -> ProfileRepository:
+    """Get a profile repository.
+
+    Returns:
+        ProfileRepository: Profile repository
+    """
+    return ProfileRepository()
+
+
+def get_portfolio_repository() -> PortfolioRepository:
+    """Get a portfolio repository.
+
+    Returns:
+        PortfolioRepository: Portfolio repository
+    """
+    return PortfolioRepository()
+
+
+def get_resume_repository() -> ResumeRepository:
+    """Get a resume repository.
+
+    Returns:
+        ResumeRepository: Resume repository
+    """
+    return ResumeRepository()
+
+
+def get_cover_letter_repository() -> CoverLetterRepository:
+    """Get a cover letter repository.
+
+    Returns:
+        CoverLetterRepository: Cover letter repository
+    """
+    return CoverLetterRepository()
+
+
+def get_portfolio_service(
+    portfolio_repo=Depends(get_portfolio_repository),
+    user_repo=Depends(get_user_repository),
+) -> PortfolioService:
+    """Get a portfolio service.
+
+    Returns:
+        PortfolioService: Portfolio service
+    """
+    return PortfolioService(
+        portfolio_repository=portfolio_repo,
+        user_repository=user_repo,
+    )
+
+
+def get_cover_letter_service(
+    user_repo=Depends(get_user_repository),
+    cover_letter_repo=Depends(get_cover_letter_repository),
+    profile_repo=Depends(get_profile_repository),
+    portfolio_repo=Depends(get_portfolio_repository),
+    resume_repo=Depends(get_resume_repository),
+) -> CoverLetterService:
+    """Get a cover letter service.
+
+    Returns:
+        CoverLetterService: Cover letter service
+    """
+    return CoverLetterService(
+        user_repository=user_repo,
+        cover_letter_repository=cover_letter_repo,
+        profile_repository=profile_repo,
+        portfolio_repository=portfolio_repo,
+        resume_repository=resume_repo,
+    )
+
+
+def get_tex_service() -> TexService:
+    """Get a LaTeX service.
+
+    Returns:
+        TexService: LaTeX service
+    """
+    return TexService()
+
+
+def get_resume_generation_service(
+    resume_repo=Depends(get_resume_repository),
+    portfolio_repo=Depends(get_portfolio_repository),
+    profile_repo=Depends(get_profile_repository),
+    llm_service=Depends(get_llm_service),
+    tex_service=Depends(get_tex_service),
+) -> ResumeGenerationService:
+    """Get a resume generation service.
+
+    Returns:
+        ResumeGenerationService: Resume generation service
+    """
+    prompt_service = PromptService(user_repository=profile_repo)
+    return ResumeGenerationService(
+        resume_repository=resume_repo,
+        portfolio_repository=portfolio_repo,
+        profile_repository=profile_repo,
+        llm_service=llm_service,
+        prompt_service=prompt_service,
+        tex_service=tex_service,
+    )
+
+
+def get_cover_letter_generation_service(
+    cover_letter_repo=Depends(get_cover_letter_repository),
+    portfolio_repo=Depends(get_portfolio_repository),
+    profile_repo=Depends(get_profile_repository),
+    resume_repo=Depends(get_resume_repository),
+    llm_service=Depends(get_llm_service),
+    tex_service=Depends(get_tex_service),
+) -> CoverLetterGenerationService:
+    """Get a cover letter generation service.
+
+    Returns:
+        CoverLetterGenerationService: Cover letter generation service
+    """
+    prompt_service = PromptService(user_repository=profile_repo)
+    return CoverLetterGenerationService(
+        cover_letter_repository=cover_letter_repo,
+        portfolio_repository=portfolio_repo,
+        profile_repository=profile_repo,
+        resume_repository=resume_repo,
+        llm_service=llm_service,
+        prompt_service=prompt_service,
+        tex_service=tex_service,
+    )

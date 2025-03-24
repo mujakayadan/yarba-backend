@@ -69,7 +69,7 @@ class TexTemplateRepository(BeanieRepository[TexTemplate]):
             self.logger.error(f"ValueError in template '{template.name}': {e}")
             raise ValueError(f"Error formatting template '{template.name}': {e}")
 
-    def clear_cache(self) -> None:
+    async def clear_cache(self) -> None:
         """Clear the template cache."""
         self._cached_templates.clear()
         self.logger.debug("Template cache cleared")
