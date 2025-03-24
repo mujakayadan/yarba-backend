@@ -1,7 +1,7 @@
 """Resume schema models for API."""
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from beanie import PydanticObjectId
 from pydantic import BaseModel, Field

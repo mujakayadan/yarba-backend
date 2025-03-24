@@ -27,17 +27,16 @@ from core.services.tex_service import TexService
 
 
 async def get_tex_service(
-    header_repo: get_tex_header_repository,
-    template_repo: get_tex_template_repository,
-    preamble_repo: get_preamble_repository,
+    header_repo=Depends(get_tex_header_repository),
+    template_repo=Depends(get_tex_template_repository),
+    preamble_repo=Depends(get_preamble_repository),
 ) -> TexService:
-    """
-    Get the TeX service.
+    """Get a tex service.
 
     Args:
         header_repo: TeX header repository
         template_repo: TeX template repository
-        preamble_repo: Preamble repository
+        preamble_repo: TeX preamble repository
 
     Returns:
         TexService: TeX service
@@ -50,23 +49,29 @@ async def get_tex_service(
 
 
 async def get_latex_service(
-    tex_service: TexService = Depends(get_tex_service),
+    preamble_repo=Depends(get_preamble_repository),
+    header_repo=Depends(get_tex_header_repository),
+    template_repo=Depends(get_tex_template_repository),
 ) -> LatexService:
-    """
-    Get the LaTeX service.
+    """Get a LaTeX service.
 
     Args:
-        tex_service: TeX service
+        preamble_repo: LaTeX preamble repository
+        header_repo: LaTeX header repository
+        template_repo: LaTeX template repository
 
     Returns:
         LatexService: LaTeX service
     """
-    return LatexService(tex_service=tex_service)
+    return LatexService(
+        preamble_repository=preamble_repo,
+        header_repository=header_repo,
+        template_repository=template_repo,
+    )
 
 
 async def get_prompt_service() -> PromptService:
-    """
-    Get the prompt service.
+    """Get a prompt service.
 
     Returns:
         PromptService: Prompt service
@@ -75,11 +80,10 @@ async def get_prompt_service() -> PromptService:
 
 
 async def get_llm_service(
-    profile_repo: get_profile_repository,
+    profile_repo=Depends(get_profile_repository),
     prompt_service: PromptService = Depends(get_prompt_service),
 ) -> LLMService:
-    """
-    Get the LLM service.
+    """Get a LLM service.
 
     Args:
         profile_repo: Profile repository
@@ -98,8 +102,7 @@ async def get_job_service(
     llm_service: LLMService = Depends(get_llm_service),
     prompt_service: PromptService = Depends(get_prompt_service),
 ) -> JobService:
-    """
-    Get the job service.
+    """Get a job service.
 
     Args:
         llm_service: LLM service
@@ -115,37 +118,28 @@ async def get_job_service(
 
 
 async def get_resume_service(
-    user_repo: get_user_repository,
-    resume_repo: get_resume_repository,
+    user_repo=Depends(get_user_repository),
+    resume_repo=Depends(get_resume_repository),
 ) -> ResumeService:
-    """
-    Get the resume service.
-
-    Args:
-        resume_repo: Resume repository
+    """Get a resume service.
 
     Returns:
         ResumeService: Resume service
     """
-    return ResumeService(user_repository=user_repo, resume_repository=resume_repo)
+    return ResumeService(
+        user_repository=user_repo,
+        resume_repository=resume_repo,
+    )
 
 
 async def get_generator_service(
-    resume_repo: get_resume_repository,
-    profile_repo: get_profile_repository,
-    portfolio_repo: get_portfolio_repository,
+    resume_repo=Depends(get_resume_repository),
+    profile_repo=Depends(get_profile_repository),
+    portfolio_repo=Depends(get_portfolio_repository),
     llm_service: LLMService = Depends(get_llm_service),
     latex_service: LatexService = Depends(get_latex_service),
 ) -> GeneratorService:
-    """
-    Get the generator service.
-
-    Args:
-        resume_repo: Resume repository
-        profile_repo: Profile repository
-        portfolio_repo: Portfolio repository
-        llm_service: LLM service
-        latex_service: LaTeX service
+    """Get a generator service.
 
     Returns:
         GeneratorService: Generator service
@@ -159,15 +153,20 @@ async def get_generator_service(
     )
 
 
-async def get_profile_service() -> AsyncGenerator[ProfileService, None]:
+async def get_profile_service(
+    profile_repo=Depends(get_profile_repository),
+    user_repo=Depends(get_user_repository),
+) -> ProfileService:
     """Get a profile service.
 
-    Yields:
+    Args:
+        profile_repo: Profile repository
+        user_repo: User repository
+
+    Returns:
         ProfileService: Profile service instance
     """
-    profile_repo = get_profile_repository()
-    user_repo = get_user_repository()
-    yield ProfileService(profile_repo, user_repo)
+    return ProfileService(profile_repo, user_repo)
 
 
 # Add other services as needed

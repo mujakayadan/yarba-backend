@@ -30,7 +30,7 @@ class ResumeRepository(BeanieRepository[Resume]):
         """Initialize the repository."""
         super().__init__(Resume)
 
-    async def get_user(self, resume_id: str) -> Optional[User]:
+    async def get_user(self, resume_id: PydanticObjectId) -> Optional[User]:
         """
         Get the user associated with a resume.
 
@@ -48,7 +48,7 @@ class ResumeRepository(BeanieRepository[Resume]):
             resume.user = await User.get(resume.user_id)
         return resume.user
 
-    async def get_profile(self, resume_id: str) -> Optional[Profile]:
+    async def get_profile(self, resume_id: PydanticObjectId) -> Optional[Profile]:
         """
         Get the profile associated with a resume.
 
@@ -66,7 +66,7 @@ class ResumeRepository(BeanieRepository[Resume]):
             resume.profile = await Profile.get(resume.profile_id)
         return resume.profile
 
-    async def get_portfolio(self, resume_id: str) -> Optional[Portfolio]:
+    async def get_portfolio(self, resume_id: PydanticObjectId) -> Optional[Portfolio]:
         """
         Get the portfolio associated with a resume.
 
@@ -85,7 +85,7 @@ class ResumeRepository(BeanieRepository[Resume]):
         return resume.portfolio
 
     async def get_related_documents(
-        self, resume_id: str
+        self, resume_id: PydanticObjectId
     ) -> Tuple[Optional[User], Optional[Profile], Optional[Portfolio]]:
         """
         Get all related documents (user, profile, portfolio) for a resume in a single call.
@@ -155,7 +155,7 @@ class ResumeRepository(BeanieRepository[Resume]):
         """
         return await Resume.find({"profile_id": profile.id}).to_list()
 
-    async def get_by_profile_id(self, profile_id: str) -> List[Resume]:
+    async def get_by_profile_id(self, profile_id: PydanticObjectId) -> List[Resume]:
         """
         Get all resumes for a profile by profile ID.
 
@@ -179,7 +179,7 @@ class ResumeRepository(BeanieRepository[Resume]):
         """
         return await Resume.find({"portfolio_id": portfolio.id}).to_list()
 
-    async def get_by_portfolio_id(self, portfolio_id: str) -> List[Resume]:
+    async def get_by_portfolio_id(self, portfolio_id: PydanticObjectId) -> List[Resume]:
         """
         Get all resumes for a portfolio by portfolio ID.
 
@@ -267,7 +267,9 @@ class ResumeRepository(BeanieRepository[Resume]):
 
         return await Resume.find(query).to_list()
 
-    async def update_content(self, resume_id: str, content: Dict[str, Any]) -> bool:
+    async def update_content(
+        self, resume_id: PydanticObjectId, content: Dict[str, Any]
+    ) -> bool:
         """
         Update resume content.
 
@@ -287,7 +289,7 @@ class ResumeRepository(BeanieRepository[Resume]):
         await result.save()
         return True
 
-    async def update_pdf(self, resume_id: str, pdf_data: bytes) -> bool:
+    async def update_pdf(self, resume_id: PydanticObjectId, pdf_data: bytes) -> bool:
         """
         Update resume PDF.
 
@@ -308,7 +310,10 @@ class ResumeRepository(BeanieRepository[Resume]):
         return True
 
     async def update_cover_letter(
-        self, resume_id: str, content: str, pdf_data: Optional[bytes] = None
+        self,
+        resume_id: PydanticObjectId,
+        content: str,
+        pdf_data: Optional[bytes] = None,
     ) -> bool:
         """
         Update cover letter content and PDF.
@@ -332,7 +337,9 @@ class ResumeRepository(BeanieRepository[Resume]):
         await result.save()
         return True
 
-    async def update_portfolio(self, resume_id: str, portfolio_id: str) -> bool:
+    async def update_portfolio(
+        self, resume_id: PydanticObjectId, portfolio_id: PydanticObjectId
+    ) -> bool:
         """
         Update resume portfolio.
 
@@ -353,7 +360,7 @@ class ResumeRepository(BeanieRepository[Resume]):
         return True
 
     async def create_version(
-        self, resume_id: str, title: Optional[str] = None
+        self, resume_id: PydanticObjectId, title: Optional[str] = None
     ) -> Optional[Resume]:
         """
         Create a new version of a resume.
@@ -393,8 +400,8 @@ class ResumeRepository(BeanieRepository[Resume]):
     async def create_for_user(
         self,
         user: User,
-        profile_id: str,
-        portfolio_id: Optional[str] = None,
+        profile_id: PydanticObjectId,
+        portfolio_id: Optional[PydanticObjectId] = None,
         title: str = "My Resume",
     ) -> Resume:
         """

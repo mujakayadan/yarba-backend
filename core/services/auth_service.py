@@ -94,15 +94,22 @@ class AuthService:
             self.logger.warning(f"Authentication failed: User {user.email} is inactive")
             raise UnauthorizedException("User account is inactive")
 
-        if user.account_locked_until and user.account_locked_until > datetime.now(
-            timezone.utc
-        ):
-            self.logger.warning(
-                f"Authentication failed: User {user.email} account is locked"
-            )
-            raise UnauthorizedException(
-                f"Account is locked until {user.account_locked_until.isoformat()}"
-            )
+        # Make account_locked_until timezone-aware before comparison
+        if user.account_locked_until:
+            # Convert naive datetime to aware datetime if needed
+            locked_until = user.account_locked_until
+            if locked_until.tzinfo is None:
+                locked_until = locked_until.replace(tzinfo=timezone.utc)
+
+            # Now compare with timezone-aware current time
+            current_time = datetime.now(timezone.utc)
+            if locked_until > current_time:
+                self.logger.warning(
+                    f"Authentication failed: User {user.email} account is locked"
+                )
+                raise UnauthorizedException(
+                    f"Account is locked until {locked_until.isoformat()}"
+                )
 
         if not self.verify_password(password, user.hashed_password):
             # Increment login attempts
@@ -151,7 +158,9 @@ class AuthService:
             HTTPException: If login fails
         """
         try:
+            logger.info(f"Login attempt for {username_or_email}")
             user = await self.authenticate_user(username_or_email, password)
+            logger.info("Login successful ========================")
             access_token = self.create_access_token(data={"sub": user.email})
             return {"access_token": access_token, "token_type": "bearer"}
         except UnauthorizedException as e:

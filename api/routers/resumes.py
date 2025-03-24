@@ -1,25 +1,23 @@
 """Resumes router."""
 
-from typing import Annotated, List, Optional
+from typing import Annotated, List
 
+from beanie import PydanticObjectId
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
-from config import get_logger
-from core.models.resume import Resume
-from core.models.user import User
-from core.services.generator_service import GeneratorService
-from core.services.job_service import JobService
-from core.services.profile_service import ProfileService
-from core.services.resume_service import ResumeService
-
-from ..dependencies.services import (
+from api.dependencies.services import (
     get_generator_service,
     get_job_service,
     get_profile_service,
     get_resume_service,
 )
-from ..middleware.auth import CurrentUser
-from ..schemas import ResumeCreate, ResumeFilter, ResumeResponse, ResumeUpdate
+from api.middleware.auth import CurrentUser
+from api.schemas import ResumeCreate, ResumeFilter, ResumeResponse, ResumeUpdate
+from config import get_logger
+from core.services.generator_service import GeneratorService
+from core.services.job_service import JobService
+from core.services.profile_service import ProfileService
+from core.services.resume_service import ResumeService
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -54,9 +52,7 @@ async def create_resume(
     try:
         # Create basic resume with title and template
         resume = await resume_service.create_resume(
-            user_id=str(current_user.id),
-            title=request.title,
-            template_id=request.template_id,
+            user_id=PydanticObjectId(current_user.id), is_cover_letter=False
         )
 
         # If job description is provided, use it to enhance the resume
@@ -66,8 +62,8 @@ async def create_resume(
 
             # Update resume with job information
             resume = await resume_service.update_resume(
-                resume_id=str(resume.id),
-                user_id=str(current_user.id),
+                resume_id=resume.id,
+                user_id=PydanticObjectId(current_user.id),
                 update_data={
                     "job_description": request.job_description,
                     "company_name": job_info.get("company_name"),
@@ -88,12 +84,10 @@ async def create_resume(
                 # Generate resume content based on job description
                 if selected_sections:
                     resume = await generator_service.generate_resume(
-                        user_id=str(current_user.id),
+                        user_id=PydanticObjectId(current_user.id),
                         job_description=request.job_description,
                         selected_sections=selected_sections,
-                        title=resume.title,
-                        template_id=resume.template_id,
-                        resume_id=str(resume.id),
+                        resume_id=resume.id,
                     )
             except Exception as profile_error:
                 logger.warning(
@@ -115,8 +109,6 @@ async def create_resume(
 @router.get("", response_model=List[ResumeResponse])
 async def get_resumes(
     current_user: CurrentUser,
-    title: Optional[str] = Query(None, description="Filter by title"),
-    template_id: Optional[str] = Query(None, description="Filter by template ID"),
     skip: int = Query(0, ge=0, description="Number of resumes to skip"),
     limit: int = Query(10, ge=1, le=100, description="Number of resumes to return"),
     resume_service: ResumeService = Depends(get_resume_service),
@@ -126,8 +118,6 @@ async def get_resumes(
 
     Args:
         current_user: Current authenticated user
-        title: Optional title filter
-        template_id: Optional template ID filter
         skip: Number of resumes to skip
         limit: Number of resumes to return
         resume_service: Resume service
@@ -138,15 +128,13 @@ async def get_resumes(
     try:
         # Create filter
         filter_params = ResumeFilter(
-            title=title,
-            template_id=template_id,
             skip=skip,
             limit=limit,
         )
 
         # Get resumes
         resumes = await resume_service.filter_resumes(
-            user_id=str(current_user.id),
+            user_id=PydanticObjectId(current_user.id),
             filter_params=filter_params,
         )
 
@@ -162,7 +150,7 @@ async def get_resumes(
 
 @router.get("/{resume_id}", response_model=ResumeResponse)
 async def get_resume(
-    resume_id: Annotated[str, Path(description="Resume ID")],
+    resume_id: Annotated[PydanticObjectId, Path(description="Resume ID")],
     current_user: CurrentUser,
     resume_service: ResumeService = Depends(get_resume_service),
 ) -> ResumeResponse:
@@ -183,7 +171,7 @@ async def get_resume(
     try:
         resume = await resume_service.get_resume_by_id(
             resume_id=resume_id,
-            user_id=str(current_user.id),
+            user_id=PydanticObjectId(current_user.id),
         )
 
         return ResumeResponse.model_validate(resume)
@@ -198,7 +186,7 @@ async def get_resume(
 
 @router.put("/{resume_id}", response_model=ResumeResponse)
 async def update_resume(
-    resume_id: Annotated[str, Path(description="Resume ID")],
+    resume_id: Annotated[PydanticObjectId, Path(description="Resume ID")],
     request: ResumeUpdate,
     current_user: CurrentUser,
     resume_service: ResumeService = Depends(get_resume_service),
@@ -225,7 +213,7 @@ async def update_resume(
         # Update resume
         resume = await resume_service.update_resume(
             resume_id=resume_id,
-            user_id=str(current_user.id),
+            user_id=PydanticObjectId(current_user.id),
             update_data=update_data,
         )
 
@@ -242,7 +230,7 @@ async def update_resume(
 
 @router.delete("/{resume_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_resume(
-    resume_id: Annotated[str, Path(description="Resume ID")],
+    resume_id: Annotated[PydanticObjectId, Path(description="Resume ID")],
     current_user: CurrentUser,
     resume_service: ResumeService = Depends(get_resume_service),
 ) -> None:
@@ -261,7 +249,7 @@ async def delete_resume(
         # Delete resume
         result = await resume_service.delete_resume(
             resume_id=resume_id,
-            user_id=str(current_user.id),
+            user_id=PydanticObjectId(current_user.id),
         )
 
         if not result:
@@ -284,7 +272,7 @@ async def delete_resume(
 
 @router.post("/{resume_id}/generate", response_model=ResumeResponse)
 async def generate_resume(
-    resume_id: Annotated[str, Path(description="Resume ID")],
+    resume_id: Annotated[PydanticObjectId, Path(description="Resume ID")],
     job_description: str,
     selected_sections: dict,
     current_user: CurrentUser,
@@ -312,16 +300,14 @@ async def generate_resume(
         # Verify resume exists and belongs to user
         resume = await resume_service.get_resume_by_id(
             resume_id=resume_id,
-            user_id=str(current_user.id),
+            user_id=PydanticObjectId(current_user.id),
         )
 
         # Generate resume content
         updated_resume = await generator_service.generate_resume(
-            user_id=str(current_user.id),
+            user_id=PydanticObjectId(current_user.id),
             job_description=job_description,
             selected_sections=selected_sections,
-            title=resume.title,
-            template_id=resume.template_id,
             resume_id=resume_id,
         )
 
@@ -360,7 +346,7 @@ async def get_resume_pdf(
         # Generate PDF
         pdf_content = await generator_service.generate_pdf(
             resume_id=resume_id,
-            user_id=str(current_user.id),
+            user_id=PydanticObjectId(current_user.id),
         )
 
         logger.info(f"PDF generated for resume: {resume_id}")

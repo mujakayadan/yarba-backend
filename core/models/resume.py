@@ -45,14 +45,14 @@ class Resume(Document):
     portfolio_id: Optional[PydanticObjectId] = None
     portfolio: Optional[Link[Portfolio]] = None
 
-    title: str = "My Resume"
-    version: int = 1
-    template_id: str = "default"
+    title: Optional[str] = "My Resume"
+    version: Optional[int] = 1
+    template_id: Optional[str] = "default"
 
     # Job targeting information
     company_name: Optional[str] = None
     job_title: Optional[str] = None
-    job_description: Optional[str] = None
+    job_description: str = Field(default="")
 
     # Content can be either structured data or LaTeX string
     content: Dict[str, Any] = Field(default_factory=dict)

@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple, Union
 
 from beanie import PydanticObjectId
 from fastapi import HTTPException
@@ -54,7 +54,7 @@ class GeneratorService:
         self.logger = get_logger(self.__class__.__name__)
 
     async def _get_user_data(
-        self, user_id: str, resume_id: Optional[str] = None
+        self, user_id: PydanticObjectId, resume_id: Optional[PydanticObjectId] = None
     ) -> Tuple[Optional[Resume], Profile, Portfolio]:
         """
         Get profile and portfolio data for a user, and optionally a resume.
@@ -96,12 +96,10 @@ class GeneratorService:
 
     async def generate_resume(
         self,
-        user_id: str,
+        user_id: PydanticObjectId,
         job_description: str,
         selected_sections: Dict[str, str],
-        title: str,
-        template_id: str,
-        resume_id: Optional[str] = None,
+        resume_id: Optional[PydanticObjectId] = None,
     ) -> Resume:
         """
         Generate a resume.
@@ -110,8 +108,6 @@ class GeneratorService:
             user_id: User ID
             job_description: Job description
             selected_sections: Dictionary of section names and generation method
-            title: Resume title
-            template_id: Template ID
             resume_id: Optional existing resume ID to update
 
         Returns:
@@ -130,10 +126,8 @@ class GeneratorService:
             if not resume:
                 resume = await self.resume_repository.create(
                     user_id=user_id,
-                    title=title,
                     profile_id=str(profile.id),
                     portfolio_id=str(portfolio.id),
-                    template_id=template_id,
                     job_description=job_description,
                     content={},
                     is_cover_letter=False,
@@ -205,11 +199,11 @@ class GeneratorService:
 
     async def generate_cover_letter(
         self,
-        user_id: str,
+        user_id: PydanticObjectId,
         job_description: str,
         title: str,
         template_id: str,
-        resume_id: Optional[str] = None,
+        resume_id: Optional[PydanticObjectId] = None,
     ) -> Resume:
         """
         Generate a cover letter.
@@ -281,7 +275,7 @@ class GeneratorService:
     async def generate_pdf(
         self,
         resume_id: Union[str, PydanticObjectId],
-        user_id: str,
+        user_id: PydanticObjectId,
     ) -> bytes:
         """
         Generate a PDF from a resume or cover letter.

@@ -36,7 +36,7 @@ class PromptService:
             user_repository: User repository for personalized prompts
             user_id: User ID for personalized prompts
         """
-        self.prompts_dir = settings.PROMPTS_DIR
+        self.prompts_dir = settings.paths.prompts_dir
         self.user_repository: Optional[UserRepository] = user_repository
         self.user_id: Optional[PydanticObjectId] = user_id
         self.logger = get_logger(self.__class__.__name__)

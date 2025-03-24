@@ -1,12 +1,10 @@
 """Profile repository implementation."""
 
-import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Union
 
 from beanie import PydanticObjectId
 from bson import ObjectId
-from bson.errors import InvalidId
 
 from config.logging_config import get_logger
 
@@ -92,12 +90,11 @@ class ProfileRepository(BeanieRepository[Profile]):
             self.logger.error(f"Error creating profile: {e}")
             raise
 
-    async def update(self, profile: Profile) -> Profile:
+    async def update(self, profile: Profile, **kwargs) -> Profile:
         """Update an existing profile.
 
         Args:
-            profile: Profile object with updates
-
+            @param profile: Profile object with updates
         Returns:
             Profile: Updated profile
 
@@ -364,7 +361,7 @@ class ProfileRepository(BeanieRepository[Profile]):
         return profile.api_keys if profile and hasattr(profile, "api_keys") else {}
 
 
-async def get_profile_repository(self) -> ProfileRepository:
+async def get_profile_repository() -> ProfileRepository:
     """
     Get the profile repository.
     """

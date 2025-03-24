@@ -3,11 +3,12 @@
 import logging
 from typing import Dict, List, Optional
 
+from beanie import PydanticObjectId
+
 from config import settings
 
 from ..exceptions.base import NotFoundException
 from ..models.resume import Resume
-from ..models.user import User
 from ..repositories.resume_repository import ResumeFilter, ResumeRepository
 from ..repositories.user_repository import UserRepository
 
@@ -33,7 +34,9 @@ class ResumeService:
         self.user_repository = user_repository
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    async def get_resume_by_id(self, resume_id: str, user_id: str) -> Resume:
+    async def get_resume_by_id(
+        self, resume_id: PydanticObjectId, user_id: PydanticObjectId
+    ) -> Resume:
         """
         Get a resume by ID.
 
@@ -57,7 +60,7 @@ class ResumeService:
 
         return resume
 
-    async def get_resumes_by_user(self, user_id: str) -> List[Resume]:
+    async def get_resumes_by_user(self, user_id: PydanticObjectId) -> List[Resume]:
         """
         Get all resumes for a user.
 
@@ -69,7 +72,7 @@ class ResumeService:
         """
         return await self.resume_repository.get_by_user_id(user_id)
 
-    async def get_latest_resume(self, user_id: str) -> Optional[Resume]:
+    async def get_latest_resume(self, user_id: PydanticObjectId) -> Optional[Resume]:
         """
         Get the most recent resume for a user.
 
@@ -83,9 +86,7 @@ class ResumeService:
 
     async def create_resume(
         self,
-        user_id: str,
-        title: str,
-        template_id: str = "default",
+        user_id: PydanticObjectId,
         is_cover_letter: bool = False,
     ) -> Resume:
         """
@@ -93,8 +94,6 @@ class ResumeService:
 
         Args:
             user_id: User ID
-            title: Resume title
-            template_id: Template ID
             is_cover_letter: Whether this is a cover letter
 
         Returns:
@@ -108,12 +107,7 @@ class ResumeService:
             self.logger.warning(f"User not found: {user_id}")
             raise NotFoundException("User not found")
 
-        resume = Resume(
-            user=user,
-            title=title,
-            template_id=template_id,
-            is_cover_letter=is_cover_letter,
-        )
+        resume = Resume(user=user, user_id=user_id)
 
         created_resume = await self.resume_repository.create(resume)
 
@@ -127,7 +121,7 @@ class ResumeService:
         return created_resume
 
     async def update_resume(
-        self, resume_id: str, user_id: str, update_data: Dict
+        self, resume_id: PydanticObjectId, user_id: PydanticObjectId, update_data: Dict
     ) -> Resume:
         """
         Update a resume.
@@ -158,7 +152,9 @@ class ResumeService:
         self.logger.info(f"Resume updated: {resume_id}")
         return updated_resume
 
-    async def delete_resume(self, resume_id: str, user_id: str) -> bool:
+    async def delete_resume(
+        self, resume_id: PydanticObjectId, user_id: PydanticObjectId
+    ) -> bool:
         """
         Delete a resume.
 
@@ -184,7 +180,10 @@ class ResumeService:
         return result
 
     async def create_resume_version(
-        self, resume_id: str, user_id: str, title: Optional[str] = None
+        self,
+        resume_id: PydanticObjectId,
+        user_id: PydanticObjectId,
+        title: Optional[str] = None,
     ) -> Resume:
         """
         Create a new version of an existing resume.
@@ -212,7 +211,7 @@ class ResumeService:
         return new_resume
 
     async def filter_resumes(
-        self, user_id: str, filter_params: ResumeFilter
+        self, user_id: PydanticObjectId, filter_params: ResumeFilter
     ) -> List[Resume]:
         """
         Filter resumes by parameters.
