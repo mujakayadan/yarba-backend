@@ -1,12 +1,10 @@
 """Prompt service for loading and managing prompts."""
 
-import logging
 from typing import Any, Dict, List, Optional
 
 from beanie import PydanticObjectId
 
 from config.logging_config import get_logger
-from config.settings import settings
 from core.exceptions.base import NotFoundException
 from core.repositories.user_repository import UserRepository
 from prompts import *  # Import all prompts directly
@@ -72,7 +70,7 @@ class PromptService:
             )
             return None
 
-        profile = await self.user_repository.get_by_user_id(user_id)
+        profile = await self.user_repository.get_by_id(user_id)
         if profile and profile.preferences:
             self.logger.debug(f"Loaded preferences for user {user_id}")
             return profile.preferences.model_dump()

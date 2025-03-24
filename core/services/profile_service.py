@@ -1,9 +1,8 @@
 """Profile service for user profile management."""
 
-from typing import Any, Union
+from typing import Any
 
 from beanie import PydanticObjectId
-from bson import ObjectId
 
 from config.logging_config import get_logger
 
@@ -35,12 +34,12 @@ class ProfileService:
         self.user_repository = user_repository
         self.logger = get_logger(self.__class__.__name__)
 
-    async def get_profile(self, user_id: Any) -> Profile:
+    async def get_profile_by_user_id(self, user_id: Any) -> Profile:
         """
         Get a user's profile.
 
         Args:
-            user_id: User ID (ObjectId, PydanticObjectId, str, or User object)
+            user_id: User ID (PydanticObjectId or User object)
 
         Returns:
             Profile: User profile
@@ -75,14 +74,12 @@ class ProfileService:
             self.logger.error(f"Error getting profile: {e}")
             raise NotFoundException(f"Could not retrieve profile: {str(e)}")
 
-    async def get_profile_by_id(
-        self, profile_id: Union[str, PydanticObjectId, ObjectId]
-    ) -> Profile:
+    async def get_profile_by_id(self, profile_id: PydanticObjectId) -> Profile:
         """
         Get a profile by its ID.
 
         Args:
-            profile_id: Profile ID (ObjectId, PydanticObjectId, or str)
+            profile_id: Profile ID (PydanticObjectId)
 
         Returns:
             Profile: User profile
@@ -92,12 +89,6 @@ class ProfileService:
             ValueError: If profile_id is not a valid ObjectId
         """
         try:
-            # Convert to PydanticObjectId if string
-            if isinstance(profile_id, str):
-                if not ObjectId.is_valid(profile_id):
-                    raise ValueError(f"Invalid ObjectId format: {profile_id}")
-                profile_id = PydanticObjectId(profile_id)
-
             # Get profile by ID
             profile = await self.profile_repository.get_by_id(profile_id)
 
@@ -138,7 +129,7 @@ class ProfileService:
 
             # Check if profile already exists
             try:
-                existing_profile = await self.get_profile(user_id)
+                existing_profile = await self.get_profile_by_user_id(user_id)
                 if existing_profile:
                     self.logger.warning(f"Profile already exists for user: {user_id}")
                     return existing_profile

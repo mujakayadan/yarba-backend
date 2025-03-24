@@ -42,7 +42,7 @@ class Resume(Document):
     user: Optional[Link[User]] = None
     profile_id: PydanticObjectId
     profile: Optional[Link[Profile]] = None
-    portfolio_id: Optional[PydanticObjectId] = None
+    portfolio_id: PydanticObjectId
     portfolio: Optional[Link[Portfolio]] = None
 
     title: Optional[str] = "My Resume"

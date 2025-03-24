@@ -11,11 +11,12 @@ from core.database.connection import (
 )
 from core.database.factory import get_unit_of_work
 from core.models.profile import Profile
-from core.services.generator_service import GeneratorService
+from core.services.cover_letter_generation_service import CoverLetterGenerationService
 from core.services.job_service import JobService
 from core.services.latex_service import LatexService
 from core.services.llm_service import LLMService
 from core.services.prompt_service import PromptService
+from core.services.resume_generation_service import ResumeGenerationService
 from ui.components.section_selector import SectionSelector
 
 logger = get_logger(__name__)
@@ -48,9 +49,12 @@ def check_clearance_requirement(job_description: str, clearance_keywords: list) 
 
 
 class HomePage:
-    def __init__(self, model_selector, generator_service):
+    def __init__(
+        self, model_selector, resume_generation_service, cover_letter_generation_service
+    ):
         self.model_selector = model_selector
-        self.generator_service = generator_service
+        self.resume_generation_service = resume_generation_service
+        self.cover_letter_generation_service = cover_letter_generation_service
         self.section_selector = SectionSelector()
         # Initialize with default preferences
         self._load_user_preferences()
@@ -548,11 +552,11 @@ class HomePage:
                                     )
 
                                     # Configure generator service
-                                    from core.services.generator_service import (
-                                        GeneratorService,
+                                    from core.services.resume_generation_service import (
+                                        ResumeGenerationService,
                                     )
 
-                                    generator_service = GeneratorService(
+                                    resume_generation_service = ResumeGenerationService(
                                         resume_repository=uow.resume_repository,
                                         profile_repository=uow.profile_repository,
                                         portfolio_repository=uow.portfolio_repository,
@@ -571,7 +575,7 @@ class HomePage:
 
                                     # Generate the appropriate document type
                                     if doc_type == DocumentType.RESUME:
-                                        result = await generator_service.generate_resume(
+                                        result = await resume_generation_service.generate_resume(
                                             user_id=user_id,
                                             job_description=job_description,
                                             selected_sections=section_prefs,
@@ -580,16 +584,14 @@ class HomePage:
                                             resume_id=resume_id if resume_id else None,
                                         )
                                         # Generate PDF
-                                        pdf_content = (
-                                            await generator_service.generate_pdf(
-                                                resume_id=result.id,
-                                                user_id=user_id,
-                                            )
+                                        pdf_content = await resume_generation_service.generate_pdf(
+                                            resume_id=result.id,
+                                            user_id=user_id,
                                         )
                                         return {"resume": result, "pdf": pdf_content}
 
                                     elif doc_type == DocumentType.COVER_LETTER:
-                                        result = await generator_service.generate_cover_letter(
+                                        result = await self.cover_letter_generation_service.generate_cover_letter(
                                             user_id=user_id,
                                             job_description=job_description,
                                             title=f"Cover Letter for {company_name if company_name else 'Job Application'}",
@@ -597,11 +599,9 @@ class HomePage:
                                             resume_id=resume_id if resume_id else None,
                                         )
                                         # Generate PDF
-                                        pdf_content = (
-                                            await generator_service.generate_pdf(
-                                                resume_id=result.id,
-                                                user_id=user_id,
-                                            )
+                                        pdf_content = await self.cover_letter_generation_service.generate_pdf(
+                                            resume_id=result.id,
+                                            user_id=user_id,
                                         )
                                         return {
                                             "cover_letter": result,
@@ -610,7 +610,7 @@ class HomePage:
 
                                     else:  # Combined
                                         # Generate resume
-                                        resume_result = await generator_service.generate_resume(
+                                        resume_result = await resume_generation_service.generate_resume(
                                             user_id=user_id,
                                             job_description=job_description,
                                             selected_sections=section_prefs,
@@ -620,7 +620,7 @@ class HomePage:
                                         )
 
                                         # Generate cover letter
-                                        cover_letter_result = await generator_service.generate_cover_letter(
+                                        cover_letter_result = await self.cover_letter_generation_service.generate_cover_letter(
                                             user_id=user_id,
                                             job_description=job_description,
                                             title=f"Cover Letter for {company_name if company_name else 'Job Application'}",
@@ -628,18 +628,14 @@ class HomePage:
                                         )
 
                                         # Generate PDFs
-                                        resume_pdf = (
-                                            await generator_service.generate_pdf(
-                                                resume_id=resume_result.id,
-                                                user_id=user_id,
-                                            )
+                                        resume_pdf = await resume_generation_service.generate_pdf(
+                                            resume_id=resume_result.id,
+                                            user_id=user_id,
                                         )
 
-                                        cover_letter_pdf = (
-                                            await generator_service.generate_pdf(
-                                                resume_id=cover_letter_result.id,
-                                                user_id=user_id,
-                                            )
+                                        cover_letter_pdf = await self.cover_letter_generation_service.generate_pdf(
+                                            resume_id=cover_letter_result.id,
+                                            user_id=user_id,
                                         )
 
                                         return {

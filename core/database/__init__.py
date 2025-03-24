@@ -4,6 +4,7 @@ This module provides database connection and management functionality.
 """
 
 # Import repository factories
+from ..repositories.cover_letter_repository import get_cover_letter_repository
 from ..repositories.portfolio_repository import get_portfolio_repository
 from ..repositories.preamble_repository import get_preamble_repository
 from ..repositories.profile_repository import get_profile_repository
@@ -18,6 +19,7 @@ from .connection import (
     get_database_connection,
 )
 from .factory import (
+    get_cover_letter_repository,
     get_database,
     get_portfolio_repository,
     get_preamble_repository,
@@ -46,6 +48,7 @@ __all__ = [
     "get_tex_header_repository",
     "get_tex_template_repository",
     "get_preamble_repository",
+    "get_cover_letter_repository",
     "get_unit_of_work",
     # Initialization
     "init_db",

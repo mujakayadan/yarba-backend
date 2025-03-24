@@ -61,12 +61,11 @@ class ResumeResponse(ResumeBase):
     id: PydanticObjectId = Field(..., description="Resume ID")
     user_id: PydanticObjectId = Field(..., description="User ID")
     profile_id: PydanticObjectId = Field(..., description="Profile ID")
-    portfolio_id: Optional[PydanticObjectId] = Field(None, description="Portfolio ID")
+    portfolio_id: PydanticObjectId = Field(..., description="Portfolio ID")
     job_title: Optional[str] = Field(None, description="Job title")
     company_name: Optional[str] = Field(None, description="Company name")
     job_description: Optional[str] = Field(None, description="Job description")
     content: Optional[Dict[str, Any]] = Field(None, description="Resume content")
-    is_cover_letter: bool = Field(False, description="Whether this is a cover letter")
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
 
@@ -75,21 +74,3 @@ class ResumeResponse(ResumeBase):
 
         from_attributes = True
         json_encoders = {PydanticObjectId: str}
-
-
-# Cover letter schemas
-class CoverLetterCreate(ResumeBase):
-    """Schema for cover letter creation."""
-
-    job_description: Optional[str] = Field(
-        None, description="Job description to tailor the cover letter for"
-    )
-    llm_preferences: Optional[Dict[str, Any]] = Field(
-        None, description="LLM settings for generation"
-    )
-
-
-class CoverLetterResponse(ResumeResponse):
-    """Response schema for cover letter."""
-
-    is_cover_letter: bool = Field(True, description="Whether this is a cover letter")

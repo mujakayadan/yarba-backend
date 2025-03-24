@@ -22,7 +22,6 @@ from core.repositories.resume_repository import ResumeRepository
 from core.repositories.user_repository import UserRepository
 from core.services.cover_letter_generation_service import CoverLetterGenerationService
 from core.services.cover_letter_service import CoverLetterService
-from core.services.generator_service import GeneratorService
 from core.services.job_service import JobService
 from core.services.latex_service import LatexService
 from core.services.llm_service import LLMService
@@ -140,29 +139,6 @@ async def get_resume_service(
     )
 
 
-async def get_generator_service(
-    resume_repo=Depends(get_resume_repository),
-    profile_repo=Depends(get_profile_repository),
-    portfolio_repo=Depends(get_portfolio_repository),
-    cover_letter_repo=Depends(get_cover_letter_repository),
-    llm_service: LLMService = Depends(get_llm_service),
-    latex_service: LatexService = Depends(get_latex_service),
-) -> GeneratorService:
-    """Get a generator service.
-
-    Returns:
-        GeneratorService: Generator service
-    """
-    return GeneratorService(
-        resume_repository=resume_repo,
-        profile_repository=profile_repo,
-        portfolio_repository=portfolio_repo,
-        cover_letter_repository=cover_letter_repo,
-        llm_service=llm_service,
-        latex_service=latex_service,
-    )
-
-
 async def get_profile_service(
     profile_repo=Depends(get_profile_repository),
     user_repo=Depends(get_user_repository),
@@ -177,63 +153,6 @@ async def get_profile_service(
         ProfileService: Profile service instance
     """
     return ProfileService(profile_repo, user_repo)
-
-
-# Add other services as needed
-# async def get_resume_service() -> AsyncGenerator[ResumeService, None]:
-#     """Get a resume service.
-#
-#     Yields:
-#         ResumeService: Resume service instance
-#     """
-#     resume_repo = ResumeRepository()
-#     profile_repo = ProfileRepository()
-#     yield ResumeService(resume_repo, profile_repo)
-
-
-def get_user_repository() -> UserRepository:
-    """Get a user repository.
-
-    Returns:
-        UserRepository: User repository
-    """
-    return UserRepository()
-
-
-def get_profile_repository() -> ProfileRepository:
-    """Get a profile repository.
-
-    Returns:
-        ProfileRepository: Profile repository
-    """
-    return ProfileRepository()
-
-
-def get_portfolio_repository() -> PortfolioRepository:
-    """Get a portfolio repository.
-
-    Returns:
-        PortfolioRepository: Portfolio repository
-    """
-    return PortfolioRepository()
-
-
-def get_resume_repository() -> ResumeRepository:
-    """Get a resume repository.
-
-    Returns:
-        ResumeRepository: Resume repository
-    """
-    return ResumeRepository()
-
-
-def get_cover_letter_repository() -> CoverLetterRepository:
-    """Get a cover letter repository.
-
-    Returns:
-        CoverLetterRepository: Cover letter repository
-    """
-    return CoverLetterRepository()
 
 
 def get_portfolio_service(
@@ -270,15 +189,6 @@ def get_cover_letter_service(
         portfolio_repository=portfolio_repo,
         resume_repository=resume_repo,
     )
-
-
-def get_tex_service() -> TexService:
-    """Get a LaTeX service.
-
-    Returns:
-        TexService: LaTeX service
-    """
-    return TexService()
 
 
 def get_resume_generation_service(

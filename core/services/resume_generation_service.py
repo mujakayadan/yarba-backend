@@ -2,7 +2,7 @@
 
 import json
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 from beanie import PydanticObjectId
 
@@ -48,9 +48,7 @@ class ResumeGenerationService:
         self.profile_repository = profile_repository
 
         # Create services if not provided
-        self.prompt_service = prompt_service or PromptService(
-            user_repository=ProfileRepository()
-        )
+        self.prompt_service = prompt_service
         self.llm_service = llm_service or LLMService(
             profile_repository=profile_repository,
             prompt_service=self.prompt_service,
@@ -59,18 +57,18 @@ class ResumeGenerationService:
 
         self.logger = get_logger(self.__class__.__name__)
 
-    async def configure_for_user(self, user_id: str) -> None:
+    async def configure_for_user(self, user_id: PydanticObjectId) -> None:
         """
         Configure the service for a specific user.
 
         Args:
             user_id: User ID to configure for
         """
-        await self.llm_service.configure_for_user(user_id)
+        await self.llm_service.configure_for_user(str(user_id))
         self.logger.debug(f"Resume generation service configured for user {user_id}")
 
     async def get_resume_data(
-        self, resume_id: Union[str, PydanticObjectId]
+        self, resume_id: PydanticObjectId
     ) -> Tuple[Resume, Profile, Portfolio]:
         """
         Get the resume, profile, and portfolio data for a resume.
@@ -149,7 +147,7 @@ class ResumeGenerationService:
 
     async def generate_resume_content(
         self,
-        resume_id: Union[str, PydanticObjectId],
+        resume_id: PydanticObjectId,
         regenerate_sections: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
@@ -163,13 +161,13 @@ class ResumeGenerationService:
             Generated resume content
 
         Raises:
-            ValueError: If resume, profile, or portfolio is not found
+            ValueError: If resume or profile is not found
         """
         # Get resume data
         resume, profile, portfolio = await self.get_resume_data(resume_id)
 
         # Configure LLM for user
-        await self.configure_for_user(str(resume.user_id))
+        await self.configure_for_user(resume.user_id)
 
         # Initialize content dictionary if needed
         if not resume.content or not isinstance(resume.content, dict):
@@ -197,35 +195,35 @@ class ResumeGenerationService:
                     section_data = profile
                 elif section_name == "career_summary":
                     section_data = await self.portfolio_repository.get_career_summary(
-                        str(resume.user_id)
+                        resume.user_id
                     )
                 elif section_name == "skills":
                     section_data = await self.portfolio_repository.get_skills(
-                        str(resume.user_id)
+                        resume.user_id
                     )
                 elif section_name == "work_experience":
                     section_data = await self.portfolio_repository.get_work_experience(
-                        str(resume.user_id)
+                        resume.user_id
                     )
                 elif section_name == "education":
                     section_data = await self.portfolio_repository.get_education(
-                        str(resume.user_id)
+                        resume.user_id
                     )
                 elif section_name == "projects":
                     section_data = await self.portfolio_repository.get_projects(
-                        str(resume.user_id)
+                        resume.user_id
                     )
                 elif section_name == "awards":
                     section_data = await self.portfolio_repository.get_awards(
-                        str(resume.user_id)
+                        resume.user_id
                     )
                 elif section_name == "publications":
                     section_data = await self.portfolio_repository.get_publications(
-                        str(resume.user_id)
+                        resume.user_id
                     )
                 elif section_name == "certifications":
                     section_data = await self.portfolio_repository.get_certifications(
-                        str(resume.user_id)
+                        resume.user_id
                     )
                 elif section_name in (
                     portfolio.custom_sections.enabled
@@ -233,7 +231,7 @@ class ResumeGenerationService:
                     else []
                 ):
                     section_data = await self.portfolio_repository.get_custom_sections(
-                        str(resume.user_id)
+                        resume.user_id
                     )
 
                 # Skip if no data
@@ -265,7 +263,7 @@ class ResumeGenerationService:
 
     async def generate_cover_letter(
         self,
-        resume_id: Union[str, PydanticObjectId],
+        resume_id: PydanticObjectId,
         regenerate: bool = False,
     ) -> str:
         """
@@ -284,12 +282,8 @@ class ResumeGenerationService:
         # Get resume data
         resume, profile, portfolio = await self.get_resume_data(resume_id)
 
-        # If cover letter exists and regenerate is False, return existing
-        if resume.cover_letter_content and not regenerate:
-            return resume.cover_letter_content
-
         # Configure LLM for user
-        await self.configure_for_user(str(resume.user_id))
+        await self.configure_for_user(resume.user_id)
 
         # Ensure resume content exists
         if not resume.content:
@@ -317,7 +311,7 @@ class ResumeGenerationService:
 
     async def generate_latex(
         self,
-        resume_id: Union[str, PydanticObjectId],
+        resume_id: PydanticObjectId,
     ) -> Tuple[str, str]:
         """
         Generate LaTeX code for a resume and cover letter.
@@ -337,10 +331,6 @@ class ResumeGenerationService:
         # Ensure content exists
         if not resume.content:
             await self.generate_resume_content(resume_id)
-
-        # Ensure cover letter exists
-        if not resume.cover_letter_content:
-            await self.generate_cover_letter(resume_id)
 
         # Get LaTeX templates
         resume_template = await self.tex_service.get_default_preamble("resume_preamble")

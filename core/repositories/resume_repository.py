@@ -26,6 +26,7 @@ class ResumeFilter(BaseModel):
     title_contains: Optional[str] = None
     profile_id: Optional[str] = None
     portfolio_id: Optional[str] = None
+    title: Optional[str] = None
 
 
 class ResumeRepository(BeanieRepository[Resume]):
@@ -82,7 +83,7 @@ class ResumeRepository(BeanieRepository[Resume]):
             Optional[Portfolio]: Portfolio if found, None otherwise
         """
         resume = await Resume.get(resume_id)
-        if not resume or not resume.portfolio_id:
+        if not resume:
             return None
 
         if not resume.portfolio:
@@ -117,8 +118,8 @@ class ResumeRepository(BeanieRepository[Resume]):
             resume.profile = await Profile.get(resume.profile_id)
         profile = resume.profile
 
-        # Get portfolio if it exists
-        if resume.portfolio_id and not resume.portfolio:
+        # Get portfolio
+        if not resume.portfolio:
             resume.portfolio = await Portfolio.get(resume.portfolio_id)
         portfolio = resume.portfolio
 

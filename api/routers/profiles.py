@@ -95,7 +95,7 @@ async def get_my_profile(
         Profile
     """
     try:
-        profile = await profile_service.get_profile(current_user.id)
+        profile = await profile_service.get_profile_by_user_id(current_user.id)
         return profile
     except NotFoundException:
         raise HTTPException(
@@ -124,7 +124,9 @@ async def create_profile(
     try:
         # Check if user already has a profile
         try:
-            existing_profile = await profile_service.get_profile(current_user.id)
+            existing_profile = await profile_service.get_profile_by_user_id(
+                current_user.id
+            )
             if existing_profile:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -183,7 +185,7 @@ async def update_my_profile(
     """
     try:
         # Get existing profile
-        profile = await profile_service.get_profile(current_user.id)
+        profile = await profile_service.get_profile_by_user_id(current_user.id)
 
         # Update profile fields
         for field, value in profile_data.model_dump(exclude_unset=True).items():
@@ -223,7 +225,7 @@ async def update_my_preferences(
     """
     try:
         # Get existing profile
-        profile = await profile_service.get_profile(current_user.id)
+        profile = await profile_service.get_profile_by_user_id(current_user.id)
 
         # Create preferences if not exists
         if not profile.preferences:

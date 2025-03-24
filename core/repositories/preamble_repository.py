@@ -166,7 +166,7 @@ class PreambleRepository(BeanieRepository[Preamble]):
         self.logger.debug("Preamble cache cleared")
 
 
-async def get_preamble_repository(self) -> PreambleRepository:
+async def get_preamble_repository() -> PreambleRepository:
     """
     Get the preamble repository.
     """

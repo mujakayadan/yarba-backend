@@ -63,14 +63,14 @@ class CoverLetterGenerationService:
 
         self.logger = get_logger(self.__class__.__name__)
 
-    async def configure_for_user(self, user_id: str) -> None:
+    async def configure_for_user(self, user_id: PydanticObjectId) -> None:
         """
         Configure the service for a specific user.
 
         Args:
             user_id: User ID to configure for
         """
-        await self.llm_service.configure_for_user(user_id)
+        await self.llm_service.configure_for_user(str(user_id))
         self.logger.debug(
             f"Cover letter generation service configured for user {user_id}"
         )
@@ -189,7 +189,7 @@ class CoverLetterGenerationService:
             return cover_letter.cover_letter_content
 
         # Configure LLM for user
-        await self.configure_for_user(str(cover_letter.user_id))
+        await self.configure_for_user(cover_letter.user_id)
 
         # Generate cover letter
         try:

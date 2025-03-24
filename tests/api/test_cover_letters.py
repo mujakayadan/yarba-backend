@@ -16,8 +16,6 @@ async def test_cover_letter(mock_current_user: User) -> Resume:
         title="Test Cover Letter",
         template_id="default",
         job_description="Test job description",
-        is_cover_letter=True,
-        cover_letter_content="This is a test cover letter content.",
     )
 
     await cover_letter.insert()

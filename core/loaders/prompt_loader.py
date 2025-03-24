@@ -79,7 +79,9 @@ class PromptLoader:
             try:
                 # Convert PydanticObjectId to regular ObjectId before passing to service
                 # The service's get_profile method will handle any needed conversions
-                self._profile = await self._profile_service.get_profile(self.user_id)
+                self._profile = await self._profile_service.get_profile_by_user_id(
+                    self.user_id
+                )
                 self.logger.debug(
                     f"Successfully loaded profile for user {self.user_id}"
                 )

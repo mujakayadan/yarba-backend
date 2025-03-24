@@ -1,7 +1,9 @@
 """Portfolio service for user portfolio management."""
 
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List
+
+from beanie import PydanticObjectId
 
 from ..exceptions.base import NotFoundException
 from ..models.portfolio import (
@@ -14,7 +16,6 @@ from ..models.portfolio import (
     Skill,
     WorkExperience,
 )
-from ..models.user import User
 from ..repositories.portfolio_repository import PortfolioRepository
 from ..repositories.user_repository import UserRepository
 
@@ -40,7 +41,7 @@ class PortfolioService:
         self.user_repository = user_repository
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    async def get_portfolio(self, user_id: str) -> Portfolio:
+    async def get_portfolio_by_user_id(self, user_id: PydanticObjectId) -> Portfolio:
         """
         Get a user's portfolio.
 
@@ -59,17 +60,14 @@ class PortfolioService:
             self.logger.warning(f"Portfolio not found for user: {user_id}")
             raise NotFoundException("Portfolio not found")
 
-        return portfolio
+        return portfolio[0]
 
-    async def create_portfolio(
-        self, user_id: str, title: str = "My Portfolio"
-    ) -> Portfolio:
+    async def create_portfolio(self, user_id: PydanticObjectId) -> Portfolio:
         """
         Create a new portfolio for a user.
 
         Args:
             user_id: User ID
-            title: Portfolio title
 
         Returns:
             Portfolio: Created portfolio
@@ -86,14 +84,16 @@ class PortfolioService:
         existing_portfolio = await self.portfolio_repository.get_by_user_id(user_id)
         if existing_portfolio:
             self.logger.info(f"Portfolio already exists for user: {user_id}")
-            return existing_portfolio
+            return existing_portfolio[0]
 
-        portfolio = await self.portfolio_repository.create_for_user(user, title)
+        portfolio = await self.portfolio_repository.create_for_user(user.id)
         self.logger.info(f"Portfolio created for user: {user_id}")
 
         return portfolio
 
-    async def update_portfolio(self, user_id: str, update_data: Dict) -> Portfolio:
+    async def update_portfolio(
+        self, user_id: PydanticObjectId, update_data: Dict
+    ) -> Portfolio:
         """
         Update a user's portfolio.
 
@@ -107,7 +107,7 @@ class PortfolioService:
         Raises:
             NotFoundException: If portfolio not found
         """
-        portfolio = await self.get_portfolio(user_id)
+        portfolio = await self.get_portfolio_by_user_id(user_id)
 
         # Update portfolio fields
         for key, value in update_data.items():
@@ -129,50 +129,10 @@ class PortfolioService:
         self.logger.info(f"Portfolio updated for user: {user_id}")
         return updated_portfolio
 
-    async def get_public_portfolios(self) -> List[Portfolio]:
-        """
-        Get all public portfolios.
-
-        Returns:
-            List[Portfolio]: List of public portfolios
-        """
-        return await self.portfolio_repository.get_public_portfolios()
-
-    async def update_portfolio_visibility(
-        self, user_id: str, is_public: bool
-    ) -> Portfolio:
-        """
-        Update a user's portfolio visibility.
-
-        Args:
-            user_id: User ID
-            is_public: Whether the portfolio is public
-
-        Returns:
-            Portfolio: Updated portfolio
-
-        Raises:
-            NotFoundException: If portfolio not found
-        """
-        portfolio = await self.get_portfolio(user_id)
-
-        result = await self.portfolio_repository.update_visibility(
-            portfolio.id, is_public
-        )
-        if not result:
-            self.logger.error(
-                f"Failed to update portfolio visibility for user: {user_id}"
-            )
-            raise NotFoundException("Portfolio not found")
-
-        # Get updated portfolio
-        updated_portfolio = await self.get_portfolio(user_id)
-
-        self.logger.info(f"Portfolio visibility updated for user: {user_id}")
-        return updated_portfolio
-
     # Skills section management
-    async def update_skills(self, user_id: str, skills: List[Skill]) -> Portfolio:
+    async def update_skills(
+        self, user_id: PydanticObjectId, skills: List[Skill]
+    ) -> Portfolio:
         """
         Update a user's skills.
 
@@ -186,7 +146,7 @@ class PortfolioService:
         Raises:
             NotFoundException: If portfolio not found
         """
-        portfolio = await self.get_portfolio(user_id)
+        portfolio = await self.get_portfolio_by_user_id(user_id)
 
         # Update skills in the portfolio
         result = await self.portfolio_repository.update_skills(portfolio.id, skills)
@@ -195,12 +155,14 @@ class PortfolioService:
             raise NotFoundException("Portfolio not found")
 
         # Get updated portfolio
-        updated_portfolio = await self.get_portfolio(user_id)
+        updated_portfolio = await self.get_portfolio_by_user_id(user_id)
 
         self.logger.info(f"Skills updated for user: {user_id}")
         return updated_portfolio
 
-    async def add_skill_category(self, user_id: str, category: Skill) -> Portfolio:
+    async def add_skill_category(
+        self, user_id: PydanticObjectId, category: Skill
+    ) -> Portfolio:
         """
         Add a skill category to a user's portfolio.
 
@@ -214,7 +176,7 @@ class PortfolioService:
         Raises:
             NotFoundException: If portfolio not found
         """
-        portfolio = await self.get_portfolio(user_id)
+        portfolio = await self.get_portfolio_by_user_id(user_id)
 
         # Get current skills and add the new category if it doesn't exist
         current_skills = portfolio.skills if portfolio.skills else []
@@ -238,13 +200,13 @@ class PortfolioService:
             raise NotFoundException("Portfolio not found")
 
         # Get updated portfolio
-        updated_portfolio = await self.get_portfolio(user_id)
+        updated_portfolio = await self.get_portfolio_by_user_id(user_id)
 
         self.logger.info(f"Skill category added for user: {user_id}")
         return updated_portfolio
 
     async def remove_skill_category(
-        self, user_id: str, category_name: str
+        self, user_id: PydanticObjectId, category_name: str
     ) -> Portfolio:
         """
         Remove a skill category from a user's portfolio.
@@ -259,7 +221,7 @@ class PortfolioService:
         Raises:
             NotFoundException: If portfolio not found
         """
-        portfolio = await self.get_portfolio(user_id)
+        portfolio = await self.get_portfolio_by_user_id(user_id)
 
         # Get current skills and remove the category if it exists
         current_skills = portfolio.skills if portfolio.skills else []
@@ -283,14 +245,14 @@ class PortfolioService:
             raise NotFoundException("Portfolio not found")
 
         # Get updated portfolio
-        updated_portfolio = await self.get_portfolio(user_id)
+        updated_portfolio = await self.get_portfolio_by_user_id(user_id)
 
         self.logger.info(f"Skill category removed for user: {user_id}")
         return updated_portfolio
 
     # Work Experience section management
     async def update_work_experience(
-        self, user_id: str, work_experience: List[WorkExperience]
+        self, user_id: PydanticObjectId, work_experience: List[WorkExperience]
     ) -> Portfolio:
         """
         Update a user's work experience.
@@ -305,7 +267,7 @@ class PortfolioService:
         Raises:
             NotFoundException: If portfolio not found
         """
-        portfolio = await self.get_portfolio(user_id)
+        portfolio = await self.get_portfolio_by_user_id(user_id)
 
         # Update work experience in the portfolio
         result = await self.portfolio_repository.update_work_experience(
@@ -316,13 +278,13 @@ class PortfolioService:
             raise NotFoundException("Portfolio not found")
 
         # Get updated portfolio
-        updated_portfolio = await self.get_portfolio(user_id)
+        updated_portfolio = await self.get_portfolio_by_user_id(user_id)
 
         self.logger.info(f"Work experience updated for user: {user_id}")
         return updated_portfolio
 
     async def add_work_experience(
-        self, user_id: str, experience: WorkExperience
+        self, user_id: PydanticObjectId, experience: WorkExperience
     ) -> Portfolio:
         """
         Add a work experience entry to a user's portfolio.
@@ -337,7 +299,7 @@ class PortfolioService:
         Raises:
             NotFoundException: If portfolio not found
         """
-        portfolio = await self.get_portfolio(user_id)
+        portfolio = await self.get_portfolio_by_user_id(user_id)
 
         # Get current work experience and add the new entry
         current_experiences = (
@@ -354,14 +316,14 @@ class PortfolioService:
             raise NotFoundException("Portfolio not found")
 
         # Get updated portfolio
-        updated_portfolio = await self.get_portfolio(user_id)
+        updated_portfolio = await self.get_portfolio_by_user_id(user_id)
 
         self.logger.info(f"Work experience added for user: {user_id}")
         return updated_portfolio
 
     # Education section management
     async def update_education(
-        self, user_id: str, education: List[Education]
+        self, user_id: PydanticObjectId, education: List[Education]
     ) -> Portfolio:
         """
         Update a user's education information.
@@ -376,7 +338,7 @@ class PortfolioService:
         Raises:
             NotFoundException: If portfolio not found
         """
-        portfolio = await self.get_portfolio(user_id)
+        portfolio = await self.get_portfolio_by_user_id(user_id)
 
         # Update education in the portfolio
         result = await self.portfolio_repository.update_education(
@@ -387,13 +349,13 @@ class PortfolioService:
             raise NotFoundException("Portfolio not found")
 
         # Get updated portfolio
-        updated_portfolio = await self.get_portfolio(user_id)
+        updated_portfolio = await self.get_portfolio_by_user_id(user_id)
 
         self.logger.info(f"Education updated for user: {user_id}")
         return updated_portfolio
 
     async def add_education(
-        self, user_id: str, education_entry: Education
+        self, user_id: PydanticObjectId, education_entry: Education
     ) -> Portfolio:
         """
         Add an education entry to a user's portfolio.
@@ -408,7 +370,7 @@ class PortfolioService:
         Raises:
             NotFoundException: If portfolio not found
         """
-        portfolio = await self.get_portfolio(user_id)
+        portfolio = await self.get_portfolio_by_user_id(user_id)
 
         # Get current education entries and add the new entry
         current_education = portfolio.education if portfolio.education else []
@@ -423,13 +385,15 @@ class PortfolioService:
             raise NotFoundException("Portfolio not found")
 
         # Get updated portfolio
-        updated_portfolio = await self.get_portfolio(user_id)
+        updated_portfolio = await self.get_portfolio_by_user_id(user_id)
 
         self.logger.info(f"Education entry added for user: {user_id}")
         return updated_portfolio
 
     # Projects section management
-    async def update_projects(self, user_id: str, projects: List[Project]) -> Portfolio:
+    async def update_projects(
+        self, user_id: PydanticObjectId, projects: List[Project]
+    ) -> Portfolio:
         """
         Update a user's projects.
 
@@ -443,7 +407,7 @@ class PortfolioService:
         Raises:
             NotFoundException: If portfolio not found
         """
-        portfolio = await self.get_portfolio(user_id)
+        portfolio = await self.get_portfolio_by_user_id(user_id)
 
         # Update projects in the portfolio
         result = await self.portfolio_repository.update_projects(portfolio.id, projects)
@@ -452,12 +416,14 @@ class PortfolioService:
             raise NotFoundException("Portfolio not found")
 
         # Get updated portfolio
-        updated_portfolio = await self.get_portfolio(user_id)
+        updated_portfolio = await self.get_portfolio_by_user_id(user_id)
 
         self.logger.info(f"Projects updated for user: {user_id}")
         return updated_portfolio
 
-    async def add_project(self, user_id: str, project: Project) -> Portfolio:
+    async def add_project(
+        self, user_id: PydanticObjectId, project: Project
+    ) -> Portfolio:
         """
         Add a project to a user's portfolio.
 
@@ -471,7 +437,7 @@ class PortfolioService:
         Raises:
             NotFoundException: If portfolio not found
         """
-        portfolio = await self.get_portfolio(user_id)
+        portfolio = await self.get_portfolio_by_user_id(user_id)
 
         # Get current projects and add the new project
         current_projects = portfolio.projects if portfolio.projects else []
@@ -486,13 +452,15 @@ class PortfolioService:
             raise NotFoundException("Portfolio not found")
 
         # Get updated portfolio
-        updated_portfolio = await self.get_portfolio(user_id)
+        updated_portfolio = await self.get_portfolio_by_user_id(user_id)
 
         self.logger.info(f"Project added for user: {user_id}")
         return updated_portfolio
 
     # Awards section management
-    async def update_awards(self, user_id: str, awards: List[Award]) -> Portfolio:
+    async def update_awards(
+        self, user_id: PydanticObjectId, awards: List[Award]
+    ) -> Portfolio:
         """
         Update a user's awards.
 
@@ -506,7 +474,7 @@ class PortfolioService:
         Raises:
             NotFoundException: If portfolio not found
         """
-        portfolio = await self.get_portfolio(user_id)
+        portfolio = await self.get_portfolio_by_user_id(user_id)
 
         # Update awards in the portfolio
         result = await self.portfolio_repository.update_awards(portfolio.id, awards)
@@ -515,12 +483,12 @@ class PortfolioService:
             raise NotFoundException("Portfolio not found")
 
         # Get updated portfolio
-        updated_portfolio = await self.get_portfolio(user_id)
+        updated_portfolio = await self.get_portfolio_by_user_id(user_id)
 
         self.logger.info(f"Awards updated for user: {user_id}")
         return updated_portfolio
 
-    async def add_award(self, user_id: str, award: Award) -> Portfolio:
+    async def add_award(self, user_id: PydanticObjectId, award: Award) -> Portfolio:
         """
         Add an award to a user's portfolio.
 
@@ -534,7 +502,7 @@ class PortfolioService:
         Raises:
             NotFoundException: If portfolio not found
         """
-        portfolio = await self.get_portfolio(user_id)
+        portfolio = await self.get_portfolio_by_user_id(user_id)
 
         # Get current awards and add the new award
         current_awards = portfolio.awards if portfolio.awards else []
@@ -549,14 +517,14 @@ class PortfolioService:
             raise NotFoundException("Portfolio not found")
 
         # Get updated portfolio
-        updated_portfolio = await self.get_portfolio(user_id)
+        updated_portfolio = await self.get_portfolio_by_user_id(user_id)
 
         self.logger.info(f"Award added for user: {user_id}")
         return updated_portfolio
 
     # Publications section management
     async def update_publications(
-        self, user_id: str, publications: List[Publication]
+        self, user_id: PydanticObjectId, publications: List[Publication]
     ) -> Portfolio:
         """
         Update a user's publications.
@@ -571,7 +539,7 @@ class PortfolioService:
         Raises:
             NotFoundException: If portfolio not found
         """
-        portfolio = await self.get_portfolio(user_id)
+        portfolio = await self.get_portfolio_by_user_id(user_id)
 
         # Update publications in the portfolio
         result = await self.portfolio_repository.update_publications(
@@ -582,13 +550,13 @@ class PortfolioService:
             raise NotFoundException("Portfolio not found")
 
         # Get updated portfolio
-        updated_portfolio = await self.get_portfolio(user_id)
+        updated_portfolio = await self.get_portfolio_by_user_id(user_id)
 
         self.logger.info(f"Publications updated for user: {user_id}")
         return updated_portfolio
 
     async def add_publication(
-        self, user_id: str, publication: Publication
+        self, user_id: PydanticObjectId, publication: Publication
     ) -> Portfolio:
         """
         Add a publication to a user's portfolio.
@@ -603,7 +571,7 @@ class PortfolioService:
         Raises:
             NotFoundException: If portfolio not found
         """
-        portfolio = await self.get_portfolio(user_id)
+        portfolio = await self.get_portfolio_by_user_id(user_id)
 
         # Get current publications and add the new publication
         current_publications = portfolio.publications if portfolio.publications else []
@@ -618,14 +586,14 @@ class PortfolioService:
             raise NotFoundException("Portfolio not found")
 
         # Get updated portfolio
-        updated_portfolio = await self.get_portfolio(user_id)
+        updated_portfolio = await self.get_portfolio_by_user_id(user_id)
 
         self.logger.info(f"Publication added for user: {user_id}")
         return updated_portfolio
 
     # Career Summary management
     async def update_career_summary(
-        self, user_id: str, career_summary: CareerSummary
+        self, user_id: PydanticObjectId, career_summary: CareerSummary
     ) -> Portfolio:
         """
         Update a user's career summary.
@@ -640,7 +608,7 @@ class PortfolioService:
         Raises:
             NotFoundException: If portfolio not found
         """
-        portfolio = await self.get_portfolio(user_id)
+        portfolio = await self.get_portfolio_by_user_id(user_id)
 
         # Update career summary in the portfolio
         result = await self.portfolio_repository.update_career_summary(
@@ -651,7 +619,7 @@ class PortfolioService:
             raise NotFoundException("Portfolio not found")
 
         # Get updated portfolio
-        updated_portfolio = await self.get_portfolio(user_id)
+        updated_portfolio = await self.get_portfolio_by_user_id(user_id)
 
         self.logger.info(f"Career summary updated for user: {user_id}")
         return updated_portfolio

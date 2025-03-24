@@ -133,7 +133,6 @@ def test_resume_filter_valid():
         template_id="default",
         skip=10,
         limit=20,
-        is_cover_letter=False,
     )
 
     # Assert

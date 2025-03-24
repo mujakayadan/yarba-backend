@@ -1,10 +1,9 @@
 """Portfolio repository implementation."""
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from beanie import PydanticObjectId
-from bson.objectid import ObjectId
 
 from core.models.profile import Profile
 
@@ -97,21 +96,12 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         Get the active portfolio for a user by user ID.
 
         Args:
-            user_id: User ID (string or ObjectId)
+            user_id: User ID
 
         Returns:
             Optional[Portfolio]: Active portfolio if found, None otherwise
         """
-        # Try with the user_id as is
-        portfolio = await Portfolio.find_one({"user_id": user_id, "is_active": True})
-
-        # If not found and user_id is a string that could be an ObjectId, try converting
-        if not portfolio and isinstance(user_id, str) and ObjectId.is_valid(user_id):
-            portfolio = await Portfolio.find_one(
-                {"user_id": ObjectId(user_id), "is_active": True}
-            )
-
-        return portfolio
+        return await Portfolio.find_one({"user_id": user_id, "is_active": True})
 
     async def get_active_portfolios(self) -> List[Portfolio]:
         """
@@ -291,8 +281,8 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         """
         now = datetime.now(timezone.utc)
         portfolio = Portfolio(
-            user_id=ObjectId(user_id),
-            profile_id=ObjectId(profile_id) if profile_id else None,
+            user_id=user_id,
+            profile_id=profile_id,
             career_summary=CareerSummary(
                 job_titles=[],
                 years_of_experience="",
@@ -334,12 +324,10 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         self, user_id: PydanticObjectId
     ) -> Optional[Portfolio]:
         """
-        Get a portfolio by user ID, handling ObjectId conversion.
-
-        This method tries both string and ObjectId versions of the user_id.
+        Get a portfolio by user ID.
 
         Args:
-            user_id: User ID (string or ObjectId)
+            user_id: User ID
 
         Returns:
             Optional[Portfolio]: Portfolio if found, None otherwise
@@ -362,7 +350,7 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         Get career summary for a user.
 
         Args:
-            user_id: User ID (string or ObjectId)
+            user_id: User ID
 
         Returns:
             Optional[CareerSummary]: Career summary if found, None otherwise
@@ -375,7 +363,7 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         Get skills for a user.
 
         Args:
-            user_id: User ID (string or ObjectId)
+            user_id: User ID
 
         Returns:
             List[Skill]: List of skills
@@ -390,7 +378,7 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         Get work experience for a user.
 
         Args:
-            user_id: User ID (string or ObjectId)
+            user_id: User ID
 
         Returns:
             List[WorkExperience]: List of work experience entries
@@ -405,7 +393,7 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         Get education for a user.
 
         Args:
-            user_id: User ID (string or ObjectId)
+            user_id: User ID
 
         Returns:
             List[Education]: List of education entries
@@ -418,7 +406,7 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         Get projects for a user.
 
         Args:
-            user_id: User ID (string or ObjectId)
+            user_id: User ID
 
         Returns:
             List[Project]: List of project entries
@@ -431,7 +419,7 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         Get awards for a user.
 
         Args:
-            user_id: User ID (string or ObjectId)
+            user_id: User ID
 
         Returns:
             List[Award]: List of award entries
@@ -444,7 +432,7 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         Get publications for a user.
 
         Args:
-            user_id: User ID (string or ObjectId)
+            user_id: User ID
 
         Returns:
             List[Publication]: List of publication entries
@@ -457,7 +445,7 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         Get certifications for a user.
 
         Args:
-            user_id: User ID (string or ObjectId)
+            user_id: User ID
 
         Returns:
             List[str]: List of certifications
@@ -474,7 +462,7 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         Get custom sections config for a user.
 
         Args:
-            user_id: User ID (string or ObjectId)
+            user_id: User ID
 
         Returns:
             Optional[CustomSections]: Custom sections config if found, None otherwise
@@ -483,7 +471,7 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         return portfolio.custom_sections if portfolio else None
 
 
-async def get_portfolio_repository(self) -> PortfolioRepository:
+async def get_portfolio_repository() -> PortfolioRepository:
     """
     Get the portfolio repository.
     """

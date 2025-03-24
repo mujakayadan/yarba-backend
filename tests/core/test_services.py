@@ -10,8 +10,9 @@ from core.exceptions.base import (
     UnauthorizedException,
 )
 from core.services.auth_service import AuthService
-from core.services.generator_service import GeneratorService
+from core.services.cover_letter_generation_service import CoverLetterGenerationService
 from core.services.latex_service import LatexService
+from core.services.resume_generation_service import ResumeGenerationService
 from core.services.resume_service import ResumeService
 
 
@@ -38,6 +39,43 @@ def mock_resume_repository():
 
 
 @pytest.fixture
+def mock_cover_letter_repository():
+    """Fixture for mocking cover letter repository."""
+    repository = AsyncMock()
+    repository.get_by_id = AsyncMock()
+    repository.get_all = AsyncMock()
+    repository.create = AsyncMock()
+    repository.update = AsyncMock()
+    repository.delete = AsyncMock()
+    return repository
+
+
+@pytest.fixture
+def mock_portfolio_repository():
+    """Fixture for mocking portfolio repository."""
+    repository = AsyncMock()
+    repository.get_by_id = AsyncMock()
+    repository.get_all = AsyncMock()
+    repository.create = AsyncMock()
+    repository.update = AsyncMock()
+    repository.delete = AsyncMock()
+    return repository
+
+
+@pytest.fixture
+def mock_profile_repository():
+    """Fixture for mocking profile repository."""
+    repository = AsyncMock()
+    repository.get_by_id = AsyncMock()
+    repository.get_by_user_id = AsyncMock()
+    repository.get_all = AsyncMock()
+    repository.create = AsyncMock()
+    repository.update = AsyncMock()
+    repository.delete = AsyncMock()
+    return repository
+
+
+@pytest.fixture
 def mock_llm_service():
     """Fixture for mocking LLM service."""
     service = AsyncMock()
@@ -50,6 +88,15 @@ def mock_latex_service():
     """Fixture for mocking LaTeX service."""
     service = AsyncMock()
     service.generate_pdf = AsyncMock()
+    return service
+
+
+@pytest.fixture
+def mock_tex_service():
+    """Fixture for mocking TeX service."""
+    service = AsyncMock()
+    service.generate_resume_latex = AsyncMock()
+    service.generate_cover_letter_latex = AsyncMock()
     return service
 
 
@@ -375,25 +422,61 @@ class TestLaTeXService:
             mock_run.assert_called_once()
 
 
-class TestGeneratorService:
-    """Tests for GeneratorService."""
+class TestResumeGenerationService:
+    """Tests for ResumeGenerationService."""
 
     @pytest.mark.asyncio
-    async def test_generate_resume_content_success(self, mock_llm_service):
+    async def test_generate_resume_content_success(
+        self,
+        mock_llm_service,
+        mock_resume_repository,
+        mock_profile_repository,
+        mock_portfolio_repository,
+        mock_tex_service,
+    ):
         """Test successful resume content generation."""
         # Arrange
         mock_llm_service.generate_text.return_value = "Generated resume content"
 
-        generator_service = GeneratorService(llm_service=mock_llm_service)
+        # Mock the profile and portfolio data
+        mock_profile_repository.get_by_user_id.return_value = {
+            "id": "profile123",
+            "user_id": "user123",
+            "full_name": "Test User",
+            "email": "test@example.com",
+        }
+
+        mock_portfolio_repository.get_by_user_id.return_value = [
+            {
+                "id": "portfolio123",
+                "user_id": "user123",
+                "skills": ["Python", "FastAPI"],
+                "experience": [{"company": "Company X", "years": 5}],
+            }
+        ]
+
+        # Mock resume repository responses
+        mock_resume_repository.create.return_value = {
+            "id": "resume123",
+            "user_id": "user123",
+            "profile_id": "profile123",
+            "portfolio_id": "portfolio123",
+            "content": "Generated resume content",
+        }
+
+        resume_generation_service = ResumeGenerationService(
+            resume_repository=mock_resume_repository,
+            profile_repository=mock_profile_repository,
+            portfolio_repository=mock_portfolio_repository,
+            llm_service=mock_llm_service,
+            tex_service=mock_tex_service,
+        )
 
         # Act
-        result = await generator_service.generate_resume_content(
-            job_description="Software Developer",
-            user_profile={
-                "name": "Test User",
-                "skills": ["Python", "FastAPI"],
-                "experience": ["5 years at Company X"],
-            },
+        result = await resume_generation_service.generate_resume_content(
+            user_id="user123",
+            job_description="Software Developer position",
+            selected_sections={"experience": "process", "education": "process"},
         )
 
         # Assert
@@ -401,23 +484,187 @@ class TestGeneratorService:
         mock_llm_service.generate_text.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_generate_cover_letter_content_success(self, mock_llm_service):
+    async def test_generate_pdf_success(
+        self,
+        mock_llm_service,
+        mock_resume_repository,
+        mock_profile_repository,
+        mock_portfolio_repository,
+        mock_tex_service,
+    ):
+        """Test successful PDF generation for a resume."""
+        # Arrange
+        mock_resume_repository.get_by_id.return_value = {
+            "id": "resume123",
+            "user_id": "user123",
+            "profile_id": "profile123",
+            "portfolio_id": "portfolio123",
+            "content": "Resume content",
+        }
+
+        # Mock the TeX service
+        mock_tex_service.generate_resume_latex.return_value = "LaTeX content"
+
+        # Mock the LaTeX service PDF generation
+        with patch(
+            "core.services.resume_generation_service.LatexService"
+        ) as mock_latex_service_class:
+            mock_latex_service = mock_latex_service_class.return_value
+            mock_latex_service.generate_pdf.return_value = {
+                "success": True,
+                "pdf_path": "/tmp/resume.pdf",
+                "pdf_content": b"PDF content",
+            }
+
+            resume_generation_service = ResumeGenerationService(
+                resume_repository=mock_resume_repository,
+                profile_repository=mock_profile_repository,
+                portfolio_repository=mock_portfolio_repository,
+                llm_service=mock_llm_service,
+                tex_service=mock_tex_service,
+            )
+
+            # Act
+            result = await resume_generation_service.generate_pdf(
+                resume_id="resume123",
+                user_id="user123",
+            )
+
+            # Assert
+            assert result == b"PDF content"
+            mock_resume_repository.get_by_id.assert_called_once_with("resume123")
+            mock_tex_service.generate_resume_latex.assert_called_once()
+            mock_latex_service.generate_pdf.assert_called_once()
+
+
+class TestCoverLetterGenerationService:
+    """Tests for CoverLetterGenerationService."""
+
+    @pytest.mark.asyncio
+    async def test_generate_cover_letter_content_success(
+        self,
+        mock_llm_service,
+        mock_cover_letter_repository,
+        mock_resume_repository,
+        mock_profile_repository,
+        mock_portfolio_repository,
+        mock_tex_service,
+    ):
         """Test successful cover letter content generation."""
         # Arrange
         mock_llm_service.generate_text.return_value = "Generated cover letter content"
 
-        generator_service = GeneratorService(llm_service=mock_llm_service)
+        # Mock the profile and portfolio data
+        mock_profile_repository.get_by_user_id.return_value = {
+            "id": "profile123",
+            "user_id": "user123",
+            "full_name": "Test User",
+            "email": "test@example.com",
+        }
+
+        mock_portfolio_repository.get_by_user_id.return_value = [
+            {
+                "id": "portfolio123",
+                "user_id": "user123",
+                "skills": ["Python", "FastAPI"],
+                "experience": [{"company": "Company X", "years": 5}],
+            }
+        ]
+
+        # Mock resume data if needed
+        mock_resume_repository.get_by_id.return_value = {
+            "id": "resume123",
+            "user_id": "user123",
+            "content": "Resume content for reference",
+        }
+
+        # Mock cover letter repository responses
+        mock_cover_letter_repository.create.return_value = {
+            "id": "cover_letter123",
+            "user_id": "user123",
+            "profile_id": "profile123",
+            "portfolio_id": "portfolio123",
+            "resume_id": "resume123",
+            "content": "Generated cover letter content",
+        }
+
+        cover_letter_generation_service = CoverLetterGenerationService(
+            cover_letter_repository=mock_cover_letter_repository,
+            resume_repository=mock_resume_repository,
+            profile_repository=mock_profile_repository,
+            portfolio_repository=mock_portfolio_repository,
+            llm_service=mock_llm_service,
+            tex_service=mock_tex_service,
+        )
 
         # Act
-        result = await generator_service.generate_cover_letter_content(
-            job_description="Software Developer",
-            user_profile={
-                "name": "Test User",
-                "skills": ["Python", "FastAPI"],
-                "experience": ["5 years at Company X"],
-            },
+        result = await cover_letter_generation_service.generate_cover_letter_content(
+            user_id="user123",
+            job_description="Software Developer position",
+            resume_id="resume123",
+            company_name="Test Company",
+            job_title="Software Engineer",
         )
 
         # Assert
         assert result == "Generated cover letter content"
         mock_llm_service.generate_text.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_generate_pdf_success(
+        self,
+        mock_llm_service,
+        mock_cover_letter_repository,
+        mock_resume_repository,
+        mock_profile_repository,
+        mock_portfolio_repository,
+        mock_tex_service,
+    ):
+        """Test successful PDF generation for a cover letter."""
+        # Arrange
+        mock_cover_letter_repository.get_by_id.return_value = {
+            "id": "cover_letter123",
+            "user_id": "user123",
+            "profile_id": "profile123",
+            "portfolio_id": "portfolio123",
+            "resume_id": "resume123",
+            "content": "Cover letter content",
+            "cover_letter_content": "Formatted cover letter content",
+        }
+
+        # Mock the TeX service
+        mock_tex_service.generate_cover_letter_latex.return_value = "LaTeX content"
+
+        # Mock the LaTeX service PDF generation
+        with patch(
+            "core.services.cover_letter_generation_service.LatexService"
+        ) as mock_latex_service_class:
+            mock_latex_service = mock_latex_service_class.return_value
+            mock_latex_service.generate_pdf.return_value = {
+                "success": True,
+                "pdf_path": "/tmp/cover_letter.pdf",
+                "pdf_content": b"PDF content",
+            }
+
+            cover_letter_generation_service = CoverLetterGenerationService(
+                cover_letter_repository=mock_cover_letter_repository,
+                resume_repository=mock_resume_repository,
+                profile_repository=mock_profile_repository,
+                portfolio_repository=mock_portfolio_repository,
+                llm_service=mock_llm_service,
+                tex_service=mock_tex_service,
+            )
+
+            # Act
+            result = await cover_letter_generation_service.generate_pdf(
+                cover_letter_id="cover_letter123",
+                user_id="user123",
+            )
+
+            # Assert
+            assert result == b"PDF content"
+            mock_cover_letter_repository.get_by_id.assert_called_once_with(
+                "cover_letter123"
+            )
+            mock_tex_service.generate_cover_letter_latex.assert_called_once()
+            mock_latex_service.generate_pdf.assert_called_once()

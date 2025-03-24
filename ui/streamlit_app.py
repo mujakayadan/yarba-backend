@@ -9,6 +9,7 @@ import streamlit as st
 from config.logging_config import get_logger
 from config.settings import Settings
 from core.database import (
+    get_cover_letter_repository,
     get_portfolio_repository,
     get_preamble_repository,
     get_profile_repository,
@@ -16,10 +17,11 @@ from core.database import (
     get_tex_header_repository,
     get_tex_template_repository,
 )
-from core.services.generator_service import GeneratorService
+from core.services.cover_letter_generation_service import CoverLetterGenerationService
 from core.services.latex_service import LatexService
 from core.services.llm_service import LLMService
 from core.services.prompt_service import PromptService
+from core.services.resume_generation_service import ResumeGenerationService
 from ui.components.database_viewer import DatabaseViewer
 from ui.components.model_selector import ModelSelector
 from ui.pages.home import HomePage
@@ -55,29 +57,36 @@ def run_async(coro_func: Callable[[], Coroutine]) -> Any:
 
 
 class StreamlitApp:
+    """Streamlit Application for resume generator."""
+
     def __init__(self):
+        """Initialize the application."""
         # Configure the page
         st.set_page_config(
-            page_title=settings.ui.title,
-            page_icon=settings.ui.page_icon,
-            layout=settings.ui.layout_type,
-            initial_sidebar_state=settings.ui.initial_sidebar_state,
+            page_title="ResumeBuilder",
+            page_icon="📝",
+            layout="wide",
+            initial_sidebar_state="expanded",
         )
-
-        # Load and apply CSS
-        self._load_css()
-
-        # Initialize session state first
-        self.setup_session_state()
 
         # Initialize database
         self._initialize_database()
 
-        # Initialize repositories and services
+        # Initialize services and components
         self._initialize_repositories_and_services()
 
-        # Initialize pages
-        self.home_page = HomePage(self.model_selector, self.generator_service)
+        # Setup session state
+        self.setup_session_state()
+
+        # Load CSS
+        self._load_css()
+
+        # Create pages
+        self.home_page = HomePage(
+            self.model_selector,
+            self.resume_generation_service,
+            self.cover_letter_generation_service,
+        )
         self.settings_page = SettingsPage()
         self.database_viewer = DatabaseViewer()
 
@@ -111,6 +120,9 @@ class StreamlitApp:
             self.portfolio_repository = get_repo_from_generator(
                 get_portfolio_repository()
             )
+            self.cover_letter_repository = get_repo_from_generator(
+                get_cover_letter_repository()
+            )
             preamble_repository = get_repo_from_generator(get_preamble_repository())
             tex_header_repository = get_repo_from_generator(get_tex_header_repository())
             tex_template_repository = get_repo_from_generator(
@@ -130,8 +142,17 @@ class StreamlitApp:
                 template_repository=tex_template_repository,
             )
 
-            # Initialize generator service
-            self.generator_service = GeneratorService(
+            # Initialize generation services
+            self.resume_generation_service = ResumeGenerationService(
+                resume_repository=self.resume_repository,
+                profile_repository=self.profile_repository,
+                portfolio_repository=self.portfolio_repository,
+                llm_service=self.llm_service,
+                latex_service=self.latex_service,
+            )
+
+            self.cover_letter_generation_service = CoverLetterGenerationService(
+                cover_letter_repository=self.cover_letter_repository,
                 resume_repository=self.resume_repository,
                 profile_repository=self.profile_repository,
                 portfolio_repository=self.portfolio_repository,
@@ -199,20 +220,17 @@ class StreamlitApp:
                 st.stop()
 
     def _store_components(self):
-        """Store components in session state"""
-        # Store services
+        """Store UI components in session state"""
+        st.session_state["settings"] = settings
         st.session_state["model_selector"] = self.model_selector
-        st.session_state["generator_service"] = self.generator_service
-        st.session_state["llm_service"] = self.llm_service
-        st.session_state["latex_service"] = self.latex_service
-        st.session_state["prompt_service"] = self.prompt_service
-
-        # Store repositories
-        st.session_state["resume_repository"] = self.resume_repository
+        st.session_state["resume_generation_service"] = self.resume_generation_service
+        st.session_state["cover_letter_generation_service"] = (
+            self.cover_letter_generation_service
+        )
         st.session_state["profile_repository"] = self.profile_repository
         st.session_state["portfolio_repository"] = self.portfolio_repository
-
-        logger.debug("Components stored in session state")
+        st.session_state["resume_repository"] = self.resume_repository
+        st.session_state["llm_service"] = self.llm_service
 
     def setup_session_state(self):
         """Initialize session state variables"""
