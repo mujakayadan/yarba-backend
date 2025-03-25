@@ -2586,7 +2586,7 @@ files = [
 [[package]]
 name = "pymongo"
 version = "4.11.2"
-description = "Python driver for MongoDB <http://www.mongodb.org>"
+description = "Python driver for MongoDB <https://www.mongodb.org>"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
