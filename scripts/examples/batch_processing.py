@@ -135,7 +135,7 @@ class BatchProcessor:
 
             # Return processed data
             return {
-                "resume": resume.dict(),
+                "resume": resume.model_dump(),
                 "resume_content": resume_content,
                 "cover_letter": cover_letter,
                 "resume_latex": resume_latex,

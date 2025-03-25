@@ -55,7 +55,7 @@ async def test_repositories():
             print(f"\n{'='*40}")
             print("PREFERENCES")
             print(f"{'='*40}")
-            print(json.dumps(preferences.dict(), indent=2))
+            print(json.dumps(preferences.model_dump(), indent=2))
     else:
         logger.warning(f"No profile found for user {test_user_id}")
 
@@ -74,7 +74,7 @@ async def test_repositories():
         print(f"{'='*40}")
         career_summary = await portfolio_repo.get_career_summary(test_user_id)
         if career_summary:
-            print(json.dumps(career_summary.dict(), indent=2))
+            print(json.dumps(career_summary.model_dump(), indent=2))
 
         print(f"\n{'='*40}")
         print("SKILLS")

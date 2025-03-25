@@ -159,11 +159,7 @@ class ResumeGenerationService:
             The data in a serializable format
         """
         if hasattr(data, "model_dump"):
-            # Pydantic v2
             return data.model_dump()
-        elif hasattr(data, "dict"):
-            # Pydantic v1
-            return data.dict()
         elif isinstance(data, list):
             return [self._convert_to_serializable(item) for item in data]
         elif isinstance(data, dict):

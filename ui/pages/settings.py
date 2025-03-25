@@ -150,7 +150,7 @@ class SettingsPage:
             # Save to database
             db.profiles.update_one(
                 {"_id": profile.id},
-                {"$set": {"preferences": profile.preferences.dict()}},
+                {"$set": {"preferences": profile.preferences.model_dump()}},
             )
 
             logger.debug(f"Saved LLM preferences: {llm_preferences}")
@@ -378,7 +378,7 @@ class SettingsPage:
             # Save to database
             db.profiles.update_one(
                 {"_id": profile.id},
-                {"$set": {"preferences": profile.preferences.dict()}},
+                {"$set": {"preferences": profile.preferences.model_dump()}},
             )
 
             logger.debug(f"Saved section preferences: {section_preferences}")
@@ -504,7 +504,7 @@ class SettingsPage:
             # Save to database
             db.profiles.update_one(
                 {"_id": profile.id},
-                {"$set": {"preferences": profile.preferences.dict()}},
+                {"$set": {"preferences": profile.preferences.model_dump()}},
             )
 
             logger.debug(f"Saved feature flags: {feature_flags}")

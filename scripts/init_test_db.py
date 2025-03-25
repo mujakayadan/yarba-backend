@@ -84,7 +84,7 @@ async def init_test_db():
             created_at=datetime.datetime.utcnow(),
             updated_at=datetime.datetime.utcnow(),
         )
-        await db.users.insert_one(user.dict())
+        await db.users.insert_one(user.model_dump())
         logger.info(f"Created user: {user.username}")
 
         # Create a profile
@@ -177,7 +177,7 @@ async def init_test_db():
             created_at=datetime.datetime.utcnow(),
             updated_at=datetime.datetime.utcnow(),
         )
-        await db.profiles.insert_one(profile.dict())
+        await db.profiles.insert_one(profile.model_dump())
         logger.info(f"Created profile for user: {user.username}")
 
         # Create a portfolio
@@ -202,7 +202,7 @@ async def init_test_db():
             created_at=datetime.datetime.utcnow(),
             updated_at=datetime.datetime.utcnow(),
         )
-        await db.portfolios.insert_one(portfolio.dict())
+        await db.portfolios.insert_one(portfolio.model_dump())
         logger.info(f"Created portfolio for user: {user.username}")
 
         # Create portfolio items
@@ -281,7 +281,7 @@ async def init_test_db():
         ]
 
         for item in portfolio_items:
-            await db.portfolio_items.insert_one(item.dict())
+            await db.portfolio_items.insert_one(item.model_dump())
         logger.info(f"Created {len(portfolio_items)} portfolio items")
 
         # Create a resume
@@ -389,7 +389,7 @@ async def init_test_db():
             created_at=datetime.datetime.utcnow(),
             updated_at=datetime.datetime.utcnow(),
         )
-        await db.resumes.insert_one(resume.dict())
+        await db.resumes.insert_one(resume.model_dump())
         logger.info(f"Created resume for user: {user.username}")
 
         # Create LaTeX preambles
@@ -413,7 +413,7 @@ async def init_test_db():
         ]
 
         for preamble in preambles:
-            await db.preambles.insert_one(preamble.dict())
+            await db.preambles.insert_one(preamble.model_dump())
         logger.info(f"Created {len(preambles)} LaTeX preambles")
 
         # Create TeX headers
@@ -445,7 +445,7 @@ async def init_test_db():
         ]
 
         for tex_header in tex_headers:
-            await db.tex_headers.insert_one(tex_header.dict())
+            await db.tex_headers.insert_one(tex_header.model_dump())
         logger.info(f"Created {len(tex_headers)} TeX headers")
 
         # List collections
