@@ -28,7 +28,7 @@ class LLMService:
         self,
         profile_repository: ProfileRepository,
         prompt_service: Optional[PromptService] = None,
-        model: str = "claude-3-5-sonnet-20240620",
+        model: str = "claude-3-5-haiku-20241022",  # needs to be updated from env
         temperature: float = 0.1,
     ):
         """
@@ -202,11 +202,7 @@ class LLMService:
         if not self.prompt_service:
             raise ValueError("Prompt service not available")
 
-        try:
-            return await self.prompt_service.get_portfolio_section_prompt(section_name)
-        except KeyError:
-            # Fall back to regular section prompt
-            return await self.prompt_service.get_section_prompt(section_name)
+        return await self.prompt_service.get_section_prompt(section_name)
 
     async def get_completion(
         self,

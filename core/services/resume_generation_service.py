@@ -125,6 +125,9 @@ class ResumeGenerationService:
                 section_name, "Process"
             )
 
+        # Convert data to serializable form if needed
+        section_data = self._convert_to_serializable(section_data)
+
         # If hardcode preference, return data as is (serialized)
         if section_preference.lower() == "hardcode":
             if isinstance(section_data, (dict, list)):
@@ -144,6 +147,29 @@ class ResumeGenerationService:
             context=context,
             job_description=resume.job_description or "",
         )
+
+    def _convert_to_serializable(self, data):
+        """
+        Convert data to a serializable format.
+
+        Args:
+            data: The data to convert
+
+        Returns:
+            The data in a serializable format
+        """
+        if hasattr(data, "model_dump"):
+            # Pydantic v2
+            return data.model_dump()
+        elif hasattr(data, "dict"):
+            # Pydantic v1
+            return data.dict()
+        elif isinstance(data, list):
+            return [self._convert_to_serializable(item) for item in data]
+        elif isinstance(data, dict):
+            return {k: self._convert_to_serializable(v) for k, v in data.items()}
+        else:
+            return data
 
     async def generate_resume_content(
         self,
@@ -257,7 +283,7 @@ class ResumeGenerationService:
 
         # Update resume
         resume.updated_at = datetime.now(timezone.utc)
-        await self.resume_repository.update(resume)
+        await self.resume_repository.update(resume.id, resume)
 
         return resume.content
 
@@ -301,7 +327,7 @@ class ResumeGenerationService:
             # Update resume
             resume.cover_letter_content = cover_letter
             resume.updated_at = datetime.now(timezone.utc)
-            await self.resume_repository.update(resume)
+            await self.resume_repository.update(resume.id, resume)
 
             return cover_letter
 
