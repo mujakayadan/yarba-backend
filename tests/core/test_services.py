@@ -84,7 +84,7 @@ def mock_llm_service():
 
 
 @pytest.fixture
-def mock_latex_service():
+def mock_lalatex_service():
     """Fixture for mocking LaTeX service."""
     service = AsyncMock()
     service.generate_pdf = AsyncMock()
@@ -92,7 +92,7 @@ def mock_latex_service():
 
 
 @pytest.fixture
-def mock_tex_service():
+def mock_latex_service():
     """Fixture for mocking TeX service."""
     service = AsyncMock()
     service.generate_resume_latex = AsyncMock()
@@ -169,7 +169,7 @@ class TestAuthService:
             # Act
             with patch("core.utils.jwt.create_access_token") as mock_create_token:
                 mock_create_token.return_value = "test_token"
-                result = await auth_service.login_user(
+                result = await auth_service.login(
                     email="test@example.com",
                     password="Password123!",
                 )
@@ -380,10 +380,10 @@ class TestLaTeXService:
                 mock_exists.return_value = True
 
                 with patch("builtins.open", MagicMock()):
-                    latex_service = LatexService()
+                    lalatex_service = LatexService()
 
                     # Act
-                    result = latex_service.generate_pdf(
+                    result = lalatex_service.generate_pdf(
                         template_name="default",
                         output_filename="test_resume",
                         template_data={
@@ -404,10 +404,10 @@ class TestLaTeXService:
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=1)
 
-            latex_service = LatexService()
+            lalatex_service = LatexService()
 
             # Act
-            result = latex_service.generate_pdf(
+            result = lalatex_service.generate_pdf(
                 template_name="default",
                 output_filename="test_resume",
                 template_data={
@@ -432,7 +432,7 @@ class TestResumeGenerationService:
         mock_resume_repository,
         mock_profile_repository,
         mock_portfolio_repository,
-        mock_tex_service,
+        mock_latex_service,
     ):
         """Test successful resume content generation."""
         # Arrange
@@ -469,7 +469,6 @@ class TestResumeGenerationService:
             profile_repository=mock_profile_repository,
             portfolio_repository=mock_portfolio_repository,
             llm_service=mock_llm_service,
-            tex_service=mock_tex_service,
         )
 
         # Act
@@ -490,7 +489,7 @@ class TestResumeGenerationService:
         mock_resume_repository,
         mock_profile_repository,
         mock_portfolio_repository,
-        mock_tex_service,
+        mock_latex_service,
     ):
         """Test successful PDF generation for a resume."""
         # Arrange
@@ -503,14 +502,14 @@ class TestResumeGenerationService:
         }
 
         # Mock the TeX service
-        mock_tex_service.generate_resume_latex.return_value = "LaTeX content"
+        mock_latex_service.generate_resume_latex.return_value = "LaTeX content"
 
         # Mock the LaTeX service PDF generation
         with patch(
             "core.services.resume_generation_service.LatexService"
-        ) as mock_latex_service_class:
-            mock_latex_service = mock_latex_service_class.return_value
-            mock_latex_service.generate_pdf.return_value = {
+        ) as mock_lalatex_service_class:
+            mock_lalatex_service = mock_lalatex_service_class.return_value
+            mock_lalatex_service.generate_pdf.return_value = {
                 "success": True,
                 "pdf_path": "/tmp/resume.pdf",
                 "pdf_content": b"PDF content",
@@ -521,7 +520,7 @@ class TestResumeGenerationService:
                 profile_repository=mock_profile_repository,
                 portfolio_repository=mock_portfolio_repository,
                 llm_service=mock_llm_service,
-                tex_service=mock_tex_service,
+                latex_service=mock_latex_service,
             )
 
             # Act
@@ -533,8 +532,8 @@ class TestResumeGenerationService:
             # Assert
             assert result == b"PDF content"
             mock_resume_repository.get_by_id.assert_called_once_with("resume123")
-            mock_tex_service.generate_resume_latex.assert_called_once()
-            mock_latex_service.generate_pdf.assert_called_once()
+            mock_latex_service.generate_resume_latex.assert_called_once()
+            mock_lalatex_service.generate_pdf.assert_called_once()
 
 
 class TestCoverLetterGenerationService:
@@ -548,7 +547,7 @@ class TestCoverLetterGenerationService:
         mock_resume_repository,
         mock_profile_repository,
         mock_portfolio_repository,
-        mock_tex_service,
+        mock_latex_service,
     ):
         """Test successful cover letter content generation."""
         # Arrange
@@ -594,7 +593,7 @@ class TestCoverLetterGenerationService:
             profile_repository=mock_profile_repository,
             portfolio_repository=mock_portfolio_repository,
             llm_service=mock_llm_service,
-            tex_service=mock_tex_service,
+            latex_service=mock_latex_service,
         )
 
         # Act
@@ -618,7 +617,7 @@ class TestCoverLetterGenerationService:
         mock_resume_repository,
         mock_profile_repository,
         mock_portfolio_repository,
-        mock_tex_service,
+        mock_latex_service,
     ):
         """Test successful PDF generation for a cover letter."""
         # Arrange
@@ -633,14 +632,14 @@ class TestCoverLetterGenerationService:
         }
 
         # Mock the TeX service
-        mock_tex_service.generate_cover_letter_latex.return_value = "LaTeX content"
+        mock_latex_service.generate_cover_letter_latex.return_value = "LaTeX content"
 
         # Mock the LaTeX service PDF generation
         with patch(
             "core.services.cover_letter_generation_service.LatexService"
-        ) as mock_latex_service_class:
-            mock_latex_service = mock_latex_service_class.return_value
-            mock_latex_service.generate_pdf.return_value = {
+        ) as mock_lalatex_service_class:
+            mock_lalatex_service = mock_lalatex_service_class.return_value
+            mock_lalatex_service.generate_pdf.return_value = {
                 "success": True,
                 "pdf_path": "/tmp/cover_letter.pdf",
                 "pdf_content": b"PDF content",
@@ -652,7 +651,7 @@ class TestCoverLetterGenerationService:
                 profile_repository=mock_profile_repository,
                 portfolio_repository=mock_portfolio_repository,
                 llm_service=mock_llm_service,
-                tex_service=mock_tex_service,
+                latex_service=mock_latex_service,
             )
 
             # Act
@@ -666,5 +665,5 @@ class TestCoverLetterGenerationService:
             mock_cover_letter_repository.get_by_id.assert_called_once_with(
                 "cover_letter123"
             )
-            mock_tex_service.generate_cover_letter_latex.assert_called_once()
-            mock_latex_service.generate_pdf.assert_called_once()
+            mock_latex_service.generate_cover_letter_latex.assert_called_once()
+            mock_lalatex_service.generate_pdf.assert_called_once()

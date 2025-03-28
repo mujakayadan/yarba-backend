@@ -27,6 +27,7 @@ class LatexCompiler(ABC):
         self.compiler_options = settings.latex.compiler_options
         self.cleanup_temp_files = settings.latex.cleanup_temp_files
         self.templates_dir = settings.latex.templates_dir
+        self.logger = logger
 
     @abstractmethod
     async def generate_tex_content(self, *args, **kwargs) -> str:
@@ -51,18 +52,38 @@ class LatexCompiler(ABC):
             Optional[bytes]: PDF content if successful, None otherwise
         """
         try:
+            # Log compilation settings
+            self.logger.info(
+                f"Starting LaTeX compilation with compiler path: {self.compiler_path}"
+            )
+            self.logger.info(f"Output directory: {tex_path.parent.absolute()}")
+            self.logger.info(f"Cleanup temporary files: {self.cleanup_temp_files}")
+
             # Create output directory if it doesn't exist
             tex_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Write content to file
+            self.logger.debug(f"Writing LaTeX content to {tex_path.absolute()}")
             tex_path.write_text(tex_content)
+            self.logger.info(f"LaTeX content written to {tex_path.absolute()}")
+
+            # Print file stats to ensure the file was written
+            self.logger.debug(
+                f"File exists: {tex_path.exists()}, Size: {tex_path.stat().st_size} bytes"
+            )
 
             # Build command
             command = [
                 self.compiler_path,
                 *self.compiler_options,
+                "-output-directory",
+                str(tex_path.parent.absolute()),
                 tex_path.name,
             ]
+
+            self.logger.info(
+                f"Running LaTeX compiler with command: {' '.join(command)}"
+            )
 
             # Run pdflatex in the output directory
             result = subprocess.run(
@@ -72,21 +93,51 @@ class LatexCompiler(ABC):
                 text=True,
             )
 
+            # Check if compilation was successful
             if result.returncode != 0:
-                logger.error(f"LaTeX Error Output:\n{result.stderr}")
-                logger.error(f"LaTeX Standard Output:\n{result.stdout}")
+                self.logger.error(
+                    f"LaTeX compilation failed with return code {result.returncode}"
+                )
+                self.logger.error(f"LaTeX Error Output:\n{result.stderr}")
+                self.logger.error(f"LaTeX Standard Output:\n{result.stdout}")
+                # List directory contents to see if any files were created
+                self.logger.debug(f"Output directory contents:")
+                for file in tex_path.parent.iterdir():
+                    self.logger.debug(f"  {file.name} - {file.stat().st_size} bytes")
                 return None
 
             # Check if PDF was generated
             pdf_path = tex_path.with_suffix(".pdf")
             if pdf_path.exists():
-                return pdf_path.read_bytes()
+                pdf_size = pdf_path.stat().st_size
+                self.logger.info(
+                    f"PDF generated successfully at {pdf_path.absolute()} - Size: {pdf_size} bytes"
+                )
+                # Check PDF size
+                if pdf_size == 0:
+                    self.logger.error("PDF file is empty (0 bytes)")
+                    return None
+
+                # Return PDF content
+                pdf_content = pdf_path.read_bytes()
+                self.logger.info(f"Read {len(pdf_content)} bytes from PDF file")
+                return pdf_content
             else:
-                logger.error("PDF file not found after compilation")
+                self.logger.error(
+                    f"PDF file not found after compilation: {pdf_path.absolute()}"
+                )
+                # List directory contents to debug
+                self.logger.debug(f"Output directory contents:")
+                for file in tex_path.parent.iterdir():
+                    self.logger.debug(f"  {file.name} - {file.stat().st_size} bytes")
                 return None
 
         except Exception as e:
-            logger.error(f"Error during PDF compilation: {str(e)}")
+            self.logger.error(f"Error during PDF compilation: {str(e)}")
+            # Print full traceback
+            import traceback
+
+            self.logger.error(f"Traceback:\n{traceback.format_exc()}")
             return None
 
         finally:
@@ -105,5 +156,6 @@ class LatexCompiler(ABC):
             if temp_file.exists():
                 try:
                     temp_file.unlink()
+                    self.logger.debug(f"Cleaned up temporary file: {temp_file}")
                 except Exception as e:
-                    logger.warning(f"Failed to cleanup {temp_file}: {e}")
+                    self.logger.warning(f"Failed to cleanup {temp_file}: {e}")

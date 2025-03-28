@@ -15,7 +15,6 @@ from core.repositories.profile_repository import ProfileRepository
 from core.repositories.resume_repository import ResumeRepository
 from core.services.llm_service import LLMService
 from core.services.resume_generation_service import ResumeGenerationService
-from core.services.tex_service import TexService
 
 
 @pytest.fixture
@@ -25,14 +24,6 @@ def mock_llm():
     llm.generate_section.return_value = "Generated content"
     llm.generate_cover_letter.return_value = "Generated cover letter"
     return llm
-
-
-@pytest.fixture
-def mock_tex_service():
-    """Create a mock TeX service."""
-    tex_service = AsyncMock(spec=TexService)
-    tex_service.format_template.return_value = "Formatted TeX content"
-    return tex_service
 
 
 @pytest.fixture
@@ -133,7 +124,7 @@ async def test_generation_service_init(
     # Create service with all dependencies
     service = ResumeGenerationService(
         llm_service=mock_llm,
-        tex_service=mock_tex_service,
+        latex_service=mock_tex_service,
         profile_repository=mock_profile_repository,
         portfolio_repository=mock_portfolio_repository,
         resume_repository=mock_resume_repository,
@@ -141,7 +132,7 @@ async def test_generation_service_init(
 
     # Verify all dependencies are set
     assert service.llm_service == mock_llm
-    assert service.tex_service == mock_tex_service
+    assert service.latex_service == mock_tex_service
     assert service.profile_repository == mock_profile_repository
     assert service.portfolio_repository == mock_portfolio_repository
     assert service.resume_repository == mock_resume_repository
@@ -162,7 +153,7 @@ async def test_generate_resume_content(
 
     # Test generate resume content
     result = await service.generate_resume_content(
-        resume_id="resume123",
+        resume_id=PydanticObjectId("resume123"),
         regenerate_sections=["Test job description"],
     )
 
@@ -193,7 +184,7 @@ async def test_generate_cover_letter(
     # Create service
     service = ResumeGenerationService(
         llm_service=mock_llm,
-        tex_service=mock_tex_service,
+        latex_service=mock_tex_service,
         profile_repository=mock_profile_repository,
         resume_repository=mock_resume_repository,
     )

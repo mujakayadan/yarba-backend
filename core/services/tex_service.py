@@ -1,4 +1,4 @@
-"""Tex service for handling TeX templates, headers, and preambles."""
+"""Tex service for handling TeX templates, headers, and preambles. DEPRECATED - Use LatexService instead."""
 
 import logging
 from datetime import datetime, timezone
@@ -26,7 +26,7 @@ from ..models.resume import Resume
 
 
 class TexService:
-    """Service for handling TeX templates, headers, and preambles."""
+    """Service for handling TeX templates, headers, and preambles. DEPRECATED - Use LatexService instead."""
 
     def __init__(
         self,
@@ -35,13 +35,18 @@ class TexService:
         preamble_repository: Optional[PreambleRepository] = None,
     ):
         """
-        Initialize the Tex service.
+        Initialize the Tex service. DEPRECATED - Use LatexService instead.
 
         Args:
             header_repository: Repository for TeX headers
             template_repository: Repository for TeX templates
             preamble_repository: Repository for LaTeX preambles
         """
+        logging.warning(
+            "TexService is deprecated. Use LatexService instead. "
+            "TexService will be removed in a future version."
+        )
+
         self.header_repository = header_repository or get_tex_header_repository()
         self.template_repository = template_repository or get_tex_template_repository()
         self.preamble_repository = preamble_repository or get_preamble_repository()

@@ -11,7 +11,6 @@ from .profile_service import ProfileService
 from .prompt_service import PromptService
 from .resume_generation_service import ResumeGenerationService
 from .resume_service import ResumeService
-from .tex_service import TexService
 
 __all__ = [
     # Base service
@@ -32,8 +31,6 @@ __all__ = [
     "PromptService",
     # Resume generation service
     "ResumeGenerationService",
-    # Tex service
-    "TexService",
     # Cover letter service
     "CoverLetterService",
     # Cover letter generation service

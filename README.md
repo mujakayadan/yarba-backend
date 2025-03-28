@@ -296,10 +296,6 @@ llm_service = LLMService(
     profile_repository=profile_repository,
     prompt_service=prompt_service
 )
-tex_service = TexService(
-    tex_template_repository=tex_template_repository,
-    tex_header_repository=tex_header_repository
-)
 
 # Initialize resume generation service
 resume_service = ResumeGenerationService(
@@ -363,3 +359,8 @@ poetry run streamlit run scripts/examples/streamlit_ui.py
 - MongoDB database
 - LaTeX installation for document generation
 - API keys for LLM providers (OpenAI, Anthropic, etc.)
+
+## TODO
+
+- LLM should return list of items instead of Latex embeddings to reduce token usage.
+- LLM parameters are hard coded for now

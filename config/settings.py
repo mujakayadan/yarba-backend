@@ -149,6 +149,12 @@ class LatexSettings(BaseSettings):
         default=True, description="Whether to clean up temporary files"
     )
 
+    @field_validator("output_dir", "templates_dir")
+    def create_directory_if_not_exists(cls, v: Path) -> Path:
+        """Create directory if it doesn't exist."""
+        v.mkdir(parents=True, exist_ok=True)
+        return v
+
 
 class LoggingSettings(BaseSettings):
     """Logging settings."""

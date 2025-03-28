@@ -14,9 +14,9 @@ from core.repositories.cover_letter_repository import CoverLetterRepository
 from core.repositories.portfolio_repository import PortfolioRepository
 from core.repositories.profile_repository import ProfileRepository
 from core.repositories.resume_repository import ResumeRepository
+from core.services.latex_service import LatexService, get_latex_service
 from core.services.llm_service import LLMService
 from core.services.prompt_service import PromptService
-from core.services.tex_service import TexService
 
 logger = get_logger(__name__)
 
@@ -32,7 +32,7 @@ class CoverLetterGenerationService:
         resume_repository: ResumeRepository,
         llm_service: Optional[LLMService] = None,
         prompt_service: Optional[PromptService] = None,
-        tex_service: Optional[TexService] = None,
+        latex_service: Optional[LatexService] = None,
     ):
         """
         Initialize the cover letter generation service.
@@ -44,7 +44,7 @@ class CoverLetterGenerationService:
             resume_repository: Repository for accessing resume data
             llm_service: Service for LLM operations
             prompt_service: Service for loading and formatting prompts
-            tex_service: Service for LaTeX operations
+            latex_service: Service for LaTeX document generation
         """
         self.cover_letter_repository = cover_letter_repository
         self.portfolio_repository = portfolio_repository
@@ -59,7 +59,9 @@ class CoverLetterGenerationService:
             profile_repository=profile_repository,
             prompt_service=self.prompt_service,
         )
-        self.tex_service = tex_service or TexService()
+
+        # Initialize LaTeX service for document generation
+        self.latex_service = latex_service or get_latex_service()
 
         self.logger = get_logger(self.__class__.__name__)
 
@@ -227,6 +229,46 @@ class CoverLetterGenerationService:
             self.logger.error(f"Error generating cover letter: {e}")
             raise
 
+    async def generate_latex(
+        self,
+        cover_letter_id: PydanticObjectId,
+    ) -> str:
+        """
+        Generate LaTeX code for a cover letter.
+
+        Args:
+            cover_letter_id: Cover letter ID
+
+        Returns:
+            LaTeX code for the cover letter
+
+        Raises:
+            ValueError: If cover letter, profile, or portfolio is not found
+        """
+        # Get cover letter data
+        cover_letter, profile, portfolio, _ = await self.get_cover_letter_data(
+            cover_letter_id
+        )
+
+        # Ensure cover letter content exists
+        if not cover_letter.cover_letter_content:
+            await self.generate_cover_letter_content(cover_letter_id)
+            # Reload cover letter to get updated content
+            cover_letter = await self.cover_letter_repository.get_by_id(cover_letter_id)
+
+        # Generate LaTeX
+        try:
+            # Generate LaTeX using LatexService
+            latex = await self.latex_service.generate_cover_letter_latex(
+                cover_letter, profile
+            )
+
+            return latex
+
+        except Exception as e:
+            self.logger.error(f"Error generating LaTeX: {e}")
+            raise ValueError(f"Failed to generate LaTeX: {str(e)}")
+
     async def generate_pdf(
         self,
         cover_letter_id: PydanticObjectId,
@@ -262,13 +304,13 @@ class CoverLetterGenerationService:
 
         # Generate PDF
         try:
-            # Generate LaTeX
-            latex = await self.tex_service.generate_cover_letter_latex(
-                cover_letter, profile, portfolio
-            )
+            # Generate LaTeX using the generate_latex method
+            latex = await self.generate_latex(cover_letter_id)
 
-            # Compile to PDF
-            pdf_bytes = await self.tex_service.compile_latex_to_pdf(latex)
+            # Compile to PDF using LatexService
+            pdf_bytes = await self.latex_service.compile_latex_to_pdf(
+                latex, is_cover_letter=True
+            )
 
             # Update cover letter
             cover_letter.cover_letter_pdf = pdf_bytes

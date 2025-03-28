@@ -4,7 +4,9 @@ import asyncio
 import json
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
+
+from beanie import PydanticObjectId
 
 # Make sure we can import from the project root
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -18,7 +20,6 @@ from core.repositories.tex_template_repository import TexTemplateRepository
 from core.services.llm_service import LLMService
 from core.services.prompt_service import PromptService
 from core.services.resume_generation_service import ResumeGenerationService
-from core.services.tex_service import TexService
 
 # Set up logger
 logger = get_logger(__name__)
@@ -42,10 +43,6 @@ class BatchProcessor:
             profile_repository=self.profile_repository,
             prompt_service=self.prompt_service,
         )
-        self.tex_service = TexService(
-            tex_template_repository=self.tex_template_repository,
-            tex_header_repository=self.tex_header_repository,
-        )
 
         # Initialize resume generation service
         self.resume_service = ResumeGenerationService(
@@ -53,10 +50,9 @@ class BatchProcessor:
             portfolio_repository=self.portfolio_repository,
             profile_repository=self.profile_repository,
             llm_service=self.llm_service,
-            tex_service=self.tex_service,
         )
 
-    async def process_user_resumes(self, user_id: str) -> Dict[str, Dict]:
+    async def process_user_resumes(self, user_id: PydanticObjectId) -> Dict[str, Dict]:
         """Process all resumes for a specific user.
 
         Args:
@@ -95,7 +91,7 @@ class BatchProcessor:
         )
         return processed_data
 
-    async def process_resume(self, resume_id: str) -> Dict:
+    async def process_resume(self, resume_id: PydanticObjectId) -> Dict:
         """Process a single resume.
 
         Args:
@@ -121,16 +117,14 @@ class BatchProcessor:
 
             # Generate cover letter
             cover_letter = await self.resume_service.generate_cover_letter(
-                resume_id=resume_id, resume_content=resume_content
+                resume_id=resume_id
             )
 
             # Generate LaTeX
-            resume_latex = await self.resume_service.generate_latex(
-                resume_id=resume_id, content=resume_content, is_cover_letter=False
-            )
+            resume_latex = await self.resume_service.generate_latex(resume_id=resume_id)
 
             cover_letter_latex = await self.resume_service.generate_latex(
-                resume_id=resume_id, content=cover_letter, is_cover_letter=True
+                resume_id=resume_id
             )
 
             # Return processed data
@@ -145,7 +139,9 @@ class BatchProcessor:
             logger.error(f"Error processing resume {resume_id}: {e}")
             return {"error": str(e)}
 
-    async def process_multiple_users(self, user_ids: List[str]) -> Dict[str, Dict]:
+    async def process_multiple_users(
+        self, user_ids: List[PydanticObjectId]
+    ) -> Dict[str, Dict]:
         """Process resumes for multiple users.
 
         Args:

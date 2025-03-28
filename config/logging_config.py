@@ -47,6 +47,16 @@ def configure_logging() -> None:
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     logging.getLogger("motor").setLevel(logging.WARNING)
 
+    # Set DEBUG level for LaTeX-related operations
+    logging.getLogger("core.latex").setLevel(logging.DEBUG)
+    logging.getLogger("core.services.latex_service").setLevel(logging.DEBUG)
+    logging.getLogger("core.services.resume_generation_service").setLevel(logging.DEBUG)
+    logging.getLogger("core.services.cover_letter_generation_service").setLevel(
+        logging.DEBUG
+    )
+    logging.getLogger("api.routers.resumes").setLevel(logging.DEBUG)
+    logging.getLogger("api.routers.cover_letters").setLevel(logging.DEBUG)
+
     # Log configuration complete
     logging.info(f"Logging configured with level {settings.logging.log_level}")
 

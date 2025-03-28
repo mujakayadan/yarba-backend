@@ -7,14 +7,15 @@ from pydantic import BaseModel, Field
 
 # These would be imported in your actual API code
 from core.repositories.portfolio_repository import PortfolioRepository
+from core.repositories.preamble_repository import PreambleRepository
 from core.repositories.profile_repository import ProfileRepository
 from core.repositories.resume_repository import ResumeRepository
 from core.repositories.tex_header_repository import TexHeaderRepository
 from core.repositories.tex_template_repository import TexTemplateRepository
+from core.services.latex_service import LatexService
 from core.services.llm_service import LLMService
 from core.services.prompt_service import PromptService
 from core.services.resume_generation_service import ResumeGenerationService
-from core.services.tex_service import TexService
 
 
 # Example request models
@@ -56,10 +57,7 @@ async def get_resume_generation_service():
     llm_service = LLMService(
         profile_repository=profile_repository, prompt_service=prompt_service
     )
-    tex_service = TexService(
-        tex_template_repository=tex_template_repository,
-        tex_header_repository=tex_header_repository,
-    )
+    latex_service = LatexService(preamble_repository=PreambleRepository)
 
     # Initialize resume generation service
     return ResumeGenerationService(
@@ -67,7 +65,7 @@ async def get_resume_generation_service():
         portfolio_repository=portfolio_repository,
         profile_repository=profile_repository,
         llm_service=llm_service,
-        tex_service=tex_service,
+        latex_service=latex_service,
     )
 
 

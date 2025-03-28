@@ -36,7 +36,6 @@ from core.services.llm_service import LLMService
 from core.services.prompt_service import PromptService
 from core.services.resume_generation_service import ResumeGenerationService
 from core.services.resume_service import ResumeService
-from core.services.tex_service import TexService
 
 
 @pytest.fixture
@@ -220,7 +219,7 @@ def mock_tex_service(
     mock_tex_header_repository, mock_tex_template_repository, mock_preamble_repository
 ):
     """Fixture for mocking Tex service."""
-    service = AsyncMock(spec=TexService)
+    service = AsyncMock(spec=LatexService)
     service.get_template = AsyncMock()
     service.format_template = AsyncMock()
     service.get_header = AsyncMock()

@@ -62,6 +62,35 @@ class PortfolioService:
 
         return portfolio[0]
 
+    async def get_portfolio_by_id(self, portfolio_id: PydanticObjectId) -> Portfolio:
+        """
+        Get a portfolio by its ID.
+
+        Args:
+            portfolio_id: Portfolio ID
+
+        Returns:
+            Portfolio: Found portfolio
+
+        Raises:
+            NotFoundException: If portfolio not found
+        """
+        self.logger.debug(f"Getting portfolio by ID: {portfolio_id}")
+
+        try:
+            portfolio = await self.portfolio_repository.get_by_id(portfolio_id)
+
+            if not portfolio:
+                self.logger.warning(f"Portfolio not found with ID: {portfolio_id}")
+                raise NotFoundException(f"Portfolio not found with ID: {portfolio_id}")
+
+            self.logger.debug(f"Found portfolio with ID: {portfolio_id}")
+            return portfolio
+
+        except Exception as e:
+            self.logger.error(f"Error retrieving portfolio with ID {portfolio_id}: {e}")
+            raise NotFoundException(f"Could not retrieve portfolio: {str(e)}")
+
     async def create_portfolio(self, user_id: PydanticObjectId) -> Portfolio:
         """
         Create a new portfolio for a user.

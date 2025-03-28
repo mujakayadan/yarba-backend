@@ -23,36 +23,13 @@ from core.repositories.user_repository import UserRepository
 from core.services.cover_letter_generation_service import CoverLetterGenerationService
 from core.services.cover_letter_service import CoverLetterService
 from core.services.job_service import JobService
-from core.services.latex_service import LatexService
+from core.services.latex_service import LatexService, get_latex_service
 from core.services.llm_service import LLMService
 from core.services.portfolio_service import PortfolioService
 from core.services.profile_service import ProfileService
 from core.services.prompt_service import PromptService
 from core.services.resume_generation_service import ResumeGenerationService
 from core.services.resume_service import ResumeService
-from core.services.tex_service import TexService
-
-
-async def get_tex_service(
-    header_repo=Depends(get_tex_header_repository),
-    template_repo=Depends(get_tex_template_repository),
-    preamble_repo=Depends(get_preamble_repository),
-) -> TexService:
-    """Get a tex service.
-
-    Args:
-        header_repo: TeX header repository
-        template_repo: TeX template repository
-        preamble_repo: TeX preamble repository
-
-    Returns:
-        TexService: TeX service
-    """
-    return TexService(
-        header_repository=header_repo,
-        template_repository=template_repo,
-        preamble_repository=preamble_repo,
-    )
 
 
 async def get_latex_service(
@@ -196,7 +173,7 @@ def get_resume_generation_service(
     portfolio_repo=Depends(get_portfolio_repository),
     profile_repo=Depends(get_profile_repository),
     llm_service=Depends(get_llm_service),
-    tex_service=Depends(get_tex_service),
+    latex_service=Depends(get_latex_service),
 ) -> ResumeGenerationService:
     """Get a resume generation service.
 
@@ -210,7 +187,7 @@ def get_resume_generation_service(
         profile_repository=profile_repo,
         llm_service=llm_service,
         prompt_service=prompt_service,
-        tex_service=tex_service,
+        latex_service=latex_service,
     )
 
 
@@ -220,7 +197,7 @@ def get_cover_letter_generation_service(
     profile_repo=Depends(get_profile_repository),
     resume_repo=Depends(get_resume_repository),
     llm_service=Depends(get_llm_service),
-    tex_service=Depends(get_tex_service),
+    latex_service=Depends(get_latex_service),
 ) -> CoverLetterGenerationService:
     """Get a cover letter generation service.
 
@@ -235,5 +212,5 @@ def get_cover_letter_generation_service(
         resume_repository=resume_repo,
         llm_service=llm_service,
         prompt_service=prompt_service,
-        tex_service=tex_service,
+        latex_service=latex_service,
     )

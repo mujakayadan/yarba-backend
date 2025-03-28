@@ -1,21 +1,27 @@
 """Service for resume generation using LLM."""
 
 import json
+import logging
+import traceback
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from beanie import PydanticObjectId
+from bson import json_util
 
 from config.logging_config import get_logger
+from core.exceptions.base import NotFoundException
 from core.models.portfolio import Portfolio
 from core.models.profile import Profile
 from core.models.resume import Resume
 from core.repositories.portfolio_repository import PortfolioRepository
 from core.repositories.profile_repository import ProfileRepository
 from core.repositories.resume_repository import ResumeRepository
+from core.services.latex_service import LatexService, get_latex_service
 from core.services.llm_service import LLMService
+from core.services.portfolio_service import PortfolioService
+from core.services.profile_service import ProfileService
 from core.services.prompt_service import PromptService
-from core.services.tex_service import TexService
 
 logger = get_logger(__name__)
 
@@ -28,9 +34,11 @@ class ResumeGenerationService:
         resume_repository: ResumeRepository,
         portfolio_repository: PortfolioRepository,
         profile_repository: ProfileRepository,
+        profile_service: ProfileService = None,
+        portfolio_service: PortfolioService = None,
         llm_service: Optional[LLMService] = None,
         prompt_service: Optional[PromptService] = None,
-        tex_service: Optional[TexService] = None,
+        latex_service: Optional[LatexService] = None,
     ):
         """
         Initialize the resume generation service.
@@ -39,13 +47,30 @@ class ResumeGenerationService:
             resume_repository: Repository for accessing resume data
             portfolio_repository: Repository for accessing portfolio data
             profile_repository: Repository for accessing profile data
+            profile_service: Service for profile operations (optional)
+            portfolio_service: Service for portfolio operations (optional)
             llm_service: Service for LLM operations
             prompt_service: Service for loading and formatting prompts
-            tex_service: Service for LaTeX operations
+            latex_service: Service for LaTeX document generation
         """
         self.resume_repository = resume_repository
         self.portfolio_repository = portfolio_repository
         self.profile_repository = profile_repository
+
+        # Use provided services or create new ones
+        from core.repositories.user_repository import UserRepository
+
+        user_repository = UserRepository()
+
+        self.profile_service = profile_service or ProfileService(
+            profile_repository=profile_repository,
+            user_repository=user_repository,
+        )
+
+        self.portfolio_service = portfolio_service or PortfolioService(
+            portfolio_repository=portfolio_repository,
+            user_repository=user_repository,
+        )
 
         # Create services if not provided
         self.prompt_service = prompt_service
@@ -53,7 +78,9 @@ class ResumeGenerationService:
             profile_repository=profile_repository,
             prompt_service=self.prompt_service,
         )
-        self.tex_service = tex_service or TexService()
+
+        # Initialize LaTeX service for document generation
+        self.latex_service = latex_service or get_latex_service()
 
         self.logger = get_logger(self.__class__.__name__)
 
@@ -92,12 +119,59 @@ class ResumeGenerationService:
         if not profile:
             raise ValueError(f"Profile with ID {resume.profile_id} not found")
 
-        # Get portfolio
-        portfolio = await self.portfolio_repository.get_by_id(resume.portfolio_id)
-        if not portfolio:
-            raise ValueError(f"Portfolio with ID {resume.portfolio_id} not found")
+        # Get portfolio using portfolio service
+        try:
+            portfolio = await self.portfolio_service.get_portfolio_by_id(
+                resume.portfolio_id
+            )
+            self.logger.debug(f"Retrieved portfolio with ID: {resume.portfolio_id}")
+        except Exception as e:
+            self.logger.error(f"Error retrieving portfolio: {e}")
+            raise ValueError(
+                f"Portfolio with ID {resume.portfolio_id} not found or could not be retrieved"
+            )
 
         return resume, profile, portfolio
+
+    def _convert_to_serializable(self, data):
+        """
+        Convert data to a serializable format.
+
+        Args:
+            data: The data to convert
+
+        Returns:
+            The data in a serializable format
+        """
+        try:
+            # Import bson.json_util for handling MongoDB types
+            from bson import ObjectId, json_util
+
+            if data is None:
+                return None
+            elif isinstance(data, (PydanticObjectId, ObjectId)):
+                # Convert ObjectId to string
+                return str(data)
+            elif hasattr(data, "model_dump"):
+                # For Pydantic models, use model_dump()
+                return data.model_dump()
+            elif isinstance(data, (list, dict)):
+                # Use json_util for safe serialization and deserialization
+                serialized = json_util.loads(json_util.dumps(data))
+                return serialized
+            elif isinstance(data, (str, int, float, bool)):
+                # Primitive types can be returned as is
+                return data
+            else:
+                # For custom types, try string representation
+                return str(data)
+
+        except Exception as e:
+            # Log error and return string representation
+            self.logger.error(
+                f"Error converting {type(data).__name__} to serializable format: {e}"
+            )
+            return str(data)
 
     async def _process_section(
         self,
@@ -131,7 +205,17 @@ class ResumeGenerationService:
         # If hardcode preference, return data as is (serialized)
         if section_preference.lower() == "hardcode":
             if isinstance(section_data, (dict, list)):
-                return json.dumps(section_data)
+                try:
+                    # Use json_util for safe serialization
+                    from bson import json_util
+
+                    return json_util.dumps(section_data)
+                except Exception as e:
+                    self.logger.error(f"Error serializing with json_util: {e}")
+                    # Fallback to standard json
+                    import json
+
+                    return json.dumps(section_data)
             return str(section_data)
 
         # Otherwise process with LLM
@@ -147,25 +231,6 @@ class ResumeGenerationService:
             context=context,
             job_description=resume.job_description or "",
         )
-
-    def _convert_to_serializable(self, data):
-        """
-        Convert data to a serializable format.
-
-        Args:
-            data: The data to convert
-
-        Returns:
-            The data in a serializable format
-        """
-        if hasattr(data, "model_dump"):
-            return data.model_dump()
-        elif isinstance(data, list):
-            return [self._convert_to_serializable(item) for item in data]
-        elif isinstance(data, dict):
-            return {k: self._convert_to_serializable(v) for k, v in data.items()}
-        else:
-            return data
 
     async def generate_resume_content(
         self,
@@ -212,48 +277,116 @@ class ResumeGenerationService:
             try:
                 # Get section data from portfolio
                 section_data = None
+                self.logger.debug(f"Processing section: {section_name}")
 
                 if section_name == "personal_information":
-                    section_data = profile
-                elif section_name == "career_summary":
-                    section_data = await self.portfolio_repository.get_career_summary(
+                    # Get personal information from profile service
+                    section_data = await self.profile_service.get_personal_information(
                         resume.user_id
+                    )
+                    self.logger.debug(
+                        f"Retrieved personal information for user: {resume.user_id}"
+                    )
+                elif section_name == "career_summary":
+                    # Get portfolio data from portfolio service
+                    portfolio = await self.portfolio_service.get_portfolio_by_user_id(
+                        resume.user_id
+                    )
+                    section_data = (
+                        portfolio.career_summary
+                        if portfolio and portfolio.career_summary
+                        else None
+                    )
+                    self.logger.debug(
+                        f"Retrieved career summary for user: {resume.user_id}"
                     )
                 elif section_name == "skills":
-                    section_data = await self.portfolio_repository.get_skills(
+                    # Get portfolio data from portfolio service
+                    portfolio = await self.portfolio_service.get_portfolio_by_user_id(
                         resume.user_id
                     )
+                    section_data = (
+                        portfolio.skills if portfolio and portfolio.skills else []
+                    )
+                    self.logger.debug(f"Retrieved skills for user: {resume.user_id}")
                 elif section_name == "work_experience":
-                    section_data = await self.portfolio_repository.get_work_experience(
+                    # Get portfolio data from portfolio service
+                    portfolio = await self.portfolio_service.get_portfolio_by_user_id(
                         resume.user_id
+                    )
+                    section_data = (
+                        portfolio.work_experience
+                        if portfolio and portfolio.work_experience
+                        else []
+                    )
+                    self.logger.debug(
+                        f"Retrieved work experience for user: {resume.user_id}"
                     )
                 elif section_name == "education":
-                    section_data = await self.portfolio_repository.get_education(
+                    # Get portfolio data from portfolio service
+                    portfolio = await self.portfolio_service.get_portfolio_by_user_id(
                         resume.user_id
                     )
+                    section_data = (
+                        portfolio.education if portfolio and portfolio.education else []
+                    )
+                    self.logger.debug(f"Retrieved education for user: {resume.user_id}")
                 elif section_name == "projects":
-                    section_data = await self.portfolio_repository.get_projects(
+                    # Get portfolio data from portfolio service
+                    portfolio = await self.portfolio_service.get_portfolio_by_user_id(
                         resume.user_id
                     )
+                    section_data = (
+                        portfolio.projects if portfolio and portfolio.projects else []
+                    )
+                    self.logger.debug(f"Retrieved projects for user: {resume.user_id}")
                 elif section_name == "awards":
-                    section_data = await self.portfolio_repository.get_awards(
+                    # Get portfolio data from portfolio service
+                    portfolio = await self.portfolio_service.get_portfolio_by_user_id(
                         resume.user_id
                     )
+                    section_data = (
+                        portfolio.awards if portfolio and portfolio.awards else []
+                    )
+                    self.logger.debug(f"Retrieved awards for user: {resume.user_id}")
                 elif section_name == "publications":
-                    section_data = await self.portfolio_repository.get_publications(
+                    # Get portfolio data from portfolio service
+                    portfolio = await self.portfolio_service.get_portfolio_by_user_id(
                         resume.user_id
+                    )
+                    section_data = (
+                        portfolio.publications
+                        if portfolio and portfolio.publications
+                        else []
+                    )
+                    self.logger.debug(
+                        f"Retrieved publications for user: {resume.user_id}"
                     )
                 elif section_name == "certifications":
-                    section_data = await self.portfolio_repository.get_certifications(
+                    # Get portfolio data from portfolio service
+                    portfolio = await self.portfolio_service.get_portfolio_by_user_id(
                         resume.user_id
+                    )
+                    section_data = (
+                        portfolio.certifications
+                        if portfolio and portfolio.certifications
+                        else []
+                    )
+                    self.logger.debug(
+                        f"Retrieved certifications for user: {resume.user_id}"
                     )
                 elif section_name in (
                     portfolio.custom_sections.enabled
                     if portfolio.custom_sections
                     else []
                 ):
-                    section_data = await self.portfolio_repository.get_custom_sections(
+                    # Get portfolio data from portfolio service
+                    portfolio = await self.portfolio_service.get_portfolio_by_user_id(
                         resume.user_id
+                    )
+                    section_data = portfolio.custom_sections if portfolio else None
+                    self.logger.debug(
+                        f"Retrieved custom sections for user: {resume.user_id}"
                     )
 
                 # Skip if no data
@@ -262,14 +395,24 @@ class ResumeGenerationService:
                     continue
 
                 # Process section
-                resume.content[section_name] = await self._process_section(
-                    section_name=section_name,
-                    section_data=section_data,
-                    resume=resume,
-                    profile=profile,
-                )
+                try:
+                    # Process the section to generate content
+                    processed_content = await self._process_section(
+                        section_name=section_name,
+                        section_data=section_data,
+                        resume=resume,
+                        profile=profile,
+                    )
 
-                self.logger.debug(f"Generated content for section {section_name}")
+                    # Update resume content with the processed section
+                    resume.content[section_name] = processed_content
+                    self.logger.debug(f"Successfully processed section: {section_name}")
+                except Exception as section_error:
+                    self.logger.error(
+                        f"Error processing section {section_name}: {section_error}"
+                    )
+                    # Skip this section but continue with others
+                    continue
 
             except Exception as e:
                 self.logger.error(
@@ -280,69 +423,22 @@ class ResumeGenerationService:
         # Update resume
         resume.updated_at = datetime.now(timezone.utc)
         await self.resume_repository.update(resume.id, resume)
+        self.logger.info(f"Updated resume content with {len(resume.content)} sections")
 
         return resume.content
-
-    async def generate_cover_letter(
-        self,
-        resume_id: PydanticObjectId,
-        regenerate: bool = False,
-    ) -> str:
-        """
-        Generate a cover letter for a resume.
-
-        Args:
-            resume_id: Resume ID
-            regenerate: Whether to regenerate the cover letter even if it exists
-
-        Returns:
-            Generated cover letter text
-
-        Raises:
-            ValueError: If resume, profile, or portfolio is not found
-        """
-        # Get resume data
-        resume, profile, portfolio = await self.get_resume_data(resume_id)
-
-        # Configure LLM for user
-        await self.configure_for_user(resume.user_id)
-
-        # Ensure resume content exists
-        if not resume.content:
-            await self.generate_resume_content(resume_id)
-
-        # Generate cover letter
-        try:
-            cover_letter = await self.llm_service.generate_cover_letter(
-                resume_content=resume.content,
-                job_description=resume.job_description or "",
-                company_name=resume.company_name or "",
-                job_title=resume.job_title or "",
-            )
-
-            # Update resume
-            resume.cover_letter_content = cover_letter
-            resume.updated_at = datetime.now(timezone.utc)
-            await self.resume_repository.update(resume.id, resume)
-
-            return cover_letter
-
-        except Exception as e:
-            self.logger.error(f"Error generating cover letter: {e}")
-            raise
 
     async def generate_latex(
         self,
         resume_id: PydanticObjectId,
-    ) -> Tuple[str, str]:
+    ) -> str:
         """
-        Generate LaTeX code for a resume and cover letter.
+        Generate LaTeX code for a resume.
 
         Args:
             resume_id: Resume ID
 
         Returns:
-            Tuple of (resume_latex, cover_letter_latex)
+            Resume LaTeX code
 
         Raises:
             ValueError: If resume, profile, or portfolio is not found
@@ -354,35 +450,66 @@ class ResumeGenerationService:
         if not resume.content:
             await self.generate_resume_content(resume_id)
 
-        # Get LaTeX templates
-        resume_template = await self.tex_service.get_default_preamble("resume_preamble")
-        cover_letter_template = await self.tex_service.get_default_preamble(
-            "cover_letter_preamble"
-        )
+        # Generate LaTeX for resume using LaTeX service
+        try:
+            # Generate LaTeX for resume
+            resume_latex = await self.latex_service.generate_resume_latex(
+                resume=resume, profile=profile
+            )
 
-        if not resume_template or not cover_letter_template:
-            raise ValueError("LaTeX templates not found")
+            return resume_latex
 
-        # TODO: Implement actual LaTeX generation
-        # This would combine the preamble and content into a complete LaTeX document
-        # For now, we'll just return placeholders
+        except Exception as e:
+            self.logger.error(f"Error generating LaTeX: {e}")
+            raise ValueError(f"Failed to generate LaTeX: {str(e)}")
 
-        resume_latex = f"""
-{resume_template.content}
+    async def compile_pdf(
+        self,
+        resume_id: PydanticObjectId,
+    ) -> bytes:
+        """
+        Compile LaTeX to PDF for a resume.
 
-\\begin{{document}}
-% Generated resume content would go here
-{resume.content.get("personal_information", "")}
-\\end{{document}}
-"""
+        Args:
+            resume_id: Resume ID
 
-        cover_letter_latex = f"""
-{cover_letter_template.content}
+        Returns:
+            bytes: PDF content
 
-\\begin{{document}}
-% Generated cover letter content would go here
-{resume.cover_letter_content}
-\\end{{document}}
-"""
+        Raises:
+            ValueError: If resume, profile, or portfolio is not found
+        """
+        # Get resume data
+        resume, profile, portfolio = await self.get_resume_data(resume_id)
 
-        return resume_latex, cover_letter_latex
+        # Ensure content exists
+        if not resume.content:
+            await self.generate_resume_content(resume_id)
+
+        # Generate and compile resume
+        try:
+            # Generate resume LaTeX
+            resume_latex = await self.generate_latex(resume_id)
+
+            # Compile to PDF
+            pdf_bytes = await self.latex_service.compile_latex_to_pdf(
+                resume_latex, is_cover_letter=False
+            )
+
+            # Verify PDF was generated successfully
+            if not pdf_bytes or len(pdf_bytes) == 0:
+                self.logger.error("PDF compilation returned empty bytes")
+                raise ValueError("PDF compilation failed - empty result")
+
+            # Log success
+            self.logger.info(f"Successfully compiled PDF, size: {len(pdf_bytes)} bytes")
+
+            # Save PDF to resume
+            resume.resume_pdf = pdf_bytes
+            resume.updated_at = datetime.now(timezone.utc)
+            await self.resume_repository.update(resume.id, resume)
+
+            return pdf_bytes
+        except Exception as e:
+            self.logger.error(f"Error compiling PDF: {e}")
+            raise ValueError(f"Failed to compile PDF: {str(e)}")

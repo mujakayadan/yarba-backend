@@ -17,7 +17,6 @@ from core.repositories.tex_template_repository import TexTemplateRepository
 from core.services.llm_service import LLMService
 from core.services.prompt_service import PromptService
 from core.services.resume_generation_service import ResumeGenerationService
-from core.services.tex_service import TexService
 
 # Set up logger
 logger = get_logger(__name__)
@@ -45,10 +44,6 @@ async def generate_resume(user_id: str, resume_id: str):
     llm_service = LLMService(
         profile_repository=profile_repository, prompt_service=prompt_service
     )
-    tex_service = TexService(
-        tex_template_repository=tex_template_repository,
-        tex_header_repository=tex_header_repository,
-    )
 
     # Initialize resume generation service
     resume_service = ResumeGenerationService(
@@ -56,7 +51,6 @@ async def generate_resume(user_id: str, resume_id: str):
         portfolio_repository=portfolio_repository,
         profile_repository=profile_repository,
         llm_service=llm_service,
-        tex_service=tex_service,
     )
 
     # Configure services for the user

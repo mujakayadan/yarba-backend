@@ -3,24 +3,23 @@
 import asyncio
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import streamlit as st
-from bson import ObjectId
 
 # Make sure we can import from the project root
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from config.logging_config import get_logger
 from core.repositories.portfolio_repository import PortfolioRepository
+from core.repositories.preamble_repository import PreambleRepository
 from core.repositories.profile_repository import ProfileRepository
 from core.repositories.resume_repository import ResumeRepository
 from core.repositories.tex_header_repository import TexHeaderRepository
 from core.repositories.tex_template_repository import TexTemplateRepository
+from core.services.latex_service import LatexService
 from core.services.llm_service import LLMService
 from core.services.prompt_service import PromptService
 from core.services.resume_generation_service import ResumeGenerationService
-from core.services.tex_service import TexService
 
 # Set up logger
 logger = get_logger(__name__)
@@ -31,14 +30,16 @@ profile_repository = ProfileRepository()
 resume_repository = ResumeRepository()
 tex_template_repository = TexTemplateRepository()
 tex_header_repository = TexHeaderRepository()
+preamble_repository = PreambleRepository()
 
 prompt_service = PromptService()
 llm_service = LLMService(
     profile_repository=profile_repository, prompt_service=prompt_service
 )
-tex_service = TexService(
-    tex_template_repository=tex_template_repository,
-    tex_header_repository=tex_header_repository,
+latex_service = LatexService(
+    template_repository=tex_template_repository,
+    header_repository=tex_header_repository,
+    preamble_repository=preamble_repository,
 )
 
 resume_service = ResumeGenerationService(
@@ -46,7 +47,7 @@ resume_service = ResumeGenerationService(
     portfolio_repository=portfolio_repository,
     profile_repository=profile_repository,
     llm_service=llm_service,
-    tex_service=tex_service,
+    latex_service=latex_service,
 )
 
 
@@ -169,7 +170,6 @@ else:
                             return await resume_service.generate_latex(
                                 st.session_state.resume_id,
                                 st.session_state.resume_content,
-                                is_cover_letter=False,
                             )
 
                         st.session_state.resume_latex = run_async(gen_latex())
@@ -201,7 +201,6 @@ else:
                             return await resume_service.generate_latex(
                                 st.session_state.resume_id,
                                 st.session_state.cover_letter,
-                                is_cover_letter=True,
                             )
 
                         st.session_state.cover_letter_latex = run_async(gen_latex())

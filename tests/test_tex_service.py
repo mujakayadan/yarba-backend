@@ -11,7 +11,7 @@ from core.models.tex_template import TexTemplate
 from core.repositories.preamble_repository import PreambleRepository
 from core.repositories.tex_header_repository import TexHeaderRepository
 from core.repositories.tex_template_repository import TexTemplateRepository
-from core.services.tex_service import TexService
+from core.services.latex_service import LatexService
 
 
 @pytest.fixture
@@ -46,7 +46,7 @@ async def test_tex_service_init(
 ):
     """Test TeX service initialization."""
     # Create service with all dependencies
-    service = TexService(
+    service = LatexService(
         template_repository=mock_template_repository,
         header_repository=mock_header_repository,
         preamble_repository=mock_preamble_repository,
@@ -62,7 +62,7 @@ async def test_tex_service_init(
 async def test_get_template(mock_template_repository):
     """Test getting a template."""
     # Create service
-    service = TexService(template_repository=mock_template_repository)
+    service = LatexService(template_repository=mock_template_repository)
 
     # Test get template
     result = await service.get_template("resume")
@@ -78,7 +78,7 @@ async def test_get_template(mock_template_repository):
 async def test_format_template(mock_template_repository):
     """Test formatting a template."""
     # Create service
-    service = TexService(template_repository=mock_template_repository)
+    service = LatexService(template_repository=mock_template_repository)
 
     # Test format template
     result = await service.format_template("resume", {"placeholder": "test value"})
@@ -94,7 +94,7 @@ async def test_format_template(mock_template_repository):
 async def test_get_header(mock_header_repository):
     """Test getting a header."""
     # Create service
-    service = TexService(header_repository=mock_header_repository)
+    service = LatexService(header_repository=mock_header_repository)
 
     # Test get header
     result = await service.get_header("modern")
@@ -110,7 +110,7 @@ async def test_get_header(mock_header_repository):
 async def test_get_default_header(mock_header_repository):
     """Test getting the default header."""
     # Create service
-    service = TexService(header_repository=mock_header_repository)
+    service = LatexService(header_repository=mock_header_repository)
 
     # Test get default header
     result = await service.get_default_header()
@@ -137,7 +137,7 @@ async def test_get_default_preamble(mock_preamble_repository):
             )
 
         # Initialize the service
-        self.service = TexService()
+        self.service = LatexService()
 
         # Mock the repositories
         self.service.template_repo = MagicMock()

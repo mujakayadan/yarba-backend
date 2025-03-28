@@ -2586,7 +2586,7 @@ files = [
 [[package]]
 name = "pymongo"
 version = "4.11.2"
-description = "Python driver for MongoDB <https://www.mongodb.org>"
+description = "Python driver for MongoDB <http://www.mongodb.org>"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
@@ -3703,4 +3703,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "529c716ba1fb39f1c37242db87e64de0d5e61cbd4be0d376862552a742319074"
+content-hash = "b5ac36314ee08229b7dfb67b0ff7f928892af6e50915a6bdb810cb48c82e8e62"
