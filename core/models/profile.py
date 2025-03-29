@@ -91,13 +91,9 @@ class Preferences(BaseModel):
     model_config = {"validate_assignment": True}
 
 
-class Profile(Document):
-    """Profile model for MongoDB using Beanie ODM."""
+class PersonalInformation(BaseModel):
+    """Personal information model."""
 
-    user_id: PydanticObjectId
-    user: Optional[Link[User]] = None
-
-    # Personal information
     full_name: str
     email: EmailStr
     phone: Optional[str] = None
@@ -105,6 +101,18 @@ class Profile(Document):
     linkedin: Optional[str] = None
     github: Optional[str] = None
     website: Optional[str] = None
+
+    model_config = {"validate_assignment": True}
+
+
+class Profile(Document):
+    """Profile model for MongoDB using Beanie ODM."""
+
+    user_id: PydanticObjectId
+    user: Optional[Link[User]] = None
+
+    # Personal information
+    personal_information: PersonalInformation
 
     # Additional information
     signature: Optional[bytes] = None

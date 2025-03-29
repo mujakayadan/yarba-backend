@@ -31,7 +31,7 @@ class SectionSelector:
         # Default sections if not provided
         if not available_sections:
             self.available_sections = [
-                "personal_info",
+                "personal_information",
                 "career_summary",
                 "work_experience",
                 "education",

@@ -179,7 +179,7 @@ class ResumeGenerationService:
         section_data: Any,
         resume: Resume,
         profile: Profile,
-    ) -> str:
+    ) -> Any:
         """
         Process a resume section based on profile preferences.
 
@@ -190,7 +190,7 @@ class ResumeGenerationService:
             profile: Profile object
 
         Returns:
-            Processed section content
+            Processed section content - can be JSON object or string
         """
         # Get processing preference for this section
         section_preference = "Process"  # Default to processing
@@ -202,34 +202,28 @@ class ResumeGenerationService:
         # Convert data to serializable form if needed
         section_data = self._convert_to_serializable(section_data)
 
-        # If hardcode preference, return data as is (serialized)
+        # If hardcode preference, return data directly (structured JSON)
         if section_preference.lower() == "hardcode":
-            if isinstance(section_data, (dict, list)):
-                try:
-                    # Use json_util for safe serialization
-                    from bson import json_util
+            self.logger.info(f"Using hardcoded data for section: {section_name}")
+            return section_data
 
-                    return json_util.dumps(section_data)
-                except Exception as e:
-                    self.logger.error(f"Error serializing with json_util: {e}")
-                    # Fallback to standard json
-                    import json
-
-                    return json.dumps(section_data)
-            return str(section_data)
-
-        # Otherwise process with LLM
+        # Process with LLM - requesting JSON schema output
         context = {
             "section_data": section_data,
             "job_title": resume.job_title,
             "company_name": resume.company_name,
         }
 
-        # Generate content with LLM
+        self.logger.info(
+            f"Generating content for section: {section_name} using JSON schema"
+        )
+
+        # LLM will return content in JSON format
         return await self.llm_service.generate_section(
             section_name=section_name,
             context=context,
             job_description=resume.job_description or "",
+            use_json_schema=True,  # Enable JSON schema output
         )
 
     async def generate_resume_content(

@@ -31,14 +31,23 @@ def setup_middlewares(app: FastAPI) -> None:
     # Add rate limiting middleware
     add_rate_limit_middleware(
         app,
-        rate_limit=(
-            settings.api.rate_limit if hasattr(settings.api, "rate_limit") else 60
-        ),
-        window=(
-            settings.api.rate_limit_window
-            if hasattr(settings.api, "rate_limit_window")
-            else 60
-        ),
+        rate_limit=settings.api.rate_limit,
+        window=settings.api.rate_limit_window,
+        route_specific_limits={
+            # Pattern to match: (rate_limit, window)
+            "/api/v1/resumes/": (
+                settings.api.rate_limit,
+                settings.api.rate_limit_window,
+            ),
+            "/api/v1/resumes/.*/pdf": (
+                settings.api.pdf_rate_limit,
+                settings.api.pdf_rate_limit_window,
+            ),
+            "/api/v1/cover-letters/.*/pdf": (
+                settings.api.pdf_rate_limit,
+                settings.api.pdf_rate_limit_window,
+            ),
+        },
     )
 
 

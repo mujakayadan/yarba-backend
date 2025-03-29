@@ -186,9 +186,9 @@ async def migrate_profiles(
                 logger.info(f"Profile already exists for user: {old_user_id}")
 
                 # Update existing profile with any new data
-                personal_info = profile_data.get("personal_information", {})
-                if personal_info:
-                    existing_profile.personal_info = personal_info
+                personal_information = profile_data.get("personal_information", {})
+                if personal_information:
+                    existing_profile.personal_information = personal_information
 
                 if profile_data.get("life_story"):
                     existing_profile.life_story = profile_data.get("life_story")
@@ -309,12 +309,12 @@ async def migrate_profiles(
                         )
 
             # Create new profile
-            personal_info = profile_data.get("personal_information", {})
-            logger.debug(f"Creating profile with personal info: {personal_info}")
+            personal_information = profile_data.get("personal_information", {})
+            logger.debug(f"Creating profile with personal info: {personal_information}")
 
             new_profile = Profile(
                 user_id=new_user_id,
-                personal_info=personal_info,
+                personal_information=personal_information,
                 life_story=profile_data.get("life_story", ""),
                 preferences=preferences,
                 created_at=profile_data.get("created_at", {}).get(

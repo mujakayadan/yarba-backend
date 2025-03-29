@@ -7,7 +7,10 @@ Migration created at: 2024-06-23T00:00:00
 from bson import ObjectId
 from pymongo.database import Database
 
+from config import logging_config
 from core.database.migrations.migration_manager import Migration
+
+logger = logging_config.get_logger(__name__)
 
 
 class FixPortfolioUserIdMigration(Migration):
@@ -21,7 +24,7 @@ class FixPortfolioUserIdMigration(Migration):
 
     def upgrade(self) -> None:
         """Apply the migration."""
-        self.logger.info("Running fix_portfolio_user_id migration")
+        logger.info("Running fix_portfolio_user_id migration")
 
         # Step 1: Find all portfolios with string user_ids and convert them
         portfolios_to_update = []
@@ -32,7 +35,7 @@ class FixPortfolioUserIdMigration(Migration):
                 and isinstance(portfolio["user_id"], str)
                 and not portfolio["user_id"].startswith("ObjectId")
             ):
-                self.logger.warning(
+                logger.warning(
                     f"Found portfolio with string user_id: {portfolio['_id']}, user_id: {portfolio['user_id']}"
                 )
 
@@ -46,7 +49,7 @@ class FixPortfolioUserIdMigration(Migration):
                                 "user_id": ObjectId(portfolio["user_id"]),
                             }
                         )
-                        self.logger.info(
+                        logger.info(
                             f"Will convert string ObjectId for portfolio {portfolio['_id']}"
                         )
                         continue
@@ -64,15 +67,15 @@ class FixPortfolioUserIdMigration(Migration):
                                 "user_id": matching_profile["user_id"],
                             }
                         )
-                        self.logger.info(
+                        logger.info(
                             f"Found matching profile for {portfolio['user_id']}"
                         )
                     else:
-                        self.logger.error(
+                        logger.error(
                             f"Could not find matching profile for portfolio {portfolio['_id']}, user_id: {portfolio['user_id']}"
                         )
                 except Exception as e:
-                    self.logger.error(
+                    logger.error(
                         f"Error processing portfolio {portfolio['_id']}: {str(e)}"
                     )
 
@@ -82,13 +85,13 @@ class FixPortfolioUserIdMigration(Migration):
                 {"_id": update["portfolio_id"]},
                 {"$set": {"user_id": update["user_id"]}},
             )
-            self.logger.info(
+            logger.info(
                 f"Updated portfolio {update['portfolio_id']} with ObjectId user_id"
             )
 
         # Step 2: Remove professional_title field
         self.db.portfolios.update_many({}, {"$unset": {"professional_title": ""}})
-        self.logger.info("Removed professional_title field from all portfolios")
+        logger.info("Removed professional_title field from all portfolios")
 
         # Step 3: Update the schema validator to enforce ObjectId type
         self.db.command(
@@ -119,14 +122,10 @@ class FixPortfolioUserIdMigration(Migration):
                 },
             }
         )
-        self.logger.info(
-            "Updated portfolios schema to enforce ObjectId type for user_id"
-        )
+        logger.info("Updated portfolios schema to enforce ObjectId type for user_id")
 
     def downgrade(self) -> None:
         """Revert the migration."""
         # This is a data correction migration, so downgrade would be complex
         # and potentially destructive. It's best left as a manual process if needed.
-        self.logger.warning(
-            "Downgrade not implemented for fix_portfolio_user_id migration"
-        )
+        logger.warning("Downgrade not implemented for fix_portfolio_user_id migration")

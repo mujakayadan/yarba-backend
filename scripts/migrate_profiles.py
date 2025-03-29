@@ -202,7 +202,7 @@ async def migrate_profiles() -> Dict[str, str]:
                 continue
 
             # Extract personal information
-            personal_info = profile_data.get("personal_information", {})
+            personal_information = profile_data.get("personal_information", {})
 
             # Extract dates
             created_at = convert_mongo_date(profile_data.get("created_at"))
@@ -255,13 +255,13 @@ async def migrate_profiles() -> Dict[str, str]:
             # Create a new profile using the Beanie model
             new_profile = Profile(
                 user_id=new_user_id,
-                full_name=personal_info.get("full_name", ""),
-                email=personal_info.get("email", ""),
-                phone=personal_info.get("phone", ""),
-                address=personal_info.get("address", ""),
-                linkedin=personal_info.get("linkedin", ""),
-                github=personal_info.get("github", ""),
-                website=personal_info.get("website", ""),
+                full_name=personal_information.get("full_name", ""),
+                email=personal_information.get("email", ""),
+                phone=personal_information.get("phone", ""),
+                address=personal_information.get("address", ""),
+                linkedin=personal_information.get("linkedin", ""),
+                github=personal_information.get("github", ""),
+                website=personal_information.get("website", ""),
                 signature=(
                     profile_data.get("signature", {})
                     .get("image", {})

@@ -22,6 +22,20 @@ RATE_LIMIT_STORE: Dict[str, list] = defaultdict(list)
 DEFAULT_RATE_LIMIT = 60  # requests per minute
 DEFAULT_RATE_LIMIT_WINDOW = 60  # seconds
 
+# PDF generation specific rate limits
+PDF_RATE_LIMIT = 3  # requests per minute for PDF generation
+PDF_RATE_LIMIT_WINDOW = 60  # seconds
+
+# Route-specific rate limits
+ROUTE_SPECIFIC_LIMITS = {
+    # Pattern to match: (rate_limit, window)
+    "/api/v1/resumes/": (30, 60),  # General resume endpoints
+    "/api/v1/resumes/.*/pdf": (
+        3,
+        120,
+    ),  # PDF generation endpoints - lower limit, longer window
+}
+
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """Rate limiting middleware for FastAPI."""
@@ -33,6 +47,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         window: int = DEFAULT_RATE_LIMIT_WINDOW,
         exclude_paths: Optional[list] = None,
         get_key: Optional[Callable] = None,
+        route_specific_limits: Optional[Dict[str, Tuple[int, int]]] = None,
     ):
         """
         Initialize rate limiting middleware.
@@ -43,16 +58,19 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             window: Time window in seconds
             exclude_paths: List of paths to exclude from rate limiting
             get_key: Function to get the rate limit key (defaults to client IP)
+            route_specific_limits: Dictionary of route patterns to (rate_limit, window) tuples
         """
         super().__init__(app)
         self.rate_limit = rate_limit
         self.window = window
         self.exclude_paths = exclude_paths or ["/docs", "/redoc", "/openapi.json", "/"]
         self.get_key = get_key or self._get_client_ip
+        self.route_specific_limits = route_specific_limits or ROUTE_SPECIFIC_LIMITS
 
         logger.info(
             f"Rate limiting middleware initialized: {rate_limit} requests per {window} seconds"
         )
+        logger.info(f"Route-specific rate limits: {self.route_specific_limits}")
 
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
@@ -71,11 +89,29 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if any(request.url.path.startswith(path) for path in self.exclude_paths):
             return await call_next(request)
 
+        # Get the appropriate rate limit and window for this path
+        current_rate_limit = self.rate_limit
+        current_window = self.window
+
+        # Check for route-specific limits using regex patterns
+        import re
+
+        for pattern, (limit, window) in self.route_specific_limits.items():
+            if re.search(pattern, request.url.path):
+                current_rate_limit = limit
+                current_window = window
+                logger.debug(
+                    f"Using route-specific limit for {request.url.path}: {limit} requests per {window} seconds"
+                )
+                break
+
         # Get rate limit key (usually client IP)
-        key = self.get_key(request)
+        key = f"{self.get_key(request)}:{request.url.path}"
 
         # Check rate limit
-        is_rate_limited, headers = self._check_rate_limit(key)
+        is_rate_limited, headers = self._check_rate_limit(
+            key, current_rate_limit, current_window
+        )
 
         if is_rate_limited:
             logger.warning(f"Rate limit exceeded for {key} on {request.url.path}")
@@ -112,18 +148,22 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Fall back to the client's direct IP
         return request.client.host if request.client else "unknown"
 
-    def _check_rate_limit(self, key: str) -> Tuple[bool, Dict[str, str]]:
+    def _check_rate_limit(
+        self, key: str, rate_limit: int, window: int
+    ) -> Tuple[bool, Dict[str, str]]:
         """
         Check if the rate limit has been exceeded.
 
         Args:
             key: Rate limit key (usually client IP)
+            rate_limit: Maximum number of requests per window for this route
+            window: Time window in seconds for this route
 
         Returns:
             Tuple[bool, Dict[str, str]]: (is_rate_limited, headers)
         """
         current_time = time.time()
-        time_window_start = current_time - self.window
+        time_window_start = current_time - window
 
         # Clean up old entries
         RATE_LIMIT_STORE[key] = [
@@ -146,24 +186,24 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 RATE_LIMIT_STORE[key].append((int(current_time), 1))
 
         # Calculate remaining requests
-        remaining = max(0, self.rate_limit - request_count)
+        remaining = max(0, rate_limit - request_count)
 
         # Calculate reset time
         if RATE_LIMIT_STORE[key]:
             oldest_timestamp = min(timestamp for timestamp, _ in RATE_LIMIT_STORE[key])
-            reset_time = int(oldest_timestamp + self.window - current_time)
+            reset_time = int(oldest_timestamp + window - current_time)
         else:
-            reset_time = self.window
+            reset_time = window
 
         # Prepare headers
         headers = {
-            "X-RateLimit-Limit": str(self.rate_limit),
+            "X-RateLimit-Limit": str(rate_limit),
             "X-RateLimit-Remaining": str(remaining),
             "X-RateLimit-Reset": str(reset_time),
         }
 
         # Check if rate limit exceeded
-        is_rate_limited = request_count >= self.rate_limit
+        is_rate_limited = request_count >= rate_limit
 
         return is_rate_limited, headers
 
@@ -173,6 +213,7 @@ def add_rate_limit_middleware(
     rate_limit: int = DEFAULT_RATE_LIMIT,
     window: int = DEFAULT_RATE_LIMIT_WINDOW,
     exclude_paths: Optional[list] = None,
+    route_specific_limits: Optional[Dict[str, Tuple[int, int]]] = None,
 ):
     """
     Add rate limiting middleware to a FastAPI application.
@@ -182,10 +223,12 @@ def add_rate_limit_middleware(
         rate_limit: Maximum number of requests per window
         window: Time window in seconds
         exclude_paths: List of paths to exclude from rate limiting
+        route_specific_limits: Dictionary of route patterns to (rate_limit, window) tuples
     """
     app.add_middleware(
         RateLimitMiddleware,
         rate_limit=rate_limit,
         window=window,
         exclude_paths=exclude_paths,
+        route_specific_limits=route_specific_limits,
     )

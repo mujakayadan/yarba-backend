@@ -84,6 +84,28 @@ class LLMSettings(BaseSettings):
     ollama_uri: str = Field(
         default="http://localhost:11434", description="URI for Ollama API"
     )
+    enable_json_schema: bool = Field(
+        default=True,
+        description="Whether to enable JSON schema output for supported models",
+        env="ENABLE_JSON_SCHEMA",
+    )
+    json_schema_validation: bool = Field(
+        default=True,
+        description="Whether to enable client-side JSON schema validation for all models",
+        env="JSON_SCHEMA_VALIDATION",
+    )
+    json_compatible_models: List[str] = Field(
+        default=[
+            "gpt-4",
+            "gpt-4-turbo",
+            "gpt-4o",
+            "claude-3-opus",
+            "claude-3-sonnet",
+            "gemini-1.5-pro",
+        ],
+        description="List of models known to support JSON schema output",
+        env="JSON_COMPATIBLE_MODELS",
+    )
 
 
 class LinkedInSettings(BaseSettings):
@@ -398,6 +420,24 @@ class APISettings(BaseSettings):
     version: str = Field(
         default="1.0.0",
         description="API version",
+    )
+
+    # Rate limiting settings
+    rate_limit: int = Field(
+        default=60,
+        description="Default requests per minute limit",
+    )
+    rate_limit_window: int = Field(
+        default=60,
+        description="Default time window in seconds for rate limiting",
+    )
+    pdf_rate_limit: int = Field(
+        default=3,
+        description="Requests per minute limit for PDF generation",
+    )
+    pdf_rate_limit_window: int = Field(
+        default=120,
+        description="Time window in seconds for PDF generation rate limiting",
     )
 
 

@@ -8,7 +8,7 @@ from bson import ObjectId
 
 from config.logging_config import get_logger
 
-from ..models.profile import Preferences, Profile
+from ..models.profile import PersonalInformation, Preferences, Profile
 from ..models.resume import Resume
 from ..models.user import User
 from .base_repository import BeanieRepository
@@ -298,61 +298,57 @@ class ProfileRepository(BeanieRepository[Profile]):
     async def update_personal_info(
         self,
         profile_id: Union[str, PydanticObjectId, ObjectId],
-        personal_info: Dict[str, Any],
+        personal_information: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Update personal information for a profile.
 
         Args:
-            profile_id: Profile ID
-            personal_info: Updated personal information
+            profile_id: ID of the profile to update
+            personal_information: Dictionary of personal information fields to update
 
         Returns:
-            Dict[str, Any]: Updated personal information if successful, empty dict otherwise
+            Dict[str, Any]: Updated personal information
+
+        Raises:
+            ValueError: If profile_id is invalid
+            Exception: If update fails
         """
-        # Validate input fields to ensure only personal info fields are updated
-        personal_info_fields = {
-            "full_name",
-            "email",
-            "phone",
-            "address",
-            "linkedin",
-            "github",
-            "website",
-        }
-
-        # Filter out any keys that aren't personal information fields
-        filtered_updates = {
-            k: v for k, v in personal_info.items() if k in personal_info_fields
-        }
-
-        if not filtered_updates:
-            self.logger.warning(
-                "No valid personal information fields provided for update"
-            )
-            return {}
-
         try:
-            # Update the profile with the filtered fields
-            updated_profile = await self.update(
-                profile_id=profile_id, updates=filtered_updates
-            )
-
-            if not updated_profile:
+            # Convert ID to ObjectId
+            object_id = self._ensure_object_id(profile_id)
+            if not object_id:
+                self.logger.error(f"Invalid profile ID: {profile_id}")
                 return {}
 
+            # Get the profile
+            profile = await Profile.find_one({"_id": object_id})
+            if not profile:
+                self.logger.warning(f"Profile not found for update: {profile_id}")
+                return {}
+
+            # Update personal information fields
+            for key, value in personal_information.items():
+                if hasattr(profile.personal_information, key):
+                    setattr(profile.personal_information, key, value)
+
+            # Update timestamp
+            profile.updated_at = datetime.now(timezone.utc)
+
+            # Save changes
+            self.logger.debug(
+                f"Updating personal information fields: {', '.join(personal_information.keys())}"
+            )
+            await profile.save()
+            self.logger.info(
+                f"Updated personal information for user: {profile.user_id}"
+            )
+
             # Return the updated personal information
-            return {
-                "full_name": updated_profile.full_name,
-                "email": updated_profile.email,
-                "phone": updated_profile.phone or "",
-                "address": updated_profile.address or "",
-                "linkedin": updated_profile.linkedin or "",
-                "github": updated_profile.github or "",
-                "website": updated_profile.website or "",
-            }
+            return profile.personal_information.model_dump()
+
         except Exception as e:
             self.logger.error(f"Error updating personal information: {e}")
-            return {}
+            raise
 
     async def create_for_user(
         self, user: User, full_name: str, email: str
@@ -360,32 +356,47 @@ class ProfileRepository(BeanieRepository[Profile]):
         """Create a new profile for a user.
 
         Args:
-            user: User
-            full_name: Full name
-            email: Email address
+            user: User object
+            full_name: User's full name
+            email: User's email address
 
         Returns:
-            Optional[Profile]: Created profile or None if creation fails
+            Optional[Profile]: Created profile if successful, None otherwise
         """
         try:
-            profile = Profile(
-                user_id=user.id,
+            if not user or not user.id:
+                self.logger.warning("Invalid user object provided")
+                return None
+
+            # Check if profile already exists
+            existing_profile = await self.get_by_user(user)
+            if existing_profile:
+                self.logger.info(f"Profile already exists for user: {user.id}")
+                return existing_profile
+
+            # Create personal information
+            personal_information = PersonalInformation(
                 full_name=full_name,
                 email=email,
-                phone="",
-                address="",
-                linkedin="",
-                github="",
-                website="",
-                life_story="",
+            )
+
+            # Create profile with default preferences
+            profile = Profile(
+                user_id=user.id,
+                personal_information=personal_information,
                 preferences=Preferences(),
                 created_at=datetime.now(timezone.utc),
                 updated_at=datetime.now(timezone.utc),
             )
+
+            # Save the profile
+            self.logger.debug(f"Creating profile for user: {user.id}")
             await profile.create()
+            self.logger.info(f"Created profile with ID: {profile.id}")
             return profile
+
         except Exception as e:
-            self.logger.error(f"Error creating profile: {e}")
+            self.logger.error(f"Error creating profile for user: {e}")
             return None
 
     # Enhanced methods for direct section access
@@ -393,29 +404,26 @@ class ProfileRepository(BeanieRepository[Profile]):
     async def get_personal_information(
         self, user_id: PydanticObjectId
     ) -> Dict[str, Any]:
-        """
-        Get personal information for a user.
+        """Get personal information for a user.
 
         Args:
-            user_id: User ID (string or ObjectId)
+            user_id: User ID
 
         Returns:
             Dict[str, Any]: Dictionary with personal information fields
         """
-        profile = await self.get_by_user_id(user_id)
-        if not profile:
-            return {}
+        try:
+            profile = await self.get_by_user_id(user_id)
+            if not profile:
+                self.logger.warning(f"Profile not found for user: {user_id}")
+                return {}
 
-        # Return only the personal information fields as a dictionary
-        return {
-            "full_name": profile.full_name,
-            "email": profile.email,
-            "phone": profile.phone or "",
-            "address": profile.address or "",
-            "linkedin": profile.linkedin or "",
-            "github": profile.github or "",
-            "website": profile.website or "",
-        }
+            # Return the personal information as a dictionary
+            return profile.personal_information.model_dump()
+
+        except Exception as e:
+            self.logger.error(f"Error getting personal information: {e}")
+            return {}
 
     async def get_preferences(self, user_id: PydanticObjectId) -> Optional[Preferences]:
         """

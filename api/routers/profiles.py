@@ -10,58 +10,64 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 from api.dependencies.auth import get_current_active_user
 from api.dependencies.services import get_profile_service
 from core.exceptions.base import NotFoundException
-from core.models.profile import Preferences, Profile
+from core.models.profile import PersonalInformation, Preferences, Profile
 from core.models.user import User
 from core.services.profile_service import ProfileService
 
 router = APIRouter()
 
 
+class PersonalInfoCreate(BaseModel):
+    """Schema for creating personal information."""
+
+    full_name: str
+    email: EmailStr
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    linkedin: Optional[str] = None
+    github: Optional[str] = None
+    website: Optional[str] = None
+
+
 class ProfileCreate(BaseModel):
     """Schema for creating a profile."""
 
-    first_name: str
-    last_name: str
-    email: EmailStr
-    phone: Optional[str] = None
-    location: Optional[str] = None
-    website: Optional[str] = None
-    github: Optional[str] = None
-    linkedin: Optional[str] = None
-    twitter: Optional[str] = None
-    bio: Optional[str] = None
+    personal_information: PersonalInfoCreate
     preferences: Optional[dict] = None
+
+
+class PersonalInfoUpdate(BaseModel):
+    """Schema for updating personal information."""
+
+    full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    linkedin: Optional[str] = None
+    github: Optional[str] = None
+    website: Optional[str] = None
 
 
 class ProfileUpdate(BaseModel):
     """Schema for updating a profile."""
 
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    email: Optional[EmailStr] = None
-    phone: Optional[str] = None
-    location: Optional[str] = None
-    website: Optional[str] = None
-    github: Optional[str] = None
-    linkedin: Optional[str] = None
-    twitter: Optional[str] = None
-    bio: Optional[str] = None
+    personal_information: Optional[PersonalInfoUpdate] = None
 
 
 class PreferencesUpdate(BaseModel):
     """Schema for updating preferences."""
 
     project_details: Optional[dict] = None
-    work_experience: Optional[dict] = None
-    skills: Optional[dict] = None
-    career_summary: Optional[dict] = None
-    education: Optional[dict] = None
-    cover_letter: Optional[dict] = None
-    awards: Optional[dict] = None
-    publications: Optional[dict] = None
+    work_experience_details: Optional[dict] = None
+    skills_details: Optional[dict] = None
+    career_summary_details: Optional[dict] = None
+    education_details: Optional[dict] = None
+    cover_letter_details: Optional[dict] = None
+    awards_details: Optional[dict] = None
+    publications_details: Optional[dict] = None
     feature_preferences: Optional[dict] = None
-    notification_preferences: Optional[dict] = None
-    privacy_preferences: Optional[dict] = None
+    notifications: Optional[dict] = None
+    privacy: Optional[dict] = None
     llm_preferences: Optional[dict] = None
     section_preferences: Optional[dict] = None
 
@@ -140,19 +146,18 @@ async def create_profile(
         preferences = None
         if profile_data.preferences:
             preferences = Preferences(**profile_data.preferences)
+        else:
+            preferences = Preferences()
+
+        # Create personal information
+        personal_information = PersonalInformation(
+            **profile_data.personal_information.model_dump()
+        )
 
         # Create profile
         profile = Profile(
             user_id=current_user.id,
-            full_name=profile_data.first_name + " " + profile_data.last_name,
-            email=profile_data.email,
-            # phone=profile_data.phone,
-            # address=profile_data.location,
-            # linkedin=profile_data.linkedin,
-            # github=profile_data.github,
-            # website=profile_data.website,
-            # signature=profile_data.signature,
-            # life_story=profile_data.life_story,
+            personal_information=personal_information,
             preferences=preferences,
         )
 
@@ -187,13 +192,22 @@ async def update_my_profile(
         # Get existing profile
         profile = await profile_service.get_profile_by_user_id(current_user.id)
 
-        # Update profile fields
-        for field, value in profile_data.model_dump(exclude_unset=True).items():
-            setattr(profile, field, value)
+        # Update personal information if provided
+        if profile_data.personal_information:
+            personal_info_data = profile_data.personal_information.model_dump(
+                exclude_unset=True
+            )
 
-        # Save through service
-        updated_profile = await profile_service.update_profile(profile)
-        return updated_profile
+            if personal_info_data:
+                # Update through service
+                await profile_service.update_personal_information(
+                    profile_id=profile.id,
+                    personal_information=personal_info_data,
+                )
+                # Refresh profile
+                profile = await profile_service.get_profile_by_id(profile.id)
+
+        return profile
     except NotFoundException:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

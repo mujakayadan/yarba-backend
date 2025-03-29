@@ -1,9 +1,10 @@
 """Cover letter compiler implementation."""
 
+import json
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from ...models.resume import Resume
+from ...models.cover_letter import CoverLetter
 from ..base import LatexCompiler
 from ..utils.placeholder import PlaceholderManager
 from ..utils.sanitizer import sanitize_latex
@@ -13,8 +14,8 @@ class CoverLetterCompiler(LatexCompiler):
     """Cover letter compiler for generating PDF cover letters.
 
     This class handles the compilation of cover letter data into LaTeX format
-    and then into PDF. It uses templates and placeholder substitution
-    to generate the final document.
+    and then into PDF. It uses templates and placeholder substitution to
+    generate the final document.
     """
 
     def __init__(self):
@@ -22,73 +23,13 @@ class CoverLetterCompiler(LatexCompiler):
         super().__init__()
         self.placeholder_manager = PlaceholderManager()
 
-    def _generate_personal_info_section(
-        self, resume: Resume, template: Dict[str, Any]
-    ) -> str:
-        """Generate LaTeX content for the personal information section.
-
-        Args:
-            resume: Resume data
-            template: LaTeX template data
-
-        Returns:
-            str: Generated LaTeX content for personal information
-        """
-        # Try multiple ways to access personal information
-        info = {}
-        try:
-            # First, try direct attribute access
-            if hasattr(resume, "personal_information") and resume.personal_information:
-                info = resume.personal_information
-            # Next, check if it's in the content dictionary
-            elif (
-                hasattr(resume, "content")
-                and isinstance(resume.content, dict)
-                and "personal_information" in resume.content
-            ):
-                personal_info = resume.content["personal_information"]
-                # Handle if it's a JSON string
-                if isinstance(personal_info, str):
-                    import json
-
-                    info = json.loads(personal_info)
-                else:
-                    info = personal_info
-        except Exception as e:
-            import logging
-
-            logger = logging.getLogger(__name__)
-            logger.error(f"Error accessing personal information: {e}")
-            # Use empty dict if all else fails
-            info = {}
-
-        # Create a consistent set of fields for placeholders
-        # First try full_name, then fallback to name if available
-        full_name = info.get("full_name", info.get("name", ""))
-
-        placeholders = {
-            "name": sanitize_latex(full_name),  # Keep "name" for backward compatibility
-            "full_name": sanitize_latex(full_name),  # Add full_name as new standard
-            "email": sanitize_latex(info.get("email", "")),
-            "phone": sanitize_latex(info.get("phone", "")),
-            "address": sanitize_latex(info.get("address", "")),
-            "linkedin": sanitize_latex(info.get("linkedin", "")),
-            "github": sanitize_latex(info.get("github", "")),
-            "website": sanitize_latex(info.get("website", "")),
-        }
-
-        return self.placeholder_manager.replace_placeholders(
-            template["section_formats"]["header"],
-            placeholders,
-        )
-
     async def generate_tex_content(
-        self, resume: Resume, template: Dict[str, Any]
+        self, cover_letter: CoverLetter, template: Dict[str, Any]
     ) -> str:
         """Generate LaTeX content for a cover letter.
 
         Args:
-            resume: Resume data (containing cover letter content)
+            cover_letter: Cover letter data
             template: LaTeX template data
 
         Returns:
@@ -98,174 +39,106 @@ class CoverLetterCompiler(LatexCompiler):
             # Start with document class and packages
             content = []
 
-            # Use preamble if provided in template
+            # Use preamble directly since it already contains document class, packages, etc.
             if "preamble" in template["header"] and template["header"]["preamble"]:
                 # Use the provided preamble
                 content.append(template["header"]["preamble"])
             else:
-                # Otherwise use standard documentclass and packages
-                content.append(
-                    f"\\documentclass[{template['header']['font_size']}]{{{template['header']['document_class']}}}"
+                # Fallback to a basic preamble if none provided
+                self.logger.warning(
+                    "No preamble provided, using fallback basic preamble"
                 )
+                content.append("\\documentclass[12pt]{letter}")
                 content.append("\\usepackage{geometry}")
-                content.append(
-                    f"\\geometry{{margin={template['header']['margin_size']}}}"
-                )
-
-                # Add required packages
-                for package in template["header"]["packages"]:
-                    content.append(f"\\usepackage{{{package}}}")
-
-                # Add custom commands
-                for cmd, def_ in template["header"]["custom_commands"].items():
-                    content.append(f"\\newcommand{{{cmd}}}{def_}")
-
-            # Begin document if not already in preamble
-            if "\\begin{document}" not in content[-1]:
+                content.append("\\usepackage{hyperref}")
+                # Ensure we have a document start
                 content.append("\\begin{document}")
 
-            # Generate personal information section
-            personal_info_section = self._generate_personal_info_section(
-                resume, template
-            )
-            content.append(personal_info_section)
+            # Begin document if not already included in preamble
+            if "\\begin{document}" not in template["header"]["preamble"]:
+                content.append("\\begin{document}")
 
-            # Add current date
-            content.append("\\today")
-            content.append("\\vspace{1em}")
+            # Get personal information
+            info = cover_letter.personal_information or {}
+            full_name = info.get("full_name", "")
+            email = info.get("email", "")
+            phone = info.get("phone", "")
+            address = info.get("address", "")
+            linkedin = info.get("linkedin", "")
+            github = info.get("github", "")
+            website = info.get("website", "")
 
-            # Get personal information in a flexible way
-            personal_info = {}
-            try:
-                if (
-                    hasattr(resume, "personal_information")
-                    and resume.personal_information
-                ):
-                    personal_info = resume.personal_information
-                elif (
-                    hasattr(resume, "content")
-                    and isinstance(resume.content, dict)
-                    and "personal_information" in resume.content
-                ):
-                    personal_info_data = resume.content["personal_information"]
-                    if isinstance(personal_info_data, str):
-                        import json
+            # Get cover letter content
+            company_name = cover_letter.company_name or ""
+            job_title = cover_letter.job_title or ""
+            cover_letter_text = cover_letter.cover_letter_content or ""
 
-                        personal_info = json.loads(personal_info_data)
-                    else:
-                        personal_info = personal_info_data
-            except Exception as e:
-                import logging
+            # Format the date
+            from datetime import datetime
 
-                logger = logging.getLogger(__name__)
-                logger.error(f"Error accessing personal information for recipient: {e}")
+            date = datetime.now().strftime("%B %d, %Y")
 
-            # Add recipient information if available
-            if isinstance(personal_info, dict) and "recipient" in personal_info:
-                recipient = personal_info["recipient"]
-                if isinstance(recipient, dict):
-                    content.extend(
-                        [
-                            sanitize_latex(recipient.get("name", "")),
-                            sanitize_latex(recipient.get("title", "")),
-                            sanitize_latex(recipient.get("company", "")),
-                            sanitize_latex(recipient.get("address", "")),
-                            "\\vspace{1em}",
-                        ]
-                    )
-
-            # Get job-specific info for salutation
-            company_name = ""
-            job_title = ""
-            hiring_manager = "Hiring Manager"
-
-            if hasattr(resume, "company_name") and resume.company_name:
-                company_name = resume.company_name
-            if hasattr(resume, "job_title") and resume.job_title:
-                job_title = resume.job_title
-
-            # Try to get hiring manager name if available
-            if isinstance(personal_info, dict) and "recipient" in personal_info:
-                recipient = personal_info["recipient"]
-                if isinstance(recipient, dict) and "name" in recipient:
-                    hiring_manager = recipient["name"].split()[0]  # Use first name only
-
-            # Add salutation with hiring manager name if available
-            content.append(f"Dear {hiring_manager},")
-            content.append("\\vspace{1em}")
-
-            # Add cover letter content
-            cover_letter_content = ""
-            if hasattr(resume, "cover_letter_content") and resume.cover_letter_content:
-                cover_letter_content = resume.cover_letter_content
-
-            if cover_letter_content:
-                paragraphs = cover_letter_content.split("\n\n")
-                for paragraph in paragraphs:
-                    content.append(sanitize_latex(paragraph))
-                    content.append("\\vspace{1em}")
-
-            # Get sender name for closing
-            sender_name = ""
-            if isinstance(personal_info, dict):
-                sender_name = personal_info.get(
-                    "full_name", personal_info.get("name", "")
+            # Apply header template if provided
+            if (
+                "header" in template["section_formats"]
+                and template["section_formats"]["header"]
+            ):
+                # Replace placeholders in header template
+                placeholders = {
+                    "NAME": sanitize_latex(full_name),
+                    "EMAIL": sanitize_latex(email),
+                    "PHONE": sanitize_latex(phone),
+                    "ADDRESS": sanitize_latex(address),
+                    "LINKEDIN": sanitize_latex(linkedin),
+                    "GITHUB": sanitize_latex(github),
+                    "WEBSITE": sanitize_latex(website),
+                    "DATE": date,
+                    "COMPANY_NAME": sanitize_latex(company_name),
+                    "JOB_TITLE": sanitize_latex(job_title),
+                    "COVER_LETTER_CONTENT": sanitize_latex(cover_letter_text),
+                }
+                header_content = self.placeholder_manager.replace_placeholders(
+                    template["section_formats"]["header"],
+                    placeholders,
                 )
+                content.append(header_content)
+            else:
+                # Create a basic cover letter structure
+                content.append(f"\\begin{{letter}}{{{sanitize_latex(company_name)}}}")
+                content.append("\\opening{Dear Hiring Manager,}")
+                content.append(sanitize_latex(cover_letter_text))
+                content.append("\\closing{Sincerely,}")
+                content.append(full_name)
+                content.append("\\end{letter}")
 
-            # Add closing
-            content.extend(
-                [
-                    "\\vspace{1em}",
-                    "Sincerely,",
-                    "\\vspace{2em}",
-                    sanitize_latex(sender_name),
-                ]
-            )
-
-            # End document if not already in template
-            if "\\end{document}" not in content[-1]:
+            # End document if not already included in preamble
+            if "\\end{document}" not in template["header"]["preamble"]:
                 content.append("\\end{document}")
 
+            # Join all lines
             return "\n".join(content)
 
         except Exception as e:
-            import logging
-            import traceback
-
-            logger = logging.getLogger(__name__)
-            logger.error(f"Error generating cover letter LaTeX content: {e}")
-            logger.error(f"Traceback:\n{traceback.format_exc()}")
-            # Return a basic document showing the error
-            return (
-                "\\documentclass{article}\\begin{document}Error generating cover letter: "
-                + sanitize_latex(str(e))
-                + "\\end{document}"
-            )
+            self.logger.error(f"Error generating cover letter LaTeX content: {e}")
+            raise
 
     async def generate_pdf(
-        self, resume: Resume, template: Dict[str, Any]
+        self, cover_letter: CoverLetter, template: Dict[str, Any]
     ) -> Optional[bytes]:
         """Generate a PDF from a cover letter.
 
         Args:
-            resume: Resume data (containing cover letter content)
+            cover_letter: Cover letter data
             template: LaTeX template data
 
         Returns:
             Optional[bytes]: PDF content if successful, None otherwise
         """
-        try:
-            # Generate LaTeX content
-            tex_content = await self.generate_tex_content(resume, template)
+        # Generate LaTeX content
+        tex_content = await self.generate_tex_content(cover_letter, template)
 
-            # Create temporary file path
-            tex_path = Path(self.output_dir) / f"{resume.id}_cover_letter.tex"
+        # Create temporary file path
+        tex_path = Path(self.output_dir) / f"{cover_letter.id}.tex"
 
-            # Compile to PDF
-            return await self.compile_pdf(tex_path, tex_content)
-        except Exception as e:
-            import logging
-
-            logger = logging.getLogger(__name__)
-            logger.error(f"Error generating cover letter PDF: {e}")
-            return None
+        # Compile to PDF
+        return await self.compile_pdf(tex_path, tex_content)

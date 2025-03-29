@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Annotated, List
 
 from beanie import PydanticObjectId
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
 
 from api.dependencies.services import (
     get_job_service,
@@ -19,6 +19,7 @@ from config import get_logger
 from config.settings import settings
 from core.exceptions.base import NotFoundException
 from core.models.portfolio import Portfolio
+from core.models.profile import PersonalInformation
 from core.services.job_service import JobService
 from core.services.portfolio_service import PortfolioService
 from core.services.profile_service import ProfileService
@@ -405,41 +406,85 @@ async def generate_resume(
         )
 
 
-@router.get("/{resume_id}/pdf")
+@router.get(
+    "/{resume_id}/pdf",
+    response_class=Response,
+    responses={
+        200: {
+            "content": {"application/pdf": {}},
+            "description": "Return the PDF file",
+        }
+    },
+)
 async def get_resume_pdf(
     resume_id: Annotated[PydanticObjectId, Path(description="Resume ID")],
     current_user: CurrentUser,
+    timeout: int = Query(
+        30,
+        description="Timeout in seconds for PDF generation",
+        ge=5,  # Minimum 5 seconds
+        le=60,  # Maximum 60 seconds
+    ),
     resume_generation_service: ResumeGenerationService = Depends(
         get_resume_generation_service
     ),
-) -> bytes:
+) -> Response:
     """
     Get resume as PDF.
 
     Args:
         resume_id: Resume ID
         current_user: Current authenticated user
+        timeout: Timeout in seconds for PDF generation
         resume_generation_service: Resume generation service
 
     Returns:
-        bytes: PDF content
-
-    Raises:
-        HTTPException: If resume not found or PDF generation fails
+        Response: PDF content with the appropriate headers
     """
     try:
-        logger.info(f"Starting PDF generation for resume: {resume_id}")
+        logger.info(
+            f"Starting PDF generation for resume: {resume_id} with timeout {timeout}s"
+        )
 
         # Generate LaTeX
         logger.info(f"Generating LaTeX for resume: {resume_id}")
-        resume_latex = await resume_generation_service.generate_latex(resume_id)
-        logger.info(
-            f"LaTeX generated for resume: {resume_id}, length: {len(resume_latex)} bytes"
-        )
+
+        # Use asyncio.wait_for to implement timeout
+        import asyncio
+
+        try:
+            resume_latex = await asyncio.wait_for(
+                resume_generation_service.generate_latex(resume_id),
+                timeout=timeout
+                / 2,  # Split timeout between LaTeX generation and PDF compilation
+            )
+            logger.info(
+                f"LaTeX generated for resume: {resume_id}, length: {len(resume_latex)} bytes"
+            )
+        except asyncio.TimeoutError:
+            logger.error(
+                f"LaTeX generation timed out after {timeout/2} seconds for resume: {resume_id}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_408_REQUEST_TIMEOUT,
+                detail="PDF generation timed out while generating LaTeX. Please try again later.",
+            )
 
         # Compile PDF
         logger.info(f"Compiling PDF for resume: {resume_id}")
-        pdf_content = await resume_generation_service.compile_pdf(resume_id)
+        try:
+            pdf_content = await asyncio.wait_for(
+                resume_generation_service.compile_pdf(resume_id),
+                timeout=timeout / 2,  # Second half of the timeout
+            )
+        except asyncio.TimeoutError:
+            logger.error(
+                f"PDF compilation timed out after {timeout/2} seconds for resume: {resume_id}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_408_REQUEST_TIMEOUT,
+                detail="PDF generation timed out during compilation. Please try again later.",
+            )
 
         # Check if PDF was generated
         if pdf_content:
@@ -453,8 +498,20 @@ async def get_resume_pdf(
                 detail="PDF generation failed - no content returned",
             )
 
-        return pdf_content
+        # Return PDF with appropriate headers
+        filename = f"resume_{resume_id}.pdf"
+        return Response(
+            content=pdf_content,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Length": str(len(pdf_content)),
+            },
+        )
 
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
         logger.error(f"Error generating PDF for resume {resume_id}: {str(e)}")
         # Print full traceback
@@ -698,13 +755,15 @@ async def advanced_debug_pdf_generation(
             debug_info["success"] = False
             return debug_info
 
-        add_step("Fetching profile", "success", {"name": profile.full_name})
+        # Get profile information
+        full_name = profile.personal_information.full_name
+        add_step("Fetching profile", "success", {"name": full_name})
 
         # Add snapshot of profile data
         debug_info["data_snapshots"]["profile"] = {
             "id": str(profile.id),
-            "full_name": profile.full_name,
-            "email": profile.email,
+            "full_name": full_name,
+            "email": profile.personal_information.email,
         }
 
         # Get portfolio

@@ -4,7 +4,16 @@ import logging
 from typing import Annotated, List, Optional
 
 from beanie import PydanticObjectId
-from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, status
+from fastapi import (
+    APIRouter,
+    Body,
+    Depends,
+    HTTPException,
+    Path,
+    Query,
+    Response,
+    status,
+)
 
 from config.logging_config import get_logger
 from core.services.cover_letter_generation_service import CoverLetterGenerationService
@@ -319,18 +328,33 @@ async def generate_cover_letter(
         )
 
 
-@router.post("/{cover_letter_id}/pdf", response_model=bytes)
+@router.post(
+    "/{cover_letter_id}/pdf",
+    response_class=Response,
+    responses={
+        200: {
+            "content": {"application/pdf": {}},
+            "description": "Return the PDF file",
+        }
+    },
+)
 async def generate_cover_letter_pdf(
     cover_letter_id: Annotated[PydanticObjectId, Path(description="Cover letter ID")],
     current_user: CurrentUser,
     regenerate: bool = Query(
         False, description="Whether to regenerate PDF even if exists"
     ),
+    timeout: int = Query(
+        30,
+        description="Timeout in seconds for PDF generation",
+        ge=5,  # Minimum 5 seconds
+        le=60,  # Maximum 60 seconds
+    ),
     cover_letter_service: CoverLetterService = Depends(get_cover_letter_service),
     generation_service: CoverLetterGenerationService = Depends(
         get_cover_letter_generation_service
     ),
-) -> bytes:
+) -> Response:
     """
     Generate PDF for a cover letter.
 
@@ -338,11 +362,12 @@ async def generate_cover_letter_pdf(
         cover_letter_id: Cover letter ID
         current_user: Current authenticated user
         regenerate: Whether to regenerate PDF even if exists
+        timeout: Timeout in seconds for PDF generation
         cover_letter_service: Cover letter service
         generation_service: Cover letter generation service
 
     Returns:
-        bytes: PDF content
+        Response: PDF content with appropriate headers
     """
     try:
         # Verify cover letter exists and belongs to user
@@ -351,14 +376,43 @@ async def generate_cover_letter_pdf(
             user_id=current_user.id,
         )
 
-        # Generate PDF
-        pdf_content = await generation_service.generate_pdf(
-            cover_letter_id=cover_letter_id,
-            regenerate=regenerate,
+        # Generate PDF with timeout
+        import asyncio
+
+        try:
+            logger.info(
+                f"Starting PDF generation for cover letter: {cover_letter_id} with timeout {timeout}s"
+            )
+            pdf_content = await asyncio.wait_for(
+                generation_service.generate_pdf(
+                    cover_letter_id=cover_letter_id,
+                    regenerate=regenerate,
+                ),
+                timeout=timeout,
+            )
+        except asyncio.TimeoutError:
+            logger.error(
+                f"PDF generation timed out after {timeout} seconds for cover letter: {cover_letter_id}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_408_REQUEST_TIMEOUT,
+                detail="PDF generation timed out. Please try again later.",
+            )
+
+        logger.info(
+            f"Generated PDF for cover letter {cover_letter_id}, size: {len(pdf_content)} bytes"
         )
 
-        logger.info(f"Generated PDF for cover letter {cover_letter_id}")
-        return pdf_content
+        # Return PDF with appropriate headers
+        filename = f"cover_letter_{cover_letter_id}.pdf"
+        return Response(
+            content=pdf_content,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Length": str(len(pdf_content)),
+            },
+        )
 
     except HTTPException:
         raise

@@ -155,7 +155,7 @@ async def init_test_db():
                 },
                 section_preferences={
                     "sections_order": [
-                        "personal_info",
+                        "personal_information",
                         "career_summary",
                         "work_experience",
                         "education",
@@ -165,7 +165,7 @@ async def init_test_db():
                         "publications",
                     ],
                     "visible_sections": [
-                        "personal_info",
+                        "personal_information",
                         "career_summary",
                         "work_experience",
                         "education",
@@ -296,7 +296,7 @@ async def init_test_db():
             job_title="Senior Software Engineer",
             job_description="Looking for a senior software engineer with experience in Python, FastAPI, and MongoDB.",
             content={
-                "personal_info": {
+                "personal_information": {
                     "name": "Test User",
                     "email": "test@example.com",
                     "phone": "123-456-7890",

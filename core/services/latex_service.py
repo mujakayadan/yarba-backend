@@ -1,25 +1,41 @@
 """LaTeX service for LaTeX document generation."""
 
+import json
+import logging
+import re
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from beanie import PydanticObjectId
-from bson import json_util
+from bson import ObjectId, json_util
 
 from config.logging_config import get_logger
 from config.settings import Settings
-from core.exceptions.base import InternalServerException
+from core.exceptions.base import InternalServerException, NotFoundException
 from core.latex.compilers import CoverLetterCompiler, ResumeCompiler
+from core.latex.utils.json_to_latex import (
+    parse_json_content,
+    process_content_by_section,
+)
 from core.latex.utils.placeholder import PlaceholderManager
 from core.latex.utils.sanitizer import sanitize_latex
 from core.models.cover_letter import CoverLetter
 from core.models.profile import Profile
 from core.models.resume import Resume
-from core.repositories.preamble_repository import PreambleRepository
-from core.repositories.tex_header_repository import TexHeaderRepository
-from core.repositories.tex_template_repository import TexTemplateRepository
+from core.repositories.preamble_repository import (
+    PreambleRepository,
+    get_preamble_repository,
+)
+from core.repositories.tex_header_repository import (
+    TexHeaderRepository,
+    get_tex_header_repository,
+)
+from core.repositories.tex_template_repository import (
+    TexTemplateRepository,
+    get_tex_template_repository,
+)
 
 settings = Settings()
 logger = get_logger(__name__)
@@ -306,15 +322,6 @@ class LatexService:
             self.logger.info(f"Generating LaTeX for resume ID: {resume.id}")
             self.logger.info(f"Using profile ID: {profile.id}")
 
-            # Get template and preamble
-            template = await self.get_template("resume")
-            if not template:
-                self.logger.warning(
-                    "Resume template not found, using built-in default template"
-                )
-                # Provide a basic default template if none is found in the database
-                template = "\\documentclass[letterpaper,11pt]{article}\n\\begin{document}\n\\title{$title}\n\\author{$author}\n\\maketitle\n$content\n\\end{document}"
-
             # Get the specific resume preamble from the database
             preamble_content = await self.get_preamble_by_name(
                 "default", "resume_preamble"
@@ -323,70 +330,46 @@ class LatexService:
                 self.logger.warning("Resume preamble not found, using default preamble")
                 preamble_content = await self.get_default_preamble()
 
-            self.logger.debug(
-                f"Using resume preamble with length: {len(preamble_content or '')} bytes"
-            )
-
             # Get header based on template_id or default
             header_name = resume.template_id if resume.template_id else "default"
             header = await self.get_header(header_name) or ""
             self.logger.debug(f"Using header: {header_name}")
 
-            # Extract content from resume, ensure all MongoDB types are properly serialized
-            content = resume.content or {}
-            self.logger.debug(f"Resume content keys: {list(content.keys())}")
+            # Get personal information from the profile
+            personal_info = {
+                "full_name": profile.personal_information.full_name,
+                "email": profile.personal_information.email,
+                "phone": profile.personal_information.phone,
+                "address": profile.personal_information.address,
+                "linkedin": profile.personal_information.linkedin,
+                "github": profile.personal_information.github,
+                "website": profile.personal_information.website,
+            }
 
-            # Create safe representations of all data by using json_util
-            safe_resume_data = json_util.loads(
-                json_util.dumps(
-                    {
-                        "id": resume.id,
-                        "title": resume.title,
-                        "template_id": resume.template_id,
-                        "user_id": resume.user_id,
-                        "profile_id": resume.profile_id,
-                        "portfolio_id": resume.portfolio_id,
-                        "content": content,
-                    }
-                )
-            )
+            # Process personal information from resume content if available
+            if resume.content and "personal_information" in resume.content:
+                json_personal_info = resume.content.get("personal_information")
+                if isinstance(json_personal_info, dict):
+                    # Update with values from the content if available
+                    for key, value in json_personal_info.items():
+                        if value:  # Only update if the value is not empty
+                            personal_info[key] = value
+                elif isinstance(json_personal_info, str):
+                    # Try to parse JSON string
+                    try:
+                        parsed_info = json.loads(json_personal_info)
+                        if isinstance(parsed_info, dict):
+                            for key, value in parsed_info.items():
+                                if value:  # Only update if the value is not empty
+                                    personal_info[key] = value
+                    except json.JSONDecodeError:
+                        self.logger.warning(
+                            "Failed to parse personal_information JSON string"
+                        )
 
-            safe_profile_data = json_util.loads(
-                json_util.dumps(
-                    {
-                        "id": profile.id,
-                        "full_name": profile.full_name,
-                        "email": profile.email,
-                        "phone": profile.phone,
-                        "address": profile.address,
-                        "linkedin": profile.linkedin,
-                        "github": profile.github,
-                        "website": profile.website,
-                    }
-                )
-            )
-
-            self.logger.debug(
-                f"Serialized resume data: {safe_resume_data['id']}, title: {safe_resume_data['title']}"
-            )
-            self.logger.debug(
-                f"Serialized profile data: {safe_profile_data['id']}, name: {safe_profile_data['full_name']}"
-            )
-
-            # Use the resume compiler from the LaTeX module
+            # Simplified template data structure - the preamble already contains most settings
             template_data = {
                 "header": {
-                    "font_size": "11pt",
-                    "document_class": "article",
-                    "margin_size": "1in",
-                    "packages": [
-                        "geometry",
-                        "hyperref",
-                        "titlesec",
-                        "enumitem",
-                        "fancyhdr",
-                    ],
-                    "custom_commands": {},
                     "preamble": preamble_content,
                 },
                 "section_formats": {
@@ -394,120 +377,34 @@ class LatexService:
                 },
             }
 
-            # Create a safe profile dict
-            safe_profile = {
-                "full_name": safe_profile_data["full_name"],
-                "email": safe_profile_data["email"],
-                "phone": safe_profile_data["phone"],
-                "address": safe_profile_data["address"],
-                "linkedin": safe_profile_data["linkedin"],
-                "github": safe_profile_data["github"],
-            }
-            self.logger.debug(f"Profile data for LaTeX: {safe_profile}")
-
-            # Create a resume object suitable for the compiler with safe references
-            self.logger.debug("Creating compiler resume object")
-            try:
-                # Get personal information from content
-                personal_info = {}
-                if "personal_information" in safe_resume_data.get("content", {}):
-                    try:
-                        # It might be stored as a JSON string
-                        personal_info_str = safe_resume_data["content"][
-                            "personal_information"
-                        ]
-                        self.logger.debug(
-                            f"Personal info from content: {personal_info_str[:100]}"
-                        )
-
-                        if isinstance(personal_info_str, str):
-                            import json
-
-                            personal_info = json.loads(personal_info_str)
-                        elif isinstance(personal_info_str, dict):
-                            personal_info = personal_info_str
-                    except Exception as e:
-                        self.logger.error(f"Error parsing personal_information: {e}")
-                        # Fallback to profile data
-                        personal_info = {
-                            "full_name": safe_profile.get("full_name", ""),
-                            "email": safe_profile.get("email", ""),
-                            "phone": safe_profile.get("phone", ""),
-                            "address": safe_profile.get("address", ""),
-                            "linkedin": safe_profile.get("linkedin", ""),
-                            "github": safe_profile.get("github", ""),
-                        }
-                else:
-                    # Fallback to profile data
-                    personal_info = {
-                        "full_name": safe_profile.get("full_name", ""),
-                        "email": safe_profile.get("email", ""),
-                        "phone": safe_profile.get("phone", ""),
-                        "address": safe_profile.get("address", ""),
-                        "linkedin": safe_profile.get("linkedin", ""),
-                        "github": safe_profile.get("github", ""),
-                    }
-
-                self.logger.debug(f"Using personal info: {personal_info}")
-
-                # Ensure all required fields have defaults
-                compiler_resume = Resume(
-                    id=safe_resume_data.get("id"),
-                    user_id=safe_resume_data.get("user_id"),
-                    profile_id=safe_resume_data.get("profile_id"),
-                    portfolio_id=safe_resume_data.get("portfolio_id"),
-                    title=safe_resume_data.get("title", "Resume"),
-                    content={},  # Ensure content field is present
-                    personal_information=personal_info,  # Set as an attribute now
-                    career_summary=safe_resume_data.get("content", {}).get(
-                        "career_summary", ""
-                    ),
-                    skills=safe_resume_data.get("content", {}).get("skills", ""),
-                    work_experience=safe_resume_data.get("content", {}).get(
-                        "work_experience", ""
-                    ),
-                    education=safe_resume_data.get("content", {}).get("education", ""),
-                )
-                self.logger.debug(
-                    f"Successfully created compiler resume object with ID: {compiler_resume.id}"
-                )
-            except Exception as e:
-                self.logger.error(f"Error creating compiler resume object: {e}")
-                raise ValueError(f"Failed to create resume object: {e}")
+            # Create a compiler-compatible resume object
+            compiler_resume = Resume(
+                id=resume.id,
+                user_id=resume.user_id,
+                profile_id=resume.profile_id,
+                portfolio_id=resume.portfolio_id,
+                title=resume.title,
+                content=resume.content,  # Pass the entire content dictionary
+                personal_information=personal_info,  # Set personal info as an attribute
+            )
 
             # Generate the LaTeX content using the compiler
             self.logger.info("Calling resume compiler to generate tex content")
-            self.logger.debug(f"Template data header: {template_data['header']}")
-
-            # Log the first 100 characters of the preamble to help with debugging
-            if (
-                "preamble" in template_data["header"]
-                and template_data["header"]["preamble"]
-            ):
-                preamble_preview = (
-                    template_data["header"]["preamble"][:100] + "..."
-                    if len(template_data["header"]["preamble"]) > 100
-                    else template_data["header"]["preamble"]
-                )
-                self.logger.debug(f"Using preamble (preview): {preamble_preview}")
-            else:
-                self.logger.warning("No preamble found in template data!")
-
             latex_content = await self.resume_compiler.generate_tex_content(
-                compiler_resume, template_data
+                resume=compiler_resume, template=template_data
             )
 
-            # Log success and content length
             self.logger.info(
                 f"Successfully generated LaTeX content, length: {len(latex_content)} bytes"
             )
+
             return latex_content
 
         except Exception as e:
             self.logger.error(f"Error generating resume LaTeX: {e}")
             import traceback
 
-            self.logger.error(f"Traceback:\n{traceback.format_exc()}")
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
             raise InternalServerException(f"Failed to generate LaTeX: {str(e)}")
 
     async def generate_cover_letter_latex(
@@ -529,9 +426,15 @@ class LatexService:
             self.logger.info(f"Generating LaTeX for cover letter ID: {cover_letter.id}")
             self.logger.info(f"Using profile ID: {profile.id}")
 
-            # Get template and preamble
-            template = await self.get_template("cover_letter") or ""
-            preamble = await self.get_default_preamble()
+            # Get cover letter preamble
+            preamble = await self.get_preamble_by_name(
+                "default", "cover_letter_preamble"
+            )
+            if not preamble:
+                self.logger.warning(
+                    "Cover letter preamble not found, using default preamble"
+                )
+                preamble = await self.get_default_preamble()
 
             # Get header based on template_id or default
             if isinstance(cover_letter, CoverLetter):
@@ -552,81 +455,59 @@ class LatexService:
             self.logger.debug(f"Using header: {header_name}")
             self.logger.debug(f"Company: {company_name}, Job title: {job_title}")
 
+            # Get the actual header content
             header = await self.get_header(header_name) or ""
 
-            # Use json_util to safely serialize the data
-            safe_cover_letter_data = json_util.loads(
-                json_util.dumps(
-                    {
-                        "id": cover_letter.id,
-                        "template_id": header_name,
-                        "cover_letter_content": cover_letter_text,
-                        "company_name": company_name,
-                        "job_title": job_title,
-                    }
-                )
-            )
+            # Get personal information from the profile for cover letter generation
+            full_name = profile.personal_information.full_name
+            email = profile.personal_information.email
+            phone = profile.personal_information.phone or ""
+            address = profile.personal_information.address or ""
+            linkedin = profile.personal_information.linkedin or ""
+            github = profile.personal_information.github or ""
+            website = profile.personal_information.website or ""
 
-            safe_profile_data = json_util.loads(
-                json_util.dumps(
-                    {
-                        "id": profile.id,
-                        "full_name": profile.full_name,
-                        "email": profile.email,
-                        "phone": profile.phone,
-                        "address": profile.address,
-                    }
-                )
-            )
-
-            self.logger.debug(
-                f"Serialized cover letter data: {safe_cover_letter_data['id']}"
-            )
-            self.logger.debug(f"Serialized profile data: {safe_profile_data['id']}")
-
-            # Use the cover letter compiler from the LaTeX module
+            # Simplified template data structure - use preamble directly
             template_data = {
                 "header": {
-                    "font_size": "11pt",
-                    "document_class": "article",
-                    "margin_size": "1in",
-                    "packages": [
-                        "geometry",
-                        "hyperref",
-                        "titlesec",
-                        "enumitem",
-                        "fancyhdr",
-                    ],
-                    "custom_commands": {},
+                    "preamble": preamble,
                 },
                 "section_formats": {
                     "header": header,
                 },
             }
 
-            # Create a resume object suitable for the compiler
+            # Create a compiler-compatible cover letter object
             self.logger.debug("Creating compiler cover letter object")
-            compiler_resume = Resume(
-                id=safe_cover_letter_data["id"],
-                personal_information={
-                    "name": safe_profile_data["full_name"],
-                    "email": safe_profile_data["email"],
-                    "phone": safe_profile_data["phone"],
-                    "address": safe_profile_data["address"],
-                    "recipient": {
-                        "name": "Hiring Manager",
-                        "title": "Hiring Manager",
-                        "company": safe_cover_letter_data["company_name"],
-                        "address": "",
+            try:
+                # Create a compiler-compatible cover letter object
+                compiler_cover_letter = CoverLetter(
+                    id=cover_letter.id,
+                    template_id=header_name,
+                    cover_letter_content=cover_letter_text,
+                    company_name=company_name,
+                    job_title=job_title,
+                    personal_information={
+                        "full_name": full_name,
+                        "email": email,
+                        "phone": phone,
+                        "address": address,
+                        "linkedin": linkedin,
+                        "github": github,
+                        "website": website,
                     },
-                },
-                cover_letter_content=safe_cover_letter_data["cover_letter_content"],
-            )
+                )
+                self.logger.debug(
+                    f"Successfully created compiler cover letter object with ID: {compiler_cover_letter.id}"
+                )
+            except Exception as e:
+                self.logger.error(f"Error creating compiler cover letter object: {e}")
+                raise ValueError(f"Failed to create cover letter object: {e}")
 
             # Generate the LaTeX content using the compiler
             self.logger.info("Calling cover letter compiler to generate tex content")
             latex_content = await self.cover_letter_compiler.generate_tex_content(
-                compiler_resume, template_data
+                compiler_cover_letter, template_data
             )
 
             self.logger.info(
@@ -762,10 +643,6 @@ def get_latex_service() -> LatexService:
     Returns:
         LatexService: A new instance of LatexService
     """
-    from core.repositories.preamble_repository import get_preamble_repository
-    from core.repositories.tex_header_repository import get_tex_header_repository
-    from core.repositories.tex_template_repository import get_tex_template_repository
-
     return LatexService(
         preamble_repository=get_preamble_repository(),
         header_repository=get_tex_header_repository(),

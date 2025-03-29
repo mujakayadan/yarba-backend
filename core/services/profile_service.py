@@ -7,7 +7,7 @@ from beanie import PydanticObjectId
 from config.logging_config import get_logger
 
 from ..exceptions.base import NotFoundException
-from ..models.profile import Profile
+from ..models.profile import PersonalInformation, Preferences, Profile
 from ..models.user import User
 from ..repositories.profile_repository import ProfileRepository
 from ..repositories.user_repository import UserRepository
@@ -137,6 +137,11 @@ class ProfileService:
                 # This is expected if no profile exists yet
                 pass
 
+            # Ensure profile has personal_information
+            if not profile.personal_information:
+                self.logger.error("Profile must have personal_information")
+                raise ValueError("Profile must have personal_information")
+
             # Create the profile
             created_profile = await self.profile_repository.create(profile)
             self.logger.info(f"Created new profile for user: {user_id}")
@@ -192,14 +197,14 @@ class ProfileService:
             raise
 
     async def update_personal_information(
-        self, profile_id: PydanticObjectId, personal_info: Dict[str, Any]
+        self, profile_id: PydanticObjectId, personal_information: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Update personal information fields for a profile.
 
         Args:
             profile_id: Profile ID
-            personal_info: Dictionary with personal information fields to update
+            personal_information: Dictionary with personal information fields to update
 
         Returns:
             Dict[str, Any]: Updated personal information
@@ -217,9 +222,20 @@ class ProfileService:
             if not existing_profile:
                 raise NotFoundException(f"Profile not found with ID: {profile_id}")
 
+            # Validate the personal information
+            try:
+                # If we're updating all fields, validate with the model
+                if (
+                    "full_name" in personal_information
+                    and "email" in personal_information
+                ):
+                    PersonalInformation(**personal_information)
+            except Exception as e:
+                raise ValueError(f"Invalid personal information: {e}")
+
             # Update just the personal information
             updated_info = await self.profile_repository.update_personal_info(
-                profile_id=profile_id, personal_info=personal_info
+                profile_id=profile_id, personal_information=personal_information
             )
 
             if not updated_info:
@@ -259,11 +275,11 @@ class ProfileService:
 
         try:
             # Get personal information from the repository
-            personal_info = await self.profile_repository.get_personal_information(
-                user_id
+            personal_information = (
+                await self.profile_repository.get_personal_information(user_id)
             )
 
-            if not personal_info:
+            if not personal_information:
                 # Check if profile exists but returned empty personal info
                 profile = await self.profile_repository.get_by_user_id(user_id)
                 if not profile:
@@ -273,7 +289,7 @@ class ProfileService:
                     f"Profile exists but has no personal information: {user_id}"
                 )
 
-            return personal_info
+            return personal_information
 
         except NotFoundException:
             raise

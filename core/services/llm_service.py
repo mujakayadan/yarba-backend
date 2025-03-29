@@ -1,11 +1,12 @@
 """Service for LLM operations using LiteLLM as an abstraction layer."""
 
 import asyncio
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
 import litellm
 from beanie.odm.fields import PydanticObjectId
-from litellm import acompletion
+from litellm import acompletion, get_supported_openai_params, supports_response_schema
+from pydantic import BaseModel
 
 from config.logging_config import get_logger
 from config.settings import settings
@@ -30,6 +31,7 @@ class LLMService:
         prompt_service: Optional[PromptService] = None,
         model: str = "claude-3-5-haiku-20241022",  # needs to be updated from env
         temperature: float = 0.1,
+        enable_json_validation: bool = True,
     ):
         """
         Initialize the LLM service.
@@ -39,12 +41,14 @@ class LLMService:
             prompt_service: Service for loading and formatting prompts
             model: Override the default model from settings
             temperature: Override the default temperature from settings
+            enable_json_validation: Whether to enable client-side JSON schema validation
         """
         self.profile_repository = profile_repository
         self.prompt_service = prompt_service
         self.model = model
         self.temperature = temperature
         self.max_tokens = settings.llm.max_tokens
+        self.enable_json_validation = enable_json_validation
 
         # Store API keys from environment config as fallbacks
         self.api_keys = {
@@ -68,6 +72,11 @@ class LLMService:
                 "anthropic": self.api_keys["anthropic"],
                 "google": self.api_keys["google"],
             }
+
+            # Enable JSON schema validation if needed
+            if self.enable_json_validation:
+                litellm.enable_json_schema_validation = True
+
             logger.debug("LiteLLM configured with API keys")
         except Exception as e:
             logger.error(f"Error configuring LiteLLM: {e}")
@@ -204,6 +213,44 @@ class LLMService:
 
         return await self.prompt_service.get_section_prompt(section_name)
 
+    def model_supports_json_mode(self, model: Optional[str] = None) -> bool:
+        """
+        Check if the model supports JSON output mode.
+
+        Args:
+            model: Model name to check, defaults to the service's model
+
+        Returns:
+            Boolean indicating whether the model supports JSON output
+        """
+        model = model or self.model
+
+        try:
+            supported_params = get_supported_openai_params(model=model)
+            return "response_format" in supported_params
+        except Exception as e:
+            self.logger.warning(f"Error checking JSON mode support: {e}")
+            return False
+
+    def model_supports_json_schema(self, model: Optional[str] = None) -> bool:
+        """
+        Check if the model supports JSON schema for structured outputs.
+
+        Args:
+            model: Model name to check, defaults to the service's model
+
+        Returns:
+            Boolean indicating whether the model supports JSON schema
+        """
+        model = model or self.model
+
+        try:
+            provider = self._get_provider_from_model(model)
+            return supports_response_schema(model=model, custom_llm_provider=provider)
+        except Exception as e:
+            self.logger.warning(f"Error checking JSON schema support: {e}")
+            return False
+
     async def get_completion(
         self,
         prompt: str,
@@ -263,6 +310,126 @@ class LLMService:
             self.logger.error(f"Error getting completion: {e}")
             raise
 
+    async def get_structured_completion(
+        self,
+        prompt: str,
+        schema_model: Type[BaseModel],
+        system_prompt: Optional[str] = None,
+        model: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        fallback_to_text: bool = True,
+    ) -> Union[BaseModel, str]:
+        """
+        Get a structured completion from the LLM using JSON schema.
+
+        Args:
+            prompt: The prompt text
+            schema_model: Pydantic model class to use as JSON schema
+            system_prompt: Optional system prompt
+            model: Optional model override
+            temperature: Optional temperature override
+            max_tokens: Optional max tokens override
+            fallback_to_text: Whether to fallback to text completion if JSON mode not supported
+
+        Returns:
+            Instance of schema_model or raw text if fallback_to_text=True
+
+        Raises:
+            ValueError: If model doesn't support JSON mode and fallback_to_text=False
+        """
+        try:
+            # Use provided values or fall back to instance defaults
+            model = model or self.model
+            temperature = temperature or self.temperature
+            max_tokens = max_tokens or self.max_tokens
+
+            # Prepare messages
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            else:
+                # Add default system prompt for JSON output if none provided
+                messages.append(
+                    {
+                        "role": "system",
+                        "content": "You are a helpful assistant designed to output JSON.",
+                    }
+                )
+
+            messages.append({"role": "user", "content": prompt})
+
+            # Get the provider for this model
+            provider = self._get_provider_from_model(model)
+            api_key = self.api_keys.get(provider) if provider else None
+
+            # Check if model supports JSON mode
+            supports_json = self.model_supports_json_mode(model)
+            supports_schema = self.model_supports_json_schema(model)
+
+            # If model doesn't support JSON mode and we can't fallback, raise error
+            if not supports_json and not fallback_to_text:
+                raise ValueError(
+                    f"Model {model} does not support JSON output and fallback is disabled"
+                )
+
+            # Configure response format if supported
+            kwargs = {}
+            if supports_json:
+                if supports_schema:
+                    # Use full JSON schema
+                    self.logger.debug(f"Using full JSON schema with model {model}")
+                    kwargs["response_format"] = schema_model
+                else:
+                    # Use simple JSON mode
+                    self.logger.debug(f"Using basic JSON mode with model {model}")
+                    kwargs["response_format"] = {"type": "json_object"}
+            elif fallback_to_text:
+                # Will use text mode with fallback parsing
+                self.logger.warning(
+                    f"Model {model} doesn't support JSON mode, will use text mode and try to parse result"
+                )
+
+            # Log the request
+            self.logger.debug(
+                f"Sending structured request to {model} with temperature {temperature}"
+            )
+
+            # Call the LLM
+            response = await acompletion(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                api_key=api_key,
+                **kwargs,
+            )
+
+            # Process the response
+            content = response.choices[0].message.content
+
+            # If using JSON mode, content should already be structured
+            # If using text mode with fallback, try to parse the content
+            if isinstance(content, dict):
+                # Content is already a dict, parse it into the model
+                return schema_model.model_validate(content)
+            else:
+                # Content is text, try to parse if fallback enabled
+                if fallback_to_text:
+                    # In fallback mode, return the raw text
+                    # This allows the caller to decide how to handle it
+                    return content
+                else:
+                    # Try to parse JSON from text, may raise exception
+                    import json
+
+                    parsed = json.loads(content)
+                    return schema_model.model_validate(parsed)
+
+        except Exception as e:
+            self.logger.error(f"Error getting structured completion: {e}")
+            raise
+
     def _get_provider_from_model(self, model: str) -> Optional[str]:
         """
         Get the provider name from the model name.
@@ -292,7 +459,9 @@ class LLMService:
         section_name: str,
         context: Dict[str, Any],
         job_description: str,
-    ) -> str:
+        use_json_schema: bool = True,
+        schema_model: Optional[Type[BaseModel]] = None,
+    ) -> Union[BaseModel, str]:
         """
         Generate content for a resume section.
 
@@ -300,9 +469,11 @@ class LLMService:
             section_name: Name of the section to generate
             context: Context data for the generation
             job_description: Job description to target
+            use_json_schema: Whether to use JSON schema output
+            schema_model: Optional Pydantic model to use for JSON schema output
 
         Returns:
-            Generated section content
+            Generated section content as a Pydantic model instance or string
         """
         try:
             # Get the appropriate prompt for this section
@@ -310,6 +481,10 @@ class LLMService:
 
             # Get system prompt
             system_prompt = await self.prompt_service.get_system_prompt()
+
+            # If using JSON schema, append instructions to format as JSON
+            if use_json_schema and system_prompt:
+                system_prompt += "\nYou must output your response in valid JSON format."
 
             # Combine prompt with context and job description
             full_prompt = f"""
@@ -321,12 +496,20 @@ Job Description:
 Section Data:
 {context}
 """
-
-            # Get completion
-            return await self.get_completion(
-                prompt=full_prompt,
-                system_prompt=system_prompt,
-            )
+            # If using JSON schema and a model is provided, use structured completion
+            if use_json_schema and schema_model is not None:
+                return await self.get_structured_completion(
+                    prompt=full_prompt,
+                    schema_model=schema_model,
+                    system_prompt=system_prompt,
+                    fallback_to_text=True,  # Fallback to text if model doesn't support JSON
+                )
+            else:
+                # Otherwise use regular completion
+                return await self.get_completion(
+                    prompt=full_prompt,
+                    system_prompt=system_prompt,
+                )
 
         except Exception as e:
             self.logger.error(f"Error generating {section_name} section: {e}")
@@ -407,19 +590,37 @@ Resume Content:
                 system_prompt=system_prompt,
             )
 
-            # Parse the response (expected format: company_name|job_title)
-            if "|" in response:
-                parts = response.strip().split("|")
-                if len(parts) == 2:
-                    company_name, job_title = parts
-                    # Clean the values
-                    company_name = company_name.strip().lower().replace(" ", "_")
-                    job_title = job_title.strip().lower().replace(" ", "_")
-                    return company_name, job_title
+            # Parse the JSON response according to CompanyJobSchema format
+            try:
+                import json
 
-            # If parsing fails, return default values
+                parsed_response = json.loads(response)
+
+                # Extract values from the parsed JSON
+                company_name = parsed_response.get("company_name", "unknown_company")
+                job_title = parsed_response.get("job_title", "unknown_position")
+
+                # Return the extracted values
+                return company_name, job_title
+
+            except json.JSONDecodeError as e:
+                self.logger.warning(f"Failed to parse JSON response: {response}")
+                self.logger.error(f"JSON parse error: {e}")
+
+            # If JSON parsing fails, try to search for keys in the raw text
+            import re
+
+            company_match = re.search(r'"company_name":\s*"([^"]+)"', response)
+            job_match = re.search(r'"job_title":\s*"([^"]+)"', response)
+
+            if company_match and job_match:
+                company_name = company_match.group(1)
+                job_title = job_match.group(1)
+                return company_name, job_title
+
+            # If all parsing fails, return default values
             self.logger.warning(
-                f"Failed to parse company/title from response: {response}"
+                f"Failed to extract company/title from response: {response}"
             )
             return "unknown_company", "unknown_position"
 

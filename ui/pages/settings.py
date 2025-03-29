@@ -181,7 +181,7 @@ class SettingsPage:
 
         # Default values for section preferences
         default_sections = [
-            "personal_info",
+            "personal_information",
             "career_summary",
             "work_experience",
             "education",
