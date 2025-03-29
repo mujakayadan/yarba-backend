@@ -2,39 +2,48 @@
 
 from .base import BasePrompt
 
-TEMPLATE = """Task: Based on the provided job description and candidate\'s achievements, create a concise awards section.
+TEMPLATE = """Task: Based on the provided job description and candidate's achievements, create a concise awards section.
 
 Instructions:
-- Include maximum ${awards_details_max_awards} awards or recognitions.
+- Include maximum ${awards_details_max_awards} awards or recognitions
 - Prioritize awards that are:
   1. Most relevant to the target position and industry
   2. Most recent and significant
   3. Demonstrate technical excellence, leadership, or innovation
-- For each award, include:
+- For each award, provide:
   1. Award title/name
-  2. Issuing organization
-  3. Date or timeframe
-  4. Brief explanation of the achievement or significance
-- Use quantifiable metrics where available (e.g., "Top 5%", "First Place", "Among 500 participants")
-- If any standard information is missing (e.g., exact date), simply omit it. Do not use placeholders.
+  2. Issuing organization, date, and significance (combined in the explanation field)
+- Format dates consistently (MM/YYYY)
+- Ensure award descriptions highlight the relevance to the target position
 
-Tex file format: **DO NOT PRINT THIS** iT WILL BE IN ANOTHER FILE, SO THIS IS NOT NEEDED. THIS IS ADDED JUST TO HELP YOU TO UNDERSTAND THE STRUCTURE
-\\newcommand{\\resumeAwardHeading}[2]{
-    \\itemsep -0.5em % Reduces the space between items
-    \\parsep 0em     % Removes paragraph spacing between items
-    \\small{\\item{\\textbf{#1: }#2 }}
+Output Format:
+Your response should be structured as a valid JSON object matching the AwardsListSchema format.
+The structure should be:
+```json
+{
+  "awards": [
+    {
+      "name": "Award Name",
+      "explanation": "Issued by Organization, Date. Brief explanation of significance"
+    },
+    ...more awards...
+  ]
 }
+```
 
 Example:
-\\section{Awards \\& Achievements}
-\\resumeSubHeadingListStart
-    \\resumeAwardHeading{68th Iowa Reserve Chess Championship Winner}{Issued by Iowa State Chess Association, 4 Rounds G/60 d5  (Aug 2023)}
-    \\resumeAwardHeading{High Honors Degree}{Awarded to Bachelor alumni who have graduated with a 3.60 GPA as 3rd of the faculty by Aksaray University. (Jun 2019)}
-    \\resumeAwardHeading{TUBITAK Scientist Support Programs Presidency Winner}{Egg Sex Classification with Morphological Methods" at the Food and Agriculture Category of 2242-University Students Research Project Competitions organized by TUBITAK Scientist Support Programs Presidency won the first prize in the Kayseri Regional Exhibition. (Jun 2019)}
-    \\resumeAwardHeading{University of Padua Scholarship}{Awarded to graduate students who have been successful in the educational and professional area. Fee waiver + 7000 Euro / year grant. (Sep 2021 - Sep 2023)}
-\\resumeSubHeadingListEnd
-
-Note: Each award should demonstrate value and impact. Focus on awards that showcase skills and achievements relevant to the position you\'re applying for. If you have more than ${awards_details_max_awards} awards, select the most impactful ones that align with the job requirements."""
+{
+  "awards": [
+    {
+      "name": "68th Iowa Reserve Chess Championship Winner",
+      "explanation": "Issued by Iowa State Chess Association, 08/2023. 4 Rounds G/60 d5, won with a perfect score of 4/4"
+    },
+    {
+      "name": "High Honors Degree",
+      "explanation": "Awarded by Aksaray University, 06/2019. Graduated with a 3.60 GPA as 3rd of the faculty"
+    }
+  ]
+}"""
 
 
 class AwardsPrompt(BasePrompt):

@@ -2,28 +2,31 @@
 
 from .base import BasePrompt
 
-TEMPLATE = """Based on the given job description, extract the company name and job title.
+TEMPLATE = """Task: Extract the company name and job title from the given job description.
 
 Instructions:
-- Extract only the company name and position from this job description.
-Format the response exactly like this example: \'CompanyName|PositionName\'.
-Use only alphanumeric characters, spaces, and underscores.
-- Provide the company name and job title separately.
-- Both should be in lowercase.
-- Use underscores instead of spaces.
-- If the company name or job title is not known or cannot be assumed, use "unknown".
-- Do NOT put a backslash \'\\\' before underscores \'_\'.
-- Do not include any other text or characters in the response. Do not include any characters that prevents os from creating the folder.
+- Extract the company name and position title from the job description
+- Both should be in lowercase with underscores instead of spaces
+- Use only alphanumeric characters, underscores, and hyphens
+- If the company name or job title cannot be determined, use "unknown"
+- Make sure the output uses only characters that would be valid in a file path
+- Remove any special characters that would cause problems in file systems
 
 Output Format:
-company_name|job_title
+Your response should be structured as a valid JSON object matching the CompanyJobSchema format.
+The structure should be:
+```json
+{
+  "company_name": "company_name",
+  "job_title": "job_title"
+}
+```
 
-Examples:
-- meta|machine_learning_engineer
-- google|software_engineer
-- amazon|computer_vision_engineer
-- go_global_world|machine_learning_engineer
-- unknown|data_scientist"""
+Example:
+{
+  "company_name": "meta",
+  "job_title": "machine_learning_engineer"
+}"""
 
 
 class FolderNamePrompt(BasePrompt):
@@ -33,16 +36,5 @@ class FolderNamePrompt(BasePrompt):
         """Initialize the folder name prompt template."""
         super().__init__(TEMPLATE)
 
-    @property
-    def template(self):
-        """Get the template as a string."""
-        return self._template
 
-
-# Create an instance for direct use
 FOLDER_NAME_PROMPT = FolderNamePrompt()
-
-# Also expose the template directly to make it easier to access
-# This allows both approaches to work:
-# 1. FOLDER_NAME_PROMPT.template
-# 2. TEMPLATE

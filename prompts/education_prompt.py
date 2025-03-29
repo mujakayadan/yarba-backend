@@ -3,48 +3,72 @@
 from .base import BasePrompt
 
 TEMPLATE = """Task:
-Based on the provided job description and the given education list, create an education section.
+Based on the provided job description and the given education information, create a structured education section.
 
 Instructions:
-- Include a maximum of ${education_details_max_entries} educational entries, prioritizing the most relevant and recent.
-- List up to ${education_details_max_courses} key courses per degree, prioritizing those most relevant to the job description.
-- List degrees in reverse chronological order.
-- Include only the most relevant educational experiences, emphasizing courses or projects related to the desired position.
-- If any standard information is missing (e.g., graduation date), simply omit it. Do not use placeholders.
+- Include a maximum of ${education_details_max_entries} educational entries, prioritizing the most relevant and recent
+- List education in reverse chronological order (most recent first)
+- Include only the most relevant educational experiences that support the target position
+- For each degree, include up to ${education_details_max_courses} key courses that are most relevant to the job description
+- Format degree types consistently (e.g., "B.Sc.", "M.S.", "Ph.D.")
+- Include GPA if it's above 3.5 or if it's specifically mentioned as important in the job description
+- Focus on education details that demonstrate qualifications for the position
 
-Tex file format: **DO NOT PRINT THIS** iT WILL BE IN ANOTHER FILE, SO THIS IS NOT NEEDED. THIS IS ADDED JUST TO HELP YOU TO UNDERSTAND THE STRUCTURE
-\\newcommand{\\resumeEducationHeading}[5]{
-  \\vspace{-2pt}\\item
-    \\begin{tabular*}{0.97\\textwidth}[t]{l@{\\extracolsep{\\fill}}r}
-      \\textbf{#1} & #2 \\\\
-      \\textit{\\small#3} & \\textit{\\small #4} \\\\
-    \\end{tabular*}\\vspace{1pt} \\\\
-    \\textit{\\small#5} \\\\
+Output Format:
+Your response should be structured as a valid JSON object matching the EducationListSchema format.
+The structure should be:
+```json
+{
+  "education": [
+    {
+      "degree_type": "M.S.",
+      "degree": "Computer Science",
+      "university_name": "University Name",
+      "time": "Start Year - End Year",
+      "location": "City, Country",
+      "GPA": "3.8/4.0",
+      "transcript": [
+        "Course 1: Advanced Machine Learning",
+        "Course 2: Distributed Systems"
+      ]
+    },
+    ...more education entries...
+  ]
 }
+```
 
 Example:
-
-\\section{Education}
-\\vspace{3pt}
-\\resumeSubHeadingListStart
-
-\\resumeEducationHeading
-{Maharishi International University}{Iowa, US}
-{M.Sc in Computer Science}{05/2023 - 12/2025}
-{Key Courses: Artificial Intelligence, Algorithms, Modern Programming Practices}
-
-\\resumeEducationHeading
-{University of Padua}{Padua, Italy}
-{M.Sc in ICT for Internet and Multimedia}{08/2021 - Thesis approval pending, courses completed in 2023}
-{Key Courses: Computer Vision, Machine Learning, Deep Learning, IoT}
-
-
-\\resumeEducationHeading
-{Aksaray University}{Aksaray, Turkiye}
-{B.Sc in Electrical Electronics Engineering}{09/2015 - 06/2019}
-{Key Courses: Artificial Intelligence, Object-Oriented Software Development, Structured Programming, Data Structures, Optimization Methods, Programming I, Object-Oriented Programming, Mobile Robots: Models and Algorithms, Machine Learning Theory}
-
-\\resumeSubHeadingListEnd"""
+{
+  "education": [
+    {
+      "degree_type": "M.Sc",
+      "degree": "Computer Science",
+      "university_name": "Maharishi International University",
+      "time": "05/2023 - 12/2025",
+      "location": "Iowa, US",
+      "GPA": "3.9/4.0",
+      "transcript": [
+        "Artificial Intelligence",
+        "Algorithms",
+        "Modern Programming Practices"
+      ]
+    },
+    {
+      "degree_type": "M.Sc",
+      "degree": "ICT for Internet and Multimedia",
+      "university_name": "University of Padua",
+      "time": "08/2021 - 06/2023",
+      "location": "Padua, Italy",
+      "GPA": "95/110",
+      "transcript": [
+        "Computer Vision",
+        "Machine Learning",
+        "Deep Learning",
+        "IoT"
+      ]
+    }
+  ]
+}"""
 
 
 class EducationPrompt(BasePrompt):

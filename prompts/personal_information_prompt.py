@@ -2,37 +2,43 @@
 
 from .base import BasePrompt
 
-TEMPLATE = """Format the given personal information into a LaTeX-compatible header for a resume.
-Use the \\personalinfo command with the following syntax: \\personalinfo{Name}{Phone}{Email}{LinkedIn URL}{GitHub URL}{Website}{Location}.
-Ensure all information is accurate and formatted correctly for LaTeX.
+TEMPLATE = """Extract or generate personal information from the provided context.
 
-## Rules for selecting the location:
-- Use **only** the addresses provided in the addresses list within the given structured data.
-- Select the address that is **closest distance to the job location** from the job description, if such information is available.
-- If no job location proximity is provided, use "San Francisco, CA" as the default location.
-- Do not add or assume any new locations beyond those in the list. For example, if the job location is in Redmond, WA but it does not exist in the addresses list, do not list it, but the closest distance address to the Redmond, WA from the list
+Instructions:
+- Provide complete and accurate personal information for the user's resume
+- Include full name, email, and phone number as required fields
+- Add optional fields like address, LinkedIn, GitHub, and personal website if available
+- Ensure the email follows a valid format
+- Format phone numbers consistently (e.g., 123-456-7890)
+- URLs should include the full path with https://
 
-Tex file format: **DO NOT PRINT THIS** iT WILL BE IN ANOTHER FILE, SO THIS IS NOT NEEDED. THIS IS ADDED JUST TO HELP YOU UNDERSTAND THE STRUCTURE**
-\\newcommand{\\personalinfo}[6]{
-    \\begin{center}
-        \\textbf{\\Huge \\scshape #1} \\\\ \\vspace{3pt}
-        \\small
-        \\faMobile \\hspace{.5pt} \\href{mobile:#2}{#2}
-        $|$
-        \\faAt \\hspace{.5pt} \\href{mailto:#3}{#3}
-        $|$
-        \\faLinkedinSquare \\hspace{.5pt} \\href{#4}{LinkedIn}
-        $|$
-        \\faGithub \\hspace{.5pt} \\href{#5}{GitHub}
-        $|$
-	    \\faGlobe \\hspace{.5pt} \\href{#6}{Website}
-	    $|$
-        \\faMapMarker \\hspace{.5pt} \\href{#7}{#7}
-    \\end{center}
+Output Format:
+Your response should be structured as a valid JSON object matching the PersonalInformationSchema format.
+The structure should be:
+```json
+{
+  "full_name": "Full Name",
+  "email": "email@example.com",
+  "phone": "123-456-7890",
+  "address": "City, State",
+  "linkedin": "https://www.linkedin.com/in/username/",
+  "github": "https://github.com/username",
+  "website": "https://www.personalwebsite.com"
 }
+```
 
 Example:
-\\personalinfo{Muja Kayadan}{641-233-9607}{mujakayadan@outlook.com}{https://www.linkedin.com/in/muja-kayadan/}{https://github.com/mucahitkayadan}{https://www.mujakayadan.com}{San Francisco, CA}"""
+{
+  "full_name": "Muja Kayadan",
+  "email": "mujakayadan@outlook.com",
+  "phone": "641-233-9607",
+  "address": "San Francisco, CA",
+  "linkedin": "https://www.linkedin.com/in/muja-kayadan/",
+  "github": "https://github.com/mucahitkayadan",
+  "website": "https://www.mujakayadan.com"
+}
+
+Note: If selecting an address from multiple options, choose the one closest to the job location mentioned in the job description. If no job location is provided, use the primary address or default to "San Francisco, CA"."""
 
 
 class PersonalInformationPrompt(BasePrompt):

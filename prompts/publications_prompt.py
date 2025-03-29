@@ -2,33 +2,54 @@
 
 from .base import BasePrompt
 
-TEMPLATE = """Task: Based on the provided job description and candidate\'s research work, create a concise publications section.
+TEMPLATE = """Task: Based on the provided job description and candidate's research work, create a concise publications section.
 
 Instructions:
-- Include maximum ${publications_details_max_publications} publications.
+- Include maximum ${publications_details_max_publications} publications
 - Prioritize publications that are:
   1. Most relevant to the target position and industry
   2. Most recent and impactful
   3. Published in well-recognized journals or conferences
   4. Demonstrate technical expertise in relevant areas
-- For each publication, include:
-  1. Title of the paper/research
-  2. Journal/Conference name
-  3. Publication date
-  4. Link to the publication (if available)
-  5. Brief impact statement or key findings (if space permits)
-- Format citations professionally and consistently
-- If any standard information is missing (e.g., exact publication date), simply omit it. Do not use placeholders.
-- Prioritize peer-reviewed publications over preprints or technical reports
+- Format publication dates consistently (MM/YYYY)
+- Include links to the publications where available
+- Order publications by relevance to the job description, then by recency
+- Focus on publications that showcase skills and knowledge applicable to the position
 
-Example output:
-\\section{Publications}
-\\vspace{3pt}
-    \\resumeSubHeadingListStart
-    \\resumeProjectHeading
-    {\\textbf{High Accuracy Gender Determination Using the Egg Shape Index}}{Jan, 2023}
-    \\resumeItem{\\href{https://www.nature.com/articles/s41598-023-27772-4}{\\color{blue}Nature - Scientific Reports}}
-    \\resumeSubHeadingListEnd"""
+Output Format:
+Your response should be structured as a valid JSON object matching the PublicationsListSchema format.
+The structure should be:
+```json
+{
+  "publications": [
+    {
+      "name": "Publication Title",
+      "publisher": "Journal/Conference Name",
+      "link": "https://doi.org/publication-link",
+      "time": "MM/YYYY"
+    },
+    ...more publications...
+  ]
+}
+```
+
+Example:
+{
+  "publications": [
+    {
+      "name": "High Accuracy Gender Determination Using the Egg Shape Index",
+      "publisher": "Nature - Scientific Reports",
+      "link": "https://www.nature.com/articles/s41598-023-27772-4",
+      "time": "01/2023"
+    },
+    {
+      "name": "Deep Learning for Image Classification: A Comprehensive Review",
+      "publisher": "IEEE Transactions on Pattern Analysis and Machine Intelligence",
+      "link": "https://ieeexplore.ieee.org/example-link",
+      "time": "06/2022"
+    }
+  ]
+}"""
 
 
 class PublicationsPrompt(BasePrompt):

@@ -2,11 +2,29 @@
 
 from .base import BasePrompt
 
-TEMPLATE = """Based on the provided information, choose the most suitable job title in the list for the job description.
+TEMPLATE = """Task: Based on the provided job description and candidate's skills, select the most appropriate job title.
 
-Important instructions:
-2. Choose the most suitable job title in the list for the job description.
-3. Answer only with the job title. No additional text or explanation is needed."""
+Instructions:
+- Analyze the job description to identify the primary role and its requirements
+- Compare these requirements with the candidate's skills and experience
+- Select the job title that best matches the position
+- Choose a title that accurately reflects the role's responsibilities
+- Use industry-standard job titles rather than creative or company-specific titles
+- Consider the seniority level mentioned in the job description
+
+Output Format:
+Your response should be structured as a valid JSON object matching the JobTitleSchema format.
+The structure should be:
+```json
+{
+  "job_title": "Selected Job Title"
+}
+```
+
+Example:
+{
+  "job_title": "Machine Learning Engineer"
+}"""
 
 
 class JobTitlesPrompt(BasePrompt):

@@ -2,42 +2,37 @@
 
 from .base import BasePrompt
 
-TEMPLATE = """Task: Based on the provided job description, candidate\'s job titles, and years of experience, create a concise career summary for the resume. The summary should be in the following format:
+TEMPLATE = """Task: Based on the provided job description, candidate's job titles, and years of experience, create a concise career summary for the resume.
 
-Instructions for the Job Title:
-- Match the job description to one of the provided job titles in the given data.
-- You will receive a list of job titles and years of experience in the JSON format as "job_titles".
-- Select the most suitable job title from the provided options that best fits the job description.
+Instructions:
+- Select the most appropriate job title from the candidate's history that best aligns with the target position
+- Use the candidate's actual years of experience (do not inflate or reduce)
+- Create a summary between ${career_summary_details_min_words} and ${career_summary_details_max_words} words
+- Focus on skills and experiences that directly relate to the job description
+- Only reference skills, technologies, and experiences the candidate actually has - do not fabricate or assume
+- Use strong action verbs and quantify achievements where possible
+- Ensure the summary highlights the candidate's unique value proposition for the role
+- Format the default_summary to flow naturally as a continuation of "with X years of experience..."
 
-Instructions for the Career Summary Content:
-- Analyze the **ONLY** candidate\'s resume data. Do NOT introduce or assume any information, technologies, or skills not explicitly mentioned in the provided data.
-For example, if the user does not have experience or skills in front end development and it is a must in the job description, you will not write it. Career summary cannot have a content that my data does not have.
-- Use strong action verbs and quantify achievements where applicable.
-- Ensure the summary is aligned with the job description and showcases the candidate\'s most relevant skills and experiences.
-- Begin the career summary with a lowercase word, as it continues a sentence.
-- Create a summary between ${career_summary_details_min_words} and ${career_summary_details_max_words} words.
-
-Example: "implementing" will start with a small letter here:
-    A Machine Learning Engineer with 2 years of experience implementing highly scalable robust industrial computer vision applications using machine learning algorithms.
-
-Tex file format: **DO NOT PRINT THIS** iT WILL BE IN ANOTHER FILE, SO THIS IS NOT NEEDED. THIS IS ADDED JUST TO HELP YOU UNDERSTAND THE STRUCTURE**
-\\newcommand{\\careerSummary}[3]{
-  \\vspace{3pt}%
-  {A #1 with #2 years of experience #3 }
+Output Format:
+Your response should be structured as a valid JSON object matching the CareerSummarySchema format.
+The structure should be:
+```json
+{
+  "job_titles": ["Primary Job Title", "Alternative Title 1", "Alternative Title 2"],
+  "years_of_experience": "X",
+  "default_summary": "implementing and managing... (continuing the sentence as a natural flow)"
 }
-
-Each argument corresponds:
-#1 = Job title
-#2 = Years of experience
-#3 = A concise statement (${career_summary_details_min_words}-${career_summary_details_max_words} words)
-
-Expected Output:
-\\section{Career Summary}
-\\careerSummary{{Job Title}}{{years_of_experience}}{{Career summary statement}}
+```
 
 Example:
-\\section{Career Summary}
-\\careerSummary{{Computer Vision Engineer}}{{3}}{{implementing highly scalable robust industrial computer vision applications using machine learning algorithms. Proficient in algorithm development, research \\&development processes, and finding suitable solutions for complex industrial needs. Hands-on using Python,Matlab, C++ OpenCV, and Deep Learning libraries.}}"""
+{
+  "job_titles": ["Computer Vision Engineer", "Machine Learning Engineer", "AI Developer"],
+  "years_of_experience": "3",
+  "default_summary": "implementing highly scalable robust industrial computer vision applications using machine learning algorithms. Proficient in algorithm development, research and development processes, and finding suitable solutions for complex industrial needs. Hands-on using Python, Matlab, C++, OpenCV, and Deep Learning libraries."
+}
+
+Note: The default_summary should begin with a lowercase word as it continues a sentence that begins with "A [Job Title] with [X] years of experience..."."""
 
 
 class CareerSummaryPrompt(BasePrompt):

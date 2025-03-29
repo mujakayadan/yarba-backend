@@ -2,32 +2,79 @@
 
 from .base import BasePrompt
 
-TEMPLATE = """Task: Create a skills section in LaTeX using the following rules:
+TEMPLATE = """Task: Create a structured skills section based on the candidate's skills and the job description.
 
 Instructions:
-- Pick only skills provided in the data. Do not add or infer additional skills. Even if other skills are mentioned in the job description as a must to have, do not use them.
-- Choose the most relevant skills for the job description for the skill category.
-- Omit any categories or skills not relevant to the job description.
-- Add other relevant skills as \\resumeSkillHeading to your answer. List ALL relevant skills for each category. Skills does not have to be explicitly exist in the job description.
-- Ensure that all relevant skills from the dataset are included, even if this means listing more than 3-4 items per category.
-For example, if languages are less than 10, you have to list all of them.
-- List ${skills_details_max_categories} skill categories, even if this means some skill categories are not relevant to the job description.
-- List at least ${skills_details_min_skills_per_category} and maximum ${skills_details_max_skills_per_category} skills per category, even if this means some skills are not relevant to the job description.
+- Pick only skills provided in the candidate's data - do not add or infer additional skills
+- Organize skills into logical categories relevant to the job description
+- Prioritize skills that are most relevant to the target position
+- Omit any categories or skills not relevant to the job requirements
+- Include ${skills_details_max_categories} skill categories maximum
+- Include at least ${skills_details_min_skills_per_category} and maximum ${skills_details_max_skills_per_category} skills per category
+- Sort skills within each category by relevance to the job
 
-Tex file format: **DO NOT PRINT THIS** iT WILL BE IN ANOTHER FILE, SO THIS IS NOT NEEDED. THIS IS ADDED JUST TO HELP YOU TO UNDERSTAND THE STRUCTURE
-\\newcommand{\\resumeSkillHeading}[2]{
-    \\vspace{-2pt}\\item
-    {\\textbf{\\small#1}}{\\small#2}
+Output Format:
+Your response should be structured as a valid JSON object matching the SkillsListSchema format.
+The structure should be:
+```json
+{
+  "skills": [
+    {
+      "category": "Category Name",
+      "skills": [
+        "Skill 1",
+        "Skill 2",
+        "Skill 3"
+      ]
+    },
+    ...more skill categories...
+  ]
 }
+```
 
 Example:
-\\section{Skills}
-\\resumeSubHeadingListStart
-    \\resumeSkillHeading{Languages}{Python, C++, MATLAB}
-    \\resumeSkillHeading{Computer Vision}{Object Detection, Feature Extraction, Image Processing, Object Tracking, Semantic Segmentation, Instance Segmentation, Pose Estimation, Real-Time Video Analysis, Action Recognition, Visual Question Answering}
-    \\resumeSkillHeading{Machine Learning}{Convolutional Networks, Transfer Learning, Generative Networks, NLP, Transformers, Unsupervised Learning, Reinforcement Learning, Dimensionality Reduction, Anomaly Detection, Time Series Analysis}
-    \\resumeSkillHeading{Frameworks}{OpenCV, TensorFlow, PyTorch, Keras, Scikit-Learn}
-\\resumeSubHeadingListEnd"""
+{
+  "skills": [
+    {
+      "category": "Languages",
+      "skills": [
+        "Python",
+        "C++",
+        "MATLAB"
+      ]
+    },
+    {
+      "category": "Computer Vision",
+      "skills": [
+        "Object Detection",
+        "Feature Extraction",
+        "Image Processing",
+        "Object Tracking",
+        "Semantic Segmentation"
+      ]
+    },
+    {
+      "category": "Machine Learning",
+      "skills": [
+        "Convolutional Networks",
+        "Transfer Learning",
+        "Generative Networks",
+        "NLP",
+        "Transformers"
+      ]
+    },
+    {
+      "category": "Frameworks",
+      "skills": [
+        "OpenCV",
+        "TensorFlow",
+        "PyTorch",
+        "Keras",
+        "Scikit-Learn"
+      ]
+    }
+  ]
+}"""
 
 
 class SkillsPrompt(BasePrompt):

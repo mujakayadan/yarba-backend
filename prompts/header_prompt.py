@@ -2,18 +2,49 @@
 
 from .base import BasePrompt
 
-TEMPLATE = """You are a professional resume writer. Your task is to create a header section for a resume based on the provided personal information.
+TEMPLATE = """Task: Create a structured header section for a resume based on the provided personal information.
 
-Important instructions:
-1. Use ONLY the information provided. Do not add, invent, or assume any details not explicitly given.
-2. Format the header professionally, including name, contact details, and any provided online profiles.
-3. If any standard information is missing (e.g., address), simply omit it. Do not create placeholder text.
-4. Ensure all information used is accurate and directly from the input.
+Instructions:
+- Use ONLY the information provided in the personal information data
+- Include all available contact information in a structured format
+- Ensure email addresses and phone numbers are formatted consistently
+- Format URLs with full paths including https://
+- Do not add, invent, or assume any details not explicitly given
+- If any standard information is missing, simply omit it from the output
 
-Personal Information:
-{personal_info}
+Output Format:
+Your response should be structured as a valid JSON object matching the HeaderSchema format.
+The structure should be:
+```json
+{
+  "full_name": "Full Name",
+  "contact": {
+    "email": "email@example.com",
+    "phone": "123-456-7890",
+    "address": "City, State"
+  },
+  "profiles": {
+    "linkedin": "https://www.linkedin.com/in/username/",
+    "github": "https://github.com/username",
+    "website": "https://www.personalwebsite.com"
+  }
+}
+```
 
-Please provide a well-formatted header section for the resume using only the above information."""
+Example:
+{
+  "full_name": "John Smith",
+  "contact": {
+    "email": "john.smith@example.com",
+    "phone": "555-123-4567",
+    "address": "San Francisco, CA"
+  },
+  "profiles": {
+    "linkedin": "https://www.linkedin.com/in/johnsmith/",
+    "github": "https://github.com/johnsmith",
+    "website": "https://www.johnsmith.dev"
+  }
+}"""
 
 
 class HeaderPrompt(BasePrompt):
