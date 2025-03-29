@@ -255,6 +255,8 @@ class LatexService:
             if not preamble:
                 self.logger.warning(f"Preamble '{name}' not found")
                 return None
+
+            self.logger.debug(f"Found preamble '{name}' of type '{preamble_type}'")
             return preamble.content
         except Exception as e:
             self.logger.error(f"Error getting preamble {name}: {e}")
@@ -305,8 +307,25 @@ class LatexService:
             self.logger.info(f"Using profile ID: {profile.id}")
 
             # Get template and preamble
-            template = await self.get_template("resume") or ""
-            preamble = await self.get_default_preamble()
+            template = await self.get_template("resume")
+            if not template:
+                self.logger.warning(
+                    "Resume template not found, using built-in default template"
+                )
+                # Provide a basic default template if none is found in the database
+                template = "\\documentclass[letterpaper,11pt]{article}\n\\begin{document}\n\\title{$title}\n\\author{$author}\n\\maketitle\n$content\n\\end{document}"
+
+            # Get the specific resume preamble from the database
+            preamble_content = await self.get_preamble_by_name(
+                "default", "resume_preamble"
+            )
+            if not preamble_content:
+                self.logger.warning("Resume preamble not found, using default preamble")
+                preamble_content = await self.get_default_preamble()
+
+            self.logger.debug(
+                f"Using resume preamble with length: {len(preamble_content or '')} bytes"
+            )
 
             # Get header based on template_id or default
             header_name = resume.template_id if resume.template_id else "default"
@@ -368,6 +387,7 @@ class LatexService:
                         "fancyhdr",
                     ],
                     "custom_commands": {},
+                    "preamble": preamble_content,
                 },
                 "section_formats": {
                     "header": header,
@@ -387,24 +407,92 @@ class LatexService:
 
             # Create a resume object suitable for the compiler with safe references
             self.logger.debug("Creating compiler resume object")
-            compiler_resume = Resume(
-                id=safe_resume_data["id"],
-                personal_information={
-                    "name": safe_profile["full_name"],
-                    "email": safe_profile["email"],
-                    "phone": safe_profile["phone"],
-                    "address": safe_profile["address"],
-                    "linkedin": safe_profile["linkedin"],
-                    "github": safe_profile["github"],
-                },
-                career_summary=safe_resume_data["content"].get("career_summary", ""),
-                skills=safe_resume_data["content"].get("skills", ""),
-                work_experience=safe_resume_data["content"].get("work_experience", ""),
-                education=safe_resume_data["content"].get("education", ""),
-            )
+            try:
+                # Get personal information from content
+                personal_info = {}
+                if "personal_information" in safe_resume_data.get("content", {}):
+                    try:
+                        # It might be stored as a JSON string
+                        personal_info_str = safe_resume_data["content"][
+                            "personal_information"
+                        ]
+                        self.logger.debug(
+                            f"Personal info from content: {personal_info_str[:100]}"
+                        )
+
+                        if isinstance(personal_info_str, str):
+                            import json
+
+                            personal_info = json.loads(personal_info_str)
+                        elif isinstance(personal_info_str, dict):
+                            personal_info = personal_info_str
+                    except Exception as e:
+                        self.logger.error(f"Error parsing personal_information: {e}")
+                        # Fallback to profile data
+                        personal_info = {
+                            "full_name": safe_profile.get("full_name", ""),
+                            "email": safe_profile.get("email", ""),
+                            "phone": safe_profile.get("phone", ""),
+                            "address": safe_profile.get("address", ""),
+                            "linkedin": safe_profile.get("linkedin", ""),
+                            "github": safe_profile.get("github", ""),
+                        }
+                else:
+                    # Fallback to profile data
+                    personal_info = {
+                        "full_name": safe_profile.get("full_name", ""),
+                        "email": safe_profile.get("email", ""),
+                        "phone": safe_profile.get("phone", ""),
+                        "address": safe_profile.get("address", ""),
+                        "linkedin": safe_profile.get("linkedin", ""),
+                        "github": safe_profile.get("github", ""),
+                    }
+
+                self.logger.debug(f"Using personal info: {personal_info}")
+
+                # Ensure all required fields have defaults
+                compiler_resume = Resume(
+                    id=safe_resume_data.get("id"),
+                    user_id=safe_resume_data.get("user_id"),
+                    profile_id=safe_resume_data.get("profile_id"),
+                    portfolio_id=safe_resume_data.get("portfolio_id"),
+                    title=safe_resume_data.get("title", "Resume"),
+                    content={},  # Ensure content field is present
+                    personal_information=personal_info,  # Set as an attribute now
+                    career_summary=safe_resume_data.get("content", {}).get(
+                        "career_summary", ""
+                    ),
+                    skills=safe_resume_data.get("content", {}).get("skills", ""),
+                    work_experience=safe_resume_data.get("content", {}).get(
+                        "work_experience", ""
+                    ),
+                    education=safe_resume_data.get("content", {}).get("education", ""),
+                )
+                self.logger.debug(
+                    f"Successfully created compiler resume object with ID: {compiler_resume.id}"
+                )
+            except Exception as e:
+                self.logger.error(f"Error creating compiler resume object: {e}")
+                raise ValueError(f"Failed to create resume object: {e}")
 
             # Generate the LaTeX content using the compiler
             self.logger.info("Calling resume compiler to generate tex content")
+            self.logger.debug(f"Template data header: {template_data['header']}")
+
+            # Log the first 100 characters of the preamble to help with debugging
+            if (
+                "preamble" in template_data["header"]
+                and template_data["header"]["preamble"]
+            ):
+                preamble_preview = (
+                    template_data["header"]["preamble"][:100] + "..."
+                    if len(template_data["header"]["preamble"]) > 100
+                    else template_data["header"]["preamble"]
+                )
+                self.logger.debug(f"Using preamble (preview): {preamble_preview}")
+            else:
+                self.logger.warning("No preamble found in template data!")
+
             latex_content = await self.resume_compiler.generate_tex_content(
                 compiler_resume, template_data
             )
