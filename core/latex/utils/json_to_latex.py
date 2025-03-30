@@ -11,21 +11,45 @@ logger = logging.getLogger(__name__)
 
 def parse_json_content(content: Any) -> Any:
     """
-    Parse JSON content if it's a string, or return as is if already parsed.
+    Parse JSON content safely, handling various input formats.
+
+    This function handles:
+    1. JSON strings
+    2. Already parsed dictionaries/lists
+    3. Objects with attributes that need conversion
 
     Args:
-        content: The content to parse, could be a string or already parsed JSON
+        content: The content to parse, could be a string, dict, or other object
 
     Returns:
-        Parsed JSON content or the original content
+        Parsed content in a format suitable for LaTeX conversion
     """
+    # Handle None case
+    if content is None:
+        return {}
+
+    # If content is already a dict or list, return as is
+    if isinstance(content, (dict, list)):
+        return content
+
+    # If content is a string, try to parse as JSON
     if isinstance(content, str):
         try:
             return json.loads(content)
         except json.JSONDecodeError:
-            # Return as is if it's not valid JSON
+            # If not valid JSON, return as is - will be sanitized later
             return content
-    return content
+
+    # If content has a method like model_dump or dict, use it
+    if hasattr(content, "model_dump"):
+        # Pydantic v2
+        return content.model_dump()
+    elif hasattr(content, "dict") and callable(getattr(content, "dict")):
+        # Pydantic v1 or similar
+        return content.model_dump()
+
+    # Return string representation for other types
+    return str(content)
 
 
 def process_personal_information(content: Any) -> Dict[str, str]:

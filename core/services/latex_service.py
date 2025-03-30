@@ -543,83 +543,69 @@ class LatexService:
             InternalServerException: If compilation fails
         """
         try:
-            # Create output directory if it doesn't exist
+            # Create output directory
             output_dir = settings.latex.output_dir
-            self.logger.info(f"Using output directory: {output_dir.absolute()}")
             output_dir.mkdir(parents=True, exist_ok=True)
 
-            # Create a unique filename
+            # Create unique filename and temp directory
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             document_type = "cover_letter" if is_cover_letter else "resume"
             filename = f"{document_type}_{timestamp}"
 
-            # Print the first few lines of LaTeX content for debugging
-            content_preview = "\n".join(latex_content.split("\n")[:20]) + "\n..."
-            self.logger.debug(f"LaTeX content preview:\n{content_preview}")
-
-            # Save LaTeX content for debugging
-            tex_path = output_dir / f"{filename}.tex"
-            self.logger.info(f"Saving LaTeX content to {tex_path.absolute()}")
-            tex_path.write_text(latex_content)
-            self.logger.info(
-                f"LaTeX content saved successfully to {tex_path.absolute()}"
-            )
-
-            # Create a temp directory for compilation that's not deleted immediately
+            # Create temp directory
             temp_dir = output_dir / "temp" / timestamp
             temp_dir.mkdir(parents=True, exist_ok=True)
-            self.logger.info(f"Using temporary directory: {temp_dir.absolute()}")
 
-            # Create temporary file path
+            # Log configuration
+            self.logger.info(f"Compiling {document_type} in {temp_dir}")
+
+            # Save LaTeX content to files
+            tex_path = output_dir / f"{filename}.tex"
             temp_tex_path = temp_dir / "document.tex"
-            self.logger.info(
-                f"Writing LaTeX content to temporary file: {temp_tex_path.absolute()}"
-            )
+
+            # Save both for debugging/reference
+            tex_path.write_text(latex_content)
             temp_tex_path.write_text(latex_content)
 
-            # Use the appropriate compiler based on document type
+            # Use appropriate compiler
             compiler = (
                 self.cover_letter_compiler if is_cover_letter else self.resume_compiler
             )
 
-            # Update compiler settings from the application settings
+            # Configure compiler
             compiler.compiler_path = settings.latex.compiler_path
             compiler.compiler_options = settings.latex.compiler_options
-            compiler.cleanup_temp_files = False  # Keep temporary files for debugging
+            compiler.cleanup_temp_files = False  # Keep temp files for debugging
             compiler.temp_extensions = settings.latex.temp_extensions
 
-            self.logger.info(f"Using compiler: {compiler.__class__.__name__}")
-            self.logger.info(f"Compiler path: {compiler.compiler_path}")
-            self.logger.info(f"Compiler options: {compiler.compiler_options}")
-
-            # Compile the LaTeX content
-            self.logger.info(f"Starting PDF compilation for {document_type}")
+            # Compile to PDF
+            self.logger.info(
+                f"Starting PDF compilation with {compiler.__class__.__name__}"
+            )
             pdf_content = await compiler.compile_pdf(temp_tex_path, latex_content)
 
+            # Handle compilation failure
             if pdf_content is None:
-                error_message = f"LaTeX compilation failed for {document_type}"
-                self.logger.error(error_message)
-                # Check if log file exists and print it
                 log_file = temp_dir / "document.log"
-                if log_file.exists():
-                    self.logger.error(
-                        f"LaTeX log file content:\n{log_file.read_text()}"
-                    )
-                raise InternalServerException(error_message)
+                log_content = (
+                    log_file.read_text() if log_file.exists() else "Log file not found"
+                )
+                error_msg = f"LaTeX compilation failed for {document_type}. Check log: {log_file}"
+                self.logger.error(error_msg)
+                self.logger.error(f"LaTeX log: {log_content}")
+                raise InternalServerException(error_msg)
 
-            # Save PDF content for debugging
+            # Save PDF output for reference
             pdf_path = output_dir / f"{filename}.pdf"
-            self.logger.info(f"Saving PDF content to {pdf_path.absolute()}")
             pdf_path.write_bytes(pdf_content)
             self.logger.info(
-                f"PDF content saved successfully to {pdf_path.absolute()}, size: {len(pdf_content)} bytes"
+                f"Compilation successful. PDF saved to {pdf_path} ({len(pdf_content)} bytes)"
             )
 
             return pdf_content
 
         except Exception as e:
             self.logger.error(f"Error compiling LaTeX: {e}")
-            # Print full traceback for debugging
             import traceback
 
             self.logger.error(f"Traceback:\n{traceback.format_exc()}")

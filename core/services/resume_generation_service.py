@@ -192,6 +192,11 @@ class ResumeGenerationService:
         Returns:
             Processed section content - can be JSON object or string
         """
+        # Check if section data exists
+        if section_data is None:
+            self.logger.warning(f"No data for section {section_name}")
+            return None
+
         # Get processing preference for this section
         section_preference = "Process"  # Default to processing
         if profile.preferences and profile.preferences.section_preferences:
@@ -202,16 +207,16 @@ class ResumeGenerationService:
         # Convert data to serializable form if needed
         section_data = self._convert_to_serializable(section_data)
 
-        # If hardcode preference, return data directly (structured JSON)
+        # If hardcode preference, return data directly without LLM processing
         if section_preference.lower() == "hardcode":
             self.logger.info(f"Using hardcoded data for section: {section_name}")
             return section_data
 
-        # Process with LLM - requesting JSON schema output
+        # Prepare context for LLM
         context = {
             "section_data": section_data,
-            "job_title": resume.job_title,
-            "company_name": resume.company_name,
+            "job_title": resume.job_title or "job_title",
+            "company_name": resume.company_name or "company_name",
         }
 
         self.logger.info(
@@ -219,12 +224,19 @@ class ResumeGenerationService:
         )
 
         # LLM will return content in JSON format
-        return await self.llm_service.generate_section(
-            section_name=section_name,
-            context=context,
-            job_description=resume.job_description or "",
-            use_json_schema=True,  # Enable JSON schema output
-        )
+        try:
+            return await self.llm_service.generate_section(
+                section_name=section_name,
+                context=context,
+                job_description=resume.job_description or "",
+                use_json_schema=True,  # Enable JSON schema output
+            )
+        except Exception as e:
+            self.logger.error(
+                f"Error generating content with LLM for section {section_name}: {e}"
+            )
+            # In case of error, return the original data
+            return section_data
 
     async def generate_resume_content(
         self,
