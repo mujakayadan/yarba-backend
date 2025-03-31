@@ -56,6 +56,7 @@ class LatexService:
         self,
         resume: Resume,
         profile: Profile,
+        template_id: str = None,
     ) -> str:
         """
         Generate LaTeX for a resume.
@@ -63,6 +64,7 @@ class LatexService:
         Args:
             resume: Resume model
             profile: Profile model
+            template_id: Optional template ID to override the one in resume
 
         Returns:
             str: LaTeX document
@@ -71,9 +73,15 @@ class LatexService:
             # Log input data IDs
             self.logger.info(f"Generating LaTeX for resume ID: {resume.id}")
             self.logger.info(f"Using profile ID: {profile.id}")
+            if template_id:
+                self.logger.info(f"Using template ID: {template_id}")
 
             # Prepare template data with preamble
             template_data = await self._prepare_template_data(document_type="resume")
+
+            # If template_id is provided, add it to template_data
+            if template_id:
+                template_data["template_id"] = template_id
 
             # Generate the LaTeX content using the compiler
             self.logger.info("Calling resume compiler to generate tex content")

@@ -394,13 +394,13 @@ class ResumeGenerationService:
         resume_id: PydanticObjectId,
     ) -> str:
         """
-        Generate LaTeX code for a resume.
+        Generate LaTeX for a resume.
 
         Args:
             resume_id: Resume ID
 
         Returns:
-            Resume LaTeX code
+            str: LaTeX content
 
         Raises:
             ValueError: If resume, profile, or portfolio is not found
@@ -416,7 +416,7 @@ class ResumeGenerationService:
         try:
             # Generate LaTeX for resume
             resume_latex = await self.latex_service.generate_resume_latex(
-                resume=resume, profile=profile
+                resume=resume, profile=profile, template_id=resume.template_id
             )
 
             return resume_latex

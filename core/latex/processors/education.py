@@ -209,4 +209,5 @@ class EducationProcessor(SectionProcessor):
             # Add a placeholder education entry to avoid LaTeX errors
             return "\\resumeEducationHeading\n{University Name}\n{Location}\n{Degree}\n{Time Period}\n{Key Courses}"
 
-        return "\n".join(result)
+        # Return the fully formatted education section
+        return f"% Education\n\\section{{Education}}\n\\vspace{{3pt}}\n\\resumeSubHeadingListStart\n{'\n'.join(result)}\n\\resumeSubHeadingListEnd\n\n"

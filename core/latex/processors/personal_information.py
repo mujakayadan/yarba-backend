@@ -35,7 +35,13 @@ class PersonalInformationProcessor(SectionProcessor):
         github = sanitize_latex(data.get("github", ""))
         website = sanitize_latex(data.get("website", ""))
 
-        # Return formatted for personalInformation command (note the capital 'I')
+        # Return formatted for personalInformation command (capital 'I')
         # The personalInformation command expects parameters in this order:
         # \personalInformation{full_name}{phone}{email}{linkedin}{github}{website}{address}
-        return f"\\personalInformation{{{full_name}}}{{{phone}}}{{{email}}}{{{linkedin}}}{{{github}}}{{{website}}}{{{address}}}"
+        personalinfo_cmd = f"\\personalInformation{{{full_name}}}{{{phone}}}{{{email}}}{{{linkedin}}}{{{github}}}{{{website}}}{{{address}}}"
+        self.logger.debug(
+            f"Generated personal info command: {personalinfo_cmd[:40]}..."
+        )
+
+        # Return the fully formatted personal information section
+        return f"% Personal Information\n{personalinfo_cmd}\n\n"

@@ -74,4 +74,9 @@ class CertificationsProcessor(SectionProcessor):
                     cert_content = f"\\resumeProjectHeading\n{{{name}}}{{{date}}}\n\\resumeItem{{{issuer}}}"
                     result.append(cert_content)
 
-        return "\n".join(result)
+        # Check if there are any results to display
+        if not result:
+            return ""
+
+        # Return the fully formatted certifications section
+        return f"% Certifications\n\\section{{Certifications}}\n\\resumeSubHeadingListStart\n{'\n'.join(result)}\n\\resumeSubHeadingListEnd\n\n"

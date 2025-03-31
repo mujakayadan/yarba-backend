@@ -17,7 +17,7 @@ class CareerSummaryProcessor(SectionProcessor):
             content: Career summary data
 
         Returns:
-            LaTeX content for career summary
+            LaTeX content for career summary as a formatted string
         """
         # Parse the content
         data = self.parse_content(content)
@@ -26,43 +26,43 @@ class CareerSummaryProcessor(SectionProcessor):
         if not data:
             return ""
 
+        # Initialize default values
+        job_title = "Software Engineer"
+        years = "3"
+        summary = ""
+
         # Handle string directly (simple summary)
         if isinstance(data, str):
-            # Format for careerSummary with default job title and years
-            return (
-                f"\\careerSummary{{Software Engineer}}{{3}}{{{sanitize_latex(data)}}}"
-            )
-
+            summary = sanitize_latex(data)
         # Handle dictionary format
-        if isinstance(data, dict):
-            # Extract career summary details with defaults
-            # Try various field names that might contain job title
-            job_title = "Software Engineer"
-            if "job_title" in data:
-                job_title = sanitize_latex(data.get("job_title", ""))
-            elif (
+        elif isinstance(data, dict):
+            # Extract job title - prioritize job_titles array
+            if (
                 "job_titles" in data
                 and isinstance(data["job_titles"], list)
                 and data["job_titles"]
             ):
                 job_title = sanitize_latex(data["job_titles"][0])
+            elif "job_title" in data:
+                job_title = sanitize_latex(data.get("job_title", ""))
 
-            # Try various field names for years of experience
-            years = "3"
+            # Extract years of experience
             if "years_of_experience" in data:
-                years = sanitize_latex(data.get("years_of_experience", ""))
+                years = sanitize_latex(str(data.get("years_of_experience", "")))
 
-            # Try various field names for the summary text
-            summary = ""
-            if "summary" in data:
+            # Extract summary text - prioritize default_summary for portfolio data
+            if "default_summary" in data:
+                summary = sanitize_latex(data.get("default_summary", ""))
+            elif "summary" in data:
                 summary = sanitize_latex(data.get("summary", ""))
             elif "career_summary" in data:
                 summary = sanitize_latex(data.get("career_summary", ""))
-            elif "default_summary" in data:
-                summary = sanitize_latex(data.get("default_summary", ""))
 
-            # Format for careerSummary command
-            return f"\\careerSummary{{{job_title}}}{{{years}}}{{{summary}}}"
+        # Return the fully formatted career summary section
+        formatted_content = f"% Career Summary\n\\section{{Career Summary}}\n\\careerSummary{{{job_title}}}{{{years}}}{{{summary}}}\n\n"
 
-        # If none of the above, return empty string
-        return ""
+        self.logger.debug(
+            f"Career summary processed: job_title={job_title}, years={years}, summary_length={len(summary)}"
+        )
+
+        return formatted_content

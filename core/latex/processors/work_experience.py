@@ -2,7 +2,6 @@
 
 from typing import Any, Dict, List
 
-from ..templates import get_resume_item_template
 from ..utils.sanitizer import sanitize_latex
 from .base import SectionProcessor
 
@@ -29,9 +28,9 @@ class WorkExperienceProcessor(SectionProcessor):
 
         result = []
 
-        # Get the template for work experience item
-        item_template = get_resume_item_template("work_experience_item")
-        bullet_template = get_resume_item_template("bullet_point")
+        # Define templates directly in the processor
+        work_experience_item_template = "\\resumeSubheading\n    {{{job_title}}}{{{time}}}\n    {{{company}}}{{{location}}}\n    \\resumeItemListStart\n{responsibilities}\n    \\resumeItemListEnd\n"
+        bullet_point_template = "\\resumeItem{{{content}}}\n"
 
         # Handle different data structures and standardize to list of entries
         entries = []
@@ -65,18 +64,20 @@ class WorkExperienceProcessor(SectionProcessor):
             if isinstance(responsibilities, list):
                 for resp in responsibilities:
                     responsibilities_latex.append(
-                        bullet_template.format(content=sanitize_latex(resp))
+                        bullet_point_template.format(content=sanitize_latex(resp))
                     )
             elif isinstance(responsibilities, str):
                 # If it's a string, split by newlines
                 for line in responsibilities.split("\n"):
                     if line.strip():
                         responsibilities_latex.append(
-                            bullet_template.format(content=sanitize_latex(line.strip()))
+                            bullet_point_template.format(
+                                content=sanitize_latex(line.strip())
+                            )
                         )
 
             # Format the work experience item
-            formatted_entry = item_template.format(
+            formatted_entry = work_experience_item_template.format(
                 job_title=job_title,
                 company=company,
                 location=location,
@@ -86,4 +87,5 @@ class WorkExperienceProcessor(SectionProcessor):
 
             result.append(formatted_entry)
 
-        return "\n".join(result)
+        # Return the full section with proper formatting
+        return f"% Work Experience\n\\section{{Work Experience}}\n\\vspace{{3pt}}\n\\resumeSubHeadingListStart\n{'\n'.join(result)}\n\\resumeSubHeadingListEnd\n\n"

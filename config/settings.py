@@ -171,6 +171,14 @@ class LatexSettings(BaseSettings):
         default=True, description="Whether to clean up temporary files"
     )
 
+    # Default templates
+    default_resume_template_id: str = Field(
+        default="classic", description="Default resume template ID"
+    )
+    default_cover_letter_template_id: str = Field(
+        default="standard", description="Default cover letter template ID"
+    )
+
     @field_validator("output_dir", "templates_dir")
     def create_directory_if_not_exists(cls, v: Path) -> Path:
         """Create directory if it doesn't exist."""
@@ -236,8 +244,18 @@ class PreferenceSettings(BaseSettings):
             "projects": "Process",
             "awards": "Hardcode",
             "publications": "Hardcode",
+            "certifications": "Hardcode",
         },
         description="Default section processing methods",
+    )
+
+    # Default LaTeX template preferences
+    default_latex_templates: Dict[str, str] = Field(
+        default={
+            "default_resume_template_id": "classic",
+            "default_cover_letter_template_id": "standard",
+        },
+        description="Default LaTeX template IDs",
     )
 
     # Career summary preferences

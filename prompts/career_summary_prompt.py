@@ -13,9 +13,12 @@ Instructions:
 - Use strong action verbs and quantify achievements where possible
 - Ensure the summary highlights the candidate's unique value proposition for the role
 - Format the default_summary to flow naturally as a continuation of "with X years of experience..."
+- IMPORTANT: Return ONLY the JSON object without any additional text, explanations or reasoning.
+- IMPORTANT: Do NOT include any explanations, reasoning, or additional text before or after the JSON.
 
 Output Format:
-Your response should be structured as a valid JSON object matching the CareerSummarySchema format.
+Your response should ONLY contain a valid JSON object matching the CareerSummarySchema format.
+Do NOT include any explanations, reasoning, or additional text before or after the JSON.
 The structure should be:
 ```json
 {
@@ -32,7 +35,8 @@ Example:
   "default_summary": "implementing highly scalable robust industrial computer vision applications using machine learning algorithms. Proficient in algorithm development, research and development processes, and finding suitable solutions for complex industrial needs. Hands-on using Python, Matlab, C++, OpenCV, and Deep Learning libraries."
 }
 
-Note: The default_summary should begin with a lowercase word as it continues a sentence that begins with "A [Job Title] with [X] years of experience..."."""
+Note: The default_summary should begin with a lowercase word as it continues a sentence that begins with "A [Job Title] with [X] years of experience...".
+"""
 
 
 class CareerSummaryPrompt(BasePrompt):

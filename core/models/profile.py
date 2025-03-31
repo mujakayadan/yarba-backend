@@ -88,6 +88,23 @@ class Preferences(BaseModel):
         }
     )
 
+    # LaTeX template preferences
+    latex_template_preferences: Dict[str, str] = Field(
+        default_factory=lambda: {
+            "resume_template": "classic",
+            "cover_letter_template": "standard",
+        }
+    )
+
+    # Default LaTeX template preferences
+    default_latex_templates: Dict[str, str] = Field(
+        default_factory=lambda: {
+            "default_resume_template_id": "classic",
+            "default_cover_letter_template_id": "standard",
+        },
+        description="Default LaTeX template IDs",
+    )
+
     model_config = {"validate_assignment": True}
 
 

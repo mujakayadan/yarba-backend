@@ -8,11 +8,7 @@ from typing import Any, Dict, List, Optional
 from ...models.resume import Resume
 from ..base import LatexCompiler
 from ..processors import get_processor_for_section
-from ..templates import (
-    DEFAULT_RESUME_PREAMBLE,
-    DEFAULT_RESUME_TEMPLATE,
-    get_resume_section_template,
-)
+from ..templates import DEFAULT_RESUME_PREAMBLE
 from ..utils.sanitizer import sanitize_latex
 
 
@@ -123,8 +119,14 @@ class ResumeCompiler(LatexCompiler):
             str: Generated LaTeX content
         """
         try:
-            # Initialize section content dictionary
-            section_contents = {}
+            # Check for template_id in the template dictionary
+            template_id = None
+            if template and "template_id" in template:
+                template_id = template["template_id"]
+                self.logger.info(f"Using template_id from template data: {template_id}")
+
+            # Initialize document structure
+            document_parts = []
 
             # Define sections to process in order
             sections = [
@@ -147,19 +149,13 @@ class ResumeCompiler(LatexCompiler):
                 # Skip if no data
                 if not section_data:
                     self.logger.debug(f"No data for section {section_name}, skipping")
-                    section_contents[section_name] = ""
                     continue
-
-                # Log data structure
-                self._log_data_structure(
-                    section_name, section_data, "before processing"
-                )
 
                 try:
                     # Get the processor for this section
                     section_processor = get_processor_for_section(section_name)()
 
-                    # Process the section content
+                    # Process the section content - each processor now returns fully formatted LaTeX
                     processed_content = section_processor.process(section_data)
 
                     # Log processed content
@@ -172,54 +168,15 @@ class ResumeCompiler(LatexCompiler):
                         self.logger.debug(
                             f"Section {section_name} produced empty content, skipping"
                         )
-                        section_contents[section_name] = ""
                         continue
 
-                    # Get template for this section
-                    section_template = get_resume_section_template(section_name)
-
-                    if section_template:
-                        # Format section content using template
-                        try:
-                            if (
-                                "{" + f"{section_name}_content" + "}"
-                                in section_template
-                            ):
-                                # Template has placeholder for content
-                                content_key = f"{section_name}_content"
-                                section_latex = section_template.format(
-                                    **{content_key: processed_content}
-                                )
-                            else:
-                                # No placeholder, assume the processed content is the complete section
-                                section_latex = processed_content
-
-                            section_contents[section_name] = section_latex
-                            self.logger.debug(f"Added {section_name} section")
-                        except KeyError as e:
-                            self.logger.error(
-                                f"Error formatting section {section_name} template: {e}"
-                            )
-                            # Use the processed content directly as fallback
-                            section_title = section_name.replace("_", " ").title()
-                            section_contents[section_name] = (
-                                f"\\section{{{section_title}}}\n{processed_content}"
-                            )
-                    else:
-                        # No template found, just use the processed content
-                        self.logger.warning(
-                            f"No template found for section {section_name}, using processed content"
-                        )
-                        section_title = section_name.replace("_", " ").title()
-                        section_contents[section_name] = (
-                            f"\\section{{{section_title}}}\n{processed_content}"
-                        )
+                    # Add the processed content directly to the document parts
+                    document_parts.append(processed_content)
+                    self.logger.debug(f"Added {section_name} section")
 
                 except Exception as e:
                     self.logger.error(f"Error processing {section_name}: {e}")
                     self.logger.error(f"Section data: {str(section_data)[:100]}")
-                    # Ensure there's an empty string for this section to prevent KeyError later
-                    section_contents[section_name] = ""
 
             # Use preamble from template if provided, otherwise use default
             preamble = DEFAULT_RESUME_PREAMBLE
@@ -228,32 +185,9 @@ class ResumeCompiler(LatexCompiler):
 
             # Format the complete document
             latex_content = preamble + "\n"
-
-            # Create the document body by directly substituting each section
-            # rather than using string.format() on the entire template
-            document_body = "\\begin{document}\n\n"
-
-            # Add each section
-            for section_name in [
-                "personal_information",
-                "career_summary",
-                "skills",
-                "work_experience",
-                "education",
-                "projects",
-                "awards",
-                "publications",
-                "certifications",
-            ]:
-                if section_name in section_contents:
-                    document_body += section_contents[section_name] + "\n"
-                else:
-                    self.logger.warning(f"Section {section_name} not found in contents")
-
-            document_body += "\\end{document}"
-
-            # Add the document body to the latex content
-            latex_content += document_body
+            latex_content += "\\begin{document}\n\n"
+            latex_content += "".join(document_parts)
+            latex_content += "\\end{document}"
 
             return latex_content
 

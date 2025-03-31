@@ -5,7 +5,7 @@ import json
 import os
 from pathlib import Path
 
-from core.models.profile import Profile
+from core.models.profile import PersonalInformation, Preferences, Profile
 from core.models.resume import Resume
 from core.services.latex_service import get_latex_service
 
@@ -16,7 +16,28 @@ async def test_resume_generation():
     output_dir = Path("output")
     output_dir.mkdir(exist_ok=True)
 
-    # Create a simple resume and profile
+    # Create personal information
+    personal_info = PersonalInformation(
+        full_name="John Doe",
+        email="john.doe@example.com",
+        phone="123-456-7890",
+        address="New York, NY",
+        linkedin="https://linkedin.com/in/johndoe",
+        github="https://github.com/johndoe",
+        website="https://johndoe.com",
+    )
+
+    # Create preferences with template settings
+    preferences = Preferences()
+    preferences.default_latex_templates = {
+        "default_resume_template_id": "classic",
+        "default_cover_letter_template_id": "standard",
+    }
+
+    # Create a profile
+    profile = Profile(personal_information=personal_info, preferences=preferences)
+
+    # Create a simple resume
     resume = Resume(
         title="Test Resume",
         content={
@@ -89,24 +110,21 @@ async def test_resume_generation():
         },
     )
 
-    profile = Profile(
-        personal_information={
-            "full_name": "John Doe",
-            "email": "john.doe@example.com",
-            "phone": "123-456-7890",
-            "address": "New York, NY",
-        }
-    )
-
     # Get the LaTeX service
     latex_service = get_latex_service()
 
-    # Generate LaTeX
-    print("Generating LaTeX...")
+    # Display available templates
+    print("Available Resume Templates:")
+    templates = latex_service.get_available_resume_templates()
+    for template in templates:
+        print(f"  - {template['id']}: {template['name']} - {template['description']}")
+
+    # Generate LaTeX using the default template from profile
+    print("\nGenerating LaTeX with default template...")
     latex_content = await latex_service.generate_resume_latex(resume, profile)
 
     # Save LaTeX to file for inspection
-    latex_path = output_dir / "test_resume.tex"
+    latex_path = output_dir / "test_resume_default.tex"
     latex_path.write_text(latex_content)
     print(f"LaTeX saved to: {latex_path}")
 
@@ -116,12 +134,50 @@ async def test_resume_generation():
 
     if pdf_content:
         # Save PDF to file
-        pdf_path = output_dir / "test_resume.pdf"
+        pdf_path = output_dir / "test_resume_default.pdf"
         pdf_path.write_bytes(pdf_content)
         print(f"PDF saved to: {pdf_path}")
     else:
         print("PDF generation failed")
 
+    # Test with explicit template selection
+    if len(templates) > 1:
+        # Use a different template than the default
+        alt_template_id = next(
+            (t["id"] for t in templates if t["id"] != "classic"), None
+        )
+        if alt_template_id:
+            print(f"\nGenerating LaTeX with explicit template ({alt_template_id})...")
+            latex_content = await latex_service.generate_resume_latex(
+                resume, profile, template_id=alt_template_id
+            )
+
+            # Save LaTeX to file for inspection
+            latex_path = output_dir / f"test_resume_{alt_template_id}.tex"
+            latex_path.write_text(latex_content)
+            print(f"LaTeX saved to: {latex_path}")
+
+            # Generate PDF
+            print("Generating PDF...")
+            pdf_content = await latex_service.compile_latex_to_pdf(latex_content)
+
+            if pdf_content:
+                # Save PDF to file
+                pdf_path = output_dir / f"test_resume_{alt_template_id}.pdf"
+                pdf_path.write_bytes(pdf_content)
+                print(f"PDF saved to: {pdf_path}")
+            else:
+                print("PDF generation failed")
+
+
+async def test_cover_letter_generation():
+    """Test generating a cover letter PDF with the simplified LaTeX system."""
+    # This function would be implemented similarly to test_resume_generation
+    # but for cover letters
+    pass
+
 
 if __name__ == "__main__":
     asyncio.run(test_resume_generation())
+    # Uncomment to test cover letter generation
+    # asyncio.run(test_cover_letter_generation())

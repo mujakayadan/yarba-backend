@@ -139,7 +139,10 @@ class ProjectsProcessor(SectionProcessor):
 
         # Return projects content
         if result:
-            return "\n".join(result)
+            formatted_projects = "\n".join(result)
         else:
             # Provide a placeholder
-            return "\\resumeProjectHeading\n{Project Name}\n{01/2023 - Present}\n\\resumeItemListStart\n\\resumeItem{Project description}\n\\resumeItemListEnd"
+            formatted_projects = "\\resumeProjectHeading\n{Project Name}\n{01/2023 - Present}\n\\resumeItemListStart\n\\resumeItem{Project description}\n\\resumeItemListEnd"
+
+        # Return the fully formatted projects section
+        return f"% Projects\n\\section{{Projects}}\n\\resumeSubHeadingListStart\n{formatted_projects}\n\\resumeSubHeadingListEnd\n\n"

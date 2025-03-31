@@ -1,62 +1,8 @@
 """LaTeX templates for resume and cover letter generation.
 
 This module contains hardcoded LaTeX templates for resume and cover letter generation.
-All templates are stored directly in code for easier maintenance.
+Only preambles are stored here, while section formatting is handled by individual processors.
 """
-
-# Resume section templates
-RESUME_SECTION_TEMPLATES = {
-    "personal_information": "\\personalInformation{{{full_name}}}{{{phone}}}{{{email}}}{{{linkedIn}}}{{{gitHub}}}{{{website}}}{{{address}}}\n",
-    "career_summary": "\\section{Career Summary}\n\\careerSummary{{{job_title}}}{{{years_of_experience}}}{{{career_summary}}}\n\n",
-    "skills": "\\section{Skills}\n\\resumeSubHeadingListStart\n{skills_content}\n\\resumeSubHeadingListEnd\n",
-    "work_experience": "\\section{Work Experience}\n\\vspace{3pt}\n\\resumeSubHeadingListStart\n{experience_content}\n\\resumeSubHeadingListEnd\n",
-    "education": "\\section{Education}\n\\vspace{3pt}\n{education_content}\n",
-    "projects": "\\section{Projects}\n{projects_content}\n",
-    "awards": "\\section{Awards \\& Achievements}\n\\resumeSubHeadingListStart\n{awards_content}\n\\resumeSubHeadingListEnd\n",
-    "publications": "\\section{Publications}\n\\vspace{3pt}\n\\resumeSubHeadingListStart\n{publications_content}\n\\resumeSubHeadingListEnd\n",
-    "certifications": "\\section{Certifications}\n\\resumeSubHeadingListStart\n{certifications_content}\n\\resumeSubHeadingListEnd\n",
-}
-
-# Resume item templates
-RESUME_ITEM_TEMPLATES = {
-    "skill_item": "\\resumeSkillHeading{{{category}}}{{{skills_list}}}\n",
-    "work_experience_item": "\\resumeSubheading\n    {{{job_title}}}{{{time}}}\n    {{{company}}}{{{location}}}\n    \\resumeItemListStart\n{responsibilities}\n    \\resumeItemListEnd\n",
-    "education_item": "\\resumeEducationHeading\n{{{university}}}\n{{{location}}}\n{{{degree}}}\n{{{time}}}\n{{{key_courses}}}\n",
-    "project_item": "\\resumeProjectHeading\n{{{name_and_tech}}}\n{{{date}}}\n\\resumeItemListStart\n{bullet_points}\n\\resumeItemListEnd\n",
-    "award_item": "\\resumeAwardHeading{{{name}}}{{{explanation}}}\n",
-    "publication_item": "\\resumeProjectHeading\n{{\\textbf{{{name}}}}}{{{time}}}\n\\resumeItem{{\\href{{{link}}}{{\\color{{blue}}{publisher}}}}}\n",
-    "certification_item": "\\resumeItem{{{name}}} - {{{authority}}} ({{{date}}})\n",
-    "bullet_point": "\\resumeItem{{{content}}}\n",
-}
-
-
-# Get a resume section template
-def get_resume_section_template(section_name: str) -> str:
-    """
-    Get a resume section template by name.
-
-    Args:
-        section_name: Name of the section
-
-    Returns:
-        Section template content or empty string if not found
-    """
-    return RESUME_SECTION_TEMPLATES.get(section_name, "")
-
-
-# Get a resume item template
-def get_resume_item_template(item_name: str) -> str:
-    """
-    Get a resume item template by name.
-
-    Args:
-        item_name: Name of the item
-
-    Returns:
-        Item template content or empty string if not found
-    """
-    return RESUME_ITEM_TEMPLATES.get(item_name, "")
-
 
 # Default resume preamble
 DEFAULT_RESUME_PREAMBLE = """\\documentclass[letterpaper,11pt]{article}
@@ -213,13 +159,13 @@ DEFAULT_RESUME_PREAMBLE = """\\documentclass[letterpaper,11pt]{article}
         $|$
 \t\\faGlobe \\hspace{.5pt} \\href{#6}{Website}
 \t$|$
-        \\faMapMarker \\hspace{.5pt} \\href{#7}{#7}
+        \\faMapMarker \\hspace{.5pt} #7
     \\end{center}
 }
 
 % Custom command for career summary
 \\newcommand{\\careerSummary}[3]{%
-  {A {#1} with {#2} years of experience {#3} }
+  {{#1} with {#2} years of experience {#3}}
 }
 """
 
@@ -260,7 +206,7 @@ DEFAULT_COVER_LETTER_PREAMBLE = """\\documentclass[12pt, letterpaper]{letter}
 \\renewcommand{\\shapedefault}{\\updefault}
 
 % Define personal details with FontAwesome icons
-\\newcommand{\\personalinfo}[7]{
+\\newcommand{\\personalInformation}[7]{
     \\begin{center}
         \\textbf{\\Huge \\MakeUppercase{\\scshape #1}} \\\\ \\vspace{2pt}
         {\\small\\raggedright  % Add raggedright to prevent line breaks
@@ -287,36 +233,10 @@ DEFAULT_COVER_LETTER_PREAMBLE = """\\documentclass[12pt, letterpaper]{letter}
 
 % Justify paragraphs
 \\newcommand{\\justifying}{\\leftskip=0pt \\rightskip=0pt}
+"""
 
-\\begin{document}
-\\begin{letter}{{{COMPANY_NAME}} \\\\ {{JOB_TITLE}}}
-
-\\personalinfo{{{NAME}}}{{{PHONE}}}{{{EMAIL}}}{{{LINKEDIN}}}{{{GITHUB}}}{{{WEBSITE}}}{{{ADDRESS}}}
-
-\\vspace{0.3cm}
-\\justifying  % Enable justification for the letter content
-
-{{COVER_LETTER_CONTENT}}
-
-\\vspace{0.3cm}
-\\includegraphics[width=1in]{signature.jpg}
-\\newline
-\\vspace{0.1cm}
-\\today
-\\end{letter}
-\\end{document}"""
-
-# Default resume template structure
-DEFAULT_RESUME_TEMPLATE = """\\begin{document}
-
-{personal_information}
-{career_summary}
-{skills}
-{work_experience}
-{education}
-{projects}
-{awards}
-{publications}
-{certifications}
-
-\\end{document}"""
+# Export all templates for use in template_registry
+__all__ = [
+    "DEFAULT_RESUME_PREAMBLE",
+    "DEFAULT_COVER_LETTER_PREAMBLE",
+]

@@ -93,4 +93,9 @@ class AwardsProcessor(SectionProcessor):
                 "\\resumeAwardHeading{Achievement}{Notable achievement or award}"
             )
 
-        return "\n".join(result)
+        # Check if there are any results to display
+        if not result:
+            return ""
+
+        # Return the fully formatted awards section
+        return f"% Awards \\& Achievements\n\\section{{Awards \\& Achievements}}\n\\resumeSubHeadingListStart\n{'\n'.join(result)}\n\\resumeSubHeadingListEnd\n\n"

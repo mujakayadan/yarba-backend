@@ -114,4 +114,9 @@ class PublicationsProcessor(SectionProcessor):
                 "\\resumeProjectHeading\n{\\textbf{Publication Title}}{YYYY-MM}\n\\resumeItem{\\href{#}{\\color{blue}Journal or Conference}}"
             )
 
-        return "\n".join(result)
+        # Check if there are any results to display
+        if not result:
+            return ""
+
+        # Return the fully formatted publications section
+        return f"% Publications\n\\section{{Publications}}\n\\vspace{{3pt}}\n\\resumeSubHeadingListStart\n{'\n'.join(result)}\n\\resumeSubHeadingListEnd\n\n"
