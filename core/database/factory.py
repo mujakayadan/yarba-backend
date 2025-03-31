@@ -91,15 +91,6 @@ async def get_tex_header_repository() -> AsyncGenerator[TexHeaderRepository, Non
     yield TexHeaderRepository()
 
 
-async def get_tex_template_repository() -> AsyncGenerator[TexTemplateRepository, None]:
-    """Get a TeX template repository.
-
-    Yields:
-        TexTemplateRepository: TeX template repository instance
-    """
-    yield TexTemplateRepository()
-
-
 async def get_unit_of_work() -> AsyncGenerator[AsyncMongoUnitOfWork, None]:
     """Get a Unit of Work.
 

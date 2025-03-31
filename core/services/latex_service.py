@@ -15,15 +15,10 @@ from config.logging_config import get_logger
 from config.settings import Settings
 from core.exceptions.base import InternalServerException, NotFoundException
 from core.latex.compilers import CoverLetterCompiler, ResumeCompiler
-from core.latex.utils.json_to_latex import (
-    parse_json_content,
-    process_content_by_section,
-)
-from core.latex.utils.placeholder import PlaceholderManager
-from core.latex.utils.sanitizer import sanitize_latex
 from core.models.cover_letter import CoverLetter
 from core.models.profile import Profile
 from core.models.resume import Resume
+from core.models.tex_header import TexHeader
 from core.repositories.preamble_repository import (
     PreambleRepository,
     get_preamble_repository,
@@ -31,10 +26,6 @@ from core.repositories.preamble_repository import (
 from core.repositories.tex_header_repository import (
     TexHeaderRepository,
     get_tex_header_repository,
-)
-from core.repositories.tex_template_repository import (
-    TexTemplateRepository,
-    get_tex_template_repository,
 )
 
 settings = Settings()
@@ -48,7 +39,6 @@ class LatexService:
         self,
         preamble_repository: PreambleRepository,
         header_repository: TexHeaderRepository,
-        template_repository: TexTemplateRepository,
     ):
         """
         Initialize LaTeX service.
@@ -56,13 +46,10 @@ class LatexService:
         Args:
             preamble_repository: Repository for LaTeX preambles
             header_repository: Repository for LaTeX headers
-            template_repository: Repository for LaTeX templates
         """
         self.preamble_repository = preamble_repository
         self.header_repository = header_repository
-        self.template_repository = template_repository
         self.logger = logger
-        self.placeholder_manager = PlaceholderManager()
 
         # Initialize compilers directly from the LaTeX module
         self.resume_compiler = ResumeCompiler()
@@ -202,6 +189,406 @@ class LatexService:
             )
             return []
 
+    async def get_default_header_by_category(
+        self, category: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get the default header for a specific category.
+
+        Args:
+            category: Category to get the default header for
+
+        Returns:
+            Dictionary with header information if found, None otherwise
+        """
+        try:
+            header = await self.header_repository.get_default(category)
+            if not header:
+                self.logger.warning(
+                    f"No default header found for category '{category}'"
+                )
+                return None
+
+            return {
+                "id": str(header.id),
+                "name": header.name,
+                "category": header.category,
+                "content": header.content,
+                "is_default": header.is_default,
+            }
+        except Exception as e:
+            self.logger.error(
+                f"Error getting default header for category {category}: {e}"
+            )
+            return None
+
+    async def get_headers_by_category_and_default(
+        self, category: str, is_default: bool = True
+    ) -> List[Dict[str, Any]]:
+        """
+        Get all headers for a specific category and default status.
+
+        Args:
+            category: Category of headers to get
+            is_default: Whether to get default headers (True) or non-default (False)
+
+        Returns:
+            List of dictionaries with header information
+        """
+        try:
+            headers = await self.header_repository.get_all_by_category_and_default(
+                category, is_default
+            )
+            return [
+                {
+                    "id": str(h.id),
+                    "name": h.name,
+                    "category": h.category,
+                    "content": h.content,
+                    "is_default": h.is_default,
+                }
+                for h in headers
+            ]
+        except Exception as e:
+            self.logger.error(
+                f"Error getting headers for category {category} with default={is_default}: {e}"
+            )
+            return []
+
+    async def get_resume_sections(
+        self, is_default: Optional[bool] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get all resume section headers, optionally filtered by default status.
+
+        Args:
+            is_default: Filter by default status (None for all)
+
+        Returns:
+            List of dictionaries with header information
+        """
+        try:
+            sections = await self.header_repository.get_resume_sections(is_default)
+            return [
+                {
+                    "id": str(h.id),
+                    "name": h.name,
+                    "content": h.content,
+                    "is_default": h.is_default,
+                }
+                for h in sections
+            ]
+        except Exception as e:
+            self.logger.error(f"Error getting resume sections: {e}")
+            return []
+
+    async def get_resume_items(
+        self, is_default: Optional[bool] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get all resume item headers, optionally filtered by default status.
+
+        Args:
+            is_default: Filter by default status (None for all)
+
+        Returns:
+            List of dictionaries with header information
+        """
+        try:
+            items = await self.header_repository.get_resume_items(is_default)
+            return [
+                {
+                    "id": str(h.id),
+                    "name": h.name,
+                    "content": h.content,
+                    "is_default": h.is_default,
+                }
+                for h in items
+            ]
+        except Exception as e:
+            self.logger.error(f"Error getting resume items: {e}")
+            return []
+
+    async def search_headers(
+        self,
+        query: str,
+        categories: Optional[List[str]] = None,
+        is_default: Optional[bool] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Search for headers by text in name or content.
+
+        Args:
+            query: Text to search for
+            categories: Optional list of categories to search in
+            is_default: Optional default status filter
+
+        Returns:
+            List of matching header dictionaries
+        """
+        try:
+            headers = await self.header_repository.search_headers(
+                query, categories, is_default
+            )
+            return [
+                {
+                    "id": str(h.id),
+                    "name": h.name,
+                    "category": h.category,
+                    "content": h.content,
+                    "is_default": h.is_default,
+                }
+                for h in headers
+            ]
+        except Exception as e:
+            self.logger.error(f"Error searching headers with query '{query}': {e}")
+            return []
+
+    # ===============================
+    # Header Management Methods
+    # ===============================
+
+    async def create_header(
+        self,
+        name: str,
+        content: str,
+        category: str = "resume_section",
+        is_default: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Create a new header.
+
+        Args:
+            name: Name of the header
+            content: LaTeX content
+            category: Header category
+            is_default: Whether this is a default header
+
+        Returns:
+            Dictionary with the created header information
+        """
+        try:
+            header = await self.header_repository.create_header(
+                name=name,
+                content=content,
+                category=category,
+                is_default=is_default,
+            )
+
+            return {
+                "id": str(header.id),
+                "name": header.name,
+                "category": header.category,
+                "content": header.content,
+                "is_default": header.is_default,
+            }
+        except Exception as e:
+            self.logger.error(f"Error creating header '{name}': {e}")
+            raise InternalServerException(f"Failed to create header: {str(e)}")
+
+    async def update_header(
+        self, header_id: str, data: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Update a header's fields.
+
+        Args:
+            header_id: ID of the header to update
+            data: Dictionary of fields to update
+
+        Returns:
+            Updated header information if successful, None otherwise
+        """
+        try:
+            header = await self.header_repository.update_header(header_id, data)
+            if not header:
+                return None
+
+            return {
+                "id": str(header.id),
+                "name": header.name,
+                "category": header.category,
+                "content": header.content,
+                "is_default": header.is_default,
+            }
+        except Exception as e:
+            self.logger.error(f"Error updating header {header_id}: {e}")
+            raise InternalServerException(f"Failed to update header: {str(e)}")
+
+    async def delete_header(self, header_id: str) -> bool:
+        """
+        Delete a header by ID.
+
+        Args:
+            header_id: ID of the header to delete
+
+        Returns:
+            True if deleted, False otherwise
+        """
+        try:
+            return await self.header_repository.delete_header(header_id)
+        except Exception as e:
+            self.logger.error(f"Error deleting header {header_id}: {e}")
+            raise InternalServerException(f"Failed to delete header: {str(e)}")
+
+    async def clone_header(
+        self, source_id: str, new_name: str, is_default: bool = False
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Clone an existing header with a new name.
+
+        Args:
+            source_id: ID of the header to clone
+            new_name: Name for the new header
+            is_default: Whether the new header should be default
+
+        Returns:
+            Cloned header information if successful, None otherwise
+        """
+        try:
+            header = await self.header_repository.clone_header(
+                source_id, new_name, is_default
+            )
+            if not header:
+                return None
+
+            return {
+                "id": str(header.id),
+                "name": header.name,
+                "category": header.category,
+                "content": header.content,
+                "is_default": header.is_default,
+            }
+        except Exception as e:
+            self.logger.error(f"Error cloning header {source_id}: {e}")
+            raise InternalServerException(f"Failed to clone header: {str(e)}")
+
+    async def set_default_status(
+        self, header_id: str, is_default: bool = True
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Set the default status of a header.
+
+        Args:
+            header_id: ID of the header to update
+            is_default: New default status
+
+        Returns:
+            Updated header information if successful, None otherwise
+        """
+        try:
+            header = await self.header_repository.set_default_status(
+                header_id, is_default
+            )
+            if not header:
+                return None
+
+            return {
+                "id": str(header.id),
+                "name": header.name,
+                "category": header.category,
+                "content": header.content,
+                "is_default": header.is_default,
+            }
+        except Exception as e:
+            self.logger.error(
+                f"Error setting default status for header {header_id}: {e}"
+            )
+            raise InternalServerException(f"Failed to update default status: {str(e)}")
+
+    async def bulk_create_or_update_headers(
+        self, headers: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """
+        Create or update multiple headers in a batch.
+
+        Args:
+            headers: List of header dictionaries with at least 'name' and 'content'
+
+        Returns:
+            List of created/updated header information
+        """
+        try:
+            results = await self.header_repository.bulk_create_or_update(headers)
+            return [
+                {
+                    "id": str(h.id),
+                    "name": h.name,
+                    "category": h.category,
+                    "content": h.content,
+                    "is_default": h.is_default,
+                }
+                for h in results
+            ]
+        except Exception as e:
+            self.logger.error(f"Error in bulk header operation: {e}")
+            raise InternalServerException(
+                f"Failed to complete bulk header operation: {str(e)}"
+            )
+
+    # ===============================
+    # Template Header Methods
+    # ===============================
+
+    async def get_all_template_headers(
+        self, is_default: Optional[bool] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get all template headers.
+
+        Args:
+            is_default: Filter by default status (None for all)
+
+        Returns:
+            List of template header dictionaries
+        """
+        try:
+            templates = await self.header_repository.get_all_templates(is_default)
+            return [
+                {
+                    "id": str(t.id),
+                    "name": t.name,
+                    "content": t.content,
+                    "is_default": t.is_default,
+                }
+                for t in templates
+            ]
+        except Exception as e:
+            self.logger.error(f"Error getting template headers: {e}")
+            return []
+
+    async def create_template_header(
+        self, name: str, content: str, is_default: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Create a new template header.
+
+        Args:
+            name: Name of the template
+            content: LaTeX content
+            is_default: Whether this is a default template
+
+        Returns:
+            Dictionary with the created template information
+        """
+        try:
+            template = await self.header_repository.create_template(
+                name=name,
+                content=content,
+                is_default=is_default,
+            )
+
+            return {
+                "id": str(template.id),
+                "name": template.name,
+                "category": template.category,
+                "content": template.content,
+                "is_default": template.is_default,
+            }
+        except Exception as e:
+            self.logger.error(f"Error creating template header '{name}': {e}")
+            raise InternalServerException(f"Failed to create template: {str(e)}")
+
     # ===============================
     # Preamble Methods
     # ===============================
@@ -282,25 +669,42 @@ class LatexService:
     # LaTeX Generation Methods
     # ===============================
 
-    def _format_links(self, links: Dict[str, str]) -> str:
+    async def _prepare_template_data(
+        self, template_id: Optional[str] = None, document_type: str = "resume"
+    ) -> Dict[str, Any]:
         """
-        Format links for LaTeX.
+        Prepare template data for document generation.
 
         Args:
-            links: Dictionary of links
+            template_id: ID of template to use (optional)
+            document_type: Type of document ('resume' or 'cover_letter')
 
         Returns:
-            str: Formatted links
+            Template data dictionary
         """
-        if not links:
-            return ""
+        # Get preamble based on document type
+        preamble_type = f"{document_type}_preamble"
+        preamble = await self.get_preamble_by_name("default", preamble_type)
 
-        formatted_links = []
-        for name, url in links.items():
-            if url:
-                formatted_links.append(f"\\href{{{url}}}{{{name}}}")
+        if not preamble:
+            self.logger.warning(
+                f"{document_type.title()} preamble not found, using default"
+            )
+            preamble = await self.get_default_preamble()
 
-        return " | ".join(formatted_links)
+        # Get header based on template_id or default
+        header_name = template_id if template_id else "default"
+        header = await self.get_header(header_name) or ""
+
+        # Prepare template data structure
+        return {
+            "header": {
+                "preamble": preamble,
+            },
+            "section_formats": {
+                "header": header,
+            },
+        }
 
     async def generate_resume_latex(
         self,
@@ -318,80 +722,19 @@ class LatexService:
             str: LaTeX document
         """
         try:
-            # Log input data types and IDs
+            # Log input data IDs
             self.logger.info(f"Generating LaTeX for resume ID: {resume.id}")
             self.logger.info(f"Using profile ID: {profile.id}")
 
-            # Get the specific resume preamble from the database
-            preamble_content = await self.get_preamble_by_name(
-                "default", "resume_preamble"
-            )
-            if not preamble_content:
-                self.logger.warning("Resume preamble not found, using default preamble")
-                preamble_content = await self.get_default_preamble()
-
-            # Get header based on template_id or default
-            header_name = resume.template_id if resume.template_id else "default"
-            header = await self.get_header(header_name) or ""
-            self.logger.debug(f"Using header: {header_name}")
-
-            # Get personal information from the profile
-            personal_info = {
-                "full_name": profile.personal_information.full_name,
-                "email": profile.personal_information.email,
-                "phone": profile.personal_information.phone,
-                "address": profile.personal_information.address,
-                "linkedin": profile.personal_information.linkedin,
-                "github": profile.personal_information.github,
-                "website": profile.personal_information.website,
-            }
-
-            # Process personal information from resume content if available
-            if resume.content and "personal_information" in resume.content:
-                json_personal_info = resume.content.get("personal_information")
-                if isinstance(json_personal_info, dict):
-                    # Update with values from the content if available
-                    for key, value in json_personal_info.items():
-                        if value:  # Only update if the value is not empty
-                            personal_info[key] = value
-                elif isinstance(json_personal_info, str):
-                    # Try to parse JSON string
-                    try:
-                        parsed_info = json.loads(json_personal_info)
-                        if isinstance(parsed_info, dict):
-                            for key, value in parsed_info.items():
-                                if value:  # Only update if the value is not empty
-                                    personal_info[key] = value
-                    except json.JSONDecodeError:
-                        self.logger.warning(
-                            "Failed to parse personal_information JSON string"
-                        )
-
-            # Simplified template data structure - the preamble already contains most settings
-            template_data = {
-                "header": {
-                    "preamble": preamble_content,
-                },
-                "section_formats": {
-                    "header": header,
-                },
-            }
-
-            # Create a compiler-compatible resume object
-            compiler_resume = Resume(
-                id=resume.id,
-                user_id=resume.user_id,
-                profile_id=resume.profile_id,
-                portfolio_id=resume.portfolio_id,
-                title=resume.title,
-                content=resume.content,  # Pass the entire content dictionary
-                personal_information=personal_info,  # Set personal info as an attribute
+            # Prepare template data with preamble and header
+            template_data = await self._prepare_template_data(
+                template_id=resume.template_id, document_type="resume"
             )
 
             # Generate the LaTeX content using the compiler
             self.logger.info("Calling resume compiler to generate tex content")
             latex_content = await self.resume_compiler.generate_tex_content(
-                resume=compiler_resume, template=template_data
+                resume=resume, template=template_data
             )
 
             self.logger.info(
@@ -426,56 +769,22 @@ class LatexService:
             self.logger.info(f"Generating LaTeX for cover letter ID: {cover_letter.id}")
             self.logger.info(f"Using profile ID: {profile.id}")
 
-            # Get cover letter preamble
-            preamble = await self.get_preamble_by_name(
-                "default", "cover_letter_preamble"
-            )
-            if not preamble:
-                self.logger.warning(
-                    "Cover letter preamble not found, using default preamble"
-                )
-                preamble = await self.get_default_preamble()
-
-            # Get header based on template_id or default
+            # Get template_id, company, job title based on input type
             if isinstance(cover_letter, CoverLetter):
-                header_name = (
-                    cover_letter.template_id if cover_letter.template_id else "default"
-                )
+                template_id = cover_letter.template_id
                 cover_letter_text = cover_letter.cover_letter_content or ""
                 company_name = cover_letter.company_name or ""
                 job_title = cover_letter.job_title or ""
             else:  # Resume with cover letter
-                header_name = (
-                    cover_letter.template_id if cover_letter.template_id else "default"
-                )
+                template_id = cover_letter.template_id
                 cover_letter_text = cover_letter.cover_letter_content or ""
                 company_name = cover_letter.company_name or ""
                 job_title = cover_letter.job_title or ""
 
-            self.logger.debug(f"Using header: {header_name}")
-            self.logger.debug(f"Company: {company_name}, Job title: {job_title}")
-
-            # Get the actual header content
-            header = await self.get_header(header_name) or ""
-
-            # Get personal information from the profile for cover letter generation
-            full_name = profile.personal_information.full_name
-            email = profile.personal_information.email
-            phone = profile.personal_information.phone or ""
-            address = profile.personal_information.address or ""
-            linkedin = profile.personal_information.linkedin or ""
-            github = profile.personal_information.github or ""
-            website = profile.personal_information.website or ""
-
-            # Simplified template data structure - use preamble directly
-            template_data = {
-                "header": {
-                    "preamble": preamble,
-                },
-                "section_formats": {
-                    "header": header,
-                },
-            }
+            # Prepare template data
+            template_data = await self._prepare_template_data(
+                template_id=template_id, document_type="cover_letter"
+            )
 
             # Create a compiler-compatible cover letter object
             self.logger.debug("Creating compiler cover letter object")
@@ -483,19 +792,10 @@ class LatexService:
                 # Create a compiler-compatible cover letter object
                 compiler_cover_letter = CoverLetter(
                     id=cover_letter.id,
-                    template_id=header_name,
+                    template_id=template_id,
                     cover_letter_content=cover_letter_text,
                     company_name=company_name,
                     job_title=job_title,
-                    personal_information={
-                        "full_name": full_name,
-                        "email": email,
-                        "phone": phone,
-                        "address": address,
-                        "linkedin": linkedin,
-                        "github": github,
-                        "website": website,
-                    },
                 )
                 self.logger.debug(
                     f"Successfully created compiler cover letter object with ID: {compiler_cover_letter.id}"
@@ -560,12 +860,8 @@ class LatexService:
             self.logger.info(f"Compiling {document_type} in {temp_dir}")
 
             # Save LaTeX content to files
-            tex_path = output_dir / f"{filename}.tex"
-            temp_tex_path = temp_dir / "document.tex"
-
-            # Save both for debugging/reference
+            tex_path = temp_dir / "document.tex"
             tex_path.write_text(latex_content)
-            temp_tex_path.write_text(latex_content)
 
             # Use appropriate compiler
             compiler = (
@@ -582,7 +878,7 @@ class LatexService:
             self.logger.info(
                 f"Starting PDF compilation with {compiler.__class__.__name__}"
             )
-            pdf_content = await compiler.compile_pdf(temp_tex_path, latex_content)
+            pdf_content = await compiler.compile_pdf(tex_path, latex_content)
 
             # Handle compilation failure
             if pdf_content is None:
@@ -617,7 +913,6 @@ class LatexService:
 
     async def clear_caches(self) -> None:
         """Clear all repository caches."""
-        await self.template_repository.clear_cache()
         await self.header_repository.clear_cache()
         await self.preamble_repository.clear_cache()
 
@@ -632,5 +927,4 @@ def get_latex_service() -> LatexService:
     return LatexService(
         preamble_repository=get_preamble_repository(),
         header_repository=get_tex_header_repository(),
-        template_repository=get_tex_template_repository(),
     )

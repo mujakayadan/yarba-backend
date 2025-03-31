@@ -1,7 +1,7 @@
 """TeX header repository implementation with support for different component types."""
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from config.logging_config import get_logger
 from core.models.tex_header import TexHeader
@@ -58,6 +58,57 @@ class TexHeaderRepository(BeanieRepository[TexHeader]):
         """
         return await TexHeader.find(TexHeader.category == category).to_list()
 
+    async def get_all_by_category_and_default(
+        self, category: str, is_default: bool = True
+    ) -> List[TexHeader]:
+        """
+        Get all headers of a specific category with specified default status.
+
+        Args:
+            category: Category of headers to get
+            is_default: Whether to get default headers (True) or non-default headers (False)
+
+        Returns:
+            List of matching headers
+        """
+        return await TexHeader.find(
+            {"category": category, "is_default": is_default}
+        ).to_list()
+
+    async def get_resume_sections(
+        self, is_default: Optional[bool] = None
+    ) -> List[TexHeader]:
+        """
+        Get all resume section headers.
+
+        Args:
+            is_default: Filter by default status (None for all)
+
+        Returns:
+            List of resume section headers
+        """
+        query = {"category": "resume_section"}
+        if is_default is not None:
+            query["is_default"] = is_default
+        return await TexHeader.find(query).to_list()
+
+    async def get_resume_items(
+        self, is_default: Optional[bool] = None
+    ) -> List[TexHeader]:
+        """
+        Get all resume item headers.
+
+        Args:
+            is_default: Filter by default status (None for all)
+
+        Returns:
+            List of resume item headers
+        """
+        query = {"category": "resume_item"}
+        if is_default is not None:
+            query["is_default"] = is_default
+        return await TexHeader.find(query).to_list()
+
     async def get_default(
         self, category: str = "resume_section"
     ) -> Optional[TexHeader]:
@@ -95,25 +146,22 @@ class TexHeaderRepository(BeanieRepository[TexHeader]):
             self.logger.error(f"Error retrieving template '{name}': {str(e)}")
             return None
 
-    async def get_preamble(self, name: str) -> Optional[TexHeader]:
+    async def get_all_templates(
+        self, is_default: Optional[bool] = None
+    ) -> List[TexHeader]:
         """
-        Get a preamble (special category of header) by name.
+        Get all available templates.
 
         Args:
-            name: Name of the preamble
+            is_default: Filter by default status (None for all)
 
         Returns:
-            TexHeader if found, None otherwise
+            List of template headers
         """
-        try:
-            # Just get by name but log appropriately for preambles
-            preamble = await self.get_by_name(name)
-            if not preamble:
-                self.logger.warning(f"Preamble '{name}' not found in the database")
-            return preamble
-        except Exception as e:
-            self.logger.error(f"Error retrieving preamble '{name}': {str(e)}")
-            return None
+        query = {"category": "template"}
+        if is_default is not None:
+            query["is_default"] = is_default
+        return await TexHeader.find(query).to_list()
 
     def format_tex_content(self, header: TexHeader, **kwargs) -> str:
         """
@@ -198,6 +246,263 @@ class TexHeaderRepository(BeanieRepository[TexHeader]):
 
         return header
 
+    async def update_header(
+        self, header_id: str, data: Dict[str, Any]
+    ) -> Optional[TexHeader]:
+        """
+        Update multiple fields of a header.
+
+        Args:
+            header_id: ID of the header to update
+            data: Dictionary of fields to update (can include content, name, category, is_default)
+
+        Returns:
+            Updated header if found, None otherwise
+        """
+        header = await TexHeader.get(header_id)
+        if not header:
+            self.logger.warning(f"Header with ID '{header_id}' not found for update")
+            return None
+
+        # Update fields
+        for key, value in data.items():
+            if hasattr(header, key):
+                setattr(header, key, value)
+
+        header.updated_at = datetime.now(timezone.utc)
+        await header.save()
+
+        # Update cache if header is in cache
+        if header.name in self._cached_headers:
+            self._cached_headers[header.name] = header
+
+        return header
+
+    async def delete_header(self, header_id: str) -> bool:
+        """
+        Delete a header by ID.
+
+        Args:
+            header_id: ID of the header to delete
+
+        Returns:
+            True if deleted, False if not found
+        """
+        header = await TexHeader.get(header_id)
+        if not header:
+            self.logger.warning(f"Header with ID '{header_id}' not found for deletion")
+            return False
+
+        # Remove from cache if present
+        if header.name in self._cached_headers:
+            del self._cached_headers[header.name]
+
+        await header.delete()
+        return True
+
+    async def delete_by_name(self, name: str) -> bool:
+        """
+        Delete a header by name.
+
+        Args:
+            name: Name of the header to delete
+
+        Returns:
+            True if deleted, False if not found
+        """
+        header = await TexHeader.find_one(TexHeader.name == name)
+        if not header:
+            self.logger.warning(f"Header with name '{name}' not found for deletion")
+            return False
+
+        # Remove from cache if present
+        if name in self._cached_headers:
+            del self._cached_headers[name]
+
+        await header.delete()
+        return True
+
+    async def set_default_status(
+        self, header_id: str, is_default: bool = True
+    ) -> Optional[TexHeader]:
+        """
+        Set the default status of a header.
+        If setting to default (True), this will unset any other default
+        in the same category.
+
+        Args:
+            header_id: ID of the header to update
+            is_default: New default status
+
+        Returns:
+            Updated header if found, None otherwise
+        """
+        header = await TexHeader.get(header_id)
+        if not header:
+            self.logger.warning(f"Header with ID '{header_id}' not found")
+            return None
+
+        # If setting as default, unset other defaults in the same category
+        if is_default:
+            # Find current default header in the same category
+            current_default = await TexHeader.find_one(
+                {"category": header.category, "is_default": True}
+            )
+
+            # If there's a different default header, unset it
+            if current_default and str(current_default.id) != header_id:
+                current_default.is_default = False
+                current_default.updated_at = datetime.now(timezone.utc)
+                await current_default.save()
+
+                # Update cache if needed
+                if current_default.name in self._cached_headers:
+                    self._cached_headers[current_default.name] = current_default
+
+        # Update the target header
+        header.is_default = is_default
+        header.updated_at = datetime.now(timezone.utc)
+        await header.save()
+
+        # Update cache
+        if header.name in self._cached_headers:
+            self._cached_headers[header.name] = header
+
+        return header
+
+    async def clone_header(
+        self, source_id: str, new_name: str, is_default: bool = False
+    ) -> Optional[TexHeader]:
+        """
+        Clone an existing header with a new name.
+
+        Args:
+            source_id: ID of the header to clone
+            new_name: Name for the new header
+            is_default: Whether the new header should be default
+
+        Returns:
+            The newly created header if successful, None otherwise
+        """
+        source = await TexHeader.get(source_id)
+        if not source:
+            self.logger.warning(
+                f"Source header with ID '{source_id}' not found for cloning"
+            )
+            return None
+
+        # Check if a header with new_name already exists
+        existing = await TexHeader.find_one(TexHeader.name == new_name)
+        if existing:
+            self.logger.warning(f"Header with name '{new_name}' already exists")
+            return None
+
+        # Create the new header
+        return await self.create_header(
+            name=new_name,
+            content=source.content,
+            category=source.category,
+            is_default=is_default,
+        )
+
+    async def get_by_query(self, query: Dict[str, Any]) -> List[TexHeader]:
+        """
+        Get headers by arbitrary query criteria.
+
+        Args:
+            query: Dictionary with query parameters
+
+        Returns:
+            List of matching headers
+        """
+        return await TexHeader.find(query).to_list()
+
+    async def bulk_create_or_update(
+        self, headers: List[Dict[str, Any]]
+    ) -> List[TexHeader]:
+        """
+        Create or update multiple headers in a batch.
+
+        Args:
+            headers: List of header dictionaries with at least 'name' and 'content'
+
+        Returns:
+            List of created/updated headers
+        """
+        result = []
+
+        for header_data in headers:
+            name = header_data.get("name")
+            if not name:
+                self.logger.warning("Skipping header with no name in bulk operation")
+                continue
+
+            # Check if header exists
+            existing = await TexHeader.find_one(TexHeader.name == name)
+
+            if existing:
+                # Update existing header
+                for key, value in header_data.items():
+                    if hasattr(existing, key):
+                        setattr(existing, key, value)
+
+                existing.updated_at = datetime.now(timezone.utc)
+                await existing.save()
+
+                # Update cache
+                if name in self._cached_headers:
+                    self._cached_headers[name] = existing
+
+                result.append(existing)
+            else:
+                # Create new header
+                category = header_data.get("category", "resume_section")
+                content = header_data.get("content", "")
+                is_default = header_data.get("is_default", False)
+
+                new_header = await self.create_header(
+                    name=name,
+                    content=content,
+                    category=category,
+                    is_default=is_default,
+                )
+
+                result.append(new_header)
+
+        return result
+
+    async def search_headers(
+        self,
+        text: str,
+        categories: Optional[List[str]] = None,
+        is_default: Optional[bool] = None,
+    ) -> List[TexHeader]:
+        """
+        Search for headers containing specific text in name or content.
+
+        Args:
+            text: Text to search for
+            categories: Optional list of categories to limit search to
+            is_default: Optional filter for default status
+
+        Returns:
+            List of matching headers
+        """
+        query = {
+            "$or": [
+                {"name": {"$regex": text, "$options": "i"}},
+                {"content": {"$regex": text, "$options": "i"}},
+            ]
+        }
+
+        if categories:
+            query["category"] = {"$in": categories}
+
+        if is_default is not None:
+            query["is_default"] = is_default
+
+        return await TexHeader.find(query).to_list()
+
     # Factory methods for creating specific types
     async def create_template(
         self,
@@ -220,25 +525,46 @@ class TexHeaderRepository(BeanieRepository[TexHeader]):
             name=name, content=content, category="template", is_default=is_default
         )
 
-    async def create_preamble(
+    async def create_resume_section(
         self,
         name: str,
         content: str,
         is_default: bool = False,
     ) -> TexHeader:
         """
-        Create a new preamble (special category of header).
+        Create a new resume section header.
 
         Args:
-            name: Name of the preamble
+            name: Name of the section
             content: LaTeX code content
-            is_default: Whether this is a default preamble (default: False)
+            is_default: Whether this is a default section (default: False)
 
         Returns:
-            Created preamble
+            Created header
         """
         return await self.create_header(
-            name=name, content=content, category="preamble", is_default=is_default
+            name=name, content=content, category="resume_section", is_default=is_default
+        )
+
+    async def create_resume_item(
+        self,
+        name: str,
+        content: str,
+        is_default: bool = False,
+    ) -> TexHeader:
+        """
+        Create a new resume item header.
+
+        Args:
+            name: Name of the item
+            content: LaTeX code content
+            is_default: Whether this is a default item (default: False)
+
+        Returns:
+            Created header
+        """
+        return await self.create_header(
+            name=name, content=content, category="resume_item", is_default=is_default
         )
 
 

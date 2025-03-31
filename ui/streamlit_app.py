@@ -15,7 +15,6 @@ from core.database import (
     get_profile_repository,
     get_resume_repository,
     get_tex_header_repository,
-    get_tex_template_repository,
 )
 from core.services.cover_letter_generation_service import CoverLetterGenerationService
 from core.services.latex_service import LatexService
@@ -125,9 +124,6 @@ class StreamlitApp:
             )
             preamble_repository = get_repo_from_generator(get_preamble_repository())
             tex_header_repository = get_repo_from_generator(get_tex_header_repository())
-            tex_template_repository = get_repo_from_generator(
-                get_tex_template_repository()
-            )
 
             # Create dependent services
             self.prompt_service = PromptService()
@@ -139,7 +135,6 @@ class StreamlitApp:
             self.latex_service = LatexService(
                 preamble_repository=preamble_repository,
                 header_repository=tex_header_repository,
-                template_repository=tex_template_repository,
             )
 
             # Initialize generation services
@@ -188,7 +183,6 @@ class StreamlitApp:
                 from core.models.profile import Profile
                 from core.models.resume import Resume
                 from core.models.tex_header import TexHeader
-                from core.models.tex_template import TexTemplate
 
                 # Import models that need to be registered with Beanie
                 from core.models.user import User
@@ -206,7 +200,6 @@ class StreamlitApp:
                             CoverLetter,
                             Preamble,
                             TexHeader,
-                            TexTemplate,
                         ],
                     )
                     return db

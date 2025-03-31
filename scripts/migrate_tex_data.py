@@ -40,7 +40,6 @@ async def migrate_tex_data(
     # Define collections and corresponding JSON files
     collections = {
         "tex_headers": data_dir / "headers.json",
-        "tex_templates": data_dir / "templates.json",
         "tex_preambles": data_dir / "preambles.json",
     }
 

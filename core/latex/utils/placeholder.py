@@ -42,12 +42,16 @@ class PlaceholderManager:
             f"{self.start_delimiter}(.*?){self.end_delimiter}"
         )
 
+        # Also support single-brace placeholders for LaTeX commands
+        self.single_brace_pattern = re.compile(r"\{([A-Za-z0-9_]+)\}")
+
     def replace_placeholders(
         self,
         template: str,
         values: Dict[str, str],
         raise_on_missing: bool = True,
         default_value: str = "",
+        single_braces: bool = False,
     ) -> str:
         """
         Replace placeholders in a template with their values.
@@ -57,6 +61,7 @@ class PlaceholderManager:
             values: Dictionary of placeholder values
             raise_on_missing: Whether to raise an error for missing placeholders
             default_value: Default value for missing placeholders
+            single_braces: Whether to use single-brace pattern matching (for LaTeX commands)
 
         Returns:
             str: Template with placeholders replaced
@@ -74,7 +79,42 @@ class PlaceholderManager:
                 return default_value
             return str(values[key])
 
-        return self.placeholder_pattern.sub(replace_match, template)
+        # Use the appropriate pattern based on the single_braces flag
+        pattern = (
+            self.single_brace_pattern if single_braces else self.placeholder_pattern
+        )
+        return pattern.sub(replace_match, template)
+
+    def replace_all_placeholders(
+        self,
+        template: str,
+        values: Dict[str, str],
+        raise_on_missing: bool = False,
+        default_value: str = "",
+    ) -> str:
+        """
+        Replace both double-brace and single-brace placeholders.
+
+        Args:
+            template: Template string containing placeholders
+            values: Dictionary of placeholder values
+            raise_on_missing: Whether to raise an error for missing placeholders
+            default_value: Default value for missing placeholders
+
+        Returns:
+            str: Template with all placeholders replaced
+        """
+        # First replace standard double-brace placeholders
+        result = self.replace_placeholders(
+            template, values, raise_on_missing, default_value, single_braces=False
+        )
+
+        # Then replace single-brace placeholders
+        result = self.replace_placeholders(
+            result, values, raise_on_missing, default_value, single_braces=True
+        )
+
+        return result
 
     def extract_placeholders(self, template: str) -> List[str]:
         """

@@ -206,8 +206,11 @@ class ResumeGenerationService:
 
         # Convert data to serializable form if needed
         section_data = self._convert_to_serializable(section_data)
+        self.logger.debug(
+            f"Section data after serialization ({section_name}): {type(section_data).__name__}"
+        )
 
-        # If hardcode preference, return data directly without LLM processing
+        # If hardcode preference, use the data as is
         if section_preference.lower() == "hardcode":
             self.logger.info(f"Using hardcoded data for section: {section_name}")
             return section_data
@@ -215,8 +218,8 @@ class ResumeGenerationService:
         # Prepare context for LLM
         context = {
             "section_data": section_data,
-            "job_title": resume.job_title or "job_title",
-            "company_name": resume.company_name or "company_name",
+            "job_title": resume.job_title,
+            "company_name": resume.company_name,
         }
 
         self.logger.info(
@@ -225,18 +228,76 @@ class ResumeGenerationService:
 
         # LLM will return content in JSON format
         try:
-            return await self.llm_service.generate_section(
+            result = await self.llm_service.generate_section(
                 section_name=section_name,
                 context=context,
                 job_description=resume.job_description or "",
                 use_json_schema=True,  # Enable JSON schema output
             )
+            self.logger.debug(
+                f"LLM generated result for {section_name}: {result[:100]}..."
+            )
+            return result
         except Exception as e:
             self.logger.error(
                 f"Error generating content with LLM for section {section_name}: {e}"
             )
             # In case of error, return the original data
             return section_data
+
+    async def _collect_section_data(self, resume: Resume) -> Dict[str, Any]:
+        """
+        Collect section data from portfolio for all standard resume sections.
+
+        Args:
+            resume: Resume object
+
+        Returns:
+            Dictionary of section data by section name
+        """
+        sections_data = {}
+        user_id = resume.user_id
+
+        # Get personal information
+        try:
+            sections_data["personal_information"] = (
+                await self.profile_service.get_personal_information(user_id)
+            )
+        except Exception as e:
+            self.logger.error(f"Error getting personal information: {e}")
+
+        # Get portfolio for all other sections
+        try:
+            portfolio = await self.portfolio_service.get_portfolio_by_user_id(user_id)
+
+            if portfolio:
+                # Standard sections from portfolio
+                section_mappings = {
+                    "career_summary": portfolio.career_summary,
+                    "skills": portfolio.skills,
+                    "work_experience": portfolio.work_experience,
+                    "education": portfolio.education,
+                    "projects": portfolio.projects,
+                    "awards": portfolio.awards,
+                    "publications": portfolio.publications,
+                    "certifications": portfolio.certifications,
+                }
+
+                # Add sections that have data
+                for section_name, section_data in section_mappings.items():
+                    if section_data:  # Skip empty sections
+                        sections_data[section_name] = section_data
+
+                # Add enabled custom sections
+                if portfolio.custom_sections and portfolio.custom_sections.enabled:
+                    for custom_section in portfolio.custom_sections.enabled:
+                        if custom_section not in sections_data:
+                            sections_data[custom_section] = portfolio.custom_sections
+
+        except Exception as e:
+            self.logger.error(f"Error collecting portfolio sections: {e}")
+
+        return sections_data
 
     async def generate_resume_content(
         self,
@@ -266,134 +327,25 @@ class ResumeGenerationService:
         if not resume.content or not isinstance(resume.content, dict):
             resume.content = {}
 
+        # Collect all section data at once
+        sections_data = await self._collect_section_data(resume)
+        self.logger.info(f"Collected data for {len(sections_data)} sections")
+
         # Determine which sections to process
-        sections_to_process = regenerate_sections or [
-            "personal_information",
-            "career_summary",
-            "skills",
-            "work_experience",
-            "education",
-            "projects",
-            "awards",
-            "publications",
-        ]
+        if regenerate_sections:
+            # Process only specified sections
+            sections_to_process = [s for s in regenerate_sections if s in sections_data]
+        else:
+            # Process all available sections
+            sections_to_process = list(sections_data.keys())
+
+        # Keep track of processed sections
+        processed_sections = set()
 
         # Process each section
         for section_name in sections_to_process:
             try:
-                # Get section data from portfolio
-                section_data = None
-                self.logger.debug(f"Processing section: {section_name}")
-
-                if section_name == "personal_information":
-                    # Get personal information from profile service
-                    section_data = await self.profile_service.get_personal_information(
-                        resume.user_id
-                    )
-                    self.logger.debug(
-                        f"Retrieved personal information for user: {resume.user_id}"
-                    )
-                elif section_name == "career_summary":
-                    # Get portfolio data from portfolio service
-                    portfolio = await self.portfolio_service.get_portfolio_by_user_id(
-                        resume.user_id
-                    )
-                    section_data = (
-                        portfolio.career_summary
-                        if portfolio and portfolio.career_summary
-                        else None
-                    )
-                    self.logger.debug(
-                        f"Retrieved career summary for user: {resume.user_id}"
-                    )
-                elif section_name == "skills":
-                    # Get portfolio data from portfolio service
-                    portfolio = await self.portfolio_service.get_portfolio_by_user_id(
-                        resume.user_id
-                    )
-                    section_data = (
-                        portfolio.skills if portfolio and portfolio.skills else []
-                    )
-                    self.logger.debug(f"Retrieved skills for user: {resume.user_id}")
-                elif section_name == "work_experience":
-                    # Get portfolio data from portfolio service
-                    portfolio = await self.portfolio_service.get_portfolio_by_user_id(
-                        resume.user_id
-                    )
-                    section_data = (
-                        portfolio.work_experience
-                        if portfolio and portfolio.work_experience
-                        else []
-                    )
-                    self.logger.debug(
-                        f"Retrieved work experience for user: {resume.user_id}"
-                    )
-                elif section_name == "education":
-                    # Get portfolio data from portfolio service
-                    portfolio = await self.portfolio_service.get_portfolio_by_user_id(
-                        resume.user_id
-                    )
-                    section_data = (
-                        portfolio.education if portfolio and portfolio.education else []
-                    )
-                    self.logger.debug(f"Retrieved education for user: {resume.user_id}")
-                elif section_name == "projects":
-                    # Get portfolio data from portfolio service
-                    portfolio = await self.portfolio_service.get_portfolio_by_user_id(
-                        resume.user_id
-                    )
-                    section_data = (
-                        portfolio.projects if portfolio and portfolio.projects else []
-                    )
-                    self.logger.debug(f"Retrieved projects for user: {resume.user_id}")
-                elif section_name == "awards":
-                    # Get portfolio data from portfolio service
-                    portfolio = await self.portfolio_service.get_portfolio_by_user_id(
-                        resume.user_id
-                    )
-                    section_data = (
-                        portfolio.awards if portfolio and portfolio.awards else []
-                    )
-                    self.logger.debug(f"Retrieved awards for user: {resume.user_id}")
-                elif section_name == "publications":
-                    # Get portfolio data from portfolio service
-                    portfolio = await self.portfolio_service.get_portfolio_by_user_id(
-                        resume.user_id
-                    )
-                    section_data = (
-                        portfolio.publications
-                        if portfolio and portfolio.publications
-                        else []
-                    )
-                    self.logger.debug(
-                        f"Retrieved publications for user: {resume.user_id}"
-                    )
-                elif section_name == "certifications":
-                    # Get portfolio data from portfolio service
-                    portfolio = await self.portfolio_service.get_portfolio_by_user_id(
-                        resume.user_id
-                    )
-                    section_data = (
-                        portfolio.certifications
-                        if portfolio and portfolio.certifications
-                        else []
-                    )
-                    self.logger.debug(
-                        f"Retrieved certifications for user: {resume.user_id}"
-                    )
-                elif section_name in (
-                    portfolio.custom_sections.enabled
-                    if portfolio.custom_sections
-                    else []
-                ):
-                    # Get portfolio data from portfolio service
-                    portfolio = await self.portfolio_service.get_portfolio_by_user_id(
-                        resume.user_id
-                    )
-                    section_data = portfolio.custom_sections if portfolio else None
-                    self.logger.debug(
-                        f"Retrieved custom sections for user: {resume.user_id}"
-                    )
+                section_data = sections_data.get(section_name)
 
                 # Skip if no data
                 if section_data is None:
@@ -412,6 +364,7 @@ class ResumeGenerationService:
 
                     # Update resume content with the processed section
                     resume.content[section_name] = processed_content
+                    processed_sections.add(section_name)
                     self.logger.debug(f"Successfully processed section: {section_name}")
                 except Exception as section_error:
                     self.logger.error(
@@ -425,6 +378,9 @@ class ResumeGenerationService:
                     f"Error generating content for section {section_name}: {e}"
                 )
                 # Continue with other sections even if one fails
+
+        # Log processed sections
+        self.logger.info(f"Processed sections: {processed_sections}")
 
         # Update resume
         resume.updated_at = datetime.now(timezone.utc)

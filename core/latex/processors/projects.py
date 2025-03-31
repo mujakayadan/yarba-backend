@@ -1,0 +1,145 @@
+"""Projects section processor."""
+
+from typing import Any, Dict, List
+
+from ..utils.sanitizer import sanitize_latex
+from .base import SectionProcessor
+
+
+class ProjectsProcessor(SectionProcessor):
+    """Processor for projects section."""
+
+    def process(self, content: Any) -> str:
+        """
+        Process projects data into LaTeX content.
+
+        Args:
+            content: Projects data
+
+        Returns:
+            LaTeX content for projects
+        """
+        # Parse the content
+        data = self.parse_content(content)
+
+        # Handle empty case
+        if not data:
+            return "\\resumeProjectHeading\n{Project Name}\n{01/2023 - Present}\n\\resumeItemListStart\n\\resumeItem{Project description}\n\\resumeItemListEnd"
+
+        result = []
+
+        # Process list of projects
+        if isinstance(data, list):
+            for project in data:
+                if not isinstance(project, dict):
+                    continue
+
+                # Extract project details with defaults
+                name = sanitize_latex(project.get("name", ""))
+                tech = sanitize_latex(project.get("technologies", ""))
+                date = sanitize_latex(project.get("date", ""))
+
+                # Use default values if missing
+                name = name or "Project"
+                date = date or "01/2023 - Present"
+
+                # Combine name and technology if both are present
+                name_and_tech = name
+                if tech:
+                    name_and_tech = f"{name} \\textit{{{tech}}}"
+
+                # Extract and process bullet points
+                bullet_points = project.get("bullet_points", [])
+                points = []
+
+                if isinstance(bullet_points, list) and bullet_points:
+                    for point in bullet_points:
+                        points.append(f"\\resumeItem{{{sanitize_latex(point)}}}")
+                elif isinstance(bullet_points, str) and bullet_points:
+                    points.append(f"\\resumeItem{{{sanitize_latex(bullet_points)}}}")
+                else:
+                    # Ensure we have at least one point
+                    points.append("\\resumeItem{Project description}")
+
+                # Format the project using the project_item template format
+                bullet_points_text = "\n".join(points)
+                project_content = f"\\resumeProjectHeading\n{{{name_and_tech}}}\n{{{date}}}\n\\resumeItemListStart\n{bullet_points_text}\n\\resumeItemListEnd"
+                result.append(project_content)
+
+        # Handle dictionary format (single project or nested)
+        elif isinstance(data, dict):
+            # Check if it's a dictionary with nested projects
+            if "projects" in data and isinstance(data["projects"], list):
+                for project in data["projects"]:
+                    if not isinstance(project, dict):
+                        continue
+
+                    name = sanitize_latex(project.get("name", ""))
+                    tech = sanitize_latex(project.get("technologies", ""))
+                    date = sanitize_latex(project.get("date", ""))
+
+                    # Use default values if missing
+                    name = name or "Project"
+                    date = date or "01/2023 - Present"
+
+                    # Combine name and technology if both are present
+                    name_and_tech = name
+                    if tech:
+                        name_and_tech = f"{name} \\textit{{{tech}}}"
+
+                    # Extract and process bullet points
+                    bullet_points = project.get("bullet_points", [])
+                    points = []
+
+                    if isinstance(bullet_points, list) and bullet_points:
+                        for point in bullet_points:
+                            points.append(f"\\resumeItem{{{sanitize_latex(point)}}}")
+                    elif isinstance(bullet_points, str) and bullet_points:
+                        points.append(
+                            f"\\resumeItem{{{sanitize_latex(bullet_points)}}}"
+                        )
+                    else:
+                        # Ensure we have at least one point
+                        points.append("\\resumeItem{Project description}")
+
+                    bullet_points_text = "\n".join(points)
+                    project_content = f"\\resumeProjectHeading\n{{{name_and_tech}}}\n{{{date}}}\n\\resumeItemListStart\n{bullet_points_text}\n\\resumeItemListEnd"
+                    result.append(project_content)
+            else:
+                # It's a single project
+                name = sanitize_latex(data.get("name", ""))
+                tech = sanitize_latex(data.get("technologies", ""))
+                date = sanitize_latex(data.get("date", ""))
+
+                # Use default values if missing
+                name = name or "Project"
+                date = date or "01/2023 - Present"
+
+                # Combine name and technology if both are present
+                name_and_tech = name
+                if tech:
+                    name_and_tech = f"{name} \\textit{{{tech}}}"
+
+                # Extract and process bullet points
+                bullet_points = data.get("bullet_points", [])
+                points = []
+
+                if isinstance(bullet_points, list) and bullet_points:
+                    for point in bullet_points:
+                        points.append(f"\\resumeItem{{{sanitize_latex(point)}}}")
+                elif isinstance(bullet_points, str) and bullet_points:
+                    points.append(f"\\resumeItem{{{sanitize_latex(bullet_points)}}}")
+                else:
+                    # Ensure we have at least one point
+                    points.append("\\resumeItem{Project description}")
+
+                bullet_points_text = "\n".join(points)
+                project_content = f"\\resumeProjectHeading\n{{{name_and_tech}}}\n{{{date}}}\n\\resumeItemListStart\n{bullet_points_text}\n\\resumeItemListEnd"
+                result.append(project_content)
+
+        # Return projects content
+        if result:
+            return "\n".join(result)
+        else:
+            # Provide a placeholder
+            return "\\resumeProjectHeading\n{Project Name}\n{01/2023 - Present}\n\\resumeItemListStart\n\\resumeItem{Project description}\n\\resumeItemListEnd"

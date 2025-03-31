@@ -58,55 +58,92 @@ class CoverLetterCompiler(LatexCompiler):
             if "\\begin{document}" not in template["header"]["preamble"]:
                 content.append("\\begin{document}")
 
+            # Import repository here to avoid circular imports
+            from core.repositories.tex_header_repository import (
+                get_tex_header_repository,
+            )
+
+            tex_header_repo = get_tex_header_repository()
+
             # Get personal information
             info = cover_letter.personal_information or {}
-            full_name = info.get("full_name", "")
-            email = info.get("email", "")
-            phone = info.get("phone", "")
-            address = info.get("address", "")
-            linkedin = info.get("linkedin", "")
-            github = info.get("github", "")
-            website = info.get("website", "")
+            full_name = sanitize_latex(info.get("full_name", ""))
+            email = sanitize_latex(info.get("email", ""))
+            phone = sanitize_latex(info.get("phone", ""))
+            address = sanitize_latex(info.get("address", ""))
+            linkedin = sanitize_latex(info.get("linkedin", ""))
+            github = sanitize_latex(info.get("github", ""))
+            website = sanitize_latex(info.get("website", ""))
 
             # Get cover letter content
-            company_name = cover_letter.company_name or ""
-            job_title = cover_letter.job_title or ""
-            cover_letter_text = cover_letter.cover_letter_content or ""
+            company_name = sanitize_latex(cover_letter.company_name or "")
+            job_title = sanitize_latex(cover_letter.job_title or "")
+            cover_letter_text = sanitize_latex(cover_letter.cover_letter_content or "")
 
             # Format the date
             from datetime import datetime
 
             date = datetime.now().strftime("%B %d, %Y")
 
-            # Apply header template if provided
+            # Prepare placeholders
+            placeholders = {
+                "NAME": full_name,
+                "EMAIL": email,
+                "PHONE": phone,
+                "ADDRESS": address,
+                "LINKEDIN": linkedin,
+                "GITHUB": github,
+                "WEBSITE": website,
+                "DATE": date,
+                "COMPANY_NAME": company_name,
+                "JOB_TITLE": job_title,
+                "COVER_LETTER_CONTENT": cover_letter_text,
+            }
+
+            # Try to get the cover letter template
+            cover_letter_template = None
+            try:
+                # Check if a specific template is set
+                if cover_letter.template_id:
+                    cover_letter_template = await tex_header_repo.get_by_name(
+                        cover_letter.template_id
+                    )
+
+                # If no specific template or template not found, get default
+                if not cover_letter_template:
+                    cover_letter_template = await tex_header_repo.get_default(
+                        "cover_letter"
+                    )
+            except Exception as e:
+                self.logger.error(f"Error retrieving cover letter template: {e}")
+
+            # Apply header template if provided in parameters
             if (
                 "header" in template["section_formats"]
                 and template["section_formats"]["header"]
             ):
-                # Replace placeholders in header template
-                placeholders = {
-                    "NAME": sanitize_latex(full_name),
-                    "EMAIL": sanitize_latex(email),
-                    "PHONE": sanitize_latex(phone),
-                    "ADDRESS": sanitize_latex(address),
-                    "LINKEDIN": sanitize_latex(linkedin),
-                    "GITHUB": sanitize_latex(github),
-                    "WEBSITE": sanitize_latex(website),
-                    "DATE": date,
-                    "COMPANY_NAME": sanitize_latex(company_name),
-                    "JOB_TITLE": sanitize_latex(job_title),
-                    "COVER_LETTER_CONTENT": sanitize_latex(cover_letter_text),
-                }
+                # Use the provided header template
                 header_content = self.placeholder_manager.replace_placeholders(
                     template["section_formats"]["header"],
                     placeholders,
                 )
                 content.append(header_content)
+            elif cover_letter_template:
+                # Use the template from the database
+                self.logger.debug(
+                    f"Using cover letter template: {cover_letter_template.name}"
+                )
+                header_content = self.placeholder_manager.replace_placeholders(
+                    cover_letter_template.content,
+                    placeholders,
+                )
+                content.append(header_content)
             else:
-                # Create a basic cover letter structure
-                content.append(f"\\begin{{letter}}{{{sanitize_latex(company_name)}}}")
+                # Fallback to a basic cover letter structure
+                self.logger.warning("No cover letter template found, using fallback")
+                content.append(f"\\begin{{letter}}{{{company_name}}}")
                 content.append("\\opening{Dear Hiring Manager,}")
-                content.append(sanitize_latex(cover_letter_text))
+                content.append(cover_letter_text)
                 content.append("\\closing{Sincerely,}")
                 content.append(full_name)
                 content.append("\\end{letter}")

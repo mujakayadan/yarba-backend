@@ -90,23 +90,58 @@ def process_awards(content: Any) -> str:
     Returns:
         LaTeX formatted awards content
     """
+    logger.debug(
+        f"Processing awards content: {content} (type: {type(content).__name__})"
+    )
+
     data = parse_json_content(content)
+    logger.debug(f"Parsed awards data: {data} (type: {type(data).__name__})")
 
     if isinstance(data, str):
         # If it's still a string after parsing attempt, return as is
+        logger.warning(f"Awards data is still a string after parsing: {data}")
         return sanitize_latex(data)
 
     result = []
+    # Add the wrapper for the list of awards
+    result.append("\\resumeSubHeadingListStart")
 
+    # Handle both direct list of awards and dict with "awards" key
+    awards_list = []
     if isinstance(data, dict) and "awards" in data and isinstance(data["awards"], list):
-        for award in data["awards"]:
-            if isinstance(award, dict):
-                name = sanitize_latex(award.get("name", ""))
-                explanation = sanitize_latex(award.get("explanation", ""))
+        awards_list = data["awards"]
+        logger.debug(f"Found awards list in dictionary with {len(awards_list)} items")
+    elif isinstance(data, list):
+        awards_list = data
+        logger.debug(f"Using direct awards list with {len(awards_list)} items")
 
+    # Process each award
+    for i, award in enumerate(awards_list):
+        logger.debug(f"Processing award {i}: {award} (type: {type(award).__name__})")
+        if isinstance(award, dict):
+            name = sanitize_latex(award.get("name", ""))
+            explanation = sanitize_latex(award.get("explanation", ""))
+
+            if name and explanation:
+                logger.debug(f"Adding award: {name} - {explanation}")
                 result.append(f"\\resumeAwardHeading{{{name}}}{{{explanation}}}")
+            else:
+                logger.warning(f"Award {i} is missing name or explanation: {award}")
+        elif isinstance(award, list) and len(award) >= 2:
+            # Try to handle array format [name, explanation]
+            name = sanitize_latex(str(award[0]))
+            explanation = sanitize_latex(str(award[1]))
+            logger.debug(f"Adding award from array: {name} - {explanation}")
+            result.append(f"\\resumeAwardHeading{{{name}}}{{{explanation}}}")
+        else:
+            logger.warning(f"Unrecognized award format: {award}")
 
-    return "\n".join(result)
+    # End the list
+    result.append("\\resumeSubHeadingListEnd")
+
+    latex_result = "\n".join(result)
+    logger.debug(f"Final awards LaTeX result: {latex_result}")
+    return latex_result
 
 
 def process_skills(content: Any) -> str:
@@ -344,6 +379,9 @@ def process_publications(content: Any) -> str:
                 # Add the publication heading
                 result.append(f"\\resumeProjectHeading{{{name}}}{{{time}}}")
 
+                # Start item list for publication details
+                result.append("\\resumeItemListStart")
+
                 # Add the publication details as an item
                 if link:
                     # Avoid nested f-strings by using string concatenation
@@ -354,6 +392,9 @@ def process_publications(content: Any) -> str:
                     )
                 else:
                     result.append(f"\\resumeItem{{{sanitize_latex(publisher)}}}")
+
+                # End item list
+                result.append("\\resumeItemListEnd")
 
         result.append("\\resumeSubHeadingListEnd")
 
@@ -398,7 +439,10 @@ def process_career_summary(content: Any) -> str:
 
 def process_content_by_section(section_name: str, content: Any) -> str:
     """
-    Process content by section type, converting JSON schema to LaTeX.
+    Process content by section type, extracting structured content.
+
+    Note: This function now focuses on extracting structured content for use with templates
+    rather than directly including LaTeX formatting commands.
 
     Args:
         section_name: The name of the section to process
@@ -407,11 +451,15 @@ def process_content_by_section(section_name: str, content: Any) -> str:
     Returns:
         LaTeX formatted content
     """
+    logger.debug(f"Processing content for section {section_name}")
+
     # Try to parse content if it's a string
     parsed_content = parse_json_content(content)
+    logger.debug(f"Parsed content type: {type(parsed_content).__name__}")
 
     # Select appropriate processor based on section name
     if section_name == "personal_information":
+        # Just extract the values, LaTeX formatting handled by template
         return process_personal_information(parsed_content)
     elif section_name == "career_summary":
         return process_career_summary(parsed_content)

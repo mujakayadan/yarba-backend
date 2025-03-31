@@ -10,7 +10,6 @@ from ..repositories.preamble_repository import get_preamble_repository
 from ..repositories.profile_repository import get_profile_repository
 from ..repositories.resume_repository import get_resume_repository
 from ..repositories.tex_header_repository import get_tex_header_repository
-from ..repositories.tex_template_repository import get_tex_template_repository
 from ..repositories.user_repository import get_user_repository
 from .connection import (
     close_async_database_connection,
@@ -26,7 +25,6 @@ from .factory import (
     get_profile_repository,
     get_resume_repository,
     get_tex_header_repository,
-    get_tex_template_repository,
     get_unit_of_work,
     get_user_repository,
 )
@@ -46,7 +44,6 @@ __all__ = [
     "get_portfolio_repository",
     "get_resume_repository",
     "get_tex_header_repository",
-    "get_tex_template_repository",
     "get_preamble_repository",
     "get_cover_letter_repository",
     "get_unit_of_work",

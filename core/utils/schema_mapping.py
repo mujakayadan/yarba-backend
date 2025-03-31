@@ -39,7 +39,7 @@ def create_default_personal_info() -> PersonalInformation:
     """
     return PersonalInformation(
         full_name="Default User",
-        email=EmailStr("user@example.com"),
+        email="user@example.com",
         phone=None,
         address=None,
         linkedin=None,

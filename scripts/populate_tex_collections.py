@@ -95,7 +95,6 @@ async def main(args: argparse.Namespace) -> None:
     # Map of collection names to data files
     collections = {
         "tex_headers": base_dir / "tex_headers.json",
-        "tex_templates": base_dir / "tex_templates.json",
         "tex_preambles": base_dir / "tex_preambles.json",
     }
 

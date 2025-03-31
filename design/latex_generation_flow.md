@@ -190,12 +190,6 @@ erDiagram
         boolean is_default
     }
 
-    TexTemplate {
-        string name
-        string type
-        string content
-        boolean is_default
-    }
 
     Resume {
         ObjectId id
@@ -216,7 +210,6 @@ erDiagram
 
     Preamble ||--o{ Resume : uses
     TexHeader ||--o{ Resume : uses
-    TexTemplate ||--o{ Resume : uses
     Resume }|--|| Profile : references
 ```
 

@@ -556,10 +556,10 @@ async def debug_pdf_generation(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found"
             )
 
-        # Get profile
-        profile = await resume_service.repository.profile_repository.get_by_id(
-            resume.profile_id
-        )
+        # Get profile using the resume_generation_service instead
+        # The resume_generation_service already has access to profile_repository
+        _, profile, _ = await resume_generation_service.get_resume_data(resume_id)
+
         if not profile:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found"
@@ -747,36 +747,38 @@ async def advanced_debug_pdf_generation(
 
         # Get profile
         add_step("Fetching profile")
-        profile = await resume_service.repository.profile_repository.get_by_id(
-            resume.profile_id
-        )
-        if not profile:
-            add_step("Fetching profile", "error", {"error": "Profile not found"})
+        try:
+            # Get profile using the resume_generation_service
+            _, profile, portfolio = await resume_generation_service.get_resume_data(
+                resume_id
+            )
+
+            if not profile:
+                add_step("Fetching profile", "error", {"error": "Profile not found"})
+                debug_info["success"] = False
+                return debug_info
+
+            # Get profile information
+            full_name = profile.personal_information.full_name
+            add_step("Fetching profile", "success", {"name": full_name})
+
+            # Add snapshot of profile data
+            debug_info["data_snapshots"]["profile"] = {
+                "id": str(profile.id),
+                "full_name": full_name,
+                "email": profile.personal_information.email,
+            }
+
+            # Portfolio is already fetched above
+            add_step(
+                "Fetching portfolio", "success", {"user_id": str(portfolio.user_id)}
+            )
+
+        except Exception as e:
+            add_step("Fetching profile/portfolio", "error", {"error": str(e)})
             debug_info["success"] = False
+            add_error("Fetching profile/portfolio", e)
             return debug_info
-
-        # Get profile information
-        full_name = profile.personal_information.full_name
-        add_step("Fetching profile", "success", {"name": full_name})
-
-        # Add snapshot of profile data
-        debug_info["data_snapshots"]["profile"] = {
-            "id": str(profile.id),
-            "full_name": full_name,
-            "email": profile.personal_information.email,
-        }
-
-        # Get portfolio
-        add_step("Fetching portfolio")
-        portfolio = await resume_service.repository.portfolio_repository.get_by_id(
-            resume.portfolio_id
-        )
-        if not portfolio:
-            add_step("Fetching portfolio", "error", {"error": "Portfolio not found"})
-            debug_info["success"] = False
-            return debug_info
-
-        add_step("Fetching portfolio", "success", {"user_id": str(portfolio.user_id)})
 
         # Step-by-step debugging through the entire process
         try:

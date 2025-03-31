@@ -1,11 +1,9 @@
 """Test configuration for pytest."""
 
 import os
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
-import motor.motor_asyncio
 import pytest
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from api.dependencies.database import (
@@ -14,7 +12,6 @@ from api.dependencies.database import (
     get_profile_repository,
     get_resume_repository,
     get_tex_header_repository,
-    get_tex_template_repository,
     get_user_repository,
 )
 from api.main import app as fastapi_app
@@ -28,7 +25,6 @@ from core.repositories.preamble_repository import PreambleRepository
 from core.repositories.profile_repository import ProfileRepository
 from core.repositories.resume_repository import ResumeRepository
 from core.repositories.tex_header_repository import TexHeaderRepository
-from core.repositories.tex_template_repository import TexTemplateRepository
 from core.repositories.user_repository import UserRepository
 from core.services.auth_service import AuthService
 from core.services.latex_service import LatexService
@@ -156,18 +152,6 @@ def mock_tex_header_repository():
 
 
 @pytest.fixture
-def mock_tex_template_repository():
-    """Fixture for mocking tex template repository."""
-    repository = AsyncMock(spec=TexTemplateRepository)
-    repository.get_by_name = AsyncMock()
-    repository.create_template = AsyncMock()
-    repository.update_content = AsyncMock()
-    repository.safe_format_template = AsyncMock()
-    repository.clear_cache = AsyncMock()
-    return repository
-
-
-@pytest.fixture
 def mock_preamble_repository():
     """Fixture for mocking preamble repository."""
     repository = AsyncMock(spec=PreambleRepository)
@@ -215,9 +199,7 @@ def mock_latex_service():
 
 
 @pytest.fixture
-def mock_tex_service(
-    mock_tex_header_repository, mock_tex_template_repository, mock_preamble_repository
-):
+def mock_tex_service(mock_tex_header_repository, mock_preamble_repository):
     """Fixture for mocking Tex service."""
     service = AsyncMock(spec=LatexService)
     service.get_template = AsyncMock()
@@ -230,7 +212,6 @@ def mock_tex_service(
     service.get_all_header_names_by_category = AsyncMock()
     service.clear_caches = AsyncMock()
     service.header_repository = mock_tex_header_repository
-    service.template_repository = mock_tex_template_repository
     service.preamble_repository = mock_preamble_repository
     return service
 
@@ -284,7 +265,7 @@ def test_user():
     return User(
         id="507f1f77bcf86cd799439011",
         email="test@example.com",
-        full_name="Test User",
+        username="Test User",
         hashed_password="hashed_password",
         is_active=True,
         is_verified=True,
@@ -389,7 +370,6 @@ def app_with_mocked_dependencies(
     mock_portfolio_repository,
     mock_resume_repository,
     mock_tex_header_repository,
-    mock_tex_template_repository,
     mock_preamble_repository,
     mock_get_current_user,
 ):
@@ -403,9 +383,6 @@ def app_with_mocked_dependencies(
     app.dependency_overrides[get_resume_repository] = lambda: mock_resume_repository
     app.dependency_overrides[get_tex_header_repository] = (
         lambda: mock_tex_header_repository
-    )
-    app.dependency_overrides[get_tex_template_repository] = (
-        lambda: mock_tex_template_repository
     )
     app.dependency_overrides[get_preamble_repository] = lambda: mock_preamble_repository
     return app

@@ -12,7 +12,6 @@ from core.database.factory import (
     get_profile_repository,
     get_resume_repository,
     get_tex_header_repository,
-    get_tex_template_repository,
     get_user_repository,
 )
 from core.repositories.cover_letter_repository import CoverLetterRepository
@@ -35,7 +34,6 @@ from core.services.resume_service import ResumeService
 async def get_latex_service(
     preamble_repo=Depends(get_preamble_repository),
     header_repo=Depends(get_tex_header_repository),
-    template_repo=Depends(get_tex_template_repository),
 ) -> LatexService:
     """Get a LaTeX service.
 
@@ -50,7 +48,6 @@ async def get_latex_service(
     return LatexService(
         preamble_repository=preamble_repo,
         header_repository=header_repo,
-        template_repository=template_repo,
     )
 
 

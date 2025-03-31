@@ -1,7 +1,7 @@
 """Preamble repository implementation."""
 
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 from config.logging_config import get_logger
 

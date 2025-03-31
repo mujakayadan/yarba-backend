@@ -12,7 +12,6 @@ from ..repositories.preamble_repository import PreambleRepository
 from ..repositories.profile_repository import ProfileRepository
 from ..repositories.resume_repository import ResumeRepository
 from ..repositories.tex_header_repository import TexHeaderRepository
-from ..repositories.tex_template_repository import TexTemplateRepository
 from ..repositories.user_repository import UserRepository
 from .connection import get_async_database_connection
 
@@ -32,7 +31,6 @@ class AsyncMongoUnitOfWork:
         portfolio_repository: Repository for portfolio data
         tex_header_repository: Repository for TeX headers
         preamble_repository: Repository for preambles
-        tex_template_repository: Repository for TeX templates
     """
 
     def __init__(self, database: Optional[AsyncIOMotorDatabase] = None):
@@ -48,7 +46,6 @@ class AsyncMongoUnitOfWork:
         self.portfolio_repository: Optional[PortfolioRepository] = None
         self.tex_header_repository: Optional[TexHeaderRepository] = None
         self.preamble_repository: Optional[PreambleRepository] = None
-        self.tex_template_repository: Optional[TexTemplateRepository] = None
 
     async def __aenter__(self):
         """Enter the context manager.
@@ -67,7 +64,6 @@ class AsyncMongoUnitOfWork:
         self.portfolio_repository = PortfolioRepository()
         self.tex_header_repository = TexHeaderRepository()
         self.preamble_repository = PreambleRepository()
-        self.tex_template_repository = TexTemplateRepository()
 
         return self
 

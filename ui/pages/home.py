@@ -548,7 +548,6 @@ class HomePage:
                                     latex_service = LatexService(
                                         preamble_repository=uow.preamble_repository,
                                         header_repository=uow.tex_header_repository,
-                                        template_repository=uow.tex_template_repository,
                                     )
 
                                     # Configure generator service

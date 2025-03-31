@@ -23,7 +23,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from config.logging_config import get_logger
 from config.settings import settings
-from core.models.latex import TexHeader, TexPreamble, TexTemplate
 from core.models.portfolio import Portfolio
 from core.models.profile import Profile
 from core.models.resume import Resume
@@ -37,9 +36,6 @@ MODEL_MAP = {
     "profiles": Profile,
     "portfolios": Portfolio,
     "resumes": Resume,
-    "tex_headers": TexHeader,
-    "tex_preambles": TexPreamble,
-    "tex_templates": TexTemplate,
 }
 
 
