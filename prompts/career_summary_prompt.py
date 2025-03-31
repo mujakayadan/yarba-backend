@@ -5,7 +5,7 @@ from .base import BasePrompt
 TEMPLATE = """Task: Based on the provided job description, candidate's job titles, and years of experience, create a concise career summary for the resume.
 
 Instructions:
-- Select the most appropriate job title from the candidate's history that best aligns with the target position
+- Select the most relevant job title from the candidate's history that best aligns with the target position
 - Use the candidate's actual years of experience (do not inflate or reduce)
 - Create a summary between ${career_summary_details_min_words} and ${career_summary_details_max_words} words
 - Focus on skills and experiences that directly relate to the job description
@@ -19,7 +19,7 @@ Your response should be structured as a valid JSON object matching the CareerSum
 The structure should be:
 ```json
 {
-  "job_titles": ["Primary Job Title", "Alternative Title 1", "Alternative Title 2"],
+  "job_title": "Most Relevant Job Title",
   "years_of_experience": "X",
   "default_summary": "implementing and managing... (continuing the sentence as a natural flow)"
 }
@@ -27,7 +27,7 @@ The structure should be:
 
 Example:
 {
-  "job_titles": ["Computer Vision Engineer", "Machine Learning Engineer", "AI Developer"],
+  "job_title": "Computer Vision Engineer",
   "years_of_experience": "3",
   "default_summary": "implementing highly scalable robust industrial computer vision applications using machine learning algorithms. Proficient in algorithm development, research and development processes, and finding suitable solutions for complex industrial needs. Hands-on using Python, Matlab, C++, OpenCV, and Deep Learning libraries."
 }
