@@ -1,12 +1,12 @@
 """Cover letter compiler implementation."""
 
-import json
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from ...models.cover_letter import CoverLetter
 from ..base import LatexCompiler
-from ..utils.placeholder import PlaceholderManager
+from ..templates import DEFAULT_COVER_LETTER_PREAMBLE
 from ..utils.sanitizer import sanitize_latex
 
 
@@ -21,7 +21,6 @@ class CoverLetterCompiler(LatexCompiler):
     def __init__(self):
         """Initialize the cover letter compiler."""
         super().__init__()
-        self.placeholder_manager = PlaceholderManager()
 
     async def generate_tex_content(
         self, cover_letter: CoverLetter, template: Dict[str, Any]
@@ -36,133 +35,65 @@ class CoverLetterCompiler(LatexCompiler):
             str: Generated LaTeX content
         """
         try:
-            # Start with document class and packages
-            content = []
-
-            # Use preamble directly since it already contains document class, packages, etc.
-            if "preamble" in template["header"] and template["header"]["preamble"]:
-                # Use the provided preamble
-                content.append(template["header"]["preamble"])
-            else:
-                # Fallback to a basic preamble if none provided
-                self.logger.warning(
-                    "No preamble provided, using fallback basic preamble"
-                )
-                content.append("\\documentclass[12pt]{letter}")
-                content.append("\\usepackage{geometry}")
-                content.append("\\usepackage{hyperref}")
-                # Ensure we have a document start
-                content.append("\\begin{document}")
-
-            # Begin document if not already included in preamble
-            if "\\begin{document}" not in template["header"]["preamble"]:
-                content.append("\\begin{document}")
-
-            # Import repository here to avoid circular imports
-            from core.repositories.tex_header_repository import (
-                get_tex_header_repository,
+            # Get personal information from cover_letter
+            name = sanitize_latex(
+                cover_letter.name if hasattr(cover_letter, "name") else ""
+            )
+            phone = sanitize_latex(
+                cover_letter.phone if hasattr(cover_letter, "phone") else ""
+            )
+            email = sanitize_latex(
+                cover_letter.email if hasattr(cover_letter, "email") else ""
+            )
+            linkedin = sanitize_latex(
+                cover_letter.linkedin if hasattr(cover_letter, "linkedin") else "#"
+            )
+            github = sanitize_latex(
+                cover_letter.github if hasattr(cover_letter, "github") else "#"
+            )
+            website = sanitize_latex(
+                cover_letter.website if hasattr(cover_letter, "website") else "#"
+            )
+            address = sanitize_latex(
+                cover_letter.address if hasattr(cover_letter, "address") else ""
             )
 
-            tex_header_repo = get_tex_header_repository()
-
-            # Get personal information
-            info = cover_letter.personal_information or {}
-            full_name = sanitize_latex(info.get("full_name", ""))
-            email = sanitize_latex(info.get("email", ""))
-            phone = sanitize_latex(info.get("phone", ""))
-            address = sanitize_latex(info.get("address", ""))
-            linkedin = sanitize_latex(info.get("linkedin", ""))
-            github = sanitize_latex(info.get("github", ""))
-            website = sanitize_latex(info.get("website", ""))
-
-            # Get cover letter content
+            # Get job information
             company_name = sanitize_latex(cover_letter.company_name or "")
             job_title = sanitize_latex(cover_letter.job_title or "")
-            cover_letter_text = sanitize_latex(cover_letter.cover_letter_content or "")
 
-            # Format the date
-            from datetime import datetime
+            # Get cover letter content
+            cover_letter_content = sanitize_latex(
+                cover_letter.cover_letter_content or ""
+            )
 
-            date = datetime.now().strftime("%B %d, %Y")
+            # Get the template preamble or use default
+            preamble = DEFAULT_COVER_LETTER_PREAMBLE
+            if template and "header" in template and "preamble" in template["header"]:
+                preamble = template["header"]["preamble"]
 
-            # Prepare placeholders
-            placeholders = {
-                "NAME": full_name,
-                "EMAIL": email,
-                "PHONE": phone,
-                "ADDRESS": address,
-                "LINKEDIN": linkedin,
-                "GITHUB": github,
-                "WEBSITE": website,
-                "DATE": date,
-                "COMPANY_NAME": company_name,
-                "JOB_TITLE": job_title,
-                "COVER_LETTER_CONTENT": cover_letter_text,
-            }
-
-            # Try to get the cover letter template
-            cover_letter_template = None
-            try:
-                # Check if a specific template is set
-                if cover_letter.template_id:
-                    cover_letter_template = await tex_header_repo.get_by_name(
-                        cover_letter.template_id
-                    )
-
-                # If no specific template or template not found, get default
-                if not cover_letter_template:
-                    cover_letter_template = await tex_header_repo.get_default(
-                        "cover_letter"
-                    )
-            except Exception as e:
-                self.logger.error(f"Error retrieving cover letter template: {e}")
-
-            # Apply header template if provided in parameters
-            if (
-                "header" in template["section_formats"]
-                and template["section_formats"]["header"]
-            ):
-                # Use the provided header template
-                header_content = self.placeholder_manager.replace_placeholders(
-                    template["section_formats"]["header"],
-                    placeholders,
-                )
-                content.append(header_content)
-            elif cover_letter_template:
-                # Use the template from the database
-                self.logger.debug(
-                    f"Using cover letter template: {cover_letter_template.name}"
-                )
-                header_content = self.placeholder_manager.replace_placeholders(
-                    cover_letter_template.content,
-                    placeholders,
-                )
-                content.append(header_content)
-            else:
-                # Fallback to a basic cover letter structure
-                self.logger.warning("No cover letter template found, using fallback")
-                content.append(f"\\begin{{letter}}{{{company_name}}}")
-                content.append("\\opening{Dear Hiring Manager,}")
-                content.append(cover_letter_text)
-                content.append("\\closing{Sincerely,}")
-                content.append(full_name)
-                content.append("\\end{letter}")
-
-            # End document if not already included in preamble
-            if "\\end{document}" not in template["header"]["preamble"]:
-                content.append("\\end{document}")
-
-            # Join all lines
-            return "\n".join(content)
+            # Replace placeholders in the cover letter
+            return (
+                preamble.replace("{{NAME}}", name)
+                .replace("{{PHONE}}", phone)
+                .replace("{{EMAIL}}", email)
+                .replace("{{LINKEDIN}}", linkedin)
+                .replace("{{GITHUB}}", github)
+                .replace("{{WEBSITE}}", website)
+                .replace("{{ADDRESS}}", address)
+                .replace("{{COMPANY_NAME}}", company_name)
+                .replace("{{JOB_TITLE}}", job_title)
+                .replace("{{COVER_LETTER_CONTENT}}", cover_letter_content)
+            )
 
         except Exception as e:
-            self.logger.error(f"Error generating cover letter LaTeX content: {e}")
+            self.logger.error(f"Error generating LaTeX content: {e}")
             raise
 
     async def generate_pdf(
         self, cover_letter: CoverLetter, template: Dict[str, Any]
     ) -> Optional[bytes]:
-        """Generate a PDF from a cover letter.
+        """Generate a PDF file from a cover letter.
 
         Args:
             cover_letter: Cover letter data
@@ -171,11 +102,19 @@ class CoverLetterCompiler(LatexCompiler):
         Returns:
             Optional[bytes]: PDF content if successful, None otherwise
         """
-        # Generate LaTeX content
-        tex_content = await self.generate_tex_content(cover_letter, template)
+        try:
+            # Generate LaTeX content
+            latex_content = await self.generate_tex_content(cover_letter, template)
 
-        # Create temporary file path
-        tex_path = Path(self.output_dir) / f"{cover_letter.id}.tex"
+            # Create a temp file for LaTeX compilation
+            with tempfile.NamedTemporaryFile(suffix=".tex", delete=False) as temp_file:
+                temp_path = Path(temp_file.name)
 
-        # Compile to PDF
-        return await self.compile_pdf(tex_path, tex_content)
+            # Compile to PDF
+            pdf_content = await self.compile_pdf(temp_path, latex_content)
+
+            return pdf_content
+
+        except Exception as e:
+            self.logger.error(f"Error generating PDF: {e}")
+            return None

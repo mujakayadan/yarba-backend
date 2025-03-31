@@ -2,6 +2,7 @@
 
 from typing import Any, Dict, List
 
+from ..templates import get_resume_item_template
 from ..utils.sanitizer import sanitize_latex
 from .base import SectionProcessor
 
@@ -28,82 +29,61 @@ class WorkExperienceProcessor(SectionProcessor):
 
         result = []
 
-        # Handle dictionary format with nested work_experience
-        if (
-            isinstance(data, dict)
-            and "work_experience" in data
-            and isinstance(data["work_experience"], list)
-        ):
-            jobs = data["work_experience"]
-            for job in jobs:
-                if not isinstance(job, dict):
-                    continue
+        # Get the template for work experience item
+        item_template = get_resume_item_template("work_experience_item")
+        bullet_template = get_resume_item_template("bullet_point")
 
-                # Extract job details with defaults
-                job_title = sanitize_latex(job.get("job_title", ""))
-                company = sanitize_latex(job.get("company", ""))
-                location = sanitize_latex(job.get("location", ""))
-                time = sanitize_latex(job.get("time", ""))
-                responsibilities = job.get("responsibilities", [])
-
-                # Process responsibilities
-                resp_items = []
-                if isinstance(responsibilities, list):
-                    for item in responsibilities:
-                        resp_items.append(f"\\resumeItem{{{sanitize_latex(item)}}}")
-                elif isinstance(responsibilities, str):
-                    resp_items.append(
-                        f"\\resumeItem{{{sanitize_latex(responsibilities)}}}"
-                    )
-
-                # Format the job using the resumeSubheading command
-                job_content = f"\\resumeSubheading\n    {{{job_title}}}{{{time}}}\n    {{{company}}}{{{location}}}\n    \\resumeItemListStart\n{chr(10).join(resp_items)}\n    \\resumeItemListEnd"
-                result.append(job_content)
-        # Process list of work experiences
+        # Handle different data structures and standardize to list of entries
+        entries = []
+        if isinstance(data, dict):
+            if "work_experience" in data and isinstance(data["work_experience"], list):
+                # Format: {"work_experience": [entry1, entry2, ...]}
+                entries = data["work_experience"]
+            else:
+                # Format: single job entry as dict
+                entries = [data]
         elif isinstance(data, list):
-            for job in data:
-                if not isinstance(job, dict):
-                    continue
+            # Format: [entry1, entry2, ...]
+            entries = data
 
-                # Extract job details with defaults
-                job_title = sanitize_latex(job.get("job_title", ""))
-                company = sanitize_latex(job.get("company", ""))
-                location = sanitize_latex(job.get("location", ""))
-                time = sanitize_latex(job.get("time", ""))
-                responsibilities = job.get("responsibilities", [])
+        # Process each work experience entry
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
 
-                # Process responsibilities
-                resp_items = []
-                if isinstance(responsibilities, list):
-                    for item in responsibilities:
-                        resp_items.append(f"\\resumeItem{{{sanitize_latex(item)}}}")
-                elif isinstance(responsibilities, str):
-                    resp_items.append(
-                        f"\\resumeItem{{{sanitize_latex(responsibilities)}}}"
-                    )
+            # Extract fields with defaults
+            job_title = sanitize_latex(entry.get("job_title", ""))
+            company = sanitize_latex(entry.get("company", ""))
+            location = sanitize_latex(entry.get("location", ""))
+            time = sanitize_latex(entry.get("time", ""))
 
-                # Format the job using the resumeSubheading command
-                job_content = f"\\resumeSubheading\n    {{{job_title}}}{{{time}}}\n    {{{company}}}{{{location}}}\n    \\resumeItemListStart\n{chr(10).join(resp_items)}\n    \\resumeItemListEnd"
-                result.append(job_content)
+            # Get responsibilities
+            responsibilities = entry.get("responsibilities", [])
+            responsibilities_latex = []
 
-        # Handle dictionary format (single job)
-        elif isinstance(data, dict):
-            job_title = sanitize_latex(data.get("job_title", ""))
-            company = sanitize_latex(data.get("company", ""))
-            location = sanitize_latex(data.get("location", ""))
-            time = sanitize_latex(data.get("time", ""))
-            responsibilities = data.get("responsibilities", [])
-
-            # Process responsibilities
-            resp_items = []
+            # Handle different formats of responsibilities
             if isinstance(responsibilities, list):
-                for item in responsibilities:
-                    resp_items.append(f"\\resumeItem{{{sanitize_latex(item)}}}")
+                for resp in responsibilities:
+                    responsibilities_latex.append(
+                        bullet_template.format(content=sanitize_latex(resp))
+                    )
             elif isinstance(responsibilities, str):
-                resp_items.append(f"\\resumeItem{{{sanitize_latex(responsibilities)}}}")
+                # If it's a string, split by newlines
+                for line in responsibilities.split("\n"):
+                    if line.strip():
+                        responsibilities_latex.append(
+                            bullet_template.format(content=sanitize_latex(line.strip()))
+                        )
 
-            # Format the job
-            job_content = f"\\resumeSubheading\n    {{{job_title}}}{{{time}}}\n    {{{company}}}{{{location}}}\n    \\resumeItemListStart\n{chr(10).join(resp_items)}\n    \\resumeItemListEnd"
-            result.append(job_content)
+            # Format the work experience item
+            formatted_entry = item_template.format(
+                job_title=job_title,
+                company=company,
+                location=location,
+                time=time,
+                responsibilities="\n".join(responsibilities_latex),
+            )
+
+            result.append(formatted_entry)
 
         return "\n".join(result)

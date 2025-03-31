@@ -73,24 +73,6 @@ async def get_cover_letter_repository() -> AsyncGenerator[CoverLetterRepository,
     yield CoverLetterRepository()
 
 
-async def get_preamble_repository() -> AsyncGenerator[PreambleRepository, None]:
-    """Get a preamble repository.
-
-    Yields:
-        PreambleRepository: Preamble repository instance
-    """
-    yield PreambleRepository()
-
-
-async def get_tex_header_repository() -> AsyncGenerator[TexHeaderRepository, None]:
-    """Get a TeX header repository.
-
-    Yields:
-        TexHeaderRepository: TeX header repository instance
-    """
-    yield TexHeaderRepository()
-
-
 async def get_unit_of_work() -> AsyncGenerator[AsyncMongoUnitOfWork, None]:
     """Get a Unit of Work.
 

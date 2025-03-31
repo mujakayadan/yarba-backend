@@ -8,10 +8,8 @@ from fastapi.testclient import TestClient
 
 from api.dependencies.database import (
     get_portfolio_repository,
-    get_preamble_repository,
     get_profile_repository,
     get_resume_repository,
-    get_tex_header_repository,
     get_user_repository,
 )
 from api.main import app as fastapi_app
@@ -21,10 +19,8 @@ from core.models.profile import Profile
 from core.models.resume import Resume
 from core.models.user import User
 from core.repositories.portfolio_repository import PortfolioRepository
-from core.repositories.preamble_repository import PreambleRepository
 from core.repositories.profile_repository import ProfileRepository
 from core.repositories.resume_repository import ResumeRepository
-from core.repositories.tex_header_repository import TexHeaderRepository
 from core.repositories.user_repository import UserRepository
 from core.services.auth_service import AuthService
 from core.services.latex_service import LatexService
@@ -135,31 +131,6 @@ def mock_resume_repository():
     repository.create = AsyncMock()
     repository.update = AsyncMock()
     repository.delete = AsyncMock()
-    return repository
-
-
-@pytest.fixture
-def mock_tex_header_repository():
-    """Fixture for mocking tex header repository."""
-    repository = AsyncMock(spec=TexHeaderRepository)
-    repository.get_by_name = AsyncMock()
-    repository.get_default = AsyncMock()
-    repository.get_all_by_category = AsyncMock()
-    repository.create_header = AsyncMock()
-    repository.update_content = AsyncMock()
-    repository.clear_cache = AsyncMock()
-    return repository
-
-
-@pytest.fixture
-def mock_preamble_repository():
-    """Fixture for mocking preamble repository."""
-    repository = AsyncMock(spec=PreambleRepository)
-    repository.get_by_name = AsyncMock()
-    repository.get_default = AsyncMock()
-    repository.create_preamble = AsyncMock()
-    repository.update_content = AsyncMock()
-    repository.clear_cache = AsyncMock()
     return repository
 
 
@@ -381,10 +352,6 @@ def app_with_mocked_dependencies(
         lambda: mock_portfolio_repository
     )
     app.dependency_overrides[get_resume_repository] = lambda: mock_resume_repository
-    app.dependency_overrides[get_tex_header_repository] = (
-        lambda: mock_tex_header_repository
-    )
-    app.dependency_overrides[get_preamble_repository] = lambda: mock_preamble_repository
     return app
 
 

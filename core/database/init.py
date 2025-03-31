@@ -4,7 +4,6 @@ This module provides functions for initializing the database connection
 and setting up the database for the application.
 """
 
-import logging
 from typing import Optional
 
 from beanie import init_beanie

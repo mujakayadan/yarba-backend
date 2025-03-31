@@ -278,7 +278,6 @@ The `ResumeGenerationService` orchestrates the complete resume and cover letter 
 from core.repositories.portfolio_repository import PortfolioRepository
 from core.repositories.profile_repository import ProfileRepository
 from core.repositories.resume_repository import ResumeRepository
-from core.repositories.tex_header_repository import TexHeaderRepository
 from core.services.llm_service import LLMService
 from core.services.prompt_service import PromptService
 from core.services.resume_generation_service import ResumeGenerationService
@@ -288,7 +287,6 @@ from core.services.latex_service import LatexService
 portfolio_repository = PortfolioRepository()
 profile_repository = ProfileRepository()
 resume_repository = ResumeRepository()
-tex_header_repository = TexHeaderRepository()
 
 prompt_service = PromptService()
 llm_service = LLMService(
@@ -314,7 +312,6 @@ resume_content = await resume_service.generate_resume_content("resume_id")
 resume_latex = await resume_service.generate_latex(
     resume_id="resume_id",
     content=resume_content,
-    is_cover_letter=False
 )
 
 # Generate cover letter

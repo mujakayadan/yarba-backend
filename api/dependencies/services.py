@@ -8,10 +8,8 @@ from fastapi import Depends
 from core.database.factory import (
     get_cover_letter_repository,
     get_portfolio_repository,
-    get_preamble_repository,
     get_profile_repository,
     get_resume_repository,
-    get_tex_header_repository,
     get_user_repository,
 )
 from core.repositories.cover_letter_repository import CoverLetterRepository
@@ -31,24 +29,15 @@ from core.services.resume_generation_service import ResumeGenerationService
 from core.services.resume_service import ResumeService
 
 
-async def get_latex_service(
-    preamble_repo=Depends(get_preamble_repository),
-    header_repo=Depends(get_tex_header_repository),
-) -> LatexService:
+async def get_latex_service() -> LatexService:
     """Get a LaTeX service.
 
-    Args:
-        preamble_repo: LaTeX preamble repository
-        header_repo: LaTeX header repository
-        template_repo: LaTeX template repository
+    Args: None
 
     Returns:
         LatexService: LaTeX service
     """
-    return LatexService(
-        preamble_repository=preamble_repo,
-        header_repository=header_repo,
-    )
+    return LatexService()
 
 
 async def get_prompt_service() -> PromptService:
