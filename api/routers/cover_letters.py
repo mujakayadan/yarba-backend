@@ -34,7 +34,7 @@ from ..schemas.cover_letter import (
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/cover-letters", tags=["Cover Letters"])
+router = APIRouter()
 
 
 @router.get("", response_model=List[CoverLetterResponse])
