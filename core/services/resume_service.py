@@ -32,6 +32,40 @@ class ResumeService:
         self.user_repository = user_repository
         self.logger = logging.getLogger(self.__class__.__name__)
 
+    def _generate_proper_title(self, company_name: str, job_title: str) -> str:
+        """
+        Generate a properly formatted title from company_name and job_title.
+
+        Args:
+            company_name: Company name with lowercase and underscores
+            job_title: Job title with lowercase and underscores
+
+        Returns:
+            Properly formatted title
+        """
+        if not company_name and not job_title:
+            return "My Resume"
+
+        # Convert underscores to spaces and capitalize words
+        formatted_company = (
+            " ".join(word.capitalize() for word in company_name.split("_"))
+            if company_name
+            else ""
+        )
+        formatted_job = (
+            " ".join(word.capitalize() for word in job_title.split("_"))
+            if job_title
+            else ""
+        )
+
+        # Combine them with a space if both exist
+        if formatted_company and formatted_job:
+            return f"{formatted_company} {formatted_job}"
+        elif formatted_company:
+            return formatted_company
+        else:
+            return formatted_job
+
     async def get_resume_by_id(
         self, resume_id: PydanticObjectId, user_id: PydanticObjectId
     ) -> Resume:
@@ -93,7 +127,6 @@ class ResumeService:
         user_id: PydanticObjectId,
         profile_id: PydanticObjectId = None,
         portfolio_id: PydanticObjectId = None,
-        title: Optional[str] = None,
         company_name: Optional[str] = None,
         job_title: Optional[str] = None,
         job_description: Optional[str] = None,
@@ -106,7 +139,6 @@ class ResumeService:
             user_id: User ID
             profile_id: Profile ID
             portfolio_id: Portfolio ID
-            title: Resume title (optional)
             company_name: Company name (optional)
             job_title: Job title (optional)
             job_description: Job description (optional)
@@ -123,12 +155,15 @@ class ResumeService:
             self.logger.warning(f"User not found: {user_id}")
             raise NotFoundException("User not found")
 
+        # Always generate title from company_name and job_title
+        title = self._generate_proper_title(company_name or "", job_title or "")
+
         # Create a new resume with required fields
         resume = Resume(
             user_id=user_id,
             profile_id=profile_id,
             portfolio_id=portfolio_id,
-            title=title or "My Resume",
+            title=title,
             version=1,
             template_id=template_id or "default",
             company_name=company_name or "",
@@ -163,6 +198,19 @@ class ResumeService:
             NotFoundException: If resume not found or doesn't belong to user
         """
         resume = await self.get_resume_by_id(resume_id, user_id)
+
+        # Remove title from update_data if present - title should never be directly set
+        if "title" in update_data:
+            del update_data["title"]
+
+        # Check if company_name or job_title are being updated
+        if "company_name" in update_data or "job_title" in update_data:
+            # Get the new values or use existing ones
+            company_name = update_data.get("company_name", resume.company_name)
+            job_title = update_data.get("job_title", resume.job_title)
+            # Generate the new title
+            update_data["title"] = self._generate_proper_title(company_name, job_title)
+            self.logger.info(f"Updated title to: {update_data['title']}")
 
         # Update resume fields
         for key, value in update_data.items():

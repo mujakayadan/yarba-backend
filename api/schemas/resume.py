@@ -10,7 +10,6 @@ from pydantic import BaseModel, Field
 class ResumeBase(BaseModel):
     """Base class for resume schemas."""
 
-    title: str = Field(..., description="Resume title")
     template_id: str = Field(..., description="Template ID")
 
 
@@ -31,7 +30,6 @@ class ResumeCreate(ResumeBase):
 class ResumeUpdate(BaseModel):
     """Schema for resume update."""
 
-    title: Optional[str] = Field(None, description="Resume title")
     template_id: Optional[str] = Field(None, description="Template ID")
     job_title: Optional[str] = Field(None, description="Job title")
     company_name: Optional[str] = Field(None, description="Company name")
@@ -55,13 +53,15 @@ class ResumeFilter(BaseModel):
     limit: int = Field(10, ge=1, le=100, description="Number of resumes to return")
 
 
-class ResumeResponse(ResumeBase):
+class ResumeResponse(BaseModel):
     """Response schema for resume."""
 
     id: PydanticObjectId = Field(..., description="Resume ID")
     user_id: PydanticObjectId = Field(..., description="User ID")
     profile_id: PydanticObjectId = Field(..., description="Profile ID")
     portfolio_id: PydanticObjectId = Field(..., description="Portfolio ID")
+    title: str = Field(..., description="Resume title")
+    template_id: str = Field(..., description="Template ID")
     job_title: Optional[str] = Field(None, description="Job title")
     company_name: Optional[str] = Field(None, description="Company name")
     job_description: Optional[str] = Field(None, description="Job description")
