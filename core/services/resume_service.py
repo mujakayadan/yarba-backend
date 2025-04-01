@@ -325,3 +325,23 @@ class ResumeService:
 
         # Get all resumes with the repository filter
         return await self.resume_repository.get_by_filter(user, repo_filter)
+
+    async def count_resumes(
+        self, user_id: PydanticObjectId, filter_params: ResumeFilter
+    ) -> int:
+        """
+        Count the total number of resumes matching filter criteria.
+
+        Args:
+            user_id: User ID
+            filter_params: Filter parameters (from API schema)
+
+        Returns:
+            int: Total count of matching resumes
+
+        Raises:
+            NotFoundException: If user not found
+        """
+        # Reuse the filter_resumes method to get all matching resumes
+        resumes = await self.filter_resumes(user_id, filter_params)
+        return len(resumes)

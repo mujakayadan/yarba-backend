@@ -1,7 +1,7 @@
 """Resume schema models for API."""
 
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from beanie import PydanticObjectId
 from pydantic import BaseModel, Field
@@ -74,3 +74,14 @@ class ResumeResponse(BaseModel):
 
         from_attributes = True
         json_encoders = {PydanticObjectId: str}
+
+
+class PaginatedResumeResponse(BaseModel):
+    """Paginated response for resumes."""
+
+    items: List[ResumeResponse] = Field(
+        ..., description="List of resumes for the current page"
+    )
+    total: int = Field(
+        ..., description="Total number of resumes matching the filter criteria"
+    )

@@ -14,7 +14,13 @@ from api.dependencies.services import (
     get_resume_service,
 )
 from api.middleware.auth import CurrentUser
-from api.schemas import ResumeCreate, ResumeFilter, ResumeResponse, ResumeUpdate
+from api.schemas import (
+    PaginatedResumeResponse,
+    ResumeCreate,
+    ResumeFilter,
+    ResumeResponse,
+    ResumeUpdate,
+)
 from config import get_logger
 from config.settings import settings
 from core.exceptions.base import NotFoundException
@@ -178,15 +184,15 @@ async def create_resume(
         )
 
 
-@router.get("", response_model=List[ResumeResponse])
+@router.get("", response_model=PaginatedResumeResponse)
 async def get_resumes(
     current_user: CurrentUser,
     skip: int = Query(0, ge=0, description="Number of resumes to skip"),
     limit: int = Query(10, ge=1, le=100, description="Number of resumes to return"),
     resume_service: ResumeService = Depends(get_resume_service),
-) -> List[ResumeResponse]:
+) -> PaginatedResumeResponse:
     """
-    Get all resumes for the current user.
+    Get all resumes for the current user with pagination.
 
     Args:
         current_user: Current authenticated user
@@ -195,7 +201,7 @@ async def get_resumes(
         resume_service: Resume service
 
     Returns:
-        List[ResumeResponse]: List of resumes
+        PaginatedResumeResponse: Paginated list of resumes with total count
     """
     try:
         # Create filter using the API schema ResumeFilter
@@ -204,7 +210,13 @@ async def get_resumes(
             limit=limit,
         )
 
-        # Get resumes
+        # Get total count first (without pagination)
+        total_count = await resume_service.count_resumes(
+            user_id=PydanticObjectId(current_user.id),
+            filter_params=filter_params,
+        )
+
+        # Get resumes with pagination
         resumes = await resume_service.filter_resumes(
             user_id=PydanticObjectId(current_user.id),
             filter_params=filter_params,
@@ -213,8 +225,13 @@ async def get_resumes(
         # Apply pagination manually since we're using API pagination
         paginated_resumes = resumes[skip : skip + limit]
 
-        # Let Pydantic handle the conversion automatically
-        return [ResumeResponse.model_validate(resume) for resume in paginated_resumes]
+        # Create response with paginated items and total count
+        return PaginatedResumeResponse(
+            items=[
+                ResumeResponse.model_validate(resume) for resume in paginated_resumes
+            ],
+            total=total_count,
+        )
 
     except Exception as e:
         logger.error(f"Error getting resumes: {str(e)}")
