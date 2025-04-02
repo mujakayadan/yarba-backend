@@ -324,7 +324,29 @@ class ResumeService:
             repo_filter.title_contains = filter_params.title
 
         # Get all resumes with the repository filter
-        return await self.resume_repository.get_by_filter(user, repo_filter)
+        resumes = await self.resume_repository.get_by_filter(user, repo_filter)
+
+        # Apply sorting based on sort_by parameter
+        if hasattr(filter_params, "sort_by") and filter_params.sort_by:
+            sort_option = filter_params.sort_by
+
+            if sort_option == "updated_desc":
+                resumes.sort(key=lambda x: x.updated_at, reverse=True)
+            elif sort_option == "updated_asc":
+                resumes.sort(key=lambda x: x.updated_at)
+            elif sort_option == "created_desc":
+                resumes.sort(key=lambda x: x.created_at, reverse=True)
+            elif sort_option == "created_asc":
+                resumes.sort(key=lambda x: x.created_at)
+            elif sort_option == "title_asc":
+                resumes.sort(key=lambda x: x.title)
+            elif sort_option == "title_desc":
+                resumes.sort(key=lambda x: x.title, reverse=True)
+        else:
+            # Default to sort by updated_at in descending order (newest first)
+            resumes.sort(key=lambda x: x.updated_at, reverse=True)
+
+        return resumes
 
     async def count_resumes(
         self, user_id: PydanticObjectId, filter_params: ResumeFilter

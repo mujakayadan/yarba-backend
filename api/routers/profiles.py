@@ -9,12 +9,14 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from api.dependencies.auth import get_current_active_user
 from api.dependencies.services import get_profile_service
+from config.logging_config import get_logger
 from core.exceptions.base import NotFoundException
 from core.models.profile import PersonalInformation, Preferences, Profile
 from core.models.user import User
 from core.services.profile_service import ProfileService
 
 router = APIRouter()
+logger = get_logger(__name__)
 
 
 class PersonalInfoCreate(BaseModel):
@@ -52,6 +54,20 @@ class ProfileUpdate(BaseModel):
     """Schema for updating a profile."""
 
     personal_information: Optional[PersonalInfoUpdate] = None
+
+
+class ProfilePatch(BaseModel):
+    """Schema for patching specific profile fields."""
+
+    life_story: Optional[str] = None
+    api_keys: Optional[dict] = None
+    signature: Optional[bytes] = None
+
+
+class LifeStoryPatch(BaseModel):
+    """Schema for patching just the life story field."""
+
+    life_story: str = Field(..., description="User's life story content")
 
 
 class PreferencesUpdate(BaseModel):
@@ -220,6 +236,66 @@ async def update_my_profile(
         )
 
 
+@router.patch("/me", response_model=Profile)
+async def patch_my_profile(
+    profile_data: ProfilePatch,
+    current_user: User = Depends(get_current_active_user),
+    profile_service: ProfileService = Depends(get_profile_service),
+):
+    """
+    Patch specific fields of the current user's profile.
+
+    Args:
+        profile_data: Fields to update
+        current_user: Current authenticated user
+        profile_service: Profile service
+
+    Returns:
+        Updated profile
+    """
+    try:
+        # Log the request body for debugging
+        logger.debug(f"Patching profile for user: {current_user.id}")
+        logger.debug(f"Patch data: {profile_data.model_dump(exclude_unset=True)}")
+
+        # Get existing profile
+        profile = await profile_service.get_profile_by_user_id(current_user.id)
+        logger.debug(f"Found profile with ID: {profile.id}")
+
+        # Update fields with provided values
+        update_data = profile_data.model_dump(exclude_unset=True)
+        if update_data:
+            for field, value in update_data.items():
+                logger.debug(f"Setting field '{field}' to value: {value}")
+                setattr(profile, field, value)
+
+            try:
+                # Update the profile
+                logger.debug(f"Calling update_profile for profile ID: {profile.id}")
+                updated_profile = await profile_service.update_profile(profile)
+                logger.debug(f"Profile updated successfully: {updated_profile.id}")
+                return updated_profile
+            except Exception as inner_e:
+                logger.error(f"Error updating profile: {inner_e}", exc_info=True)
+                raise inner_e
+
+        return profile
+    except NotFoundException:
+        logger.warning(f"Profile not found for user: {current_user.id}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found",
+        )
+    except Exception as e:
+        # Add more details to the error for debugging
+        logger.error(f"Failed to patch profile: {e}", exc_info=True)
+        error_msg = f"Failed to patch profile: {str(e)}, type: {type(e).__name__}"
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=error_msg,
+        )
+
+
 @router.put("/me/preferences", response_model=Profile)
 async def update_my_preferences(
     preferences_data: PreferencesUpdate,
@@ -270,6 +346,89 @@ async def update_my_preferences(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update preferences: {str(e)}",
+        )
+
+
+@router.patch("/me/preferences", response_model=Profile)
+async def patch_my_preferences(
+    preferences_data: PreferencesUpdate,
+    current_user: User = Depends(get_current_active_user),
+    profile_service: ProfileService = Depends(get_profile_service),
+):
+    """
+    Patch specific preferences fields of the current user's profile.
+
+    Args:
+        preferences_data: Preference fields to update
+        current_user: Current authenticated user
+        profile_service: Profile service
+
+    Returns:
+        Updated profile
+    """
+    try:
+        # This is exactly the same as PUT for preferences, since we're already
+        # doing partial updates intelligently
+        return await update_my_preferences(
+            preferences_data=preferences_data,
+            current_user=current_user,
+            profile_service=profile_service,
+        )
+    except NotFoundException:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to patch preferences: {str(e)}",
+        )
+
+
+@router.patch("/me/personal-information", response_model=Profile)
+async def patch_my_personal_info(
+    personal_info_data: PersonalInfoUpdate,
+    current_user: User = Depends(get_current_active_user),
+    profile_service: ProfileService = Depends(get_profile_service),
+):
+    """
+    Patch specific personal information fields of the current user's profile.
+
+    Args:
+        personal_info_data: Personal information fields to update
+        current_user: Current authenticated user
+        profile_service: Profile service
+
+    Returns:
+        Updated profile
+    """
+    try:
+        # Get existing profile
+        profile = await profile_service.get_profile_by_user_id(current_user.id)
+
+        # Update personal information
+        personal_info_update = personal_info_data.model_dump(exclude_unset=True)
+        if personal_info_update:
+            # Update through service
+            await profile_service.update_personal_information(
+                profile_id=profile.id,
+                personal_information=personal_info_update,
+            )
+
+            # Refresh profile
+            profile = await profile_service.get_profile_by_id(profile.id)
+
+        return profile
+    except NotFoundException:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to patch personal information: {str(e)}",
         )
 
 
@@ -326,4 +485,98 @@ async def get_profile(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve profile: {str(e)}",
+        )
+
+
+@router.patch("/me/life-story", response_model=Profile)
+async def patch_my_life_story(
+    life_story_data: LifeStoryPatch,
+    current_user: User = Depends(get_current_active_user),
+    profile_service: ProfileService = Depends(get_profile_service),
+):
+    """
+    Update only the life story field of the current user's profile.
+
+    Args:
+        life_story_data: Life story data
+        current_user: Current authenticated user
+        profile_service: Profile service
+
+    Returns:
+        Updated profile
+    """
+    try:
+        # Log the request for debugging
+        logger.debug(f"Updating life story for user: {current_user.id}")
+
+        # Get existing profile
+        profile = await profile_service.get_profile_by_user_id(current_user.id)
+        logger.debug(f"Found profile with ID: {profile.id}")
+
+        # Update life story
+        profile.life_story = life_story_data.life_story
+        logger.debug(f"Set life_story field, preparing to save")
+
+        # Save through service
+        try:
+            updated_profile = await profile_service.update_profile(profile)
+            logger.debug(f"Profile updated successfully with new life story")
+            return updated_profile
+        except Exception as inner_e:
+            logger.error(
+                f"Error updating profile with life story: {inner_e}", exc_info=True
+            )
+            raise inner_e
+    except NotFoundException:
+        logger.warning(f"Profile not found for user: {current_user.id}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found",
+        )
+    except Exception as e:
+        logger.error(f"Failed to update life story: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update life story: {str(e)}",
+        )
+
+
+# Return just the life story string
+class LifeStoryResponse(BaseModel):
+    """Response model for returning just the life story."""
+
+    life_story: Optional[str] = None
+
+
+@router.get("/me/life-story", response_model=LifeStoryResponse)
+async def get_my_life_story(
+    current_user: User = Depends(get_current_active_user),
+    profile_service: ProfileService = Depends(get_profile_service),
+):
+    """
+    Get only the life story field of the current user's profile.
+
+    Args:
+        current_user: Current authenticated user
+        profile_service: Profile service
+
+    Returns:
+        Life story content
+    """
+    try:
+        # Get existing profile
+        profile = await profile_service.get_profile_by_user_id(current_user.id)
+
+        # Return just the life story
+        return LifeStoryResponse(life_story=profile.life_story)
+    except NotFoundException:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found",
+        )
+    except Exception as e:
+        logger.error(f"Failed to get life story: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get life story: {str(e)}",
         )

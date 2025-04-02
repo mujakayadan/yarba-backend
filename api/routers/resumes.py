@@ -189,6 +189,7 @@ async def get_resumes(
     current_user: CurrentUser,
     skip: int = Query(0, ge=0, description="Number of resumes to skip"),
     limit: int = Query(10, ge=1, le=100, description="Number of resumes to return"),
+    sort_by: str = Query("updated_desc", description="Sort field and direction"),
     resume_service: ResumeService = Depends(get_resume_service),
 ) -> PaginatedResumeResponse:
     """
@@ -198,6 +199,7 @@ async def get_resumes(
         current_user: Current authenticated user
         skip: Number of resumes to skip
         limit: Number of resumes to return
+        sort_by: Sort option (updated_desc, updated_asc, created_desc, created_asc, title_asc, title_desc)
         resume_service: Resume service
 
     Returns:
@@ -208,6 +210,7 @@ async def get_resumes(
         filter_params = ResumeFilter(
             skip=skip,
             limit=limit,
+            sort_by=sort_by,
         )
 
         # Get total count first (without pagination)
@@ -216,7 +219,7 @@ async def get_resumes(
             filter_params=filter_params,
         )
 
-        # Get resumes with pagination
+        # Get resumes with pagination and sorting
         resumes = await resume_service.filter_resumes(
             user_id=PydanticObjectId(current_user.id),
             filter_params=filter_params,

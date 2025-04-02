@@ -37,6 +37,17 @@ class ResumeUpdate(BaseModel):
     content: Optional[Dict[str, Any]] = Field(None, description="Resume content")
 
 
+class SortOptions(str):
+    """Enum-like class for sorting options."""
+
+    UPDATED_DESC = "updated_desc"
+    UPDATED_ASC = "updated_asc"
+    CREATED_DESC = "created_desc"
+    CREATED_ASC = "created_asc"
+    TITLE_ASC = "title_asc"
+    TITLE_DESC = "title_desc"
+
+
 class ResumeFilter(BaseModel):
     """Schema for API resume filtering and pagination.
 
@@ -49,6 +60,10 @@ class ResumeFilter(BaseModel):
     template_id: Optional[str] = Field(None, description="Filter by template ID")
     is_cover_letter: Optional[bool] = Field(None, description="Filter by document type")
     version: Optional[int] = Field(None, description="Filter by version")
+    sort_by: Optional[str] = Field(
+        SortOptions.UPDATED_DESC,
+        description="Sort field and direction (updated_desc, updated_asc, created_desc, created_asc, title_asc, title_desc)",
+    )
     skip: int = Field(0, ge=0, description="Number of resumes to skip")
     limit: int = Field(10, ge=1, le=100, description="Number of resumes to return")
 
