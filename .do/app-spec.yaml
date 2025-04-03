@@ -22,9 +22,11 @@ services:
   instance_count: 1
   instance_size_slug: apps-s-1vcpu-0.5gb
   name: yarba-backend
-  build_command: pip install -r requirements.txt
+  build_command: pip install poetry==1.7.1 && poetry config virtualenvs.create false && poetry install --no-dev
   run_command: python api.py
   source_dir: /
   envs:
   - key: PORT
     value: "8000"
+  - key: PYTHONPATH
+    value: "/"
