@@ -8,7 +8,7 @@ COPY pyproject.toml poetry.lock ./
 # Install Poetry and dependencies
 RUN pip install poetry==2.0.1 \
     && poetry config virtualenvs.create false \
-    && poetry install --no-dev
+    && poetry install --without dev
 
 # Copy the rest of the application
 COPY . .
