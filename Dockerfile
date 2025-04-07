@@ -23,8 +23,9 @@ RUN echo "Directory structure before installation:" && \
     echo "API directory contents:" && \
     ls -la api/
 
-# Install dependencies with --no-root to avoid installing the project itself
+# Generate fresh lock file and install dependencies
 RUN poetry config virtualenvs.create false && \
+    poetry lock --no-update && \
     poetry install --only main --no-interaction --no-root
 
 # Set environment variables
