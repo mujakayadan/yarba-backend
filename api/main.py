@@ -11,6 +11,7 @@ from api.middleware import setup_middlewares
 # Fix imports - use explicit imports from config modules
 from config.logging_config import configure_logging, get_logger
 from config.settings import settings
+from core.auth.firebase import FirebaseAuth
 from core.database.init import init_db
 
 # Define API constants that were missing from config
@@ -45,6 +46,16 @@ async def lifespan(app: FastAPI):
     if not client:
         logger.error("Failed to initialize database connection")
         raise RuntimeError("Failed to initialize database connection")
+
+    # Initialize Firebase if enabled
+    if settings.auth.use_firebase_auth:
+        logger.info("Initializing Firebase Authentication")
+        firebase_initialized = FirebaseAuth.initialize()
+        if not firebase_initialized:
+            logger.warning(
+                "Failed to initialize Firebase. Authentication may be limited."
+            )
+
     logger.info("Application startup complete")
 
     yield

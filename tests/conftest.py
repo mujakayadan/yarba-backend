@@ -376,7 +376,7 @@ def mock_env_vars():
             "MONGODB_URI": "mongodb://localhost:27017",
             "MONGODB_DB": "test_db",
             "JWT_SECRET_KEY": "test_secret_key",
-            "JWT_ALGORITHM": "HS256",
+            "JWT_ALGORITHM": "RS256",
             "JWT_ACCESS_TOKEN_EXPIRE_MINUTES": "15",
             "JWT_REFRESH_TOKEN_EXPIRE_DAYS": "7",
             "API_PREFIX": "/api",

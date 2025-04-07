@@ -1,12 +1,14 @@
 """Authentication middleware for FastAPI."""
 
-from typing import Annotated, Dict, Optional
+import re
+from typing import Annotated, Dict, Optional, Union
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import ExpiredSignatureError, JWTError, jwt
 
 from config import get_logger, settings
+from core.auth.firebase import FirebaseAuth
 from core.database.factory import get_user_repository
 from core.models.user import User
 from core.repositories.user_repository import UserRepository
@@ -41,36 +43,66 @@ async def verify_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    token = credentials.credentials
+
+    # Try to determine the token type
     try:
-        # Decode token
-        token = credentials.credentials
+        # First, attempt to process as a regular JWT
         payload = jwt.decode(
             token,
             settings.auth.jwt_secret_key.get_secret_value(),
             algorithms=[settings.auth.jwt_algorithm],
         )
 
-        # Log successful token verification
-        logger.debug(f"Token verified for user {payload.get('sub')}")
+        # If successful, it's a JWT
+        payload["token_type"] = "jwt"
+        logger.debug(f"JWT token verified for user {payload.get('sub')}")
         return payload
 
-    except ExpiredSignatureError:
-        # Handle expired token
-        logger.warning(f"Expired token used for {request.url.path}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has expired",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    except (JWTError, ExpiredSignatureError) as jwt_error:
+        # If not a valid JWT and Firebase auth is enabled, try as Firebase token
+        if settings.auth.use_firebase_auth:
+            try:
+                # Verify Firebase token
+                firebase_payload = await FirebaseAuth.verify_token(token)
 
-    except JWTError as e:
-        # Handle invalid token
-        logger.warning(f"Invalid token used for {request.url.path}: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+                # Add a type field to distinguish in the current_user dependency
+                firebase_payload["token_type"] = "firebase"
+
+                # Log successful token verification
+                logger.debug(
+                    f"Firebase token verified for user {firebase_payload.get('email')}"
+                )
+                return firebase_payload
+
+            except Exception as e:
+                # If failed as both JWT and Firebase token, log and raise error
+                logger.warning(
+                    f"Invalid token used for {request.url.path}: JWT error: {str(jwt_error)}, Firebase error: {str(e)}"
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=f"Invalid authentication token",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+        else:
+            # If Firebase is disabled, just handle as JWT error
+            if isinstance(jwt_error, ExpiredSignatureError):
+                logger.warning(f"Expired token used for {request.url.path}")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Token has expired",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            else:
+                logger.warning(
+                    f"Invalid JWT token used for {request.url.path}: {str(jwt_error)}"
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid authentication token",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
 
 
 async def get_current_user(
@@ -90,25 +122,98 @@ async def get_current_user(
     Raises:
         HTTPException: If user not found or inactive
     """
-    # Extract user email from token
-    email = payload.get("sub")
-    if email is None:
-        logger.warning("Token payload missing 'sub' claim")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token payload",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    # Development mode bypass for Firebase testing
+    if (
+        settings.env == "development"
+        and settings.debug
+        and payload.get("token_type") == "firebase"
+    ):
+        # Check if this is a development test token
+        if payload.get("test_mode") == True:
+            test_email = payload.get("email", "test@example.com")
+            logger.warning(
+                f"DEVELOPMENT MODE: Using test Firebase authentication for {test_email}"
+            )
 
-    # Get user from database using the correct repository method
-    user = await user_repo.get_by_email(email)
-    if user is None:
-        logger.warning(f"User with email {email} not found")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+            # Get or create a test user
+            test_user = await user_repo.get_by_email(test_email)
+            if not test_user:
+                logger.info(f"Creating test user for {test_email}")
+                from datetime import datetime, timezone
+
+                test_user = User(
+                    email=test_email,
+                    username=f"test_user_{datetime.now(timezone.utc).timestamp()}",
+                    hashed_password="",
+                    is_active=True,
+                    email_verified=True,
+                    firebase_uid="test-firebase-uid",
+                    auth_provider="firebase",
+                )
+                test_user = await user_repo.create(test_user)
+
+            return test_user
+
+    # Normal authentication flow
+    # Handle different token types
+    token_type = payload.get("token_type", "jwt")
+
+    if token_type == "firebase":
+        # Extract user email from Firebase token
+        email = payload.get("email")
+        uid = payload.get("uid")
+
+        if not email or not uid:
+            logger.warning("Firebase token missing email or UID")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid Firebase token payload",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        # Get user from database by email
+        user = await user_repo.get_by_email(email)
+
+        if user is None:
+            # User doesn't exist in our database yet
+            # In a production app, you might want to create the user here
+            logger.warning(
+                f"Firebase authenticated user with email {email} not found in database"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found in application database",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        # Ensure the Firebase UID matches
+        if user.firebase_uid != uid:
+            logger.warning(f"Firebase UID mismatch for user {email}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid user credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    else:
+        # Extract user email from JWT token
+        email = payload.get("sub")
+        if email is None:
+            logger.warning("JWT token payload missing 'sub' claim")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token payload",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        # Get user from database using email
+        user = await user_repo.get_by_email(email)
+        if user is None:
+            logger.warning(f"User with email {email} not found")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
     return user
 

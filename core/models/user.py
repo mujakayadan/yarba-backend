@@ -19,6 +19,10 @@ class User(Document):
     is_superuser: bool = False
     email_verified: bool = False
 
+    # Firebase auth fields
+    firebase_uid: Optional[str] = Field(default=None, index=True)
+    auth_provider: str = Field(default="local")  # local, firebase, google, etc.
+
     # Authentication fields
     last_login: Optional[datetime] = None
     login_attempts: int = 0

@@ -2,7 +2,7 @@
 
 import re
 from datetime import datetime
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
@@ -14,11 +14,25 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
+class FirebaseAuthResponse(BaseModel):
+    """Firebase authentication response schema."""
+
+    user: Dict[str, Any]
+    access_token: str
+    token_type: str = "bearer"
+
+
 class LoginRequest(BaseModel):
     """Login request schema."""
 
     email: EmailStr = Field(..., description="User's email address")
     password: str = Field(..., min_length=8, description="User's password")
+
+
+class FirebaseLoginRequest(BaseModel):
+    """Firebase token login request schema."""
+
+    id_token: str = Field(..., description="Firebase ID token")
 
 
 class RegisterRequest(BaseModel):
@@ -98,6 +112,18 @@ class RegisterRequest(BaseModel):
                 "Full name can only contain letters, spaces, hyphens, and apostrophes"
             )
         return v.strip()
+
+
+class PasswordResetRequest(BaseModel):
+    """Password reset request schema."""
+
+    email: EmailStr = Field(..., description="User's email address")
+
+
+class EmailVerificationRequest(BaseModel):
+    """Email verification request schema."""
+
+    email: EmailStr = Field(..., description="User's email address")
 
 
 class UserResponse(BaseModel):

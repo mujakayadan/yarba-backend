@@ -15,26 +15,38 @@ class DatabaseSettings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
+        env_prefix="MONGODB_",
+        extra="ignore",
     )
 
     url: str = Field(
         default="mongodb://localhost:27017",
         description="MongoDB connection URL",
-        env="MONGODB_URI",
+        env="URI",
     )
-    name: str = Field(
-        default="rbt", description="Database name", env="MONGODB_DATABASE"
-    )
+    name: str = Field(default="rbt", description="Database name", env="DATABASE")
     min_pool_size: int = Field(
-        default=10, description="Minimum number of connections in the pool"
+        default=10,
+        description="Minimum number of connections in the pool",
+        env="MIN_POOL_SIZE",
     )
     max_pool_size: int = Field(
-        default=100, description="Maximum number of connections in the pool"
+        default=100,
+        description="Maximum number of connections in the pool",
+        env="MAX_POOL_SIZE",
     )
 
 
 class AuthSettings(BaseSettings):
     """Authentication settings."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        env_prefix="",  # No prefix for auth settings to maintain backward compatibility
+        extra="ignore",
+    )
 
     # JWT settings
     jwt_secret_key: SecretStr = Field(
@@ -73,16 +85,80 @@ class AuthSettings(BaseSettings):
         env="ACCOUNT_LOCKOUT_MINUTES",
     )
 
+    # Firebase settings
+    use_firebase_auth: bool = Field(
+        default=True,
+        description="Whether to use Firebase Authentication",
+        env="USE_FIREBASE_AUTH",
+    )
+    firebase_credentials_path: str = Field(
+        default="./config/firebase_credentials.json",
+        description="Path to Firebase credentials file",
+        env="FIREBASE_CREDENTIALS_PATH",
+    )
+    api_base_url: str = Field(
+        default="http://localhost:8000",
+        description="Base URL for API endpoints",
+        env="API_BASE_URL",
+    )
+    email_verification_path: str = Field(
+        default="/auth/verify-email",
+        description="Path for email verification",
+        env="EMAIL_VERIFICATION_PATH",
+    )
+    password_reset_path: str = Field(
+        default="/auth/reset-password",
+        description="Path for password reset",
+        env="PASSWORD_RESET_PATH",
+    )
+
+    @field_validator("api_base_url")
+    def validate_api_base_url(cls, v: str) -> str:
+        """Validate and normalize API base URL.
+
+        Ensures the URL has a proper scheme and is formatted correctly.
+
+        Args:
+            v: API base URL to validate
+
+        Returns:
+            str: Validated API base URL
+
+        Raises:
+            ValueError: If URL is invalid
+        """
+        import re
+
+        # Simple validation for URL format
+        if not re.match(r"^https?://", v):
+            # Auto-prefixing http:// if missing
+            v = f"http://{v}"
+
+        # Remove trailing slash if present
+        if v.endswith("/"):
+            v = v[:-1]
+
+        return v
+
 
 class LLMSettings(BaseSettings):
     """LLM configuration settings."""
 
-    openai_api_key: Optional[str] = Field(default=None, description="OpenAI API key")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    openai_api_key: Optional[str] = Field(
+        default=None, description="OpenAI API key", env="OPENAI_API_KEY"
+    )
     anthropic_api_key: Optional[str] = Field(
-        default=None, description="Anthropic API key"
+        default=None, description="Anthropic API key", env="ANTHROPIC_API_KEY"
     )
     gemini_api_key: Optional[str] = Field(
-        default=None, description="Google Gemini API key"
+        default=None, description="Google Gemini API key", env="GEMINI_API_KEY"
     )
     default_model: str = Field(
         default="claude-3-sonnet-20240229", description="Default LLM model to use"
@@ -121,11 +197,23 @@ class LLMSettings(BaseSettings):
 class LinkedInSettings(BaseSettings):
     """LinkedIn settings for job scraping."""
 
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+        env_prefix="LINKEDIN_",
+    )
+
     email: Optional[str] = Field(
-        default=None, description="LinkedIn email for authentication"
+        default=None,
+        description="LinkedIn email for authentication",
+        env="EMAIL",
     )
     password: Optional[str] = Field(
-        default=None, description="LinkedIn password for authentication"
+        default=None,
+        description="LinkedIn password for authentication",
+        env="PASSWORD",
     )
 
 
@@ -409,11 +497,13 @@ class APISettings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
+        extra="ignore",
+        env_prefix="API_",
     )
 
     # CORS settings
     cors_origins: List[str] = Field(
-        default=["http://localhost:3000", "http://localhost:8501"],
+        default=["http://localhost:3000"],
         description="List of allowed CORS origins",
         env="CORS_ORIGINS",
     )
@@ -534,7 +624,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         env_nested_delimiter="__",
         case_sensitive=False,
-        extra="allow",
+        extra="ignore",
     )
 
     # Environment
