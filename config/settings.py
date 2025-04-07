@@ -11,6 +11,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class DatabaseSettings(BaseSettings):
     """Database connection settings."""
 
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+    )
+
     url: str = Field(
         default="mongodb://localhost:27017",
         description="MongoDB connection URL",
@@ -399,10 +405,17 @@ class PreferenceSettings(BaseSettings):
 class APISettings(BaseSettings):
     """API settings."""
 
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+    )
+
     # CORS settings
-    cors_origins: List[Union[str, AnyHttpUrl]] = Field(
+    cors_origins: List[str] = Field(
         default=["http://localhost:3000", "http://localhost:8501"],
         description="List of allowed CORS origins",
+        env="CORS_ORIGINS",
     )
     cors_allow_credentials: bool = Field(
         default=True,
@@ -416,6 +429,19 @@ class APISettings(BaseSettings):
         default=["*"],
         description="List of allowed HTTP headers",
     )
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v):
+        """Parse CORS origins from a string or list."""
+        import json
+
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                return [origin.strip() for origin in v.split(",")]
+        return v
 
     # API settings
     api_prefix: str = Field(

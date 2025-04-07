@@ -4,6 +4,7 @@ This module provides functions for initializing the database connection
 and setting up the database for the application.
 """
 
+import os
 from typing import Optional
 
 from beanie import init_beanie
@@ -30,12 +31,18 @@ async def init_db() -> Optional[AsyncIOMotorClient]:
         Optional[AsyncIOMotorClient]: Database client if successful, None otherwise.
     """
     try:
+        # Debug database connection settings
+        mongodb_uri = os.environ.get("MONGODB_URI", settings.database.url)
+        mongodb_db = os.environ.get("MONGODB_DATABASE", settings.database.name)
+
+        logger.info(f"Connecting to MongoDB at: {mongodb_uri} (database: {mongodb_db})")
+
         # Create motor client
         client = AsyncIOMotorClient(
-            settings.database.url,
+            mongodb_uri,
             minPoolSize=settings.database.min_pool_size,
             maxPoolSize=settings.database.max_pool_size,
-            serverSelectionTimeoutMS=5000,
+            serverSelectionTimeoutMS=10000,  # Increased timeout
         )
 
         # Initialize beanie with all document models
@@ -55,16 +62,24 @@ async def init_db() -> Optional[AsyncIOMotorClient]:
             Preamble,
         ]
 
+        # Test connection before initializing Beanie
+        logger.info("Testing MongoDB connection...")
+        await client.admin.command("ping")
+        logger.info("MongoDB connection test successful")
+
+        logger.info(f"Initializing Beanie with database: {mongodb_db}")
         await init_beanie(
-            database=client[settings.database.name],
+            database=client[mongodb_db],
             document_models=document_models,
         )
 
-        # Test connection
-        await client.admin.command("ping")
-        logger.info("Successfully initialized database connection")
+        logger.info("Successfully initialized database connection and Beanie ODM")
         return client
 
     except Exception as e:
         logger.error(f"Failed to initialize database: {str(e)}")
+        # Print more details about error
+        import traceback
+
+        logger.error(f"Error details: {traceback.format_exc()}")
         return None

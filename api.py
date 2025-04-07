@@ -11,11 +11,21 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from config.logging_config import configure_logging, get_logger
+
+# Import logging configuration from config
 from config.settings import settings
 
 # Configure logging using settings
 configure_logging()
 logger = get_logger("api_runner")
+
+# Debug environment variables
+logger.info("==== Environment Variables ====")
+logger.info(f"MONGODB_URI: {os.environ.get('MONGODB_URI', 'Not set')}")
+logger.info(f"MONGODB_DATABASE: {os.environ.get('MONGODB_DATABASE', 'Not set')}")
+logger.info(f"Settings database.url: {settings.database.url}")
+logger.info(f"Settings database.name: {settings.database.name}")
+logger.info(f"==== End Environment Variables ====")
 
 logger.info(f"Project root: {project_root}")
 logger.info(f"Python path: {sys.path}")
