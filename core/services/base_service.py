@@ -1,7 +1,8 @@
 """Base service for application services."""
 
-import logging
 from typing import Any, Dict, Generic, List, Optional, Type, TypeVar
+
+from config.logging_config import get_logger
 
 from ..models import User
 from ..repositories.base_repository import BaseRepository
@@ -20,7 +21,7 @@ class BaseService(Generic[T]):
             repository: Repository instance
         """
         self.repository = repository
-        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger = get_logger(self.__class__.__name__)
 
     async def get_by_id(self, id: str) -> Optional[T]:
         """

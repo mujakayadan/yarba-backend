@@ -1,9 +1,10 @@
 """Cover letter service for cover letter management and generation."""
 
-import logging
 from typing import List, Optional
 
 from beanie import PydanticObjectId
+
+from config.logging_config import get_logger
 
 from ..exceptions.base import NotFoundException
 from ..models.cover_letter import CoverLetter
@@ -16,7 +17,7 @@ from ..repositories.profile_repository import ProfileRepository
 from ..repositories.resume_repository import ResumeRepository
 from ..repositories.user_repository import UserRepository
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class CoverLetterService:

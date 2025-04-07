@@ -1,7 +1,6 @@
 """MongoDB migration manager for tracking schema changes."""
 
 import importlib.util
-import logging
 import os
 import re
 import sys
@@ -12,7 +11,9 @@ from typing import Any, Dict, List, Optional, Tuple
 from pymongo import MongoClient
 from pymongo.database import Database
 
-logger = logging.getLogger(__name__)
+from config.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class Migration:

@@ -1,12 +1,13 @@
 """Utility for converting JSON schema data to LaTeX format."""
 
 import json
-import logging
 from typing import Any, Dict, List, Optional, Union
+
+from config.logging_config import get_logger
 
 from .sanitizer import sanitize_latex
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def parse_json_content(content: Any) -> Any:

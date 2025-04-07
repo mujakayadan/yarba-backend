@@ -14,11 +14,8 @@ RUN pip install --no-cache-dir poetry==2.0.1 setuptools wheel
 # Create log directory with correct permissions
 RUN mkdir -p logs && chmod 755 logs
 
-# Copy essential project structure first
-COPY api ./api/
-COPY core ./core/
-COPY config ./config/
-COPY pyproject.toml ./
+# Copy the entire project first
+COPY . .
 
 # List directories to ensure they exist
 RUN echo "Directory structure before installation:" && \
@@ -26,15 +23,9 @@ RUN echo "Directory structure before installation:" && \
     echo "API directory contents:" && \
     ls -la api/
 
-# Install dependencies
+# Install dependencies with --no-root to avoid installing the project itself
 RUN poetry config virtualenvs.create false && \
-    poetry install --only main --no-interaction
-
-# Copy remaining files
-COPY . .
-
-# Ensure log directory permissions after full copy
-RUN mkdir -p logs && chmod 755 logs
+    poetry install --only main --no-interaction --no-root
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
@@ -44,9 +35,7 @@ ENV LOG_LEVEL=INFO
 
 # Debug final structure
 RUN echo "Final directory structure:" && \
-    ls -la && \
-    echo "Final API directory contents:" && \
-    ls -la api/
+    ls -la
 
 # Expose port
 EXPOSE 8000

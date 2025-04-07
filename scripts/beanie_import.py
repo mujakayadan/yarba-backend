@@ -8,7 +8,6 @@ It's an alternative to direct_mongo_import.py that leverages the Beanie models.
 import argparse
 import asyncio
 import json
-import logging
 import os
 import sys
 from pathlib import Path

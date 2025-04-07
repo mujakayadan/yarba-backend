@@ -1,9 +1,10 @@
 """Portfolio service for user portfolio management."""
 
-import logging
 from typing import Dict, List
 
 from beanie import PydanticObjectId
+
+from config.logging_config import get_logger
 
 from ..exceptions.base import NotFoundException
 from ..models.portfolio import (
@@ -19,7 +20,7 @@ from ..models.portfolio import (
 from ..repositories.portfolio_repository import PortfolioRepository
 from ..repositories.user_repository import UserRepository
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class PortfolioService:
@@ -39,7 +40,7 @@ class PortfolioService:
         """
         self.portfolio_repository = portfolio_repository
         self.user_repository = user_repository
-        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger = get_logger(self.__class__.__name__)
 
     async def get_portfolio_by_user_id(self, user_id: PydanticObjectId) -> Portfolio:
         """

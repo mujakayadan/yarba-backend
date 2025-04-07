@@ -1,8 +1,6 @@
 """Service for resume generation using LLM."""
 
 import json
-import logging
-import traceback
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 

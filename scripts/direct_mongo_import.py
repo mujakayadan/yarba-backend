@@ -8,12 +8,13 @@ This script bypasses the Beanie ODM and directly uses PyMongo to import data.
 import argparse
 import asyncio
 import json
-import logging
 import os
 import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
+
+from config.logging_config import configure_logging, get_logger
 
 # Add the project root to the Python path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -21,13 +22,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from bson import ObjectId
 from pymongo import MongoClient
 
-from config.logging_config import get_logger
 from config.settings import settings
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+configure_logging(log_level="DEBUG")
 
 logger = get_logger(__name__)
 

@@ -1,6 +1,5 @@
 """Prompt loader for loading and formatting prompts from files."""
 
-import logging
 import os
 import sys
 from pathlib import Path
@@ -259,11 +258,8 @@ class PromptLoader:
 async def test_prompt_loader():
     """Test the PromptLoader functionality with a real user profile."""
     # Configure logging for the test
-    configure_logging()
+    configure_logging(log_level="DEBUG")
     test_logger = get_logger("prompt_loader_test")
-
-    # Set logging level to debug for detailed diagnostics
-    test_logger.setLevel(logging.DEBUG)
 
     test_logger.info("Starting prompt loader test")
 
@@ -288,10 +284,6 @@ async def test_prompt_loader():
 
         test_user_id = PydanticObjectId(test_user_id_str)
         test_logger.info(f"Using test user ID: {test_user_id}")
-
-        # Set debug logging for relevant components
-        for logger_name in ["ProfileRepository", "ProfileService", "PromptLoader"]:
-            logging.getLogger(logger_name).setLevel(logging.DEBUG)
 
         # Initialize loader with test user ID
         loader = PromptLoader(test_user_id)

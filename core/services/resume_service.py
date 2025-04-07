@@ -1,16 +1,17 @@
 """Resume service for resume management and generation."""
 
-import logging
 from typing import Dict, List, Optional
 
 from beanie import PydanticObjectId
+
+from config.logging_config import get_logger
 
 from ..exceptions.base import NotFoundException
 from ..models.resume import Resume
 from ..repositories.resume_repository import ResumeFilter, ResumeRepository
 from ..repositories.user_repository import UserRepository
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ResumeService:
@@ -30,7 +31,7 @@ class ResumeService:
         """
         self.resume_repository = resume_repository
         self.user_repository = user_repository
-        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger = get_logger(self.__class__.__name__)
 
     def _generate_proper_title(self, company_name: str, job_title: str) -> str:
         """

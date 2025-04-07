@@ -3,6 +3,7 @@ name = "resume_builder"
 version = "0.1.0"
 description = "A LaTeX-based resume builder with AI assistance"
 authors = ["Muja Kayadan <mujakayadan@gmail.com>"]
+# Make readme optional or remove if not needed in the Docker image
 readme = "README.md"
 packages = [
     {include = "api", from = "."},
@@ -11,6 +12,8 @@ packages = [
     {include = "ui", from = "."},
     {include = "scripts", from = "."},
 ]
+# Add package mode configuration
+package-mode = false
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.14"
