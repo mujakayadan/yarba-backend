@@ -11,10 +11,11 @@ RUN apt-get update && apt-get install -y \
 RUN pip install poetry==2.0.1 setuptools wheel
 
 # Copy dependency files first
-COPY pyproject.toml poetry.lock ./
+COPY pyproject.toml ./
 
-# Configure Poetry and install dependencies
+# Generate fresh lock file and configure Poetry
 RUN poetry config virtualenvs.create false \
+    && poetry lock \
     && poetry install --only main
 
 # Debug - Check build environment
