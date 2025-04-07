@@ -12,9 +12,13 @@ class DatabaseSettings(BaseSettings):
     """Database connection settings."""
 
     url: str = Field(
-        default="mongodb://localhost:27017", description="MongoDB connection URL"
+        default="mongodb://localhost:27017",
+        description="MongoDB connection URL",
+        env="MONGODB_URI",
     )
-    name: str = Field(default="rbt", description="Database name")
+    name: str = Field(
+        default="rbt", description="Database name", env="MONGODB_DATABASE"
+    )
     min_pool_size: int = Field(
         default=10, description="Minimum number of connections in the pool"
     )
