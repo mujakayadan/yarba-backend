@@ -2,15 +2,20 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
+# Install system dependencies for building Python packages
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install Poetry
 RUN pip install poetry==2.0.1
 
 # Copy dependency files first
 COPY pyproject.toml poetry.lock ./
 
-# Pin aiohttp to a non-yanked version
+# Pin aiohttp to a non-yanked version and install pre-built wheels when possible
 RUN poetry config virtualenvs.create false \
-    && pip install aiohttp==3.9.3 \
+    && pip install --no-build-isolation aiohttp==3.9.3 \
     && poetry install --only main
 
 # Debug - Check build environment

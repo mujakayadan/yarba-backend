@@ -20,6 +20,8 @@ pydantic = "^2.6.3"
 pydantic-settings = "^2.2.1"
 litellm = "^1.63.14"
 aiohttp = "3.9.3"
+uvicorn = "^0.30.1"
+fastapi = "^0.115.0"
 
 [build-system]
 requires = ["poetry-core"]
