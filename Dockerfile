@@ -28,6 +28,9 @@ RUN poetry config virtualenvs.create false && \
     poetry lock && \
     poetry install --only main --no-interaction --no-root
 
+# Verify all dependencies are installed
+RUN pip list
+
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHON_PATH=/app

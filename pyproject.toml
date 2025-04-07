@@ -9,7 +9,6 @@ packages = [
     {include = "api", from = "."},
     {include = "core", from = "."},
     {include = "config", from = "."},
-    {include = "ui", from = "."},
     {include = "scripts", from = "."},
 ]
 # Add package mode configuration
@@ -26,6 +25,10 @@ litellm = "^1.63.14"
 aiohttp = "^3.9.1"
 uvicorn = "^0.30.1"
 fastapi = "^0.115.0"
+python-jose = {extras = ["cryptography"], version = "^3.3.0"}
+python-multipart = "^0.0.9"
+passlib = {extras = ["bcrypt"], version = "^1.7.4"}
+email-validator = "^2.1.0"
 
 [build-system]
 requires = ["poetry-core"]
