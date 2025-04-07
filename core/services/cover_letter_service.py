@@ -46,7 +46,7 @@ class CoverLetterService:
         self.profile_repository = profile_repository
         self.portfolio_repository = portfolio_repository
         self.resume_repository = resume_repository
-        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger = get_logger(self.__class__.__name__)
 
     async def get_cover_letter_by_id(
         self, cover_letter_id: PydanticObjectId, user_id: PydanticObjectId

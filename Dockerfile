@@ -25,7 +25,7 @@ RUN echo "Directory structure before installation:" && \
 
 # Generate fresh lock file and install dependencies
 RUN poetry config virtualenvs.create false && \
-    poetry lock --no-update && \
+    poetry lock && \
     poetry install --only main --no-interaction --no-root
 
 # Set environment variables

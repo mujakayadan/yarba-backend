@@ -37,7 +37,7 @@ lint = "scripts.lint:run_flake8"
 format = "scripts.format:run_formatters"
 
 [tool.poetry.group.dev.dependencies]
-black = "^24.2.0"
+black = "^25.1.0"
 isort = "^5.13.2"
 mypy = "^1.8.0"
 pytest = "^8.0.0"

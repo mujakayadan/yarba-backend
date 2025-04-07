@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from pymongo import MongoClient
 from pymongo.database import Database
 
-from config.logging_config import get_logger
+from config.logging_config import configure_logging, get_logger
 
 logger = get_logger(__name__)
 
@@ -418,10 +418,7 @@ def main():
     args = parser.parse_args()
 
     # Configure logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
+    configure_logging(log_level="DEBUG")
 
     manager = MigrationManager(args.uri, args.db, args.dir)
 
