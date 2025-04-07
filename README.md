@@ -8,7 +8,6 @@ A modern resume and cover letter builder with LaTeX output, powered by FastAPI, 
 - Generate professional LaTeX documents
 - AI-powered content generation
 - User authentication and authorization
-- Responsive Streamlit UI
 
 ## Architecture
 
@@ -17,7 +16,6 @@ This application follows a clean architecture pattern with clear separation of c
 - **API Layer**: FastAPI routes and schemas
 - **Core Layer**: Business logic and domain models
 - **Database Layer**: MongoDB with Beanie ODM
-- **UI Layer**: Streamlit interface
 
 ## Getting Started
 
@@ -58,12 +56,6 @@ JWT_SECRET_KEY=your-secret-key
 
 ```bash
 poetry run uvicorn api.main:app --reload
-```
-
-2. Start the Streamlit UI:
-
-```bash
-poetry run streamlit run ui/streamlit_app.py
 ```
 
 ## Running the API Server
@@ -334,7 +326,7 @@ The project includes several example scripts to demonstrate the usage of various
 
 - `scripts/examples/generate_resume.py`: Shows how to generate a resume and cover letter
 - `scripts/examples/api_usage.py`: Demonstrates integration with FastAPI
-- `scripts/examples/streamlit_ui.py`: Illustrates how to use the services with Streamlit
+
 - `scripts/examples/batch_processing.py`: Shows how to process multiple resumes for multiple users
 
 ### Running the Example Scripts
@@ -342,10 +334,6 @@ The project includes several example scripts to demonstrate the usage of various
 ```bash
 # Generate a resume
 poetry run python scripts/examples/generate_resume.py
-
-# Run the Streamlit UI
-poetry run streamlit run scripts/examples/streamlit_ui.py
-```
 
 ## Prerequisites
 
