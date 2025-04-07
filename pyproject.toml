@@ -3,12 +3,13 @@ name = "resume_builder"
 version = "0.1.0"
 description = "A LaTeX-based resume builder with AI assistance"
 authors = ["Muja Kayadan <mujakayadan@gmail.com>"]
+readme = "README.md"
 packages = [
-    {include = "api"},
-    {include = "core"},
-    {include = "config"},
-    {include = "ui"},
-    {include = "scripts"},
+    {include = "api", from = "."},
+    {include = "core", from = "."},
+    {include = "config", from = "."},
+    {include = "ui", from = "."},
+    {include = "scripts", from = "."},
 ]
 
 [tool.poetry.dependencies]
@@ -52,14 +53,14 @@ mongomock-motor = "^0.0.35"
 
 [tool.black]
 line-length = 88
-target-version = ["py313"]
+target-version = ["py311"]
 
 [tool.isort]
 profile = "black"
 line_length = 88
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -73,6 +74,6 @@ asyncio_mode = "auto"
 
 [tool.ruff]
 line-length = 88
-target-version = "py313"
+target-version = "py311"
 select = ["E", "F", "B", "I"]
 ignore = []

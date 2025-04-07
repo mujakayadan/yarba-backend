@@ -1,26 +1,23 @@
 #!/usr/bin/env python
 """API server runner for Digital Ocean App Platform."""
 
-import logging
 import os
 import sys
 from pathlib import Path
 
-# Configure basic logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger("api_runner")
-
-# Add project root to Python path
+# Add project root to Python path first
 project_root = str(Path(__file__).parent.absolute())
-logger.info(f"Project root: {project_root}")
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
-    logger.info(f"Added {project_root} to Python path")
 
-# Print Python path for debugging
+from config.logging_config import configure_logging, get_logger
+from config.settings import settings
+
+# Configure logging using settings
+configure_logging()
+logger = get_logger("api_runner")
+
+logger.info(f"Project root: {project_root}")
 logger.info(f"Python path: {sys.path}")
 
 # Verify file structure
@@ -28,6 +25,16 @@ logger.info(f"Current directory contents: {os.listdir('.')}")
 api_dir = Path(project_root) / "api"
 if api_dir.exists():
     logger.info(f"API directory contents: {os.listdir(api_dir)}")
+
+    # Check for the healthcheck file
+    try:
+        logger.info("Checking for healthcheck file...")
+        from api.healthcheck import API_PRESENT, check_api_exists
+
+        logger.info(f"API_PRESENT: {API_PRESENT}")
+        logger.info(f"API exists: {check_api_exists()}")
+    except ImportError:
+        logger.error("Failed to import healthcheck module")
 else:
     logger.error(f"API directory not found at {api_dir}")
     sys.exit(1)

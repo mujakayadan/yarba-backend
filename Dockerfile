@@ -5,30 +5,51 @@ WORKDIR /app
 # Install system dependencies for building Python packages
 RUN apt-get update && apt-get install -y \
     build-essential \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Poetry and required Python dependencies
-RUN pip install poetry==2.0.1 setuptools wheel
+RUN pip install --no-cache-dir poetry==2.0.1 setuptools wheel
 
-# Copy dependency files first
+# Create log directory with correct permissions
+RUN mkdir -p logs && chmod 755 logs
+
+# Copy essential project structure first
+COPY api ./api/
+COPY core ./core/
+COPY config ./config/
 COPY pyproject.toml ./
 
-# Generate fresh lock file and configure Poetry
-RUN poetry config virtualenvs.create false \
-    && poetry lock \
-    && poetry install --only main
+# List directories to ensure they exist
+RUN echo "Directory structure before installation:" && \
+    ls -la && \
+    echo "API directory contents:" && \
+    ls -la api/
 
-# Debug - Check build environment
-RUN echo "Starting build..." && pwd && ls -la
+# Install dependencies
+RUN poetry config virtualenvs.create false && \
+    poetry install --only main --no-interaction
 
-# Copy the entire project
+# Copy remaining files
 COPY . .
 
-# Debug - Check files after copying
-RUN echo "Files after copying:" && ls -la && echo "API directory:" && ls -la api
+# Ensure log directory permissions after full copy
+RUN mkdir -p logs && chmod 755 logs
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
+ENV PYTHON_PATH=/app
+ENV PORT=8000
+ENV LOG_LEVEL=INFO
+
+# Debug final structure
+RUN echo "Final directory structure:" && \
+    ls -la && \
+    echo "Final API directory contents:" && \
+    ls -la api/
+
+# Expose port
+EXPOSE 8000
 
 # Run the application
 CMD ["python", "api.py"]

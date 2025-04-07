@@ -218,6 +218,13 @@ class LoggingSettings(BaseSettings):
         description="Number of log file backups to keep",
     )
 
+    @field_validator("log_level")
+    def uppercase_log_level(cls, v: str) -> str:
+        """Convert log level to uppercase to handle case-insensitive input."""
+        if isinstance(v, str):
+            return v.upper()
+        return v
+
     @field_validator("log_file")
     def create_log_directory_if_not_exists(cls, v: Optional[Path]) -> Optional[Path]:
         """Create log directory if it doesn't exist."""

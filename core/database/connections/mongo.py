@@ -1,12 +1,13 @@
 """MongoDB connection manager."""
 
-import logging
 from typing import Optional
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from pymongo import MongoClient
 
-logger = logging.getLogger(__name__)
+from config.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class MongoDBManager:

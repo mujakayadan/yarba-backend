@@ -1,6 +1,5 @@
 """API router for cover letter endpoints."""
 
-import logging
 from typing import Annotated, List, Optional
 
 from beanie import PydanticObjectId
