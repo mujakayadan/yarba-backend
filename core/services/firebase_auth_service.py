@@ -31,7 +31,11 @@ class FirebaseAuthService(AuthService):
         self.logger = get_logger(self.__class__.__name__)
 
     async def register_with_firebase(
-        self, email: EmailStr, password: str, full_name: str
+        self,
+        email: EmailStr,
+        password: str,
+        full_name: str,
+        username: Optional[str] = None,
     ) -> User:
         """
         Register a new user with Firebase Authentication.
@@ -40,6 +44,7 @@ class FirebaseAuthService(AuthService):
             email: User email
             password: User password
             full_name: User full name
+            username: Optional username, will use full_name or generate from email if not provided
 
         Returns:
             User: Created user
@@ -63,10 +68,22 @@ class FirebaseAuthService(AuthService):
                 display_name=full_name,
             )
 
+            # Use provided username or generate one
+            if not username:
+                username = full_name.lower().replace(" ", "_")
+
+                # Check if username exists and add suffix if needed
+                existing_username = await self.user_repository.get_by_username(username)
+                if existing_username:
+                    from datetime import datetime
+
+                    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+                    username = f"{username}_{timestamp}"
+
             # Create user in our database
             user = User(
                 email=email,
-                username=full_name,  # Using full_name as username for simplicity
+                username=username,
                 hashed_password="",  # We don't store the password, Firebase does
                 is_active=True,
                 email_verified=False,

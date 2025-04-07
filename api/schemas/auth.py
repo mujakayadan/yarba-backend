@@ -38,11 +38,11 @@ class FirebaseLoginRequest(BaseModel):
 class RegisterRequest(BaseModel):
     """Register request schema."""
 
-    username: str = Field(
-        ...,
+    username: Optional[str] = Field(
+        None,
         min_length=3,
         max_length=50,
-        description="Username must be between 3 and 50 characters, containing only letters, numbers, dots, underscores and hyphens",
+        description="Username must be between 3 and 50 characters, containing only letters, numbers, dots, underscores and hyphens. Optional when using Firebase auth - will be auto-generated from email or full name.",
     )
     email: EmailStr = Field(..., description="User's email address")
     password: str = Field(
@@ -56,7 +56,7 @@ class RegisterRequest(BaseModel):
     )
 
     @field_validator("username")
-    def validate_username(cls, v: str) -> str:
+    def validate_username(cls, v: Optional[str]) -> Optional[str]:
         """Validate username format.
 
         Args:
@@ -68,6 +68,9 @@ class RegisterRequest(BaseModel):
         Raises:
             ValueError: If username contains invalid characters
         """
+        if v is None:
+            return v
+
         if not re.match(r"^[a-zA-Z0-9._-]+$", v):
             raise ValueError(
                 "Username can only contain letters, numbers, dots, underscores, and hyphens"

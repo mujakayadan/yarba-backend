@@ -63,12 +63,12 @@ class AuthService:
         """
         return pwd_context.hash(password)
 
-    async def authenticate_user(self, username_or_email: str, password: str) -> User:
+    async def authenticate_user(self, email: str, password: str) -> User:
         """
         Authenticate a user.
 
         Args:
-            username_or_email: User username or email
+            email: User email
             password: User password
 
         Returns:
@@ -77,18 +77,14 @@ class AuthService:
         Raises:
             UnauthorizedException: If authentication fails
         """
-        # Try to get user by username first
-        user = await self.user_repository.get_by_username(username_or_email)
-
-        # If not found, try by email
-        if not user:
-            user = await self.user_repository.get_by_email(username_or_email)
+        # Get user by email
+        user = await self.user_repository.get_by_email(email)
 
         if not user:
             self.logger.warning(
-                f"Authentication failed: User with username/email {username_or_email} not found"
+                f"Authentication failed: User with email {email} not found"
             )
-            raise UnauthorizedException("Invalid username/email or password")
+            raise UnauthorizedException("Invalid email or password")
 
         if not user.is_active:
             self.logger.warning(f"Authentication failed: User {user.email} is inactive")
@@ -133,7 +129,7 @@ class AuthService:
             self.logger.warning(
                 f"Authentication failed: Invalid password for user {user.email}"
             )
-            raise UnauthorizedException("Invalid username/email or password")
+            raise UnauthorizedException("Invalid email or password")
 
         # Reset login attempts on successful login
         await self.user_repository.reset_login_attempts(user.email)
@@ -143,12 +139,12 @@ class AuthService:
 
         return user
 
-    async def login(self, username_or_email: str, password: str) -> Dict[str, Any]:
+    async def login(self, email: str, password: str) -> Dict[str, Any]:
         """
         Perform a login operation.
 
         Args:
-            username_or_email: Username or email
+            email: User email
             password: Password
 
         Returns:
@@ -158,8 +154,8 @@ class AuthService:
             HTTPException: If login fails
         """
         try:
-            logger.info(f"Login attempt for {username_or_email}")
-            user = await self.authenticate_user(username_or_email, password)
+            logger.info(f"Login attempt for {email}")
+            user = await self.authenticate_user(email, password)
             logger.info("Login successful ========================")
             access_token = self.create_access_token(data={"sub": user.email})
             return {"access_token": access_token, "token_type": "bearer"}

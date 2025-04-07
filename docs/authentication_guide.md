@@ -88,7 +88,7 @@ const register = async (data: RegistrationData): Promise<any> => {
 
 ```typescript
 interface LoginData {
-  username: string;
+  email: string;
   password: string;
 }
 
@@ -101,7 +101,7 @@ const login = async (data: LoginData): Promise<LoginResponse> => {
   try {
     // Convert to FormData as the login endpoint requires x-www-form-urlencoded
     const formData = new URLSearchParams();
-    formData.append('username', data.username);
+    formData.append('username', data.email);
     formData.append('password', data.password);
 
     const response = await fetch('/api/v1/auth/login', {

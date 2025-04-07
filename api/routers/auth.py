@@ -18,6 +18,7 @@ from core.services.auth_service import AuthService
 from core.services.firebase_auth_service import FirebaseAuthService
 
 from ..middleware.auth import CurrentActiveUser, CurrentSuperuser
+from ..schemas import auth as schemas
 from ..schemas.auth import (
     EmailVerificationRequest,
     FirebaseAuthResponse,
@@ -53,6 +54,27 @@ async def register(
         HTTPException: If username or email already exists
     """
     if settings.auth.use_firebase_auth:
+        # Handle optional username for Firebase authentication
+        if request.username is None:
+            # Generate username from email or full name if not provided
+            username = request.full_name.lower().replace(" ", "_")
+            # Ensure username is unique by adding a timestamp if needed
+            existing_user = None
+            try:
+                async with uow:
+                    existing_user = await uow.user_repository.get_by_username(username)
+            except Exception:
+                pass
+
+            if existing_user:
+                from datetime import datetime
+
+                timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+                username = f"{username}_{timestamp}"
+
+            # Update the request with the generated username
+            request.username = username
+
         # Use Firebase for registration
         firebase_service = await anext(get_firebase_auth_service())
         try:
@@ -123,19 +145,19 @@ async def login(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     auth_service: AuthService = Depends(get_auth_service),
 ) -> TokenResponse:
-    """Login a user with username/password.
+    """Login a user with email and password.
 
     Args:
-        form_data: Login form data
+        form_data: Login form data (username field contains email)
         auth_service: Authentication service
 
     Returns:
         TokenResponse: Access token and token type
 
     Raises:
-        HTTPException: If username or password is incorrect
+        HTTPException: If email or password is incorrect
     """
-    # Use the auth service for login logic
+    # Use the auth service for login logic, passing username field as email
     result = await auth_service.login(form_data.username, form_data.password)
     return TokenResponse(
         access_token=result["access_token"], token_type=result["token_type"]
@@ -325,4 +347,31 @@ async def verify_firebase_token(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Token verification failed: {str(e)}",
+        )
+
+
+@router.post("/firebase/register", response_model=schemas.UserResponse)
+async def firebase_register(
+    request: schemas.RegisterRequest,
+    firebase_auth_service: FirebaseAuthService = Depends(get_firebase_auth_service),
+) -> Any:
+    """
+    Register a new user with Firebase Authentication.
+    """
+    logger.info(f"Firebase registration request for email: {request.email}")
+
+    try:
+        user = await firebase_auth_service.register_with_firebase(
+            email=request.email,
+            password=request.password,
+            full_name=request.full_name,
+            username=request.username,
+        )
+        logger.info(f"Firebase registration successful for: {request.email}")
+        return user
+    except Exception as e:
+        logger.error(f"Firebase registration failed: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Firebase registration failed: {str(e)}",
         )
