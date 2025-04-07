@@ -20,4 +20,3 @@ services:
   instance_size_slug: apps-s-1vcpu-0.5gb
   name: yarba-backend
   dockerfile_path: Dockerfile
-  source_dir: /

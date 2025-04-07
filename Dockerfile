@@ -2,21 +2,25 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-# Install system dependencies if needed
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
+# Install Poetry
+RUN pip install poetry==2.0.1
 
-# Copy poetry files first to leverage Docker cache
+# Copy dependency files first
 COPY pyproject.toml poetry.lock ./
 
-# Install Poetry and dependencies
-RUN pip install poetry==2.0.1 \
-    && poetry config virtualenvs.create false \
-    && poetry install --without dev
+# Pin aiohttp to a non-yanked version
+RUN poetry config virtualenvs.create false \
+    && pip install aiohttp==3.9.3 \
+    && poetry install --only main
 
-# Copy application code
+# Debug - Check build environment
+RUN echo "Starting build..." && pwd && ls -la
+
+# Copy the entire project
 COPY . .
+
+# Debug - Check files after copying
+RUN echo "Files after copying:" && ls -la && echo "API directory:" && ls -la api
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1

@@ -1,9 +1,21 @@
+# Version control
 .git
-.github
-.venv
-**/__pycache__
-**/*.pyc
-**/*.pyo
-**/*.pyd
-.pytest_cache
+.gitignore
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Local environment
 .env
+
+# IDE files
+.idea/
+.vscode/
