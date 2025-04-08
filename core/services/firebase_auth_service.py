@@ -154,9 +154,25 @@ class FirebaseAuthService(AuthService):
                 )
                 try:
                     firebase_user = await FirebaseAuth.get_user(uid)
+                    # Generate a valid username from display name or email
+                    username = firebase_user.get("display_name") or email.split("@")[0]
+                    # Convert username to valid format (lowercase, no spaces)
+                    username = username.lower().replace(" ", "_")
+
+                    # Ensure username is unique by checking database
+                    existing_user_with_username = (
+                        await self.user_repository.get_by_username(username)
+                    )
+                    if existing_user_with_username:
+                        # Add a timestamp to make username unique
+                        from datetime import datetime
+
+                        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+                        username = f"{username}_{timestamp}"
+
                     user = User(
                         email=email,
-                        username=firebase_user.get("display_name", email.split("@")[0]),
+                        username=username,
                         hashed_password="",  # Firebase handles authentication
                         is_active=True,
                         email_verified=firebase_user.get("email_verified", False),

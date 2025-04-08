@@ -8,6 +8,7 @@ A modern resume and cover letter builder with LaTeX output, powered by FastAPI, 
 - Generate professional LaTeX documents
 - AI-powered content generation
 - User authentication and authorization
+- Firebase Authentication integration
 
 ## Architecture
 
@@ -57,6 +58,46 @@ JWT_SECRET_KEY=your-secret-key
 ```bash
 poetry run uvicorn api.main:app --reload
 ```
+
+## Firebase Authentication Setup
+
+This application supports Firebase Authentication for secure user management. You can set up Firebase Authentication using environment variables for secure deployment.
+
+### Option 1: Using Environment Variables (Recommended for Production)
+
+Set the following environment variables in your deployment environment (e.g., Digital Ocean, Heroku, etc.):
+
+```
+USE_FIREBASE_AUTH=true
+FIREBASE_PROJECT_ID=your-project-id
+FIREBASE_PRIVATE_KEY="your-private-key-with-newlines"
+FIREBASE_CLIENT_EMAIL=your-client-email@example.com
+FIREBASE_CLIENT_ID=your-client-id
+FIREBASE_CLIENT_CERT_URL=your-client-cert-url
+```
+
+Note: The `FIREBASE_PRIVATE_KEY` should include all newlines (`\n`) and quotes. Digital Ocean properly handles multi-line environment variables.
+
+### Option 2: Using a Credentials File (Development Only)
+
+1. Download the service account JSON file from Firebase Console
+2. Place it in `config/firebase_credentials.json`
+3. Set the following environment variables:
+
+```
+USE_FIREBASE_AUTH=true
+FIREBASE_CREDENTIALS_PATH=./config/firebase_credentials.json
+```
+
+### Security Best Practices
+
+- Never commit Firebase credentials to version control
+- Use environment variables for production deployments
+- Regularly rotate service account keys
+- Restrict Firebase permissions to only what's needed
+- Enable proper security rules in Firebase Console
+
+For detailed setup instructions, see the [Firebase Authentication Setup](docs/firebase_setup.md) document.
 
 ## Running the API Server
 

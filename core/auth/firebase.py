@@ -41,7 +41,91 @@ class FirebaseAuth:
             return True
 
         try:
-            # Get credentials path from args or environment
+            # Check if we have FIREBASE_TYPE which indicates we're using individual env vars
+            firebase_type = os.environ.get("FIREBASE_TYPE")
+            firebase_project_id = os.environ.get("FIREBASE_PROJECT_ID")
+            firebase_private_key = os.environ.get("FIREBASE_PRIVATE_KEY")
+            firebase_client_email = os.environ.get("FIREBASE_CLIENT_EMAIL")
+
+            if (
+                firebase_type
+                and firebase_project_id
+                and firebase_private_key
+                and firebase_client_email
+            ):
+                logger.info(
+                    "Initializing Firebase Admin SDK with credentials from FIREBASE_ environment variables"
+                )
+
+                # Replace escaped newlines in private key if needed
+                if "\\n" in firebase_private_key:
+                    firebase_private_key = firebase_private_key.replace("\\n", "\n")
+
+                # Build credential dict from all available FIREBASE_ environment variables
+                cred_dict = {
+                    "type": firebase_type,
+                    "project_id": firebase_project_id,
+                    "private_key_id": os.environ.get("FIREBASE_PRIVATE_KEY_ID", ""),
+                    "private_key": firebase_private_key,
+                    "client_email": firebase_client_email,
+                    "client_id": os.environ.get("FIREBASE_CLIENT_ID", ""),
+                    "auth_uri": os.environ.get(
+                        "FIREBASE_AUTH_URI", "https://accounts.google.com/o/oauth2/auth"
+                    ),
+                    "token_uri": os.environ.get(
+                        "FIREBASE_TOKEN_URI", "https://oauth2.googleapis.com/token"
+                    ),
+                    "auth_provider_x509_cert_url": os.environ.get(
+                        "FIREBASE_AUTH_PROVIDER_X509_CERT_URL",
+                        "https://www.googleapis.com/oauth2/v1/certs",
+                    ),
+                    "client_x509_cert_url": os.environ.get(
+                        "FIREBASE_CLIENT_X509_CERT_URL", ""
+                    ),
+                    "universe_domain": os.environ.get(
+                        "FIREBASE_UNIVERSE_DOMAIN", "googleapis.com"
+                    ),
+                }
+
+                # Log success without sensitive details
+                logger.debug(
+                    f"Created credential dict with project_id: {firebase_project_id}"
+                )
+
+                # Initialize Firebase with the constructed credentials
+                cred = credentials.Certificate(cred_dict)
+                cls._app = firebase_admin.initialize_app(cred)
+                cls._initialized = True
+                logger.info(
+                    "Successfully initialized Firebase Admin SDK from environment variables"
+                )
+                return True
+
+            # Check for full JSON credentials
+            firebase_credentials_json = os.environ.get("FIREBASE_CREDENTIALS_JSON")
+            if firebase_credentials_json:
+                logger.info(
+                    "Initializing Firebase Admin SDK with credentials from FIREBASE_CREDENTIALS_JSON"
+                )
+                import json
+
+                try:
+                    # Parse the JSON string to dict
+                    cred_dict = json.loads(firebase_credentials_json)
+                    cred = credentials.Certificate(cred_dict)
+                    cls._app = firebase_admin.initialize_app(cred)
+                    cls._initialized = True
+                    logger.info(
+                        "Successfully initialized Firebase Admin SDK from JSON environment variable"
+                    )
+                    return True
+                except json.JSONDecodeError as json_err:
+                    logger.error(
+                        f"Failed to parse FIREBASE_CREDENTIALS_JSON: {str(json_err)}"
+                    )
+                    # Continue to other methods if this fails
+
+            # Fall back to file-based credentials
             cred_path = service_account_path or os.environ.get(
                 "FIREBASE_CREDENTIALS", settings.auth.firebase_credentials_path
             )

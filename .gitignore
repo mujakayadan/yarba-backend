@@ -94,3 +94,6 @@ resume_output/
 .cursorrules
 
 *.json
+
+# Add firebase_credentials.json to .gitignore
+config/firebase_credentials.json
