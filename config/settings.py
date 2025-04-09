@@ -12,7 +12,7 @@ class DatabaseSettings(BaseSettings):
     """Database connection settings."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=[".env.local", ".env"],
         env_file_encoding="utf-8",
         case_sensitive=False,
         env_prefix="MONGODB_",
@@ -36,12 +36,20 @@ class DatabaseSettings(BaseSettings):
         env="MAX_POOL_SIZE",
     )
 
+    @field_validator("url")
+    def validate_url(cls, v: str) -> str:
+        """Check if direct MONGODB_URI is set and use it instead."""
+        direct_uri = os.environ.get("MONGODB_URI")
+        if direct_uri:
+            return direct_uri
+        return v
+
 
 class AuthSettings(BaseSettings):
     """Authentication settings."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=[".env.local", ".env"],
         env_file_encoding="utf-8",
         case_sensitive=False,
         env_prefix="",  # No prefix for auth settings to maintain backward compatibility
@@ -91,11 +99,7 @@ class AuthSettings(BaseSettings):
         description="Whether to use Firebase Authentication",
         env="USE_FIREBASE_AUTH",
     )
-    firebase_credentials_path: str = Field(
-        default="./config/firebase_credentials.json",
-        description="Path to Firebase credentials file",
-        env="FIREBASE_CREDENTIALS_PATH",
-    )
+
     api_base_url: str = Field(
         default="http://localhost:8000",
         description="Base URL for API endpoints",
@@ -110,6 +114,63 @@ class AuthSettings(BaseSettings):
         default="/auth/reset-password",
         description="Path for password reset",
         env="PASSWORD_RESET_PATH",
+    )
+
+    # Firebase credentials direct from environment variables
+    firebase_type: str = Field(
+        default="service_account",
+        description="Firebase credential type",
+        env="FIREBASE_TYPE",
+    )
+    firebase_project_id: str = Field(
+        default="",
+        description="Firebase project ID",
+        env="FIREBASE_PROJECT_ID",
+    )
+    firebase_private_key_id: str = Field(
+        default="",
+        description="Firebase private key ID",
+        env="FIREBASE_PRIVATE_KEY_ID",
+    )
+    firebase_private_key: str = Field(
+        default="",
+        description="Firebase private key",
+        env="FIREBASE_PRIVATE_KEY",
+    )
+    firebase_client_email: str = Field(
+        default="",
+        description="Firebase client email",
+        env="FIREBASE_CLIENT_EMAIL",
+    )
+    firebase_client_id: str = Field(
+        default="",
+        description="Firebase client ID",
+        env="FIREBASE_CLIENT_ID",
+    )
+    firebase_auth_uri: str = Field(
+        default="https://accounts.google.com/o/oauth2/auth",
+        description="Firebase auth URI",
+        env="FIREBASE_AUTH_URI",
+    )
+    firebase_token_uri: str = Field(
+        default="https://oauth2.googleapis.com/token",
+        description="Firebase token URI",
+        env="FIREBASE_TOKEN_URI",
+    )
+    firebase_auth_provider_x509_cert_url: str = Field(
+        default="https://www.googleapis.com/oauth2/v1/certs",
+        description="Firebase auth provider x509 cert URL",
+        env="FIREBASE_AUTH_PROVIDER_X509_CERT_URL",
+    )
+    firebase_client_x509_cert_url: str = Field(
+        default="",
+        description="Firebase client x509 cert URL",
+        env="FIREBASE_CLIENT_X509_CERT_URL",
+    )
+    firebase_universe_domain: str = Field(
+        default="googleapis.com",
+        description="Firebase universe domain",
+        env="FIREBASE_UNIVERSE_DOMAIN",
     )
 
     @field_validator("api_base_url")
@@ -140,12 +201,60 @@ class AuthSettings(BaseSettings):
 
         return v
 
+    @field_validator("firebase_private_key")
+    def validate_firebase_private_key(cls, v: str) -> str:
+        """Replace escaped newlines in private key."""
+        if v and "\\n" in v:
+            return v.replace("\\n", "\n")
+        return v
+
+    def get_firebase_credentials_dict(self) -> Dict[str, Any]:
+        """Get Firebase credentials as a dictionary for firebase-admin.
+
+        Uses credentials directly from environment variables.
+        Returns an empty dict if required fields are missing.
+        """
+        # Check for required fields with more robust empty string check
+        if (
+            not self.firebase_project_id
+            or not self.firebase_private_key
+            or not self.firebase_client_email
+        ):
+            from config.logging_config import get_logger
+
+            logger = get_logger(__name__)
+            logger.warning(
+                "Missing required Firebase credentials in environment variables"
+            )
+            logger.warning(f"project_id present: {bool(self.firebase_project_id)}")
+            logger.warning(f"private_key present: {bool(self.firebase_private_key)}")
+            logger.warning(f"client_email present: {bool(self.firebase_client_email)}")
+            return {}
+
+        # Create credentials dictionary with all fields
+        credentials_dict = {
+            "type": self.firebase_type,
+            "project_id": self.firebase_project_id,
+            "private_key_id": self.firebase_private_key_id,
+            "private_key": self.firebase_private_key,
+            "client_email": self.firebase_client_email,
+            "client_id": self.firebase_client_id,
+            "auth_uri": self.firebase_auth_uri,
+            "token_uri": self.firebase_token_uri,
+            "auth_provider_x509_cert_url": self.firebase_auth_provider_x509_cert_url,
+            "client_x509_cert_url": self.firebase_client_x509_cert_url,
+            "universe_domain": self.firebase_universe_domain,
+        }
+
+        # Filter out empty values
+        return {k: v for k, v in credentials_dict.items() if v}
+
 
 class LLMSettings(BaseSettings):
     """LLM configuration settings."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=[".env.local", ".env"],
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -198,7 +307,7 @@ class LinkedInSettings(BaseSettings):
     """LinkedIn settings for job scraping."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=[".env.local", ".env"],
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -288,7 +397,7 @@ class LoggingSettings(BaseSettings):
     """Logging settings."""
 
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
-        default="INFO",
+        default="DEBUG",
         description="Log level",
     )
     log_format: str = Field(
@@ -494,7 +603,7 @@ class APISettings(BaseSettings):
     """API settings."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=[".env.local", ".env"],
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -620,7 +729,7 @@ class Settings(BaseSettings):
     """Application settings."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=[".env.local", ".env"],
         env_file_encoding="utf-8",
         env_nested_delimiter="__",
         case_sensitive=False,

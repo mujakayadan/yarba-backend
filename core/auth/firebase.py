@@ -26,12 +26,47 @@ class FirebaseAuth:
     _app = None
 
     @classmethod
+    def debug_environment(cls):
+        """Debug helper to print environment variables.
+
+        This method directly checks environment variables to help diagnose issues.
+        """
+        # Direct environment variable access
+        firebase_project_id = os.environ.get("FIREBASE_PROJECT_ID", "")
+        firebase_private_key = (
+            "PRESENT" if os.environ.get("FIREBASE_PRIVATE_KEY") else "MISSING"
+        )
+        firebase_client_email = os.environ.get("FIREBASE_CLIENT_EMAIL", "")
+
+        # Settings based access
+        settings_project_id = settings.auth.firebase_project_id
+        settings_private_key = (
+            "PRESENT" if settings.auth.firebase_private_key else "MISSING"
+        )
+        settings_client_email = settings.auth.firebase_client_email
+
+        # MongoDB settings
+        mongo_uri_env = os.environ.get("MONGODB_URI", "")
+        mongo_uri_settings = settings.database.url
+
+        logger.debug("=== ENVIRONMENT DEBUG INFO ===")
+        logger.debug(f"Env - FIREBASE_PROJECT_ID: {firebase_project_id}")
+        logger.debug(f"Env - FIREBASE_PRIVATE_KEY: {firebase_private_key}")
+        logger.debug(f"Env - FIREBASE_CLIENT_EMAIL: {firebase_client_email}")
+        logger.debug(f"Settings - firebase_project_id: {settings_project_id}")
+        logger.debug(f"Settings - firebase_private_key: {settings_private_key}")
+        logger.debug(f"Settings - firebase_client_email: {settings_client_email}")
+        logger.debug(f"Env - MONGODB_URI: {mongo_uri_env}")
+        logger.debug(f"Settings - database.url: {mongo_uri_settings}")
+        logger.debug("=== END DEBUG INFO ===")
+
+    @classmethod
     def initialize(cls, service_account_path: Optional[str] = None) -> bool:
         """Initialize Firebase Admin SDK.
 
         Args:
             service_account_path: Path to Firebase service account credentials file.
-                If not provided, will use FIREBASE_CREDENTIALS environment variable.
+                If not provided, will use credentials from environment variables.
 
         Returns:
             bool: True if initialized successfully, False otherwise.
@@ -40,56 +75,36 @@ class FirebaseAuth:
             logger.info("Firebase already initialized")
             return True
 
+        # Run debug to help diagnose issues
+        cls.debug_environment()
+
         try:
-            # Check if we have FIREBASE_TYPE which indicates we're using individual env vars
-            firebase_type = os.environ.get("FIREBASE_TYPE")
-            firebase_project_id = os.environ.get("FIREBASE_PROJECT_ID")
-            firebase_private_key = os.environ.get("FIREBASE_PRIVATE_KEY")
-            firebase_client_email = os.environ.get("FIREBASE_CLIENT_EMAIL")
+            # Use credentials from settings.auth which are loaded from environment variables
+            cred_dict = settings.auth.get_firebase_credentials_dict()
+
+            # Debug info - what credentials do we have?
+            logger.debug(
+                f"Firebase project_id loaded: {bool(settings.auth.firebase_project_id)}"
+            )
+            logger.debug(
+                f"Firebase private_key loaded: {bool(settings.auth.firebase_private_key)}"
+            )
+            logger.debug(
+                f"Firebase client_email loaded: {bool(settings.auth.firebase_client_email)}"
+            )
 
             if (
-                firebase_type
-                and firebase_project_id
-                and firebase_private_key
-                and firebase_client_email
+                cred_dict.get("project_id")
+                and cred_dict.get("private_key")
+                and cred_dict.get("client_email")
             ):
                 logger.info(
-                    "Initializing Firebase Admin SDK with credentials from FIREBASE_ environment variables"
+                    "Initializing Firebase Admin SDK with credentials from environment variables"
                 )
-
-                # Replace escaped newlines in private key if needed
-                if "\\n" in firebase_private_key:
-                    firebase_private_key = firebase_private_key.replace("\\n", "\n")
-
-                # Build credential dict from all available FIREBASE_ environment variables
-                cred_dict = {
-                    "type": firebase_type,
-                    "project_id": firebase_project_id,
-                    "private_key_id": os.environ.get("FIREBASE_PRIVATE_KEY_ID", ""),
-                    "private_key": firebase_private_key,
-                    "client_email": firebase_client_email,
-                    "client_id": os.environ.get("FIREBASE_CLIENT_ID", ""),
-                    "auth_uri": os.environ.get(
-                        "FIREBASE_AUTH_URI", "https://accounts.google.com/o/oauth2/auth"
-                    ),
-                    "token_uri": os.environ.get(
-                        "FIREBASE_TOKEN_URI", "https://oauth2.googleapis.com/token"
-                    ),
-                    "auth_provider_x509_cert_url": os.environ.get(
-                        "FIREBASE_AUTH_PROVIDER_X509_CERT_URL",
-                        "https://www.googleapis.com/oauth2/v1/certs",
-                    ),
-                    "client_x509_cert_url": os.environ.get(
-                        "FIREBASE_CLIENT_X509_CERT_URL", ""
-                    ),
-                    "universe_domain": os.environ.get(
-                        "FIREBASE_UNIVERSE_DOMAIN", "googleapis.com"
-                    ),
-                }
 
                 # Log success without sensitive details
                 logger.debug(
-                    f"Created credential dict with project_id: {firebase_project_id}"
+                    f"Created credential dict with project_id: {cred_dict.get('project_id')}"
                 )
 
                 # Initialize Firebase with the constructed credentials
@@ -101,50 +116,16 @@ class FirebaseAuth:
                 )
                 return True
 
-            # Check for full JSON credentials
-            firebase_credentials_json = os.environ.get("FIREBASE_CREDENTIALS_JSON")
-            if firebase_credentials_json:
-                logger.info(
-                    "Initializing Firebase Admin SDK with credentials from FIREBASE_CREDENTIALS_JSON"
-                )
-                import json
-
-                try:
-                    # Parse the JSON string to dict
-                    cred_dict = json.loads(firebase_credentials_json)
-                    cred = credentials.Certificate(cred_dict)
-                    cls._app = firebase_admin.initialize_app(cred)
-                    cls._initialized = True
-                    logger.info(
-                        "Successfully initialized Firebase Admin SDK from JSON environment variable"
-                    )
-                    return True
-                except json.JSONDecodeError as json_err:
-                    logger.error(
-                        f"Failed to parse FIREBASE_CREDENTIALS_JSON: {str(json_err)}"
-                    )
-                    # Continue to other methods if this fails
-
-            # Fall back to file-based credentials
-            cred_path = service_account_path or os.environ.get(
-                "FIREBASE_CREDENTIALS", settings.auth.firebase_credentials_path
+            # Default credentials (useful for development)
+            logger.warning("No valid credentials found. Using default credentials.")
+            logger.warning(
+                f"Missing credentials: project_id={not bool(cred_dict.get('project_id'))}, private_key={not bool(cred_dict.get('private_key'))}, client_email={not bool(cred_dict.get('client_email'))}"
             )
-
-            logger.info(
-                f"Initializing Firebase Admin SDK with credentials from {cred_path}"
-            )
-
-            # Initialize Firebase Admin
-            if cred_path and os.path.exists(cred_path):
-                cred = credentials.Certificate(cred_path)
-                cls._app = firebase_admin.initialize_app(cred)
-            else:
-                # Default credentials (useful for development)
-                logger.warning("Credentials file not found. Using default credentials.")
-                cls._app = firebase_admin.initialize_app()
-
+            cls._app = firebase_admin.initialize_app()
             cls._initialized = True
-            logger.info("Successfully initialized Firebase Admin SDK")
+            logger.info(
+                "Successfully initialized Firebase Admin SDK with default credentials"
+            )
             return True
 
         except Exception as e:

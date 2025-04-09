@@ -1,6 +1,22 @@
 """FastAPI application entry point."""
 
+import os
 from contextlib import asynccontextmanager
+from pathlib import Path
+
+# Load environment variables before importing any application modules
+from dotenv import load_dotenv
+
+# Explicitly load .env.local first, then fall back to .env
+env_local_path = Path().absolute() / ".env.local"
+env_path = Path().absolute() / ".env"
+
+if env_local_path.exists():
+    load_dotenv(dotenv_path=env_local_path)
+    print(f"Loaded environment variables from {env_local_path}")
+elif env_path.exists():
+    load_dotenv(dotenv_path=env_path)
+    print(f"Loaded environment variables from {env_path}")
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
