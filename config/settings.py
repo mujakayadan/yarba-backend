@@ -28,12 +28,30 @@ class DatabaseSettings(BaseSettings):
     min_pool_size: int = Field(
         default=10,
         description="Minimum number of connections in the pool",
-        env="MIN_POOL_SIZE",
     )
     max_pool_size: int = Field(
         default=100,
         description="Maximum number of connections in the pool",
-        env="MAX_POOL_SIZE",
+    )
+    connection_timeout_ms: int = Field(
+        default=30000,
+        description="Connection timeout in milliseconds",
+    )
+    server_selection_timeout_ms: int = Field(
+        default=20000,
+        description="Server selection timeout in milliseconds",
+    )
+    socket_timeout_ms: int = Field(
+        default=60000,
+        description="Socket timeout in milliseconds",
+    )
+    retry_writes: bool = Field(
+        default=True,
+        description="Enable retry for write operations",
+    )
+    retry_reads: bool = Field(
+        default=True,
+        description="Enable retry for read operations",
     )
 
     @field_validator("url")

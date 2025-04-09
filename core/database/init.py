@@ -5,6 +5,7 @@ and setting up the database for the application.
 """
 
 import os
+import re
 from typing import Optional
 
 from beanie import init_beanie
@@ -24,6 +25,21 @@ logger = get_logger(__name__)
 settings = Settings()
 
 
+def get_sanitized_uri(uri: str) -> str:
+    """Sanitize MongoDB URI by removing credentials for logging purposes.
+
+    Args:
+        uri: MongoDB connection URI
+
+    Returns:
+        str: Sanitized URI with credentials removed
+    """
+    if not uri:
+        return ""
+    # Replace credentials in MongoDB URI with ***
+    return re.sub(r"(mongodb(\+srv)?://)[^:]+:[^@]+@", r"\1***:***@", uri)
+
+
 async def init_db() -> Optional[AsyncIOMotorClient]:
     """Initialize database connection.
 
@@ -35,14 +51,22 @@ async def init_db() -> Optional[AsyncIOMotorClient]:
         mongodb_uri = os.environ.get("MONGODB_URI", settings.database.url)
         mongodb_db = os.environ.get("MONGODB_DATABASE", settings.database.name)
 
-        logger.info(f"Connecting to MongoDB at: {mongodb_uri} (database: {mongodb_db})")
+        # Log sanitized URI
+        sanitized_uri = get_sanitized_uri(mongodb_uri)
+        logger.info(
+            f"Connecting to MongoDB at: {sanitized_uri} (database: {mongodb_db})"
+        )
 
-        # Create motor client
+        # Create motor client using settings
         client = AsyncIOMotorClient(
             mongodb_uri,
             minPoolSize=settings.database.min_pool_size,
             maxPoolSize=settings.database.max_pool_size,
-            serverSelectionTimeoutMS=10000,  # Increased timeout
+            serverSelectionTimeoutMS=settings.database.server_selection_timeout_ms,
+            connectTimeoutMS=settings.database.connection_timeout_ms,
+            socketTimeoutMS=settings.database.socket_timeout_ms,
+            retryWrites=settings.database.retry_writes,
+            retryReads=settings.database.retry_reads,
         )
 
         # Initialize beanie with all document models
