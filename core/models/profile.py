@@ -136,15 +136,6 @@ class Profile(Document):
     life_story: Optional[str] = None
 
     # API Keys configuration
-    supported_api_keys: List[str] = Field(
-        default=[
-            "OPENAI_API_KEY",
-            "GEMINI_API_KEY",
-            "ANTHROPIC_API_KEY",
-            "MISTRAL_API_KEY",
-        ],
-        description="List of supported API key types",
-    )
     api_keys: Dict[str, str] = Field(
         default_factory=dict, description="Hashed API keys for various services"
     )
