@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import AnyHttpUrl, Field, SecretStr, field_validator
+from pydantic import AnyHttpUrl, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -150,10 +150,8 @@ class AuthSettings(BaseSettings):
         description="Firebase private key ID",
         env="FIREBASE_PRIVATE_KEY_ID",
     )
-    firebase_private_key: str = Field(
-        default="",
-        description="Firebase private key",
-        env="FIREBASE_PRIVATE_KEY",
+    firebase_private_key: Optional[str] = Field(
+        default=None, description="Firebase private key", env="FIREBASE_PRIVATE_KEY"
     )
     firebase_client_email: str = Field(
         default="",
@@ -191,40 +189,38 @@ class AuthSettings(BaseSettings):
         env="FIREBASE_UNIVERSE_DOMAIN",
     )
 
-    @field_validator("api_base_url")
-    def validate_api_base_url(cls, v: str) -> str:
-        """Validate and normalize API base URL.
+    firebase_private_key_base64: Optional[str] = Field(
+        default=None,
+        description="Firebase private key encoded in base64",
+        env="FIREBASE_PRIVATE_KEY_BASE64",
+    )
 
-        Ensures the URL has a proper scheme and is formatted correctly.
+    @model_validator(mode="after")
+    def decode_firebase_base64_key(cls, values):
+        """Decode base64 private key if present."""
+        # If we have a base64 key but no regular key, decode the base64
+        if not values.firebase_private_key and values.firebase_private_key_base64:
+            try:
+                import base64
+                import logging
 
-        Args:
-            v: API base URL to validate
+                decoded_key = base64.b64decode(
+                    values.firebase_private_key_base64
+                ).decode("utf-8")
+                values.firebase_private_key = decoded_key
+                logging.info("Successfully decoded Firebase private key from base64")
+            except Exception as e:
+                import logging
 
-        Returns:
-            str: Validated API base URL
+                logging.error(f"Failed to decode base64 private key: {str(e)}")
 
-        Raises:
-            ValueError: If URL is invalid
-        """
-        import re
+        # Replace newlines if needed
+        if values.firebase_private_key and "\\n" in values.firebase_private_key:
+            values.firebase_private_key = values.firebase_private_key.replace(
+                "\\n", "\n"
+            )
 
-        # Simple validation for URL format
-        if not re.match(r"^https?://", v):
-            # Auto-prefixing http:// if missing
-            v = f"http://{v}"
-
-        # Remove trailing slash if present
-        if v.endswith("/"):
-            v = v[:-1]
-
-        return v
-
-    @field_validator("firebase_private_key")
-    def validate_firebase_private_key(cls, v: str) -> str:
-        """Replace escaped newlines in private key."""
-        if v and "\\n" in v:
-            return v.replace("\\n", "\n")
-        return v
+        return values
 
     def get_firebase_credentials_dict(self) -> Dict[str, Any]:
         """Get Firebase credentials as a dictionary for firebase-admin.
@@ -266,6 +262,34 @@ class AuthSettings(BaseSettings):
 
         # Filter out empty values
         return {k: v for k, v in credentials_dict.items() if v}
+
+    @field_validator("api_base_url")
+    def validate_api_base_url(cls, v: str) -> str:
+        """Validate and normalize API base URL.
+
+        Ensures the URL has a proper scheme and is formatted correctly.
+
+        Args:
+            v: API base URL to validate
+
+        Returns:
+            str: Validated API base URL
+
+        Raises:
+            ValueError: If URL is invalid
+        """
+        import re
+
+        # Simple validation for URL format
+        if not re.match(r"^https?://", v):
+            # Auto-prefixing http:// if missing
+            v = f"http://{v}"
+
+        # Remove trailing slash if present
+        if v.endswith("/"):
+            v = v[:-1]
+
+        return v
 
 
 class LLMSettings(BaseSettings):
@@ -693,6 +717,11 @@ class APISettings(BaseSettings):
         default="1.0.0",
         description="API version",
     )
+    api_base_url: str = Field(
+        default="http://localhost:8000",
+        description="Base URL for API endpoints",
+        env="BASE_URL",
+    )
 
     # Rate limiting settings
     rate_limit: int = Field(
@@ -711,6 +740,136 @@ class APISettings(BaseSettings):
         default=120,
         description="Time window in seconds for PDF generation rate limiting",
     )
+
+
+class StorageSettings(BaseSettings):
+    """Storage settings for file uploads and media."""
+
+    model_config = SettingsConfigDict(
+        env_file=[".env.local", ".env"],
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+        env_prefix="STORAGE_",
+    )
+
+    # Storage provider
+    provider: str = Field(
+        default="local",
+        description="Storage provider (local, aws_s3)",
+        env="PROVIDER",
+    )
+
+    # AWS S3 settings
+    aws_access_key: Optional[str] = Field(
+        default=None,
+        description="AWS S3 access key",
+        env="AWS_ACCESS_KEY",
+    )
+    aws_secret_key: Optional[str] = Field(
+        default=None,
+        description="AWS S3 secret key",
+        env="AWS_SECRET_KEY",
+    )
+    aws_region: str = Field(
+        default="us-east-1",
+        description="AWS S3 region",
+        env="AWS_REGION",
+    )
+    aws_bucket: str = Field(
+        default="yarba-app-media",
+        description="AWS S3 bucket name",
+        env="AWS_BUCKET",
+    )
+    aws_use_presigned_urls: bool = Field(
+        default=False,
+        description="Whether to use pre-signed URLs for AWS S3",
+        env="AWS_USE_PRESIGNED_URLS",
+    )
+    aws_presigned_url_expiry: int = Field(
+        default=3600,  # 1 hour
+        description="Expiry time in seconds for pre-signed URLs",
+        env="AWS_PRESIGNED_URL_EXPIRY",
+    )
+
+    # CloudFront settings
+    cloudfront_enabled: bool = Field(
+        default=False,
+        description="Whether to use CloudFront for distribution",
+        env="CLOUDFRONT_ENABLED",
+    )
+    cloudfront_domain: Optional[str] = Field(
+        default=None,
+        description="CloudFront distribution domain",
+        env="CLOUDFRONT_DOMAIN",
+    )
+    cloudfront_key_pair_id: Optional[str] = Field(
+        default=None,
+        description="CloudFront key pair ID for signed URLs",
+        env="CLOUDFRONT_KEY_PAIR_ID",
+    )
+    cloudfront_private_key_path: Optional[Path] = Field(
+        default=None,
+        description="Path to CloudFront private key for signed URLs",
+        env="CLOUDFRONT_PRIVATE_KEY_PATH",
+    )
+    cloudfront_url_expiry: int = Field(
+        default=86400,  # 24 hours
+        description="Expiry time in seconds for CloudFront signed URLs",
+        env="CLOUDFRONT_URL_EXPIRY",
+    )
+
+    # Local storage settings
+    local_storage_path: Path = Field(
+        default=Path("uploads"),
+        description="Path for local file storage",
+        env="LOCAL_STORAGE_PATH",
+    )
+
+    # Media paths
+    profile_pictures_path: str = Field(
+        default="profile-pictures",
+        description="Path for profile pictures storage",
+        env="PROFILE_PICTURES_PATH",
+    )
+    signatures_path: str = Field(
+        default="signatures",
+        description="Path for signature storage",
+        env="SIGNATURES_PATH",
+    )
+    resumes_path: str = Field(
+        default="resumes",
+        description="Path for resume PDFs storage",
+        env="RESUMES_PATH",
+    )
+    cover_letters_path: str = Field(
+        default="cover-letters",
+        description="Path for cover letter PDFs storage",
+        env="COVER_LETTERS_PATH",
+    )
+
+    # Media settings
+    max_image_size: int = Field(
+        default=5 * 1024 * 1024,
+        description="Maximum image size in bytes (5MB)",
+        env="MAX_IMAGE_SIZE",
+    )
+    max_pdf_size: int = Field(
+        default=10 * 1024 * 1024,
+        description="Maximum PDF size in bytes (10MB)",
+        env="MAX_PDF_SIZE",
+    )
+    allowed_image_types: List[str] = Field(
+        default=["image/jpeg", "image/png", "image/gif", "image/webp"],
+        description="Allowed image MIME types",
+        env="ALLOWED_IMAGE_TYPES",
+    )
+
+    @field_validator("local_storage_path")
+    def create_directory_if_not_exists(cls, v: Path) -> Path:
+        """Create directory if it doesn't exist."""
+        v.mkdir(parents=True, exist_ok=True)
+        return v
 
 
 class PathSettings(BaseSettings):
@@ -818,6 +977,9 @@ class Settings(BaseSettings):
     api: APISettings = Field(default_factory=APISettings, description="API settings")
     paths: PathSettings = Field(
         default_factory=PathSettings, description="Path settings"
+    )
+    storage: StorageSettings = Field(
+        default_factory=StorageSettings, description="Storage settings"
     )
 
     # Convenience properties

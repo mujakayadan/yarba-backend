@@ -167,6 +167,7 @@ class CoverLetterGenerationService:
         self,
         cover_letter_id: PydanticObjectId,
         regenerate: bool = False,
+        llm_preferences: Optional[dict] = None,
     ) -> str:
         """
         Generate a cover letter content.
@@ -174,6 +175,7 @@ class CoverLetterGenerationService:
         Args:
             cover_letter_id: Cover letter ID
             regenerate: Whether to regenerate the content even if it exists
+            llm_preferences: Optional LLM preferences to override defaults
 
         Returns:
             Generated cover letter text
@@ -192,6 +194,11 @@ class CoverLetterGenerationService:
 
         # Configure LLM for user
         await self.configure_for_user(cover_letter.user_id)
+
+        # Apply LLM preferences if provided
+        if llm_preferences:
+            self.logger.info(f"Applying custom LLM preferences: {llm_preferences}")
+            await self.llm_service.set_model_parameters(llm_preferences)
 
         # Generate cover letter
         try:

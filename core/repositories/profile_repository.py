@@ -7,6 +7,7 @@ from beanie import PydanticObjectId
 from bson import ObjectId
 
 from config.logging_config import get_logger
+from config.settings import settings
 
 from ..models.profile import PersonalInformation, Preferences, Profile
 from ..models.resume import Resume
@@ -380,11 +381,62 @@ class ProfileRepository(BeanieRepository[Profile]):
                 email=email,
             )
 
+            # Create preferences with defaults from settings
+            preferences = Preferences()
+
+            # Apply defaults from settings
+            preferences.section_preferences = dict(
+                settings.preferences.section_preferences
+            )
+            preferences.default_latex_templates = dict(
+                settings.preferences.default_latex_templates
+            )
+
+            # Apply other preference settings
+            preferences.project_details = {
+                "max_projects": settings.preferences.project_max_projects,
+                "bullet_points_per_project": settings.preferences.project_bullet_points_per_project,
+            }
+
+            preferences.work_experience_details = {
+                "max_jobs": settings.preferences.work_experience_max_jobs,
+                "bullet_points_per_job": settings.preferences.work_experience_bullet_points_per_job,
+            }
+
+            preferences.skills_details = {
+                "max_categories": settings.preferences.skills_max_categories,
+                "min_skills_per_category": settings.preferences.skills_min_per_category,
+                "max_skills_per_category": settings.preferences.skills_max_per_category,
+            }
+
+            preferences.career_summary_details = {
+                "min_words": settings.preferences.career_summary_min_words,
+                "max_words": settings.preferences.career_summary_max_words,
+            }
+
+            preferences.education_details = {
+                "max_entries": settings.preferences.education_max_entries,
+                "max_courses": settings.preferences.education_max_courses,
+            }
+
+            preferences.awards_details = {
+                "max_awards": settings.preferences.awards_max_awards
+            }
+
+            preferences.publications_details = {
+                "max_publications": settings.preferences.publications_max_publications
+            }
+
+            preferences.cover_letter_details = {
+                "paragraphs": settings.preferences.cover_letter_paragraphs,
+                "target_grade_level": settings.preferences.cover_letter_target_grade_level,
+            }
+
             # Create profile with default preferences
             profile = Profile(
                 user_id=user.id,
                 personal_information=personal_information,
-                preferences=Preferences(),
+                preferences=preferences,
                 created_at=datetime.now(timezone.utc),
                 updated_at=datetime.now(timezone.utc),
             )

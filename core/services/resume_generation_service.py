@@ -335,6 +335,7 @@ class ResumeGenerationService:
         self,
         resume_id: PydanticObjectId,
         regenerate_sections: Optional[List[str]] = None,
+        llm_preferences: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Generate or update content for a resume.
@@ -342,6 +343,7 @@ class ResumeGenerationService:
         Args:
             resume_id: Resume ID
             regenerate_sections: Optional list of section names to regenerate
+            llm_preferences: Optional LLM preferences to override defaults
 
         Returns:
             Generated resume content
@@ -354,6 +356,11 @@ class ResumeGenerationService:
 
         # Configure LLM for user
         await self.configure_for_user(resume.user_id)
+
+        # Apply LLM preferences if provided
+        if llm_preferences:
+            self.logger.info(f"Applying custom LLM preferences: {llm_preferences}")
+            await self.llm_service.set_model_parameters(llm_preferences)
 
         # Update resume title with properly formatted version
         if resume.company_name or resume.job_title:

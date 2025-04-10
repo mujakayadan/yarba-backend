@@ -1,11 +1,23 @@
 """Resumes router."""
 
 from datetime import datetime
-from typing import Annotated, List
+from typing import Annotated, List, Optional
 
 from beanie import PydanticObjectId
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Path,
+    Query,
+    Response,
+    UploadFile,
+    status,
+)
+from pydantic import BaseModel
 
+from api.dependencies.auth import get_current_active_user
 from api.dependencies.services import (
     get_job_service,
     get_portfolio_service,
@@ -22,15 +34,18 @@ from api.schemas import (
     ResumeUpdate,
 )
 from config import get_logger
+from config.logging_config import get_logger
 from config.settings import settings
 from core.exceptions.base import NotFoundException
 from core.models.portfolio import Portfolio
 from core.models.profile import PersonalInformation
+from core.models.user import User
 from core.services.job_service import JobService
 from core.services.portfolio_service import PortfolioService
 from core.services.profile_service import ProfileService
 from core.services.resume_generation_service import ResumeGenerationService
 from core.services.resume_service import ResumeService
+from utils.storage import get_storage_provider
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -49,10 +64,10 @@ async def create_resume(
     portfolio_service: PortfolioService = Depends(get_portfolio_service),
 ) -> ResumeResponse:
     """
-    Create a new resume.
+    Create a new resume using user profile preferences.
 
     Args:
-        request: Resume creation request
+        request: Resume creation request (minimal, most settings come from profile)
         current_user: Current authenticated user
         resume_service: Resume service
         job_service: Job service
@@ -67,15 +82,12 @@ async def create_resume(
         HTTPException: If resume creation fails
     """
     try:
-        # Create basic resume with title and template
-        # First, try to get the user's profile
+        # First, get the user's profile - this is required
         try:
             profile = await profile_service.get_profile_by_user_id(current_user.id)
             profile_id = profile.id
         except Exception as e:
-            logger.warning(
-                f"Error getting profile for user {current_user.id}: {str(e)}"
-            )
+            logger.error(f"Error getting profile for user {current_user.id}: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="User profile not found. Please create a profile first.",
@@ -99,13 +111,24 @@ async def create_resume(
             )
             portfolio_id = portfolio.id
 
+        # Get template ID from request or from profile preferences
+        template_id = request.template_id
+        if (
+            not template_id
+            and profile.preferences
+            and profile.preferences.default_latex_templates
+        ):
+            template_id = profile.preferences.default_latex_templates.get(
+                "default_resume_template_id", "classic"
+            )
+
         # Create the resume with the profile ID and other fields
         try:
             resume = await resume_service.create_resume(
                 user_id=PydanticObjectId(current_user.id),
                 profile_id=profile_id,
                 portfolio_id=portfolio_id,
-                template_id=request.template_id,
+                template_id=template_id,
                 job_description=getattr(request, "job_description", None),
             )
         except NotFoundException as e:
@@ -143,35 +166,50 @@ async def create_resume(
                 update_data=update_data,
             )
 
-            # Get user's profile for preferences
-            try:
-                profile = await profile_service.get_profile_by_user_id(current_user.id)
-
-                # Get selected sections from request or profile
-                regenerate_sections = request.selected_sections
-                if not regenerate_sections and profile and profile.preferences:
-                    if hasattr(profile.preferences, "section_preferences"):
-                        regenerate_sections = profile.preferences.section_preferences
-                    else:
-                        regenerate_sections = settings.preferences.section_preferences
-                elif not regenerate_sections:
+            # Use section preferences from profile
+            regenerate_sections = None
+            if profile and profile.preferences:
+                if hasattr(profile.preferences, "section_preferences"):
+                    regenerate_sections = profile.preferences.section_preferences
+                else:
                     regenerate_sections = settings.preferences.section_preferences
+            else:
+                regenerate_sections = settings.preferences.section_preferences
 
-                # Generate resume content based on job description
-                if regenerate_sections:
+            # Override with request sections if explicitly provided
+            if request.selected_sections:
+                regenerate_sections = request.selected_sections
+
+            # Get LLM preferences from profile
+            llm_preferences = None
+            if (
+                profile
+                and profile.preferences
+                and hasattr(profile.preferences, "llm_preferences")
+            ):
+                llm_preferences = profile.preferences.llm_preferences
+
+            # Override with request LLM preferences if explicitly provided
+            if request.llm_preferences:
+                llm_preferences = request.llm_preferences
+
+            # Generate resume content based on job description
+            if regenerate_sections:
+                try:
                     await resume_generation_service.generate_resume_content(
                         resume_id=resume.id,
                         regenerate_sections=list(regenerate_sections),
+                        llm_preferences=llm_preferences,
                     )
                     # Fetch the updated resume
                     resume = await resume_service.get_resume_by_id(
                         resume_id=resume.id, user_id=PydanticObjectId(current_user.id)
                     )
-            except Exception as profile_error:
-                logger.warning(
-                    f"Error getting profile or generating content: {str(profile_error)}"
-                )
-                # Continue without generating content to avoid blocking resume creation
+                except Exception as generation_error:
+                    logger.error(
+                        f"Error generating resume content: {str(generation_error)}"
+                    )
+                    # Continue to return the resume without generated content to avoid blocking resume creation
 
         logger.info(f"Resume created: {resume.id} for user {current_user.id}")
         return ResumeResponse.model_validate(resume)
@@ -943,3 +981,136 @@ async def advanced_debug_pdf_generation(
         add_error("Initialization", e)
         debug_info["success"] = False
         return debug_info
+
+
+class ResumePDFResponse(BaseModel):
+    """Response model for resume PDF URL."""
+
+    pdf_url: Optional[str] = None
+
+
+@router.post("/{resume_id}/upload-pdf", response_model=ResumePDFResponse)
+async def upload_resume_pdf(
+    resume_id: PydanticObjectId = Path(..., description="Resume ID"),
+    file: UploadFile = File(..., description="PDF file to upload"),
+    current_user: User = Depends(get_current_active_user),
+    resume_service: ResumeService = Depends(get_resume_service),
+):
+    """
+    Upload a PDF file for a resume directly instead of generating it.
+
+    Args:
+        resume_id: Resume ID
+        file: PDF file to upload
+        current_user: Current authenticated user
+        resume_service: Resume service
+
+    Returns:
+        PDF URL
+    """
+    # Check file content type
+    if file.content_type != "application/pdf":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File must be a PDF",
+        )
+
+    try:
+        # Get the resume
+        resume = await resume_service.get_resume_by_id(resume_id)
+
+        # Check if the resume belongs to the user
+        if resume.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to upload this resume",
+            )
+
+        # Get storage provider
+        storage_provider = get_storage_provider()
+
+        # If resume already has a PDF, delete it
+        if resume.pdf_key:
+            await storage_provider.delete_file(resume.pdf_key)
+
+        # Read the file content
+        content = await file.read()
+
+        # Save the new PDF
+        pdf_key = await storage_provider.save_resume_pdf(content, str(resume_id))
+
+        # Update resume with the new PDF key
+        resume.pdf_key = pdf_key
+        updated_resume = await resume_service.update_resume(resume)
+
+        # Return URL for the PDF
+        pdf_url = storage_provider.get_url(pdf_key)
+        return {"pdf_url": pdf_url}
+
+    except NotFoundException:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Resume not found",
+        )
+    except Exception as e:
+        logger.error(f"Error uploading resume PDF: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload resume PDF: {str(e)}",
+        )
+
+
+@router.delete("/{resume_id}/pdf", response_model=ResumePDFResponse)
+async def delete_resume_pdf(
+    resume_id: PydanticObjectId = Path(..., description="Resume ID"),
+    current_user: User = Depends(get_current_active_user),
+    resume_service: ResumeService = Depends(get_resume_service),
+):
+    """
+    Delete the PDF file for a resume.
+
+    Args:
+        resume_id: Resume ID
+        current_user: Current authenticated user
+        resume_service: Resume service
+
+    Returns:
+        Empty PDF URL
+    """
+    try:
+        # Get the resume
+        resume = await resume_service.get_resume_by_id(resume_id)
+
+        # Check if the resume belongs to the user
+        if resume.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to delete this resume's PDF",
+            )
+
+        # Get storage provider
+        storage_provider = get_storage_provider()
+
+        # If resume has a PDF, delete it
+        if resume.pdf_key:
+            success = await storage_provider.delete_file(resume.pdf_key)
+            if not success:
+                logger.warning(f"Failed to delete resume PDF file: {resume.pdf_key}")
+
+            # Update resume to remove PDF reference
+            resume.pdf_key = None
+            await resume_service.update_resume(resume)
+
+        return {"pdf_url": None}
+
+    except NotFoundException:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Resume not found",
+        )
+    except Exception as e:
+        logger.error(f"Error deleting resume PDF: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete resume PDF: {str(e)}",
+        )

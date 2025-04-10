@@ -6,6 +6,8 @@ from typing import Any, Dict, List, Optional
 from beanie import Document, Link, PydanticObjectId
 from pydantic import BaseModel, EmailStr, Field
 
+from config.settings import settings
+
 from .user import User
 
 
@@ -14,40 +16,59 @@ class Preferences(BaseModel):
 
     # Project preferences
     project_details: Dict[str, Any] = Field(
-        default_factory=lambda: {"max_projects": 4, "bullet_points_per_project": 3}
+        default_factory=lambda: {
+            "max_projects": settings.preferences.project_max_projects,
+            "bullet_points_per_project": settings.preferences.project_bullet_points_per_project,
+        }
     )
 
     # Work experience preferences
     work_experience_details: Dict[str, Any] = Field(
-        default_factory=lambda: {"max_jobs": 4, "bullet_points_per_job": 3}
+        default_factory=lambda: {
+            "max_jobs": settings.preferences.work_experience_max_jobs,
+            "bullet_points_per_job": settings.preferences.work_experience_bullet_points_per_job,
+        }
     )
 
     # Skills preferences
     skills_details: Dict[str, Any] = Field(
         default_factory=lambda: {
-            "max_categories": 5,
-            "min_skills_per_category": 3,
-            "max_skills_per_category": 10,
+            "max_categories": settings.preferences.skills_max_categories,
+            "min_skills_per_category": settings.preferences.skills_min_per_category,
+            "max_skills_per_category": settings.preferences.skills_max_per_category,
         }
     )
 
     # Career summary preferences
     career_summary_details: Dict[str, Any] = Field(
-        default_factory=lambda: {"min_words": 15, "max_words": 25}
+        default_factory=lambda: {
+            "min_words": settings.preferences.career_summary_min_words,
+            "max_words": settings.preferences.career_summary_max_words,
+        }
     )
 
     # Education preferences
     education_details: Dict[str, Any] = Field(
-        default_factory=lambda: {"max_entries": 3, "max_courses": 4}
+        default_factory=lambda: {
+            "max_entries": settings.preferences.education_max_entries,
+            "max_courses": settings.preferences.education_max_courses,
+        }
     )
 
     # Other section preferences
     cover_letter_details: Dict[str, Any] = Field(
-        default_factory=lambda: {"paragraphs": 5, "target_age": 25}
+        default_factory=lambda: {
+            "paragraphs": settings.preferences.cover_letter_paragraphs,
+            "target_age": settings.preferences.cover_letter_target_grade_level,
+        }
     )
-    awards_details: Dict[str, Any] = Field(default_factory=lambda: {"max_awards": 4})
+    awards_details: Dict[str, Any] = Field(
+        default_factory=lambda: {"max_awards": settings.preferences.awards_max_awards}
+    )
     publications_details: Dict[str, Any] = Field(
-        default_factory=lambda: {"max_publications": 3}
+        default_factory=lambda: {
+            "max_publications": settings.preferences.publications_max_publications
+        }
     )
 
     # Feature preferences
@@ -69,39 +90,27 @@ class Preferences(BaseModel):
     llm_preferences: Dict[str, Any] = Field(
         default_factory=lambda: {
             "model_type": "Claude",
-            "model_name": "claude-3-5-sonnet-20240620",
-            "temperature": 0.1,
+            "model_name": settings.llm.default_model,
+            "temperature": settings.llm.temperature,
         }
     )
 
     # Section processing preferences
     section_preferences: Dict[str, str] = Field(
-        default_factory=lambda: {
-            "personal_information": "Hardcode",
-            "career_summary": "Process",
-            "skills": "Process",
-            "work_experience": "Process",
-            "education": "Process",
-            "projects": "Process",
-            "awards": "Hardcode",
-            "publications": "Hardcode",
-        }
+        default_factory=lambda: settings.preferences.section_preferences.copy()
     )
 
     # LaTeX template preferences
     latex_template_preferences: Dict[str, str] = Field(
         default_factory=lambda: {
-            "resume_template": "classic",
-            "cover_letter_template": "standard",
+            "resume_template": settings.latex.default_resume_template_id,
+            "cover_letter_template": settings.latex.default_cover_letter_template_id,
         }
     )
 
     # Default LaTeX template preferences
     default_latex_templates: Dict[str, str] = Field(
-        default_factory=lambda: {
-            "default_resume_template_id": "classic",
-            "default_cover_letter_template_id": "standard",
-        },
+        default_factory=lambda: settings.preferences.default_latex_templates.copy(),
         description="Default LaTeX template IDs",
     )
 
@@ -133,7 +142,13 @@ class Profile(Document):
 
     # Additional information
     signature: Optional[bytes] = None
+    signature_key: Optional[str] = Field(
+        default=None, description="S3 key for the user's signature"
+    )
     life_story: Optional[str] = None
+    profile_picture: Optional[str] = Field(
+        default=None, description="URL or path to the profile picture"
+    )
 
     # API Keys configuration
     api_keys: Dict[str, str] = Field(

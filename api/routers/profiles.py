@@ -4,7 +4,7 @@ from typing import Optional
 
 from beanie import PydanticObjectId
 from bson import ObjectId
-from fastapi import APIRouter, Depends, HTTPException, Path, status
+from fastapi import APIRouter, Depends, File, HTTPException, Path, UploadFile, status
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from api.dependencies.auth import get_current_active_user
@@ -14,6 +14,7 @@ from core.exceptions.base import NotFoundException
 from core.models.profile import PersonalInformation, Preferences, Profile
 from core.models.user import User
 from core.services.profile_service import ProfileService
+from utils.storage import get_storage_provider
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -117,13 +118,32 @@ async def get_my_profile(
         Profile
     """
     try:
+        # Try to get existing profile
         profile = await profile_service.get_profile_by_user_id(current_user.id)
         return profile
     except NotFoundException:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Profile not found",
+        # Profile doesn't exist - create one automatically
+        logger.info(
+            f"Profile not found for user {current_user.id}, creating automatically"
         )
+        from core.repositories.profile_repository import ProfileRepository
+
+        profile_repo = ProfileRepository()
+
+        # Create profile with defaults from application settings
+        new_profile = await profile_repo.create_for_user(
+            user=current_user,
+            full_name=current_user.username,  # Use username as fallback
+            email=current_user.email,
+        )
+
+        if not new_profile:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to auto-create profile",
+            )
+
+        return new_profile
 
 
 @router.post("/", response_model=Profile, status_code=status.HTTP_201_CREATED)
@@ -579,4 +599,307 @@ async def get_my_life_story(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get life story: {str(e)}",
+        )
+
+
+class ProfilePictureResponse(BaseModel):
+    """Response model for profile picture URL."""
+
+    profile_picture_url: Optional[str] = None
+
+
+@router.post("/me/profile-picture", response_model=ProfilePictureResponse)
+async def upload_profile_picture(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_active_user),
+    profile_service: ProfileService = Depends(get_profile_service),
+):
+    """
+    Upload a profile picture.
+
+    Args:
+        file: Profile picture file
+        current_user: Current authenticated user
+        profile_service: Profile service
+
+    Returns:
+        Profile picture URL
+    """
+    try:
+        # Get current profile
+        profile = await profile_service.get_profile_by_user_id(current_user.id)
+
+        # Get storage provider
+        storage_provider = get_storage_provider()
+
+        # If user already has a profile picture, delete it
+        if profile.profile_picture:
+            await storage_provider.delete_profile_picture(profile.profile_picture)
+
+        # Save the new profile picture
+        filename = await storage_provider.save_profile_picture(
+            file, str(current_user.id)
+        )
+
+        # Update profile with the new picture
+        profile.profile_picture = filename
+        updated_profile = await profile_service.update_profile(profile)
+
+        # Return URL for the profile picture
+        picture_url = storage_provider.get_profile_picture_url(filename)
+        return {"profile_picture_url": picture_url}
+
+    except NotFoundException:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found",
+        )
+    except Exception as e:
+        logger.error(f"Error uploading profile picture: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload profile picture: {str(e)}",
+        )
+
+
+@router.delete("/me/profile-picture", response_model=ProfilePictureResponse)
+async def delete_my_profile_picture(
+    current_user: User = Depends(get_current_active_user),
+    profile_service: ProfileService = Depends(get_profile_service),
+):
+    """
+    Delete the current user's profile picture.
+
+    Args:
+        current_user: Current authenticated user
+        profile_service: Profile service
+
+    Returns:
+        Empty profile picture URL
+    """
+    try:
+        # Get current profile
+        profile = await profile_service.get_profile_by_user_id(current_user.id)
+
+        # Get storage provider
+        storage_provider = get_storage_provider()
+
+        # If user has a profile picture, delete it
+        if profile.profile_picture:
+            success = await storage_provider.delete_profile_picture(
+                profile.profile_picture
+            )
+            if not success:
+                logger.warning(
+                    f"Failed to delete profile picture file: {profile.profile_picture}"
+                )
+
+            # Update profile to remove picture reference
+            profile.profile_picture = None
+            await profile_service.update_profile(profile)
+
+        return {"profile_picture_url": None}
+
+    except NotFoundException:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found",
+        )
+    except Exception as e:
+        logger.error(f"Error deleting profile picture: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete profile picture: {str(e)}",
+        )
+
+
+@router.get("/me/profile-picture", response_model=ProfilePictureResponse)
+async def get_my_profile_picture(
+    current_user: User = Depends(get_current_active_user),
+    profile_service: ProfileService = Depends(get_profile_service),
+):
+    """
+    Get the current user's profile picture URL.
+
+    Args:
+        current_user: Current authenticated user
+        profile_service: Profile service
+
+    Returns:
+        Profile picture URL
+    """
+    try:
+        # Get current profile
+        profile = await profile_service.get_profile_by_user_id(current_user.id)
+
+        # Get storage provider
+        storage_provider = get_storage_provider()
+
+        # Get URL for the profile picture
+        picture_url = storage_provider.get_profile_picture_url(profile.profile_picture)
+        return {"profile_picture_url": picture_url}
+
+    except NotFoundException:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found",
+        )
+    except Exception as e:
+        logger.error(f"Error getting profile picture: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get profile picture: {str(e)}",
+        )
+
+
+class SignatureResponse(BaseModel):
+    """Response model for signature URL."""
+
+    signature_url: Optional[str] = None
+
+
+@router.post("/me/signature", response_model=SignatureResponse)
+async def upload_signature(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_active_user),
+    profile_service: ProfileService = Depends(get_profile_service),
+):
+    """
+    Upload a signature image.
+
+    Args:
+        file: Signature image file
+        current_user: Current authenticated user
+        profile_service: Profile service
+
+    Returns:
+        Signature URL
+    """
+    try:
+        # Get current profile
+        profile = await profile_service.get_profile_by_user_id(current_user.id)
+
+        # Get storage provider
+        storage_provider = get_storage_provider()
+
+        # If user already has a signature, delete it
+        if profile.signature_key:
+            await storage_provider.delete_file(profile.signature_key)
+
+        # Read the file content
+        content = await file.read()
+
+        # Save the new signature
+        signature_key = await storage_provider.save_signature(
+            content, str(current_user.id)
+        )
+
+        # Update profile with the new signature key
+        profile.signature_key = signature_key
+        profile.signature = None  # Clear the old embedded signature if any
+        updated_profile = await profile_service.update_profile(profile)
+
+        # Return URL for the signature
+        signature_url = storage_provider.get_url(signature_key)
+        return {"signature_url": signature_url}
+
+    except NotFoundException:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found",
+        )
+    except Exception as e:
+        logger.error(f"Error uploading signature: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload signature: {str(e)}",
+        )
+
+
+@router.delete("/me/signature", response_model=SignatureResponse)
+async def delete_my_signature(
+    current_user: User = Depends(get_current_active_user),
+    profile_service: ProfileService = Depends(get_profile_service),
+):
+    """
+    Delete the current user's signature.
+
+    Args:
+        current_user: Current authenticated user
+        profile_service: Profile service
+
+    Returns:
+        Empty signature URL
+    """
+    try:
+        # Get current profile
+        profile = await profile_service.get_profile_by_user_id(current_user.id)
+
+        # Get storage provider
+        storage_provider = get_storage_provider()
+
+        # If user has a signature, delete it
+        if profile.signature_key:
+            success = await storage_provider.delete_file(profile.signature_key)
+            if not success:
+                logger.warning(
+                    f"Failed to delete signature file: {profile.signature_key}"
+                )
+
+            # Update profile to remove signature reference
+            profile.signature_key = None
+            profile.signature = None
+            await profile_service.update_profile(profile)
+
+        return {"signature_url": None}
+
+    except NotFoundException:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found",
+        )
+    except Exception as e:
+        logger.error(f"Error deleting signature: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete signature: {str(e)}",
+        )
+
+
+@router.get("/me/signature", response_model=SignatureResponse)
+async def get_my_signature(
+    current_user: User = Depends(get_current_active_user),
+    profile_service: ProfileService = Depends(get_profile_service),
+):
+    """
+    Get the current user's signature URL.
+
+    Args:
+        current_user: Current authenticated user
+        profile_service: Profile service
+
+    Returns:
+        Signature URL
+    """
+    try:
+        # Get current profile
+        profile = await profile_service.get_profile_by_user_id(current_user.id)
+
+        # Get storage provider
+        storage_provider = get_storage_provider()
+
+        # Get URL for the signature
+        signature_url = storage_provider.get_url(profile.signature_key)
+        return {"signature_url": signature_url}
+
+    except NotFoundException:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found",
+        )
+    except Exception as e:
+        logger.error(f"Error getting signature: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get signature: {str(e)}",
         )

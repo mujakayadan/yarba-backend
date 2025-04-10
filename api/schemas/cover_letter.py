@@ -21,13 +21,26 @@ class CoverLetterBase(BaseModel):
 
 
 class CoverLetterCreate(CoverLetterBase):
-    """Schema for creating a new cover letter."""
+    """
+    Schema for creating a new cover letter.
+
+    By default, preferences such as template and LLM settings will be taken
+    from the user's profile. These can be optionally overridden by providing
+    the specific fields.
+    """
 
     title: str = Field(..., description="Cover letter title")
     profile_id: PydanticObjectId = Field(..., description="Profile ID")
-    template_id: str = Field(default="default", description="Template ID")
+    template_id: str = Field(
+        default="default",
+        description="Template ID (will use profile default if not provided)",
+    )
     resume_id: Optional[PydanticObjectId] = Field(
         None, description="Resume ID that this cover letter is based on"
+    )
+    llm_preferences: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Optional LLM settings for generation (will use profile preferences if not provided)",
     )
 
 

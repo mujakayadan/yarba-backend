@@ -62,6 +62,9 @@ class Resume(Document):
 
     # Generated PDFs
     resume_pdf: Optional[bytes] = None
+    resume_pdf_key: Optional[str] = Field(
+        default=None, description="S3 key for the resume PDF"
+    )
 
     # AI generation parameters
     llm_settings: LLMSettings = Field(default_factory=LLMSettings)

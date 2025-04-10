@@ -20,6 +20,7 @@ elif env_path.exists():
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 # Fix middleware import
 from api.middleware import setup_middlewares
@@ -29,6 +30,15 @@ from config.logging_config import configure_logging, get_logger
 from config.settings import settings
 from core.auth.firebase import FirebaseAuth
 from core.database.init import init_db
+
+# Storage directory setup - only needed for local storage
+if settings.storage.provider.lower() == "local":
+    profile_pictures_dir = (
+        settings.paths.base_dir
+        / settings.storage.local_storage_path
+        / settings.storage.profile_pictures_path
+    )
+    profile_pictures_dir.mkdir(parents=True, exist_ok=True)
 
 # Define API constants that were missing from config
 API_V1_PREFIX = "/api/v1"
@@ -104,6 +114,14 @@ app.add_middleware(
 
 # Set up application middlewares
 setup_middlewares(app)
+
+# Mount static files for profile pictures if using local storage
+if settings.storage.provider.lower() == "local":
+    app.mount(
+        f"/static/{settings.storage.profile_pictures_path}",
+        StaticFiles(directory=str(profile_pictures_dir)),
+        name="profile_pictures",
+    )
 
 # Import and include routers
 from api.routers import auth, cover_letters, portfolios, profiles, resumes

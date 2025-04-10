@@ -169,13 +169,54 @@ class LLMService:
             if "COHERE_API_KEY" in user_api_keys:
                 self.api_keys["cohere"] = user_api_keys["COHERE_API_KEY"]
 
+            # Reconfigure litellm with updated keys
+            self._setup_litellm()
+
             # Configure prompt service if available
             if self.prompt_service:
                 self.prompt_service.set_user_id(user_id)
 
             self.logger.debug(f"LLM service configured for user {user_id}")
+
         except Exception as e:
-            self.logger.error(f"Error configuring LLM for user {user_id}: {e}")
+            self.logger.error(f"Error configuring for user {user_id}: {e}")
+            # Continue with defaults
+
+    async def set_model_parameters(self, parameters: Dict[str, Any]) -> None:
+        """
+        Set model parameters for the LLM service temporarily.
+
+        Args:
+            parameters: Dictionary of parameters to set
+                - model_name: Model name
+                - temperature: Temperature for sampling
+                - max_tokens: Maximum tokens in response
+                - model_type: Model provider type
+        """
+        try:
+            # Update model if specified
+            if "model_name" in parameters:
+                self.model = parameters["model_name"]
+                self.logger.debug(f"Set model to: {self.model}")
+
+            # Update temperature if specified
+            if "temperature" in parameters:
+                self.temperature = parameters["temperature"]
+                self.logger.debug(f"Set temperature to: {self.temperature}")
+
+            # Update max_tokens if specified
+            if "max_tokens" in parameters:
+                self.max_tokens = parameters["max_tokens"]
+                self.logger.debug(f"Set max_tokens to: {self.max_tokens}")
+
+            # Reconfigure litellm if needed
+            if any(key in parameters for key in ["model_type", "provider"]):
+                self._setup_litellm()
+
+            self.logger.info("LLM parameters updated")
+        except Exception as e:
+            self.logger.error(f"Error setting model parameters: {e}")
+            raise
 
     async def get_prompt(self, prompt_name: str) -> str:
         """

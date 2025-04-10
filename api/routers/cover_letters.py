@@ -7,23 +7,31 @@ from fastapi import (
     APIRouter,
     Body,
     Depends,
+    File,
     HTTPException,
     Path,
     Query,
     Response,
+    UploadFile,
     status,
 )
+from pydantic import BaseModel
 
 from config.logging_config import get_logger
+from core.exceptions.base import NotFoundException
+from core.models.user import User
 from core.services.cover_letter_generation_service import CoverLetterGenerationService
 from core.services.cover_letter_service import CoverLetterService
 from core.services.job_service import JobService
+from core.services.profile_service import ProfileService
+from utils.storage import get_storage_provider
 
 from ..dependencies.auth import CurrentUser, get_current_active_user
 from ..dependencies.services import (
     get_cover_letter_generation_service,
     get_cover_letter_service,
     get_job_service,
+    get_profile_service,
 )
 from ..schemas.cover_letter import (
     CoverLetterCreate,
@@ -34,6 +42,12 @@ from ..schemas.cover_letter import (
 logger = get_logger(__name__)
 
 router = APIRouter()
+
+
+class CoverLetterPDFResponse(BaseModel):
+    """Response model for cover letter PDF URL."""
+
+    pdf_url: Optional[str] = None
 
 
 @router.get("", response_model=List[CoverLetterResponse])
@@ -279,9 +293,10 @@ async def generate_cover_letter(
     generation_service: CoverLetterGenerationService = Depends(
         get_cover_letter_generation_service
     ),
+    profile_service: ProfileService = Depends(get_profile_service),
 ) -> CoverLetterResponse:
     """
-    Generate cover letter content based on job description.
+    Generate cover letter content based on job description using user profile preferences.
 
     Args:
         cover_letter_id: Cover letter ID
@@ -289,6 +304,7 @@ async def generate_cover_letter(
         regenerate: Whether to regenerate even if content exists
         cover_letter_service: Cover letter service
         generation_service: Cover letter generation service
+        profile_service: Profile service for accessing user preferences
 
     Returns:
         CoverLetterResponse: Updated cover letter with generated content
@@ -300,10 +316,28 @@ async def generate_cover_letter(
             user_id=current_user.id,
         )
 
-        # Generate content
+        # Get user profile for preferences
+        llm_preferences = None
+        try:
+            profile = await profile_service.get_profile_by_user_id(current_user.id)
+            if (
+                profile
+                and profile.preferences
+                and hasattr(profile.preferences, "llm_preferences")
+            ):
+                llm_preferences = profile.preferences.llm_preferences
+                logger.debug(
+                    f"Using LLM preferences from user profile: {llm_preferences}"
+                )
+        except Exception as e:
+            logger.warning(f"Error getting profile preferences: {e}")
+            # Continue with default preferences
+
+        # Generate content with preferences
         await generation_service.generate_cover_letter_content(
             cover_letter_id=cover_letter_id,
             regenerate=regenerate,
+            llm_preferences=llm_preferences,
         )
 
         # Get updated cover letter
@@ -422,4 +456,143 @@ async def generate_cover_letter_pdf(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to generate PDF",
+        )
+
+
+@router.post("/{cover_letter_id}/upload-pdf", response_model=CoverLetterPDFResponse)
+async def upload_cover_letter_pdf(
+    cover_letter_id: PydanticObjectId = Path(..., description="Cover Letter ID"),
+    file: UploadFile = File(..., description="PDF file to upload"),
+    current_user: User = Depends(get_current_active_user),
+    cover_letter_service: CoverLetterService = Depends(get_cover_letter_service),
+):
+    """
+    Upload a PDF file for a cover letter directly instead of generating it.
+
+    Args:
+        cover_letter_id: Cover Letter ID
+        file: PDF file to upload
+        current_user: Current authenticated user
+        cover_letter_service: Cover Letter service
+
+    Returns:
+        PDF URL
+    """
+    # Check file content type
+    if file.content_type != "application/pdf":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File must be a PDF",
+        )
+
+    try:
+        # Get the cover letter
+        cover_letter = await cover_letter_service.get_cover_letter_by_id(
+            cover_letter_id
+        )
+
+        # Check if the cover letter belongs to the user
+        if cover_letter.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to upload this cover letter",
+            )
+
+        # Get storage provider
+        storage_provider = get_storage_provider()
+
+        # If cover letter already has a PDF, delete it
+        if cover_letter.cover_letter_pdf_key:
+            await storage_provider.delete_file(cover_letter.cover_letter_pdf_key)
+
+        # Read the file content
+        content = await file.read()
+
+        # Save the new PDF
+        pdf_key = await storage_provider.save_cover_letter_pdf(
+            content, str(cover_letter_id)
+        )
+
+        # Update cover letter with the new PDF key
+        cover_letter.cover_letter_pdf_key = pdf_key
+        updated_cover_letter = await cover_letter_service.update_cover_letter(
+            cover_letter
+        )
+
+        # Return URL for the PDF
+        pdf_url = storage_provider.get_url(pdf_key)
+        return {"pdf_url": pdf_url}
+
+    except NotFoundException:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Cover letter not found",
+        )
+    except Exception as e:
+        logger.error(f"Error uploading cover letter PDF: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload cover letter PDF: {str(e)}",
+        )
+
+
+@router.delete("/{cover_letter_id}/pdf", response_model=CoverLetterPDFResponse)
+async def delete_cover_letter_pdf(
+    cover_letter_id: PydanticObjectId = Path(..., description="Cover Letter ID"),
+    current_user: User = Depends(get_current_active_user),
+    cover_letter_service: CoverLetterService = Depends(get_cover_letter_service),
+):
+    """
+    Delete the PDF file for a cover letter.
+
+    Args:
+        cover_letter_id: Cover Letter ID
+        current_user: Current authenticated user
+        cover_letter_service: Cover Letter service
+
+    Returns:
+        Empty PDF URL
+    """
+    try:
+        # Get the cover letter
+        cover_letter = await cover_letter_service.get_cover_letter_by_id(
+            cover_letter_id
+        )
+
+        # Check if the cover letter belongs to the user
+        if cover_letter.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to delete this cover letter's PDF",
+            )
+
+        # Get storage provider
+        storage_provider = get_storage_provider()
+
+        # If cover letter has a PDF, delete it
+        if cover_letter.cover_letter_pdf_key:
+            success = await storage_provider.delete_file(
+                cover_letter.cover_letter_pdf_key
+            )
+            if not success:
+                logger.warning(
+                    f"Failed to delete cover letter PDF file: {cover_letter.cover_letter_pdf_key}"
+                )
+
+            # Update cover letter to remove PDF reference
+            cover_letter.cover_letter_pdf_key = None
+            await cover_letter_service.update_cover_letter(cover_letter)
+
+        return {"pdf_url": None}
+
+    except NotFoundException:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Cover letter not found",
+        )
+    except Exception as e:
+        logger.error(f"Error deleting cover letter PDF: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete cover letter PDF: {str(e)}",
         )

@@ -14,16 +14,23 @@ class ResumeBase(BaseModel):
 
 
 class ResumeCreate(ResumeBase):
-    """Schema for resume creation."""
+    """
+    Schema for resume creation.
+
+    By default, preferences such as section selections and LLM settings will be taken
+    from the user's profile. These can be optionally overridden by providing the fields below.
+    """
 
     job_description: Optional[str] = Field(
         None, description="Job description to tailor the resume for"
     )
     selected_sections: Optional[Dict[str, str]] = Field(
-        None, description="Sections to include and their processing method"
+        None,
+        description="Optional sections to include and their processing method (will use profile preferences if not provided)",
     )
     llm_preferences: Optional[Dict[str, Any]] = Field(
-        None, description="LLM settings for generation"
+        None,
+        description="Optional LLM settings for generation (will use profile preferences if not provided)",
     )
 
 
