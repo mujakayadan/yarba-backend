@@ -407,7 +407,6 @@ async def delete_resume(
 @router.post("/{resume_id}/generate", response_model=ResumeResponse)
 async def generate_resume(
     resume_id: Annotated[PydanticObjectId, Path(description="Resume ID")],
-    job_description: str,
     selected_sections: List[str],
     current_user: CurrentUser,
     resume_generation_service: ResumeGenerationService = Depends(
@@ -420,7 +419,6 @@ async def generate_resume(
 
     Args:
         resume_id: Resume ID
-        job_description: Job description
         selected_sections: List of section names to generate
         current_user: Current authenticated user
         resume_generation_service: Resume generation service
@@ -438,14 +436,6 @@ async def generate_resume(
             resume_id=resume_id,
             user_id=PydanticObjectId(current_user.id),
         )
-
-        # Update job description if provided
-        if job_description and job_description != resume.job_description:
-            resume = await resume_service.update_resume(
-                resume_id=resume_id,
-                user_id=PydanticObjectId(current_user.id),
-                update_data={"job_description": job_description},
-            )
 
         # Generate resume content
         await resume_generation_service.generate_resume_content(

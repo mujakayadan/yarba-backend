@@ -368,36 +368,6 @@ class LinkedInSettings(BaseSettings):
     )
 
 
-class UISettings(BaseSettings):
-    """UI configuration settings."""
-
-    title: str = Field(default="Resume Builder", description="Application title")
-    description: str = Field(
-        default="Build professional resumes and cover letters",
-        description="Application description",
-    )
-    page_icon: str = Field(default="📄", description="Application page icon")
-    layout_type: str = Field(
-        default="wide", description="Layout type (wide or centered)"
-    )
-    initial_sidebar_state: str = Field(
-        default="expanded", description="Initial state of the sidebar"
-    )
-    theme: Dict[str, Any] = Field(
-        default={
-            "primary_color": "#0066cc",
-            "secondary_color": "#f0f2f6",
-            "text_color": "#262730",
-            "background_color": "#ffffff",
-        },
-        description="UI theme colors",
-    )
-    layout: Dict[str, Any] = Field(
-        default={"max_width": "1200px", "padding": "2rem"},
-        description="UI layout settings",
-    )
-
-
 class LatexSettings(BaseSettings):
     """LaTeX configuration settings."""
 
@@ -963,7 +933,6 @@ class Settings(BaseSettings):
     linkedin: LinkedInSettings = Field(
         default_factory=LinkedInSettings, description="LinkedIn settings"
     )
-    ui: UISettings = Field(default_factory=UISettings, description="UI settings")
     latex: LatexSettings = Field(
         default_factory=LatexSettings, description="LaTeX settings"
     )

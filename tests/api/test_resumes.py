@@ -201,14 +201,13 @@ async def test_generate_resume(
     """Test generating resume content."""
     # Arrange
     generate_data = {
-        "job_description": "Software Engineer job description",
-        "selected_sections": {
-            "personal_information": "hardcode",
-            "career_summary": "ai",
-            "skills": "hardcode",
-            "work_experience": "hardcode",
-            "education": "hardcode",
-        },
+        "selected_sections": [
+            "personal_information",
+            "career_summary",
+            "skills",
+            "work_experience",
+            "education",
+        ],
     }
 
     # Act
@@ -221,7 +220,19 @@ async def test_generate_resume(
     # Assert
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["id"] == str(test_resume.id)
-    assert "job_description" in response.json()
+
+    # Test with a subset of sections
+    generate_data = {"selected_sections": ["personal_information", "career_summary"]}
+
+    response = await async_client.post(
+        f"/api/v1/resumes/{test_resume.id}/generate",
+        json=generate_data,
+        headers=auth_headers,
+    )
+
+    # Assert
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["id"] == str(test_resume.id)
 
 
 @pytest.mark.asyncio

@@ -10,10 +10,12 @@ from pydantic import BaseModel, Field
 class ResumeBase(BaseModel):
     """Base class for resume schemas."""
 
-    template_id: str = Field(..., description="Template ID")
+    job_description: str = Field(
+        ..., description="Job description to tailor the resume for"
+    )
 
 
-class ResumeCreate(ResumeBase):
+class ResumeCreate(BaseModel):
     """
     Schema for resume creation.
 
@@ -21,8 +23,18 @@ class ResumeCreate(ResumeBase):
     from the user's profile. These can be optionally overridden by providing the fields below.
     """
 
-    job_description: Optional[str] = Field(
-        None, description="Job description to tailor the resume for"
+    job_description: str = Field(
+        ..., description="Job description to tailor the resume for"
+    )
+    company_name: Optional[str] = Field(
+        None, description="Company name to tailor the resume for"
+    )
+    job_title: Optional[str] = Field(
+        None, description="Job title to tailor the resume for"
+    )
+    template_id: Optional[str] = Field(
+        None,
+        description="Template ID (if not provided, will be taken from profile preferences)",
     )
     selected_sections: Optional[Dict[str, str]] = Field(
         None,
@@ -37,10 +49,10 @@ class ResumeCreate(ResumeBase):
 class ResumeUpdate(BaseModel):
     """Schema for resume update."""
 
-    template_id: Optional[str] = Field(None, description="Template ID")
     job_title: Optional[str] = Field(None, description="Job title")
     company_name: Optional[str] = Field(None, description="Company name")
     job_description: Optional[str] = Field(None, description="Job description")
+    template_id: Optional[str] = Field(None, description="Template ID")
     content: Optional[Dict[str, Any]] = Field(None, description="Resume content")
 
 
@@ -83,7 +95,7 @@ class ResumeResponse(BaseModel):
     profile_id: PydanticObjectId = Field(..., description="Profile ID")
     portfolio_id: PydanticObjectId = Field(..., description="Portfolio ID")
     title: str = Field(..., description="Resume title")
-    template_id: str = Field(..., description="Template ID")
+    template_id: Optional[str] = Field(None, description="Template ID")
     job_title: Optional[str] = Field(None, description="Job title")
     company_name: Optional[str] = Field(None, description="Company name")
     job_description: Optional[str] = Field(None, description="Job description")

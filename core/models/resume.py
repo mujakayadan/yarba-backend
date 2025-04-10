@@ -47,7 +47,7 @@ class Resume(Document):
 
     title: Optional[str] = "My Resume"
     version: Optional[int] = None
-    template_id: Optional[str] = "default"
+    template_id: Optional[str] = None
 
     # Job targeting information
     company_name: Optional[str] = None

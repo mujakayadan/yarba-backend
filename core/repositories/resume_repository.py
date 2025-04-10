@@ -21,12 +21,12 @@ class ResumeFilter(BaseModel):
     which is used for API request validation.
     """
 
-    template_id: Optional[str] = None
     version: Optional[int] = None
     title_contains: Optional[str] = None
     profile_id: Optional[str] = None
     portfolio_id: Optional[str] = None
     title: Optional[str] = None
+    template_id: Optional[str] = None
 
 
 class ResumeRepository(BeanieRepository[Resume]):
@@ -256,9 +256,6 @@ class ResumeRepository(BeanieRepository[Resume]):
         """
         query = {"user_id": user.id}
 
-        if filter_params.template_id:
-            query["template_id"] = filter_params.template_id
-
         if filter_params.version is not None:
             query["version"] = filter_params.version
 
@@ -270,6 +267,9 @@ class ResumeRepository(BeanieRepository[Resume]):
 
         if filter_params.title_contains:
             query["title"] = {"$regex": filter_params.title_contains, "$options": "i"}
+
+        if filter_params.template_id:
+            query["template_id"] = filter_params.template_id
 
         return await Resume.find(query).to_list()
 
@@ -409,6 +409,7 @@ class ResumeRepository(BeanieRepository[Resume]):
         profile_id: PydanticObjectId,
         portfolio_id: Optional[PydanticObjectId] = None,
         title: str = "My Resume",
+        template_id: Optional[str] = None,
     ) -> Resume:
         """
         Create a new resume for a user.
@@ -418,6 +419,7 @@ class ResumeRepository(BeanieRepository[Resume]):
             profile_id: Profile ID
             portfolio_id: Portfolio ID
             title: Resume title
+            template_id: Optional template ID
 
         Returns:
             Resume: Created resume
@@ -428,6 +430,7 @@ class ResumeRepository(BeanieRepository[Resume]):
             portfolio_id=portfolio_id,
             title=title,
             version=1,
+            template_id=template_id,
             content={},
             custom_sections=[],
             llm_settings=LLMSettings(

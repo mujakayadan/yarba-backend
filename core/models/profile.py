@@ -101,17 +101,9 @@ class Preferences(BaseModel):
     )
 
     # LaTeX template preferences
-    latex_template_preferences: Dict[str, str] = Field(
-        default_factory=lambda: {
-            "resume_template": settings.latex.default_resume_template_id,
-            "cover_letter_template": settings.latex.default_cover_letter_template_id,
-        }
-    )
-
-    # Default LaTeX template preferences
     default_latex_templates: Dict[str, str] = Field(
         default_factory=lambda: settings.preferences.default_latex_templates.copy(),
-        description="Default LaTeX template IDs",
+        description="LaTeX template IDs for resume and cover letter generation",
     )
 
     model_config = {"validate_assignment": True}

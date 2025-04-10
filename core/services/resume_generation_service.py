@@ -349,10 +349,14 @@ class ResumeGenerationService:
             Generated resume content
 
         Raises:
-            ValueError: If resume or profile is not found
+            ValueError: If resume or profile is not found or job_description is missing
         """
         # Get resume data
         resume, profile, portfolio = await self.get_resume_data(resume_id)
+
+        # Verify job description is present
+        if not resume.job_description:
+            raise ValueError("A job description is required to generate resume content")
 
         # Configure LLM for user
         await self.configure_for_user(resume.user_id)
@@ -368,6 +372,19 @@ class ResumeGenerationService:
                 resume.company_name, resume.job_title
             )
             self.logger.debug(f"Updated resume title to: {resume.title}")
+
+        # If template_id is not set, get it from profile preferences
+        if (
+            not resume.template_id
+            and profile.preferences
+            and profile.preferences.default_latex_templates
+        ):
+            resume.template_id = profile.preferences.default_latex_templates.get(
+                "default_resume_template_id"
+            )
+            self.logger.debug(
+                f"Set template_id from profile preferences: {resume.template_id}"
+            )
 
         # Initialize content dictionary if needed
         if not resume.content or not isinstance(resume.content, dict):
@@ -462,7 +479,7 @@ class ResumeGenerationService:
         try:
             # Generate LaTeX for resume
             resume_latex = await self.latex_service.generate_resume_latex(
-                resume=resume, profile=profile, template_id=resume.template_id
+                resume=resume, profile=profile
             )
 
             return resume_latex
