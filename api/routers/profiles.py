@@ -634,7 +634,7 @@ async def upload_profile_picture(
 
         # If user already has a profile picture, delete it
         if profile.profile_picture:
-            await storage_provider.delete_profile_picture(profile.profile_picture)
+            await storage_provider.delete_file(profile.profile_picture)
 
         # Save the new profile picture
         filename = await storage_provider.save_profile_picture(
@@ -646,7 +646,7 @@ async def upload_profile_picture(
         updated_profile = await profile_service.update_profile(profile)
 
         # Return URL for the profile picture
-        picture_url = storage_provider.get_profile_picture_url(filename)
+        picture_url = storage_provider.get_url(filename)
         return {"profile_picture_url": picture_url}
 
     except NotFoundException:
@@ -686,9 +686,7 @@ async def delete_my_profile_picture(
 
         # If user has a profile picture, delete it
         if profile.profile_picture:
-            success = await storage_provider.delete_profile_picture(
-                profile.profile_picture
-            )
+            success = await storage_provider.delete_file(profile.profile_picture)
             if not success:
                 logger.warning(
                     f"Failed to delete profile picture file: {profile.profile_picture}"
@@ -736,7 +734,7 @@ async def get_my_profile_picture(
         storage_provider = get_storage_provider()
 
         # Get URL for the profile picture
-        picture_url = storage_provider.get_profile_picture_url(profile.profile_picture)
+        picture_url = storage_provider.get_url(profile.profile_picture)
         return {"profile_picture_url": picture_url}
 
     except NotFoundException:

@@ -419,12 +419,11 @@ class AWSS3StorageProvider(StorageProvider):
         try:
             content = await file.read()
 
-            # Upload with appropriate content type and public-read ACL
+            # Upload with appropriate content type
             self.s3_client.put_object(
                 Bucket=self.bucket,
                 Key=object_key,
                 Body=content,
-                ACL="public-read",
                 ContentType=file.content_type,
             )
 
@@ -446,12 +445,11 @@ class AWSS3StorageProvider(StorageProvider):
 
         # Upload to S3
         try:
-            # Upload with appropriate content type and public-read ACL
+            # Upload with appropriate content type
             self.s3_client.put_object(
                 Bucket=self.bucket,
                 Key=object_key,
                 Body=signature_data,
-                ACL="public-read",
                 ContentType="image/png",
             )
 
@@ -480,12 +478,11 @@ class AWSS3StorageProvider(StorageProvider):
 
         # Upload to S3
         try:
-            # Upload with appropriate content type and public-read ACL
+            # Upload with appropriate content type
             self.s3_client.put_object(
                 Bucket=self.bucket,
                 Key=object_key,
                 Body=pdf_data,
-                ACL="public-read",
                 ContentType="application/pdf",
             )
 
@@ -514,12 +511,11 @@ class AWSS3StorageProvider(StorageProvider):
 
         # Upload to S3
         try:
-            # Upload with appropriate content type and public-read ACL
+            # Upload with appropriate content type
             self.s3_client.put_object(
                 Bucket=self.bucket,
                 Key=object_key,
                 Body=pdf_data,
-                ACL="public-read",
                 ContentType="application/pdf",
             )
 

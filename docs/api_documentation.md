@@ -120,6 +120,92 @@ PUT /api/v1/profiles/{profile_id}
 
 **Request Body:** Same as Create Profile, all fields optional
 
+### Profile Picture Endpoints
+
+#### Upload Profile Picture
+
+```
+POST /api/v1/profiles/me/profile-picture
+```
+
+**Request:** Multipart form with file upload
+
+**Response:**
+```json
+{
+  "profile_picture_url": "string"
+}
+```
+
+#### Get Profile Picture URL
+
+```
+GET /api/v1/profiles/me/profile-picture
+```
+
+**Response:**
+```json
+{
+  "profile_picture_url": "string"
+}
+```
+
+#### Delete Profile Picture
+
+```
+DELETE /api/v1/profiles/me/profile-picture
+```
+
+**Response:**
+```json
+{
+  "profile_picture_url": null
+}
+```
+
+### Signature Endpoints
+
+#### Upload Signature
+
+```
+POST /api/v1/profiles/me/signature
+```
+
+**Request:** Multipart form with file upload
+
+**Response:**
+```json
+{
+  "signature_url": "string"
+}
+```
+
+#### Get Signature URL
+
+```
+GET /api/v1/profiles/me/signature
+```
+
+**Response:**
+```json
+{
+  "signature_url": "string"
+}
+```
+
+#### Delete Signature
+
+```
+DELETE /api/v1/profiles/me/signature
+```
+
+**Response:**
+```json
+{
+  "signature_url": null
+}
+```
+
 ## Resume Management
 
 ### Resume Endpoints
@@ -360,13 +446,13 @@ Query parameters:
 
 ### Portfolio Endpoints
 
-#### Get User Portfolios
+#### Get User Portfolio
 
 ```
 GET /api/v1/portfolios/
 ```
 
-**Response:** Array of Portfolio objects
+**Response:** Portfolio object
 
 #### Create Portfolio
 
@@ -387,6 +473,14 @@ POST /api/v1/portfolios/
 
 ```
 GET /api/v1/portfolios/{portfolio_id}
+```
+
+**Response:** Portfolio object
+
+#### Get Portfolio by Profile ID
+
+```
+GET /api/v1/portfolios/by-profile/{profile_id}
 ```
 
 **Response:** Portfolio object
@@ -470,7 +564,6 @@ PUT /api/v1/portfolios/{portfolio_id}
   "custom_sections": {
     // Custom sections object
   },
-  "is_active": true,
   "version": "string"
 }
 ```
@@ -562,7 +655,6 @@ PATCH /api/v1/portfolios/{portfolio_id}
     "enabled": ["string", "string", ...],
     "order": ["string", "string", ...]
   },
-  "is_active": true, // Optional
   "version": "string" // Optional
 }
 ```
@@ -710,8 +802,13 @@ PATCH /api/v1/portfolios/{portfolio_id}/publications
 #### Delete Portfolio Item
 
 ```
-DELETE /api/v1/portfolios/{portfolio_id}/items/{item_id}
+DELETE /api/v1/portfolios/{portfolio_id}/items/{item_type}/{item_index}
 ```
+
+**Path Parameters:**
+- `portfolio_id`: ID of the portfolio
+- `item_type`: Type of item to delete (e.g., "work_experience", "education", "skills")
+- `item_index`: Index of the item in the array to delete
 
 **Response:** HTTP 204 No Content
 
