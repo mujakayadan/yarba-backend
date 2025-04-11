@@ -389,6 +389,13 @@ class LatexSettings(BaseSettings):
     cleanup_temp_files: bool = Field(
         default=True, description="Whether to clean up temporary files"
     )
+    suppress_logs: bool = Field(
+        default=True, description="Whether to suppress LaTeX logs in terminal output"
+    )
+    log_level: str = Field(
+        default="ERROR",
+        description="Log level for LaTeX compilation ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL')",
+    )
 
     # Default templates
     default_resume_template_id: str = Field(
@@ -403,6 +410,14 @@ class LatexSettings(BaseSettings):
         """Create directory if it doesn't exist."""
         v.mkdir(parents=True, exist_ok=True)
         return v
+
+    @field_validator("log_level")
+    def validate_log_level(cls, v: str) -> str:
+        """Validate log level."""
+        valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+        if v.upper() not in valid_levels:
+            raise ValueError(f"Log level must be one of {valid_levels}")
+        return v.upper()
 
 
 class LoggingSettings(BaseSettings):
@@ -725,7 +740,7 @@ class StorageSettings(BaseSettings):
 
     # Storage provider
     provider: str = Field(
-        default="local",
+        default="aws_s3",
         description="Storage provider (local, aws_s3)",
         env="PROVIDER",
     )

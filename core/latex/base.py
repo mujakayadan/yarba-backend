@@ -27,6 +27,8 @@ class LatexCompiler(ABC):
         self.compiler_options = settings.latex.compiler_options
         self.cleanup_temp_files = settings.latex.cleanup_temp_files
         self.templates_dir = settings.latex.templates_dir
+        self.suppress_logs = settings.latex.suppress_logs
+        self.log_level = settings.latex.log_level
         self.logger = logger
 
     @abstractmethod
@@ -74,33 +76,61 @@ class LatexCompiler(ABC):
                 tex_path.name,
             ]
 
-            self.logger.info(f"Running: {' '.join(command)}")
+            # Log command based on log level settings
+            if self.log_level == "DEBUG":
+                self.logger.debug(f"Running: {' '.join(command)}")
+            else:
+                self.logger.info(f"Compiling LaTeX document: {tex_path.name}")
 
-            # Run pdflatex in the output directory
+            # Run pdflatex in the output directory with appropriate settings
+            # Capture output only if suppress_logs is True
             result = subprocess.run(
                 command,
                 cwd=tex_path.parent,
-                capture_output=True,
+                capture_output=self.suppress_logs,
                 text=True,
             )
 
             # Check if compilation was successful
             if result.returncode != 0:
-                self.logger.error(
+                error_message = (
                     f"LaTeX compilation failed with code {result.returncode}"
                 )
+                self.logger.error(error_message)
 
                 # Save error output to file for easier debugging
                 error_log = tex_path.with_suffix(".error.log")
-                error_log.write_text(
-                    f"STDOUT:\n{result.stdout}\n\nSTDERR:\n{result.stderr}"
-                )
-                self.logger.error(f"Saved error log to: {error_log}")
+
+                # If suppress_logs is True, result.stdout and result.stderr will have the logs
+                if self.suppress_logs:
+                    error_log.write_text(
+                        f"STDOUT:\n{result.stdout}\n\nSTDERR:\n{result.stderr}"
+                    )
+                    self.logger.error(f"Saved error log to: {error_log}")
+
+                    # Log a preview of the error based on log level
+                    if self.log_level in ["DEBUG", "INFO"]:
+                        # Show more detailed error info for lower log levels
+                        stderr_preview = (
+                            result.stderr[-500:]
+                            if len(result.stderr) > 500
+                            else result.stderr
+                        )
+                        self.logger.error(f"LaTeX error preview:\n{stderr_preview}")
+                else:
+                    # If logs weren't captured, at least save the error message
+                    error_log.write_text(error_message)
+                    self.logger.error(
+                        f"Compilation failed. Check LaTeX logs in console output."
+                    )
 
                 # List the directory to see what files were created
-                self.logger.debug("Output directory contents:")
-                for file in tex_path.parent.iterdir():
-                    self.logger.debug(f"  {file.name} - {file.stat().st_size} bytes")
+                if self.log_level == "DEBUG":
+                    self.logger.debug("Output directory contents:")
+                    for file in tex_path.parent.iterdir():
+                        self.logger.debug(
+                            f"  {file.name} - {file.stat().st_size} bytes"
+                        )
 
                 return None
 
@@ -109,9 +139,12 @@ class LatexCompiler(ABC):
             if not pdf_path.exists():
                 self.logger.error(f"PDF file not found: {pdf_path}")
                 # List directory contents for debugging
-                self.logger.debug("Output directory contents:")
-                for file in tex_path.parent.iterdir():
-                    self.logger.debug(f"  {file.name} - {file.stat().st_size} bytes")
+                if self.log_level == "DEBUG":
+                    self.logger.debug("Output directory contents:")
+                    for file in tex_path.parent.iterdir():
+                        self.logger.debug(
+                            f"  {file.name} - {file.stat().st_size} bytes"
+                        )
                 return None
 
             # Check PDF size
@@ -127,9 +160,13 @@ class LatexCompiler(ABC):
 
         except Exception as e:
             self.logger.error(f"Error during PDF compilation: {str(e)}")
-            import traceback
 
-            self.logger.error(f"Traceback:\n{traceback.format_exc()}")
+            # Only show full traceback for DEBUG or INFO levels
+            if self.log_level in ["DEBUG", "INFO"]:
+                import traceback
+
+                self.logger.error(f"Traceback:\n{traceback.format_exc()}")
+
             return None
 
         finally:

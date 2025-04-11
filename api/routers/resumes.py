@@ -15,7 +15,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from api.dependencies.auth import get_current_active_user
 from api.dependencies.services import (

@@ -25,6 +25,42 @@ class LatexService:
         self.cover_letter_compiler = CoverLetterCompiler()
         self.logger = get_logger(__name__)
 
+    def configure_latex_logging(
+        self, log_level: str = None, suppress_logs: bool = None
+    ):
+        """
+        Configure LaTeX logging settings for both compilers.
+
+        Args:
+            log_level: Log level for LaTeX compilation ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL')
+            suppress_logs: Whether to suppress LaTeX logs in terminal output
+        """
+        # Only update if values are provided
+        if log_level is not None:
+            self.resume_compiler.log_level = log_level.upper()
+            self.cover_letter_compiler.log_level = log_level.upper()
+            self.logger.info(f"Set LaTeX log level to {log_level.upper()}")
+
+        if suppress_logs is not None:
+            self.resume_compiler.suppress_logs = suppress_logs
+            self.cover_letter_compiler.suppress_logs = suppress_logs
+            self.logger.info(f"Set LaTeX log suppression to {suppress_logs}")
+
+    def get_current_latex_settings(self) -> dict:
+        """
+        Get current LaTeX compiler settings.
+
+        Returns:
+            dict: Current LaTeX compiler settings
+        """
+        return {
+            "log_level": self.resume_compiler.log_level,
+            "suppress_logs": self.resume_compiler.suppress_logs,
+            "compiler_path": self.resume_compiler.compiler_path,
+            "compiler_options": self.resume_compiler.compiler_options,
+            "cleanup_temp_files": self.resume_compiler.cleanup_temp_files,
+        }
+
     async def _prepare_template_data(
         self, document_type: str = "resume"
     ) -> Dict[str, Any]:
@@ -211,41 +247,30 @@ class LatexService:
             # Configure compiler
             compiler.compiler_path = settings.latex.compiler_path
             compiler.compiler_options = settings.latex.compiler_options
-            compiler.cleanup_temp_files = False  # Keep temp files for debugging
-            compiler.temp_extensions = settings.latex.temp_extensions
+            compiler.cleanup_temp_files = settings.latex.cleanup_temp_files
+
+            # Update log settings if they don't match the global settings
+            if compiler.log_level != settings.latex.log_level:
+                compiler.log_level = settings.latex.log_level
+            if compiler.suppress_logs != settings.latex.suppress_logs:
+                compiler.suppress_logs = settings.latex.suppress_logs
 
             # Compile to PDF
-            self.logger.info(
-                f"Starting PDF compilation with {compiler.__class__.__name__}"
-            )
             pdf_content = await compiler.compile_pdf(tex_path, latex_content)
 
-            # Handle compilation failure
-            if pdf_content is None:
-                log_file = temp_dir / "document.log"
-                log_content = (
-                    log_file.read_text() if log_file.exists() else "Log file not found"
+            if not pdf_content:
+                raise InternalServerException(
+                    "Failed to compile LaTeX to PDF. Check logs for details."
                 )
-                error_msg = f"LaTeX compilation failed for {document_type}. Check log: {log_file}"
-                self.logger.error(error_msg)
-                self.logger.error(f"LaTeX log: {log_content}")
-                raise InternalServerException(error_msg)
-
-            # Save PDF output for reference
-            pdf_path = output_dir / f"{filename}.pdf"
-            pdf_path.write_bytes(pdf_content)
-            self.logger.info(
-                f"Compilation successful. PDF saved to {pdf_path} ({len(pdf_content)} bytes)"
-            )
 
             return pdf_content
 
         except Exception as e:
-            self.logger.error(f"Error compiling LaTeX: {e}")
+            self.logger.error(f"Error compiling LaTeX to PDF: {e}")
             import traceback
 
-            self.logger.error(f"Traceback:\n{traceback.format_exc()}")
-            raise InternalServerException(f"Error compiling LaTeX: {str(e)}")
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
+            raise InternalServerException(f"Failed to compile LaTeX to PDF: {str(e)}")
 
 
 def get_latex_service() -> LatexService:
