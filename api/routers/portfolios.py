@@ -1,5 +1,6 @@
 """Portfolio router for the API."""
 
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
@@ -80,6 +81,25 @@ class PortfolioItemUpdate(BaseModel):
     # Work experience fields
     company: Optional[str] = None
     location: Optional[str] = None
+
+
+class PortfolioPatchOperation(BaseModel):
+    """Schema for a portfolio patch operation."""
+
+    # Optional fields that can be individually updated
+    career_summary: Optional[CareerSummary] = None
+    skills: Optional[List[Skill]] = None
+    work_experience: Optional[List[WorkExperience]] = None
+    education: Optional[List[Education]] = None
+    projects: Optional[List[Project]] = None
+    awards: Optional[List[Award]] = None
+    publications: Optional[List[Publication]] = None
+    certifications: Optional[List[str]] = None
+    custom_sections: Optional[CustomSections] = None
+    is_active: Optional[bool] = None
+    version: Optional[str] = None
+    profile_id: Optional[str] = None
+    professional_title: Optional[str] = None
 
 
 @router.get("/", response_model=List[Portfolio])
@@ -217,6 +237,337 @@ async def update_portfolio(
 
     await portfolio.save()
     return portfolio
+
+
+@router.patch("/{portfolio_id}", response_model=Portfolio)
+async def patch_portfolio(
+    portfolio_data: PortfolioPatchOperation,
+    portfolio_id: str = Path(..., description="Portfolio ID"),
+    current_user: User = Depends(get_current_active_user),
+    portfolio_repository: PortfolioRepository = Depends(get_portfolio_repository),
+):
+    """
+    Partially update a portfolio (only specified fields).
+
+    Args:
+        portfolio_data: Portfolio data to patch
+        portfolio_id: Portfolio ID
+        current_user: Current authenticated user
+        portfolio_repository: Portfolio repository
+
+    Returns:
+        Updated portfolio
+    """
+    portfolio = await portfolio_repository.get_by_id(portfolio_id)
+    if not portfolio:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Portfolio not found",
+        )
+
+    # Check if the portfolio belongs to the current user
+    if portfolio.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to update this portfolio",
+        )
+
+    # Update only the fields that were provided in the request
+    patch_data = portfolio_data.dict(exclude_unset=True)
+
+    # Handle special case for career_summary which needs to be instantiated as a model
+    if "career_summary" in patch_data:
+        portfolio.career_summary = CareerSummary(**patch_data.pop("career_summary"))
+
+    # Update remaining portfolio fields
+    for field, value in patch_data.items():
+        setattr(portfolio, field, value)
+
+    # Update the timestamp
+    portfolio.updated_at = datetime.now(timezone.utc)
+
+    await portfolio.save()
+    return portfolio
+
+
+@router.patch("/{portfolio_id}/career-summary", response_model=Portfolio)
+async def patch_career_summary(
+    career_summary: CareerSummary,
+    portfolio_id: str = Path(..., description="Portfolio ID"),
+    current_user: User = Depends(get_current_active_user),
+    portfolio_repository: PortfolioRepository = Depends(get_portfolio_repository),
+):
+    """
+    Update only the career summary section of a portfolio.
+
+    Args:
+        career_summary: Career summary data
+        portfolio_id: Portfolio ID
+        current_user: Current authenticated user
+        portfolio_repository: Portfolio repository
+
+    Returns:
+        Updated portfolio
+    """
+    portfolio = await portfolio_repository.get_by_id(portfolio_id)
+    if not portfolio:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Portfolio not found",
+        )
+
+    # Check if the portfolio belongs to the current user
+    if portfolio.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to update this portfolio",
+        )
+
+    # Update career summary
+    await portfolio_repository.update_career_summary(portfolio.id, career_summary)
+
+    # Return updated portfolio
+    return await portfolio_repository.get_by_id(portfolio_id)
+
+
+@router.patch("/{portfolio_id}/skills", response_model=Portfolio)
+async def patch_skills(
+    skills: List[Skill],
+    portfolio_id: str = Path(..., description="Portfolio ID"),
+    current_user: User = Depends(get_current_active_user),
+    portfolio_repository: PortfolioRepository = Depends(get_portfolio_repository),
+):
+    """
+    Update only the skills section of a portfolio.
+
+    Args:
+        skills: Skills data
+        portfolio_id: Portfolio ID
+        current_user: Current authenticated user
+        portfolio_repository: Portfolio repository
+
+    Returns:
+        Updated portfolio
+    """
+    portfolio = await portfolio_repository.get_by_id(portfolio_id)
+    if not portfolio:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Portfolio not found",
+        )
+
+    # Check if the portfolio belongs to the current user
+    if portfolio.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to update this portfolio",
+        )
+
+    # Update skills
+    await portfolio_repository.update_skills(portfolio.id, skills)
+
+    # Return updated portfolio
+    return await portfolio_repository.get_by_id(portfolio_id)
+
+
+@router.patch("/{portfolio_id}/work-experience", response_model=Portfolio)
+async def patch_work_experience(
+    work_experience: List[WorkExperience],
+    portfolio_id: str = Path(..., description="Portfolio ID"),
+    current_user: User = Depends(get_current_active_user),
+    portfolio_repository: PortfolioRepository = Depends(get_portfolio_repository),
+):
+    """
+    Update only the work experience section of a portfolio.
+
+    Args:
+        work_experience: Work experience data
+        portfolio_id: Portfolio ID
+        current_user: Current authenticated user
+        portfolio_repository: Portfolio repository
+
+    Returns:
+        Updated portfolio
+    """
+    portfolio = await portfolio_repository.get_by_id(portfolio_id)
+    if not portfolio:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Portfolio not found",
+        )
+
+    # Check if the portfolio belongs to the current user
+    if portfolio.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to update this portfolio",
+        )
+
+    # Update work experience
+    await portfolio_repository.update_work_experience(portfolio.id, work_experience)
+
+    # Return updated portfolio
+    return await portfolio_repository.get_by_id(portfolio_id)
+
+
+@router.patch("/{portfolio_id}/education", response_model=Portfolio)
+async def patch_education(
+    education: List[Education],
+    portfolio_id: str = Path(..., description="Portfolio ID"),
+    current_user: User = Depends(get_current_active_user),
+    portfolio_repository: PortfolioRepository = Depends(get_portfolio_repository),
+):
+    """
+    Update only the education section of a portfolio.
+
+    Args:
+        education: Education data
+        portfolio_id: Portfolio ID
+        current_user: Current authenticated user
+        portfolio_repository: Portfolio repository
+
+    Returns:
+        Updated portfolio
+    """
+    portfolio = await portfolio_repository.get_by_id(portfolio_id)
+    if not portfolio:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Portfolio not found",
+        )
+
+    # Check if the portfolio belongs to the current user
+    if portfolio.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to update this portfolio",
+        )
+
+    # Update education
+    await portfolio_repository.update_education(portfolio.id, education)
+
+    # Return updated portfolio
+    return await portfolio_repository.get_by_id(portfolio_id)
+
+
+@router.patch("/{portfolio_id}/projects", response_model=Portfolio)
+async def patch_projects(
+    projects: List[Project],
+    portfolio_id: str = Path(..., description="Portfolio ID"),
+    current_user: User = Depends(get_current_active_user),
+    portfolio_repository: PortfolioRepository = Depends(get_portfolio_repository),
+):
+    """
+    Update only the projects section of a portfolio.
+
+    Args:
+        projects: Projects data
+        portfolio_id: Portfolio ID
+        current_user: Current authenticated user
+        portfolio_repository: Portfolio repository
+
+    Returns:
+        Updated portfolio
+    """
+    portfolio = await portfolio_repository.get_by_id(portfolio_id)
+    if not portfolio:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Portfolio not found",
+        )
+
+    # Check if the portfolio belongs to the current user
+    if portfolio.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to update this portfolio",
+        )
+
+    # Update projects
+    await portfolio_repository.update_projects(portfolio.id, projects)
+
+    # Return updated portfolio
+    return await portfolio_repository.get_by_id(portfolio_id)
+
+
+@router.patch("/{portfolio_id}/awards", response_model=Portfolio)
+async def patch_awards(
+    awards: List[Award],
+    portfolio_id: str = Path(..., description="Portfolio ID"),
+    current_user: User = Depends(get_current_active_user),
+    portfolio_repository: PortfolioRepository = Depends(get_portfolio_repository),
+):
+    """
+    Update only the awards section of a portfolio.
+
+    Args:
+        awards: Awards data
+        portfolio_id: Portfolio ID
+        current_user: Current authenticated user
+        portfolio_repository: Portfolio repository
+
+    Returns:
+        Updated portfolio
+    """
+    portfolio = await portfolio_repository.get_by_id(portfolio_id)
+    if not portfolio:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Portfolio not found",
+        )
+
+    # Check if the portfolio belongs to the current user
+    if portfolio.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to update this portfolio",
+        )
+
+    # Update awards
+    await portfolio_repository.update_awards(portfolio.id, awards)
+
+    # Return updated portfolio
+    return await portfolio_repository.get_by_id(portfolio_id)
+
+
+@router.patch("/{portfolio_id}/publications", response_model=Portfolio)
+async def patch_publications(
+    publications: List[Publication],
+    portfolio_id: str = Path(..., description="Portfolio ID"),
+    current_user: User = Depends(get_current_active_user),
+    portfolio_repository: PortfolioRepository = Depends(get_portfolio_repository),
+):
+    """
+    Update only the publications section of a portfolio.
+
+    Args:
+        publications: Publications data
+        portfolio_id: Portfolio ID
+        current_user: Current authenticated user
+        portfolio_repository: Portfolio repository
+
+    Returns:
+        Updated portfolio
+    """
+    portfolio = await portfolio_repository.get_by_id(portfolio_id)
+    if not portfolio:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Portfolio not found",
+        )
+
+    # Check if the portfolio belongs to the current user
+    if portfolio.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to update this portfolio",
+        )
+
+    # Update publications
+    await portfolio_repository.update_publications(portfolio.id, publications)
+
+    # Return updated portfolio
+    return await portfolio_repository.get_by_id(portfolio_id)
 
 
 @router.delete("/{portfolio_id}", status_code=status.HTTP_204_NO_CONTENT)

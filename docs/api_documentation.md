@@ -485,6 +485,228 @@ DELETE /api/v1/portfolios/{portfolio_id}
 
 **Response:** HTTP 204 No Content
 
+#### Patch Portfolio (Partial Update)
+
+```
+PATCH /api/v1/portfolios/{portfolio_id}
+```
+
+**Request Body:**
+```json
+{
+  // Any combination of the following fields can be included
+  "profile_id": "string (optional)",
+  "professional_title": "string (optional)",
+  "career_summary": {
+    // Career summary object (optional)
+    "job_titles": ["string", "string", ...],
+    "years_of_experience": "string",
+    "default_summary": "string"
+  },
+  "skills": [
+    // Skills array (optional)
+    {
+      "category": "string",
+      "skills": ["string", "string", ...]
+    }
+  ],
+  "work_experience": [
+    // Work experience array (optional)
+    {
+      "job_title": "string",
+      "company": "string",
+      "location": "string",
+      "time": "string",
+      "responsibilities": ["string", "string", ...]
+    }
+  ],
+  "education": [
+    // Education array (optional)
+    {
+      "degree_type": "string",
+      "degree": "string",
+      "university_name": "string",
+      "time": "string",
+      "location": "string",
+      "GPA": "string",
+      "transcript": ["string", "string", ...]
+    }
+  ],
+  "projects": [
+    // Projects array (optional)
+    {
+      "name": "string",
+      "bullet_points": ["string", "string", ...],
+      "date": "string"
+    }
+  ],
+  "awards": [
+    // Awards array (optional)
+    {
+      "name": "string",
+      "explanation": "string"
+    }
+  ],
+  "publications": [
+    // Publications array (optional)
+    {
+      "name": "string",
+      "publisher": "string",
+      "link": "string",
+      "time": "string"
+    }
+  ],
+  "certifications": ["string", "string", ...], // Optional
+  "custom_sections": {
+    // Custom sections object (optional)
+    "enabled": ["string", "string", ...],
+    "order": ["string", "string", ...]
+  },
+  "is_active": true, // Optional
+  "version": "string" // Optional
+}
+```
+
+**Response:** Updated Portfolio object
+
+#### Section-Specific Portfolio Updates
+
+These endpoints allow updating specific sections of a portfolio independently:
+
+##### Update Career Summary
+
+```
+PATCH /api/v1/portfolios/{portfolio_id}/career-summary
+```
+
+**Request Body:**
+```json
+{
+  "job_titles": ["Software Engineer", "Machine Learning Engineer"],
+  "years_of_experience": "3",
+  "default_summary": "in software development, machine learning, and computer vision."
+}
+```
+
+##### Update Skills
+
+```
+PATCH /api/v1/portfolios/{portfolio_id}/skills
+```
+
+**Request Body:**
+```json
+[
+  {
+    "category": "Languages",
+    "skills": ["Python", "C", "C++", "Java"]
+  },
+  {
+    "category": "Frameworks",
+    "skills": ["TensorFlow", "PyTorch", "FastAPI"]
+  }
+]
+```
+
+##### Update Work Experience
+
+```
+PATCH /api/v1/portfolios/{portfolio_id}/work-experience
+```
+
+**Request Body:**
+```json
+[
+  {
+    "job_title": "Machine Learning Engineer",
+    "company": "Example Corp",
+    "location": "Remote",
+    "time": "01/2023 - Present",
+    "responsibilities": [
+      "Developed machine learning models for image recognition",
+      "Implemented data pipelines for processing large datasets"
+    ]
+  }
+]
+```
+
+##### Update Education
+
+```
+PATCH /api/v1/portfolios/{portfolio_id}/education
+```
+
+**Request Body:**
+```json
+[
+  {
+    "degree_type": "Master's Degree",
+    "degree": "Computer Science",
+    "university_name": "Example University",
+    "time": "2020 - 2022",
+    "location": "City, Country",
+    "GPA": "3.8",
+    "transcript": ["Machine Learning", "Computer Vision", "Advanced Algorithms"]
+  }
+]
+```
+
+##### Update Projects
+
+```
+PATCH /api/v1/portfolios/{portfolio_id}/projects
+```
+
+**Request Body:**
+```json
+[
+  {
+    "name": "AI Project",
+    "bullet_points": [
+      "Developed a machine learning model for image recognition",
+      "Implemented a web interface for easy access to the model"
+    ],
+    "date": "2023"
+  }
+]
+```
+
+##### Update Awards
+
+```
+PATCH /api/v1/portfolios/{portfolio_id}/awards
+```
+
+**Request Body:**
+```json
+[
+  {
+    "name": "Best Project Award",
+    "explanation": "Awarded for innovative approach to AI research"
+  }
+]
+```
+
+##### Update Publications
+
+```
+PATCH /api/v1/portfolios/{portfolio_id}/publications
+```
+
+**Request Body:**
+```json
+[
+  {
+    "name": "Research Paper Title",
+    "publisher": "Academic Journal",
+    "link": "https://example.com/paper",
+    "time": "Jan, 2023"
+  }
+]
+```
+
+**Response for all section-specific updates:** Updated Portfolio object
+
 #### Delete Portfolio Item
 
 ```
