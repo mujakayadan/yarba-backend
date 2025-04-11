@@ -29,88 +29,55 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         """Initialize the repository."""
         super().__init__(Portfolio)
 
-    async def get_by_user(self, user: User) -> List[Portfolio]:
+    async def get_by_user(self, user: User) -> Optional[Portfolio]:
         """
-        Get all portfolios for a user.
+        Get the portfolio for a user.
 
         Args:
             user: User
 
         Returns:
-            List[Portfolio]: List of portfolios
+            Optional[Portfolio]: The user's portfolio if found, None otherwise
         """
-        return await Portfolio.find({"user_id": user.id}).to_list()
+        return await Portfolio.find_one({"user_id": user.id})
 
-    async def get_by_user_id(self, user_id: PydanticObjectId) -> List[Portfolio]:
+    async def get_by_user_id(self, user_id: PydanticObjectId) -> Optional[Portfolio]:
         """
-        Get all portfolios for a user by user ID.
+        Get the portfolio for a user by user ID.
 
         Args:
             user_id: User ID
 
         Returns:
-            List[Portfolio]: List of portfolios
+            Optional[Portfolio]: The user's portfolio if found, None otherwise
         """
-        return await Portfolio.find({"user_id": user_id}).to_list()
+        return await Portfolio.find_one({"user_id": user_id})
 
-    async def get_by_profile(self, profile: Profile) -> List[Portfolio]:
+    async def get_by_profile(self, profile: Profile) -> Optional[Portfolio]:
         """
-        Get all portfolios for a profile.
+        Get the portfolio for a profile.
 
         Args:
             profile: Profile
 
         Returns:
-            List[Portfolio]: List of portfolios
+            Optional[Portfolio]: The profile's portfolio if found, None otherwise
         """
-        return await Portfolio.find({"profile_id": profile.id}).to_list()
+        return await Portfolio.find_one({"profile_id": profile.id})
 
-    async def get_by_profile_id(self, profile_id: PydanticObjectId) -> List[Portfolio]:
+    async def get_by_profile_id(
+        self, profile_id: PydanticObjectId
+    ) -> Optional[Portfolio]:
         """
-        Get all portfolios for a profile by profile ID.
+        Get the portfolio for a profile by profile ID.
 
         Args:
             profile_id: Profile ID
 
         Returns:
-            List[Portfolio]: List of portfolios
+            Optional[Portfolio]: The profile's portfolio if found, None otherwise
         """
-        return await Portfolio.find({"profile_id": profile_id}).to_list()
-
-    async def get_active_by_user(self, user: User) -> Optional[Portfolio]:
-        """
-        Get the active portfolio for a user.
-
-        Args:
-            user: User
-
-        Returns:
-            Optional[Portfolio]: Active portfolio if found, None otherwise
-        """
-        return await Portfolio.find_one({"user_id": user.id, "is_active": True})
-
-    async def get_active_by_user_id(
-        self, user_id: PydanticObjectId
-    ) -> Optional[Portfolio]:
-        """
-        Get the active portfolio for a user by user ID.
-
-        Args:
-            user_id: User ID
-
-        Returns:
-            Optional[Portfolio]: Active portfolio if found, None otherwise
-        """
-        return await Portfolio.find_one({"user_id": user_id, "is_active": True})
-
-    async def get_active_portfolios(self) -> List[Portfolio]:
-        """
-        Get all active portfolios.
-
-        Returns:
-            List[Portfolio]: List of active portfolios
-        """
-        return await Portfolio.find({"is_active": True}).to_list()
+        return await Portfolio.find_one({"profile_id": profile_id})
 
     async def update_skills(
         self, portfolio_id: PydanticObjectId, skills: List[Skill]
@@ -270,15 +237,21 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         self, user_id: PydanticObjectId, profile_id: Optional[PydanticObjectId] = None
     ) -> Portfolio:
         """
-        Create a new portfolio for a user.
+        Create a new portfolio for a user. If the user already has a portfolio, return that one.
 
         Args:
-            user_id: The ID of the user to create the portfolio for
-            profile_id: Optional profile ID to associate with the portfolio
+            user_id: User ID for which to create the portfolio
+            profile_id: Profile ID to associate with the portfolio (optional)
 
         Returns:
-            The created portfolio
+            The created or existing portfolio
         """
+        # Check if user already has a portfolio
+        existing_portfolio = await self.get_by_user_id(user_id)
+        if existing_portfolio:
+            return existing_portfolio
+
+        # Create a new portfolio if one doesn't exist
         now = datetime.now(timezone.utc)
         portfolio = Portfolio(
             user_id=user_id,
@@ -296,7 +269,6 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
             publications=[],
             certifications=[],
             custom_sections=CustomSections(enabled=[], order=[]),
-            is_active=True,
             version="1.0",
             created_at=now,
             updated_at=now,
@@ -332,16 +304,7 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         Returns:
             Optional[Portfolio]: Portfolio if found, None otherwise
         """
-        # Get active portfolio first
-        portfolio = await self.get_active_by_user_id(user_id)
-
-        # If not found, try getting any portfolio
-        if not portfolio:
-            portfolios = await self.get_by_user_id(user_id)
-            if portfolios:
-                portfolio = portfolios[0]
-
-        return portfolio
+        return await self.get_by_user_id(user_id)
 
     async def get_career_summary(
         self, user_id: PydanticObjectId

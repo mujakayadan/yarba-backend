@@ -102,22 +102,28 @@ class PortfolioPatchOperation(BaseModel):
     professional_title: Optional[str] = None
 
 
-@router.get("/", response_model=List[Portfolio])
+@router.get("/", response_model=Portfolio)
 async def get_portfolios(
     current_user: User = Depends(get_current_active_user),
     portfolio_repository: PortfolioRepository = Depends(get_portfolio_repository),
 ):
     """
-    Get all portfolios for the current user.
+    Get the portfolio for the current user.
 
     Args:
         current_user: Current authenticated user
         portfolio_repository: Portfolio repository
 
     Returns:
-        List of portfolios
+        The user's portfolio or raises 404 if not found
     """
-    return await portfolio_repository.get_by_user(current_user)
+    portfolio = await portfolio_repository.get_by_user(current_user)
+    if not portfolio:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Portfolio not found",
+        )
+    return portfolio
 
 
 @router.post("/", response_model=Portfolio, status_code=status.HTTP_201_CREATED)
@@ -656,3 +662,37 @@ async def delete_portfolio_item(
 
     # Delete the portfolio item
     await item.delete()
+
+
+@router.get("/by-profile/{profile_id}", response_model=Portfolio)
+async def get_portfolio_by_profile(
+    profile_id: str = Path(..., description="Profile ID"),
+    current_user: User = Depends(get_current_active_user),
+    portfolio_repository: PortfolioRepository = Depends(get_portfolio_repository),
+):
+    """
+    Get a portfolio by profile ID.
+
+    Args:
+        profile_id: Profile ID
+        current_user: Current authenticated user
+        portfolio_repository: Portfolio repository
+
+    Returns:
+        Portfolio
+    """
+    portfolio = await portfolio_repository.get_by_profile_id(profile_id)
+    if not portfolio:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Portfolio not found",
+        )
+
+    # Check if the portfolio belongs to the current user
+    if portfolio.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access this portfolio",
+        )
+
+    return portfolio

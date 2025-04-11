@@ -61,7 +61,7 @@ class PortfolioService:
             self.logger.warning(f"Portfolio not found for user: {user_id}")
             raise NotFoundException("Portfolio not found")
 
-        return portfolio[0]
+        return portfolio
 
     async def get_portfolio_by_id(self, portfolio_id: PydanticObjectId) -> Portfolio:
         """
@@ -94,13 +94,13 @@ class PortfolioService:
 
     async def create_portfolio(self, user_id: PydanticObjectId) -> Portfolio:
         """
-        Create a new portfolio for a user.
+        Create a new portfolio for a user or return existing one.
 
         Args:
             user_id: User ID
 
         Returns:
-            Portfolio: Created portfolio
+            Portfolio: Created or existing portfolio
 
         Raises:
             NotFoundException: If user not found
@@ -110,14 +110,9 @@ class PortfolioService:
             self.logger.warning(f"User not found: {user_id}")
             raise NotFoundException("User not found")
 
-        # Check if portfolio already exists
-        existing_portfolio = await self.portfolio_repository.get_by_user_id(user_id)
-        if existing_portfolio:
-            self.logger.info(f"Portfolio already exists for user: {user_id}")
-            return existing_portfolio[0]
-
+        # Check if portfolio already exists - will be handled by repository
         portfolio = await self.portfolio_repository.create_for_user(user.id)
-        self.logger.info(f"Portfolio created for user: {user_id}")
+        self.logger.info(f"Portfolio retrieved or created for user: {user_id}")
 
         return portfolio
 

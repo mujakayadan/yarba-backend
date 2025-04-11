@@ -146,10 +146,6 @@ class Portfolio(Document):
         default_factory=CustomSections, description="Custom sections configuration."
     )
 
-    is_active: bool = Field(
-        default=True, description="Whether this portfolio is active."
-    )
-
     version: str = Field(default="1.0", description="Version of the portfolio.")
 
     created_at: datetime = Field(
