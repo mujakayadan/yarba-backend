@@ -129,6 +129,38 @@ class EmailVerificationRequest(BaseModel):
     email: EmailStr = Field(..., description="User's email address")
 
 
+class ChangePasswordRequest(BaseModel):
+    """Change password request schema."""
+
+    current_password: str = Field(..., description="User's current password")
+    new_password: str = Field(
+        ...,
+        min_length=8,
+        max_length=64,
+        description="New password must be between 8 and 64 characters and contain at least one uppercase letter, one lowercase letter, and one number",
+    )
+
+    @field_validator("new_password")
+    def validate_password(cls, v: str) -> str:
+        """Validate password complexity.
+
+        Args:
+            v: Password to validate
+
+        Returns:
+            str: Validated password
+
+        Raises:
+            ValueError: If password doesn't meet complexity requirements
+        """
+        if not re.match(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d.@$!%*?&#]{8,}$", v):
+            raise ValueError(
+                "Password must contain at least one uppercase letter, "
+                "one lowercase letter, and one number"
+            )
+        return v
+
+
 class UserResponse(BaseModel):
     """User response schema."""
 

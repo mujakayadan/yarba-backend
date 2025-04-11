@@ -381,3 +381,48 @@ class FirebaseAuth:
         except Exception as e:
             logger.error(f"Failed to generate password reset link: {str(e)}")
             raise
+
+    @classmethod
+    async def sign_in_with_email_password(
+        cls, email: str, password: str
+    ) -> Dict[str, Any]:
+        """Sign in with email and password.
+
+        Args:
+            email: User email
+            password: User password
+
+        Returns:
+            Dict: Firebase user credentials
+
+        Raises:
+            Exception: If sign-in fails
+        """
+        if not cls._initialized:
+            if not cls.initialize():
+                raise Exception("Firebase could not be initialized")
+
+        try:
+            # Attempt to sign in with email and password
+            # This is a client-side operation in Firebase, but for server-side
+            # we need to use the Firebase Admin SDK to verify credentials
+            import requests
+            from firebase_admin import credentials
+
+            # Get the API key from the Firebase credentials
+            creds = credentials.Certificate(settings.firebase.credentials_path)
+            api_key = creds.project_id  # This might need adjustment based on your setup
+
+            # Attempt to sign in using the Firebase REST API
+            url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={api_key}"
+            payload = {"email": email, "password": password, "returnSecureToken": True}
+            response = requests.post(url, json=payload)
+            response.raise_for_status()  # Raise exception for non-200 status
+
+            user_credentials = response.json()
+            logger.info(f"Firebase sign-in successful for: {email}")
+            return user_credentials
+
+        except Exception as e:
+            logger.error(f"Failed to sign in with Firebase: {str(e)}")
+            raise

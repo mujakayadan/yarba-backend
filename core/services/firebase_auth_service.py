@@ -270,6 +270,44 @@ class FirebaseAuthService(AuthService):
             self.logger.error(f"Failed to send password reset email: {str(e)}")
             raise
 
+    async def change_firebase_password(
+        self, email: EmailStr, current_password: str, new_password: str
+    ) -> bool:
+        """
+        Change a Firebase user's password.
+
+        Args:
+            email: User email
+            current_password: Current password
+            new_password: New password
+
+        Returns:
+            bool: True if password change was successful
+
+        Raises:
+            Exception: If password change fails
+        """
+        try:
+            # First, validate the current password by trying to sign in
+            # This is a Firebase requirement for security
+            await FirebaseAuth.sign_in_with_email_password(email, current_password)
+
+            # If successful, update the password
+            user = await self.user_repository.get_by_email(email)
+            if not user or not user.firebase_uid:
+                self.logger.error(f"User not found or missing Firebase UID: {email}")
+                raise Exception("User not found or not a Firebase user")
+
+            # Update the password in Firebase
+            await FirebaseAuth.update_user(user.firebase_uid, password=new_password)
+
+            self.logger.info(f"Password changed successfully for user: {email}")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Failed to change Firebase password: {str(e)}")
+            raise
+
     async def update_user_with_firebase(
         self, user_id: str, update_data: Dict[str, Any]
     ) -> User:

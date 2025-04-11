@@ -20,6 +20,7 @@ from core.services.firebase_auth_service import FirebaseAuthService
 from ..middleware.auth import CurrentActiveUser, CurrentSuperuser
 from ..schemas import auth as schemas
 from ..schemas.auth import (
+    ChangePasswordRequest,
     EmailVerificationRequest,
     FirebaseAuthResponse,
     FirebaseLoginRequest,
@@ -256,6 +257,96 @@ async def send_verification_email(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to send verification email: {str(e)}",
+        )
+
+
+@router.post("/change-password", status_code=status.HTTP_200_OK)
+async def change_password(
+    request: ChangePasswordRequest,
+    current_user: CurrentActiveUser,
+    auth_service: AuthService = Depends(get_auth_service),
+) -> Dict[str, str]:
+    """Change user password.
+
+    Args:
+        request: Change password request
+        current_user: Current authenticated user
+        auth_service: Auth service
+
+    Returns:
+        Dict: Success message
+
+    Raises:
+        HTTPException: If current password is incorrect or operation fails
+    """
+    # Skip for Firebase users
+    if current_user.auth_provider == "firebase":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Please use the Firebase change password endpoint for Firebase users",
+        )
+
+    # Verify the current password
+    if not auth_service.verify_password(
+        request.current_password, current_user.hashed_password
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect",
+        )
+
+    try:
+        # Update user with new password
+        update_data = {"password": request.new_password}
+        await auth_service.update_user(current_user.id, update_data)
+
+        return {"message": "Password changed successfully"}
+    except Exception as e:
+        logger.error(f"Failed to change password: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to change password",
+        )
+
+
+@router.post("/firebase/change-password", status_code=status.HTTP_200_OK)
+async def firebase_change_password(
+    request: ChangePasswordRequest,
+    current_user: CurrentActiveUser,
+    firebase_service: FirebaseAuthService = Depends(get_firebase_auth_service),
+) -> Dict[str, str]:
+    """Change Firebase user password.
+
+    Args:
+        request: Change password request
+        current_user: Current authenticated user
+        firebase_service: Firebase authentication service
+
+    Returns:
+        Dict: Success message
+
+    Raises:
+        HTTPException: If operation fails
+    """
+    # Only for Firebase users
+    if current_user.auth_provider != "firebase":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Please use the regular change password endpoint for non-Firebase users",
+        )
+
+    try:
+        # Use Firebase to change password
+        await firebase_service.change_firebase_password(
+            current_user.email, request.current_password, request.new_password
+        )
+
+        return {"message": "Password changed successfully"}
+    except Exception as e:
+        logger.error(f"Failed to change Firebase password: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to change password: {str(e)}",
         )
 
 
