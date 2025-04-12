@@ -62,7 +62,6 @@ class ProfilePatch(BaseModel):
 
     life_story: Optional[str] = None
     api_keys: Optional[dict] = None
-    signature: Optional[bytes] = None
 
 
 class LifeStoryPatch(BaseModel):
@@ -603,9 +602,9 @@ async def get_my_life_story(
 
 
 class ProfilePictureResponse(BaseModel):
-    """Response model for profile picture URL."""
+    """Response model for profile picture storage key."""
 
-    profile_picture_url: Optional[str] = None
+    profile_picture_key: Optional[str] = None
 
 
 @router.post("/me/profile-picture", response_model=ProfilePictureResponse)
@@ -615,15 +614,15 @@ async def upload_profile_picture(
     profile_service: ProfileService = Depends(get_profile_service),
 ):
     """
-    Upload a profile picture.
+    Upload a profile picture image.
 
     Args:
-        file: Profile picture file
+        file: Profile picture image file
         current_user: Current authenticated user
         profile_service: Profile service
 
     Returns:
-        Profile picture URL
+        Profile picture storage key
     """
     try:
         # Get current profile
@@ -633,21 +632,23 @@ async def upload_profile_picture(
         storage_provider = get_storage_provider()
 
         # If user already has a profile picture, delete it
-        if profile.profile_picture:
-            await storage_provider.delete_file(profile.profile_picture)
+        if profile.profile_picture_key:
+            await storage_provider.delete_file(profile.profile_picture_key)
+
+        # Read the file content
+        content = await file.read()
 
         # Save the new profile picture
         filename = await storage_provider.save_profile_picture(
-            file, str(current_user.id)
+            content, str(current_user.id)
         )
 
-        # Update profile with the new picture
-        profile.profile_picture = filename
+        # Update profile with the new profile picture
+        profile.profile_picture_key = filename
         updated_profile = await profile_service.update_profile(profile)
 
-        # Return URL for the profile picture
-        picture_url = storage_provider.get_url(filename)
-        return {"profile_picture_url": picture_url}
+        # Return the storage key
+        return {"profile_picture_key": filename}
 
     except NotFoundException:
         raise HTTPException(
@@ -675,7 +676,7 @@ async def delete_my_profile_picture(
         profile_service: Profile service
 
     Returns:
-        Empty profile picture URL
+        Empty profile picture key
     """
     try:
         # Get current profile
@@ -685,18 +686,18 @@ async def delete_my_profile_picture(
         storage_provider = get_storage_provider()
 
         # If user has a profile picture, delete it
-        if profile.profile_picture:
-            success = await storage_provider.delete_file(profile.profile_picture)
+        if profile.profile_picture_key:
+            success = await storage_provider.delete_file(profile.profile_picture_key)
             if not success:
                 logger.warning(
-                    f"Failed to delete profile picture file: {profile.profile_picture}"
+                    f"Failed to delete profile picture file: {profile.profile_picture_key}"
                 )
 
-            # Update profile to remove picture reference
-            profile.profile_picture = None
+            # Update profile to remove profile picture reference
+            profile.profile_picture_key = None
             await profile_service.update_profile(profile)
 
-        return {"profile_picture_url": None}
+        return {"profile_picture_key": None}
 
     except NotFoundException:
         raise HTTPException(
@@ -717,25 +718,20 @@ async def get_my_profile_picture(
     profile_service: ProfileService = Depends(get_profile_service),
 ):
     """
-    Get the current user's profile picture URL.
+    Get the current user's profile picture key.
 
     Args:
         current_user: Current authenticated user
         profile_service: Profile service
 
     Returns:
-        Profile picture URL
+        Profile picture storage key
     """
     try:
         # Get current profile
         profile = await profile_service.get_profile_by_user_id(current_user.id)
 
-        # Get storage provider
-        storage_provider = get_storage_provider()
-
-        # Get URL for the profile picture
-        picture_url = storage_provider.get_url(profile.profile_picture)
-        return {"profile_picture_url": picture_url}
+        return {"profile_picture_key": profile.profile_picture_key}
 
     except NotFoundException:
         raise HTTPException(
@@ -751,9 +747,9 @@ async def get_my_profile_picture(
 
 
 class SignatureResponse(BaseModel):
-    """Response model for signature URL."""
+    """Response model for signature storage key."""
 
-    signature_url: Optional[str] = None
+    signature_key: Optional[str] = None
 
 
 @router.post("/me/signature", response_model=SignatureResponse)
@@ -771,7 +767,7 @@ async def upload_signature(
         profile_service: Profile service
 
     Returns:
-        Signature URL
+        Signature storage key
     """
     try:
         # Get current profile
@@ -794,12 +790,10 @@ async def upload_signature(
 
         # Update profile with the new signature key
         profile.signature_key = signature_key
-        profile.signature = None  # Clear the old embedded signature if any
         updated_profile = await profile_service.update_profile(profile)
 
-        # Return URL for the signature
-        signature_url = storage_provider.get_url(signature_key)
-        return {"signature_url": signature_url}
+        # Return the storage key
+        return {"signature_key": signature_key}
 
     except NotFoundException:
         raise HTTPException(
@@ -827,7 +821,7 @@ async def delete_my_signature(
         profile_service: Profile service
 
     Returns:
-        Empty signature URL
+        Empty signature key
     """
     try:
         # Get current profile
@@ -846,10 +840,9 @@ async def delete_my_signature(
 
             # Update profile to remove signature reference
             profile.signature_key = None
-            profile.signature = None
             await profile_service.update_profile(profile)
 
-        return {"signature_url": None}
+        return {"signature_key": None}
 
     except NotFoundException:
         raise HTTPException(
@@ -870,25 +863,20 @@ async def get_my_signature(
     profile_service: ProfileService = Depends(get_profile_service),
 ):
     """
-    Get the current user's signature URL.
+    Get the current user's signature key.
 
     Args:
         current_user: Current authenticated user
         profile_service: Profile service
 
     Returns:
-        Signature URL
+        Signature storage key
     """
     try:
         # Get current profile
         profile = await profile_service.get_profile_by_user_id(current_user.id)
 
-        # Get storage provider
-        storage_provider = get_storage_provider()
-
-        # Get URL for the signature
-        signature_url = storage_provider.get_url(profile.signature_key)
-        return {"signature_url": signature_url}
+        return {"signature_key": profile.signature_key}
 
     except NotFoundException:
         raise HTTPException(

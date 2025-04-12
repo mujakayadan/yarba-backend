@@ -133,13 +133,12 @@ class Profile(Document):
     personal_information: PersonalInformation
 
     # Additional information
-    signature: Optional[bytes] = None
     signature_key: Optional[str] = Field(
         default=None, description="S3 key for the user's signature"
     )
     life_story: Optional[str] = None
-    profile_picture: Optional[str] = Field(
-        default=None, description="URL or path to the profile picture"
+    profile_picture_key: Optional[str] = Field(
+        default=None, description="S3 key for the profile picture"
     )
 
     # API Keys configuration

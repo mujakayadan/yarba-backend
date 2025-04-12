@@ -1,6 +1,6 @@
 """Profile service for user profile management."""
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from beanie import PydanticObjectId
 
@@ -457,4 +457,35 @@ class ProfileService:
             raise
         except Exception as e:
             self.logger.error(f"Error getting API keys: {e}")
+            raise
+
+    async def get_signature_key(self, user_id: PydanticObjectId) -> Optional[str]:
+        """
+        Get the signature key for a user.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            Optional[str]: Signature key if exists, None otherwise
+
+        Raises:
+            NotFoundException: If profile not found
+            Exception: For other errors
+        """
+        self.logger.debug(f"Getting signature key for user: {user_id}")
+
+        try:
+            # Get profile
+            profile = await self.profile_repository.get_by_user_id(user_id)
+
+            if not profile:
+                raise NotFoundException(f"Profile not found for user: {user_id}")
+
+            return profile.signature_key
+
+        except NotFoundException:
+            raise
+        except Exception as e:
+            self.logger.error(f"Error getting signature key: {e}")
             raise
