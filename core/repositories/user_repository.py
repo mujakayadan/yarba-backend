@@ -129,69 +129,6 @@ class UserRepository(BeanieRepository[User]):
         await result.save()
         return True
 
-    async def increment_login_attempts(self, email: EmailStr) -> int:
-        """
-        Increment login attempts for a user.
-
-        Args:
-            email: User email
-
-        Returns:
-            int: New login attempts count, or -1 if user not found
-        """
-        user = await self.get_by_email(email)
-        if not user:
-            return -1
-
-        user.login_attempts += 1
-        await user.save()
-        return user.login_attempts
-
-    async def reset_login_attempts(self, email: EmailStr) -> bool:
-        """
-        Reset login attempts for a user.
-
-        Args:
-            email: User email
-
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        user = await self.get_by_email(email)
-        if not user:
-            return False
-
-        current_time = datetime.now(timezone.utc)
-        user.login_attempts = 0
-        user.account_locked_until = current_time
-        user.last_active = current_time
-
-        await user.save()
-        return True
-
-    async def lock_account(self, email: EmailStr, lock_until: datetime) -> bool:
-        """
-        Lock a user account until a specified time.
-
-        Args:
-            email: User email
-            lock_until: Time until which the account should be locked
-
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        user = await self.get_by_email(email)
-        if not user:
-            return False
-
-        # Ensure lock_until has timezone info
-        if hasattr(lock_until, "tzinfo") and lock_until.tzinfo is None:
-            lock_until = lock_until.replace(tzinfo=timezone.utc)
-
-        user.account_locked_until = lock_until
-        await user.save()
-        return True
-
 
 async def get_user_repository(self) -> UserRepository:
     """

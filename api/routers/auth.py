@@ -6,16 +6,15 @@ from typing import Annotated, Any, Dict
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
-from pydantic import EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 from config import get_logger, settings
 from core.auth.firebase import FirebaseAuth
 from core.database import get_unit_of_work
-from core.database.factory import get_auth_service, get_firebase_auth_service
+from core.database.factory import get_auth_service
 from core.database.unit_of_work import AsyncMongoUnitOfWork
 from core.models.user import User
 from core.services.auth_service import AuthService
-from core.services.firebase_auth_service import FirebaseAuthService
 
 from ..middleware.auth import CurrentActiveUser, CurrentSuperuser
 from ..schemas import auth as schemas
@@ -41,140 +40,70 @@ async def register(
     uow: AsyncMongoUnitOfWork = Depends(get_unit_of_work),
     auth_service: AuthService = Depends(get_auth_service),
 ) -> dict:
-    """Register a new user.
+    """Register a new user using Firebase authentication.
 
     Args:
         request: Registration request
         uow: Unit of work
-        auth_service: Auth service
+        auth_service: Authentication service
 
     Returns:
         dict: Success message
 
     Raises:
-        HTTPException: If username or email already exists
+        HTTPException: If registration fails
     """
-    if settings.auth.use_firebase_auth:
-        # Handle optional username for Firebase authentication
-        if request.username is None:
-            # Generate username from email or full name if not provided
-            username = request.full_name.lower().replace(" ", "_")
-            # Ensure username is unique by adding a timestamp if needed
-            existing_user = None
-            try:
-                async with uow:
-                    existing_user = await uow.user_repository.get_by_username(username)
-            except Exception:
-                pass
-
-            if existing_user:
-                from datetime import datetime
-
-                timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-                username = f"{username}_{timestamp}"
-
-            # Update the request with the generated username
-            request.username = username
-
-        # Use Firebase for registration
-        firebase_service = await anext(get_firebase_auth_service())
+    # Handle optional username for Firebase authentication
+    if request.username is None:
+        # Generate username from email or full name if not provided
+        username = request.full_name.lower().replace(" ", "_")
+        # Ensure username is unique by adding a timestamp if needed
+        existing_user = None
         try:
-            await firebase_service.register_with_firebase(
-                email=request.email,
-                password=request.password,
-                full_name=request.full_name,
-            )
-            return {"message": "User registered successfully with Firebase"}
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Registration failed: {str(e)}",
-            )
-    else:
-        # Use regular registration logic
-        async with uow:
-            # Check if username already exists
-            existing_user = await uow.user_repository.get_by_username(request.username)
-            if existing_user:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Username already registered",
-                )
+            async with uow:
+                existing_user = await uow.user_repository.get_by_username(username)
+        except Exception:
+            pass
 
-            # Check if email already exists
-            existing_email = await uow.user_repository.get_by_email(request.email)
-            if existing_email:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Email already registered",
-                )
+        if existing_user:
+            from datetime import datetime
 
-            # Create new user with default values for date fields
-            current_time = datetime.now(timezone.utc)
-            future_date = current_time + timedelta(
-                days=365
-            )  # Default expiration 1 year in future
+            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            username = f"{username}_{timestamp}"
 
-            user = User(
-                username=request.username,
-                email=request.email,
-                hashed_password=User.hash_password(request.password),
-                is_active=True,
-                is_superuser=False,
-                last_login=current_time,
-                account_locked_until=current_time,  # Not locked, so current time
-                reset_password_token="",  # Empty string instead of None
-                reset_password_expires=current_time,
-                verification_token="",  # Empty string instead of None
-                subscription_expires=future_date,
-                last_active=current_time,
-            )
-            await user.create()
+        # Update the request with the generated username
+        request.username = username
 
-            # Create profile for user
-            await uow.profile_repository.create_for_user(
-                user=user,
-                full_name=request.full_name,
-                email=request.email,
-            )
-
-        return {"message": "User registered successfully"}
+    # Use Firebase for registration
+    try:
+        await auth_service.register_with_firebase(
+            email=request.email,
+            password=request.password,
+            full_name=request.full_name,
+            username=request.username,
+        )
+        return {"message": "User registered successfully with Firebase"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Registration failed: {str(e)}",
+        )
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=FirebaseAuthResponse)
 async def login(
-    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-    auth_service: AuthService = Depends(get_auth_service),
-) -> TokenResponse:
-    """Login a user with email and password.
-
-    Args:
-        form_data: Login form data (username field contains email)
-        auth_service: Authentication service
-
-    Returns:
-        TokenResponse: Access token and token type
-
-    Raises:
-        HTTPException: If email or password is incorrect
-    """
-    # Use the auth service for login logic, passing username field as email
-    result = await auth_service.login(form_data.username, form_data.password)
-    return TokenResponse(
-        access_token=result["access_token"], token_type=result["token_type"]
-    )
-
-
-@router.post("/firebase/login", response_model=FirebaseAuthResponse)
-async def firebase_login(
     request: FirebaseLoginRequest,
-    firebase_service: FirebaseAuthService = Depends(get_firebase_auth_service),
+    auth_service: AuthService = Depends(get_auth_service),
 ) -> FirebaseAuthResponse:
     """Login with Firebase ID token.
 
+    This endpoint expects a Firebase ID token that is generated after successful
+    authentication with Firebase Authentication. We no longer support direct
+    username/password authentication.
+
     Args:
-        request: Firebase login request
-        firebase_service: Firebase authentication service
+        request: Firebase login request containing the ID token
+        auth_service: Authentication service
 
     Returns:
         FirebaseAuthResponse: User data and access token
@@ -192,7 +121,7 @@ async def firebase_login(
         logger.debug(f"Received Firebase login request with token: {token_preview}")
 
         # Verify and process Firebase token
-        result = await firebase_service.login_with_firebase(request.id_token)
+        result = await auth_service.login_with_firebase(request.id_token)
         logger.info(
             f"Firebase login successful for user: {result.get('user', {}).get('email')}"
         )
@@ -209,13 +138,13 @@ async def firebase_login(
 @router.post("/forgot-password", status_code=status.HTTP_200_OK)
 async def forgot_password(
     request: PasswordResetRequest,
-    firebase_service: FirebaseAuthService = Depends(get_firebase_auth_service),
+    auth_service: AuthService = Depends(get_auth_service),
 ) -> Dict[str, str]:
     """Send password reset email.
 
     Args:
         request: Password reset request
-        firebase_service: Firebase authentication service
+        auth_service: Authentication service
 
     Returns:
         Dict: Success message
@@ -224,7 +153,7 @@ async def forgot_password(
         HTTPException: If the operation fails
     """
     try:
-        await firebase_service.send_password_reset_email(request.email)
+        await auth_service.send_password_reset_email(request.email)
         return {"message": "Password reset instructions sent to your email"}
     except Exception as e:
         raise HTTPException(
@@ -236,13 +165,13 @@ async def forgot_password(
 @router.post("/verify-email", status_code=status.HTTP_200_OK)
 async def send_verification_email(
     request: EmailVerificationRequest,
-    firebase_service: FirebaseAuthService = Depends(get_firebase_auth_service),
+    auth_service: AuthService = Depends(get_auth_service),
 ) -> Dict[str, str]:
     """Send email verification link.
 
     Args:
         request: Email verification request
-        firebase_service: Firebase authentication service
+        auth_service: Authentication service
 
     Returns:
         Dict: Success message
@@ -251,7 +180,7 @@ async def send_verification_email(
         HTTPException: If the operation fails
     """
     try:
-        await firebase_service.send_verification_email(request.email)
+        await auth_service.send_verification_email(request.email)
         return {"message": "Email verification instructions sent to your email"}
     except Exception as e:
         raise HTTPException(
@@ -266,61 +195,12 @@ async def change_password(
     current_user: CurrentActiveUser,
     auth_service: AuthService = Depends(get_auth_service),
 ) -> Dict[str, str]:
-    """Change user password.
-
-    Args:
-        request: Change password request
-        current_user: Current authenticated user
-        auth_service: Auth service
-
-    Returns:
-        Dict: Success message
-
-    Raises:
-        HTTPException: If current password is incorrect or operation fails
-    """
-    # Skip for Firebase users
-    if current_user.auth_provider == "firebase":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Please use the Firebase change password endpoint for Firebase users",
-        )
-
-    # Verify the current password
-    if not auth_service.verify_password(
-        request.current_password, current_user.hashed_password
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Current password is incorrect",
-        )
-
-    try:
-        # Update user with new password
-        update_data = {"password": request.new_password}
-        await auth_service.update_user(current_user.id, update_data)
-
-        return {"message": "Password changed successfully"}
-    except Exception as e:
-        logger.error(f"Failed to change password: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to change password",
-        )
-
-
-@router.post("/firebase/change-password", status_code=status.HTTP_200_OK)
-async def firebase_change_password(
-    request: ChangePasswordRequest,
-    current_user: CurrentActiveUser,
-    firebase_service: FirebaseAuthService = Depends(get_firebase_auth_service),
-) -> Dict[str, str]:
     """Change Firebase user password.
 
     Args:
         request: Change password request
         current_user: Current authenticated user
-        firebase_service: Firebase authentication service
+        auth_service: Authentication service
 
     Returns:
         Dict: Success message
@@ -328,16 +208,9 @@ async def firebase_change_password(
     Raises:
         HTTPException: If operation fails
     """
-    # Only for Firebase users
-    if current_user.auth_provider != "firebase":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Please use the regular change password endpoint for non-Firebase users",
-        )
-
     try:
         # Use Firebase to change password
-        await firebase_service.change_firebase_password(
+        await auth_service.change_firebase_password(
             current_user.email, request.current_password, request.new_password
         )
 
@@ -373,8 +246,8 @@ async def get_current_user_info(current_user: CurrentActiveUser) -> Dict[str, An
     }
 
 
-@router.post("/firebase/verify-token", status_code=status.HTTP_200_OK)
-async def verify_firebase_token(
+@router.post("/verify-token", status_code=status.HTTP_200_OK)
+async def verify_token(
     request: FirebaseLoginRequest,
 ) -> Dict[str, Any]:
     """Test endpoint to verify a Firebase token and show its structure.
@@ -441,28 +314,55 @@ async def verify_firebase_token(
         )
 
 
-@router.post("/firebase/register", response_model=schemas.UserResponse)
-async def firebase_register(
-    request: schemas.RegisterRequest,
-    firebase_auth_service: FirebaseAuthService = Depends(get_firebase_auth_service),
-) -> Any:
+class SwaggerLoginRequest(BaseModel):
+    """Request model for Swagger UI login."""
+
+    email: EmailStr = Field(..., description="User email")
+    password: str = Field(..., description="User password")
+
+
+@router.post("/swagger-login", status_code=status.HTTP_200_OK)
+async def swagger_login(
+    request: SwaggerLoginRequest,
+) -> Dict[str, str]:
+    """Login with email/password and get Firebase ID token for Swagger UI testing.
+
+    This endpoint is for DEVELOPMENT USE ONLY and should be disabled in production.
+    It allows testing API endpoints in Swagger UI by providing an ID token.
+
+    Args:
+        request: Swagger login request with email and password
+
+    Returns:
+        Dict: Firebase ID token to use with /auth/login endpoint
+
+    Raises:
+        HTTPException: If login fails
     """
-    Register a new user with Firebase Authentication.
-    """
-    logger.info(f"Firebase registration request for email: {request.email}")
+    if not settings.debug:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This endpoint is only available in debug mode",
+        )
 
     try:
-        user = await firebase_auth_service.register_with_firebase(
-            email=request.email,
-            password=request.password,
-            full_name=request.full_name,
-            username=request.username,
+        # Sign in with email/password
+        result = await FirebaseAuth.sign_in_with_email_password(
+            request.email, request.password
         )
-        logger.info(f"Firebase registration successful for: {request.email}")
-        return user
+
+        # Extract the ID token from the result
+        id_token = result.get("idToken")
+        if not id_token:
+            raise ValueError("No ID token returned from Firebase")
+
+        return {
+            "id_token": id_token,
+            "message": "Use this ID token with the /auth/login endpoint in Swagger UI",
+        }
     except Exception as e:
-        logger.error(f"Firebase registration failed: {str(e)}")
+        logger.error(f"Firebase authentication failed: {str(e)}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Firebase registration failed: {str(e)}",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Authentication failed: {str(e)}",
         )

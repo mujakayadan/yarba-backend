@@ -48,6 +48,7 @@ API_TAGS_METADATA = [
     {"name": "resumes", "description": "Resume operations"},
     {"name": "cover-letters", "description": "Cover letter operations"},
     {"name": "portfolios", "description": "Portfolio operations"},
+    {"name": "linkedin", "description": "LinkedIn integration and job application"},
     {"name": "health", "description": "Application health checks"},
 ]
 
@@ -124,7 +125,7 @@ if settings.storage.provider.lower() == "local":
     )
 
 # Import and include routers
-from api.routers import auth, cover_letters, portfolios, profiles, resumes
+from api.routers import auth, cover_letters, linkedin, portfolios, profiles, resumes
 
 app.include_router(auth.router, prefix=f"{API_V1_PREFIX}/auth", tags=["auth"])
 app.include_router(resumes.router, prefix=f"{API_V1_PREFIX}/resumes", tags=["resumes"])
@@ -142,6 +143,11 @@ app.include_router(
     profiles.router,
     prefix=f"{API_V1_PREFIX}/profiles",
     tags=["profiles"],
+)
+app.include_router(
+    linkedin.router,
+    prefix=f"{API_V1_PREFIX}/linkedin",
+    tags=["linkedin"],
 )
 
 

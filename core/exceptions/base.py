@@ -157,6 +157,24 @@ class ValidationException(AppException):
         )
 
 
+class OperationFailedException(AppException):
+    """Exception for failed operations."""
+
+    def __init__(
+        self,
+        message: str = "Operation failed",
+        error_code: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        """Initialize operation failed exception."""
+        super().__init__(
+            message=message,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            error_code=error_code,
+            details=details,
+        )
+
+
 class InternalServerException(AppException):
     """Exception for internal server errors."""
 

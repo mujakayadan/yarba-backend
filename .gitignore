@@ -97,3 +97,5 @@ resume_output/
 
 # Add firebase_credentials.json to .gitignore
 config/firebase_credentials.json
+
+core/easy_applier/

@@ -364,65 +364,178 @@ class FirebaseAuth:
             str: Password reset link
 
         Raises:
-            Exception: If link generation fails
+            Exception: If operation fails
         """
         if not cls._initialized:
             if not cls.initialize():
                 raise Exception("Firebase could not be initialized")
 
         try:
-            action_code_settings = auth.ActionCodeSettings(
-                url=get_api_url(settings.auth.password_reset_path)
-            )
-            link = auth.generate_password_reset_link(email, action_code_settings)
-            logger.info(f"Generated password reset link for: {email}")
-            return link
+            action_code_settings = None
+            if settings.auth.api_base_url:
+                action_code_settings = auth.ActionCodeSettings(
+                    url=f"{settings.auth.api_base_url}{settings.auth.password_reset_path}",
+                    handle_code_in_app=True,
+                )
 
+            link = auth.generate_password_reset_link(
+                email, action_code_settings=action_code_settings
+            )
+            return link
         except Exception as e:
             logger.error(f"Failed to generate password reset link: {str(e)}")
+            raise
+
+    @classmethod
+    async def get_user_by_email(cls, email: str) -> Dict[str, Any]:
+        """Get Firebase user by email.
+
+        Args:
+            email: Firebase user email
+
+        Returns:
+            Dict: Firebase user record as dict
+
+        Raises:
+            Exception: If user retrieval fails
+        """
+        if not cls._initialized:
+            if not cls.initialize():
+                raise Exception("Firebase could not be initialized")
+
+        try:
+            user = auth.get_user_by_email(email)
+            return {
+                "uid": user.uid,
+                "email": user.email,
+                "display_name": user.display_name,
+                "email_verified": user.email_verified,
+                "disabled": user.disabled,
+                "phone_number": user.phone_number,
+            }
+        except Exception as e:
+            logger.error(f"Failed to get Firebase user by email: {str(e)}")
+            raise
+
+    @classmethod
+    async def create_custom_token(cls, uid: str) -> str:
+        """Create a custom Firebase token for a user.
+
+        Args:
+            uid: Firebase user UID
+
+        Returns:
+            str: Custom Firebase token
+
+        Raises:
+            Exception: If token creation fails
+        """
+        if not cls._initialized:
+            if not cls.initialize():
+                raise Exception("Firebase could not be initialized")
+
+        try:
+            custom_token = auth.create_custom_token(uid)
+            return (
+                custom_token.decode("utf-8")
+                if isinstance(custom_token, bytes)
+                else custom_token
+            )
+        except Exception as e:
+            logger.error(f"Failed to create custom Firebase token: {str(e)}")
+            raise
+
+    @classmethod
+    async def exchange_custom_token_for_id_token(cls, custom_token: str) -> str:
+        """Exchange a custom token for an ID token using Firebase REST API.
+
+        Note: This requires HTTP requests to Firebase Auth REST API.
+
+        Args:
+            custom_token: Custom Firebase token
+
+        Returns:
+            str: Firebase ID token
+
+        Raises:
+            Exception: If token exchange fails
+        """
+        import aiohttp
+
+        try:
+            # Get the API key from settings
+            api_key = (
+                os.environ.get("FIREBASE_API_KEY") or settings.auth.firebase_api_key
+            )
+            if not api_key:
+                raise ValueError(
+                    "Firebase API key not found in environment variables or settings"
+                )
+
+            # Exchange custom token for ID token using Firebase Auth REST API
+            url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key={api_key}"
+
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    url, json={"token": custom_token, "returnSecureToken": True}
+                ) as response:
+                    if response.status != 200:
+                        error_data = await response.json()
+                        raise Exception(f"Firebase API error: {error_data}")
+
+                    data = await response.json()
+                    return data.get("idToken")
+        except Exception as e:
+            logger.error(f"Failed to exchange custom token for ID token: {str(e)}")
             raise
 
     @classmethod
     async def sign_in_with_email_password(
         cls, email: str, password: str
     ) -> Dict[str, Any]:
-        """Sign in with email and password.
+        """Sign in with email and password using Firebase REST API.
+
+        Note: This requires HTTP requests to Firebase Auth REST API.
 
         Args:
             email: User email
             password: User password
 
         Returns:
-            Dict: Firebase user credentials
+            Dict: Firebase authentication response including ID token
 
         Raises:
-            Exception: If sign-in fails
+            Exception: If authentication fails
         """
-        if not cls._initialized:
-            if not cls.initialize():
-                raise Exception("Firebase could not be initialized")
+        import aiohttp
 
         try:
-            # Attempt to sign in with email and password
-            # This is a client-side operation in Firebase, but for server-side
-            # we need to use the Firebase Admin SDK to verify credentials
-            import requests
-            from firebase_admin import credentials
+            # Get the API key from settings
+            api_key = (
+                os.environ.get("FIREBASE_API_KEY") or settings.auth.firebase_api_key
+            )
+            if not api_key:
+                raise ValueError(
+                    "Firebase API key not found in environment variables or settings"
+                )
 
-            # Get the API key from the Firebase credentials
-            creds = credentials.Certificate(settings.firebase.credentials_path)
-            api_key = creds.project_id  # This might need adjustment based on your setup
-
-            # Attempt to sign in using the Firebase REST API
+            # Sign in with email/password using Firebase Auth REST API
             url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={api_key}"
-            payload = {"email": email, "password": password, "returnSecureToken": True}
-            response = requests.post(url, json=payload)
-            response.raise_for_status()  # Raise exception for non-200 status
 
-            user_credentials = response.json()
-            logger.info(f"Firebase sign-in successful for: {email}")
-            return user_credentials
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    url,
+                    json={
+                        "email": email,
+                        "password": password,
+                        "returnSecureToken": True,
+                    },
+                ) as response:
+                    if response.status != 200:
+                        error_data = await response.json()
+                        raise Exception(f"Firebase API error: {error_data}")
 
+                    return await response.json()
         except Exception as e:
-            logger.error(f"Failed to sign in with Firebase: {str(e)}")
+            logger.error(f"Failed to sign in with email and password: {str(e)}")
             raise

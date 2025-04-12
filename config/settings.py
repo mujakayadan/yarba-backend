@@ -114,8 +114,14 @@ class AuthSettings(BaseSettings):
     # Firebase settings
     use_firebase_auth: bool = Field(
         default=True,
-        description="Whether to use Firebase Authentication",
+        description="Firebase Authentication is the only supported authentication method. This should always be True.",
         env="USE_FIREBASE_AUTH",
+    )
+
+    firebase_api_key: Optional[str] = Field(
+        default=None,
+        description="Firebase Web API key - required for REST API authentication",
+        env="FIREBASE_API_KEY",
     )
 
     api_base_url: str = Field(
@@ -346,7 +352,12 @@ class LLMSettings(BaseSettings):
 
 
 class LinkedInSettings(BaseSettings):
-    """LinkedIn settings for job scraping."""
+    """LinkedIn settings for job scraping.
+
+    Note: These settings are user-specific and should not be used globally.
+    Credentials should be stored in the user's profile in the database.
+    These settings are provided as fallbacks or for testing purposes only.
+    """
 
     model_config = SettingsConfigDict(
         env_file=[".env.local", ".env"],
@@ -358,14 +369,169 @@ class LinkedInSettings(BaseSettings):
 
     email: Optional[str] = Field(
         default=None,
-        description="LinkedIn email for authentication",
+        description="LinkedIn email for authentication (user-specific)",
         env="EMAIL",
     )
     password: Optional[str] = Field(
         default=None,
-        description="LinkedIn password for authentication",
+        description="LinkedIn password for authentication (user-specific)",
         env="PASSWORD",
     )
+
+
+class SeleniumSettings(BaseSettings):
+    """Selenium WebDriver configuration settings."""
+
+    model_config = SettingsConfigDict(
+        env_file=[".env.local", ".env"],
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+        env_prefix="SELENIUM_",
+    )
+
+    # Chromedriver settings
+    chromedriver_path: Optional[str] = Field(
+        default=None,
+        description="Path to chromedriver executable (uses webdriver_manager if not specified)",
+        env="CHROMEDRIVER_PATH",
+    )
+
+    # Chrome profiles
+    chrome_profiles_dir: Path = Field(
+        default=Path("user_data/chrome_profiles"),
+        description="Base directory for Chrome user profiles",
+        env="PROFILES_DIR",
+    )
+
+    # Data storage
+    user_data_base_dir: Path = Field(
+        default=Path("user_data"),
+        description="Base directory for user-specific data storage",
+        env="USER_DATA_DIR",
+    )
+
+    # Deployment mode
+    deployment_mode: str = Field(
+        default="local",
+        description="Deployment mode (local, container, cloud)",
+        env="DEPLOYMENT_MODE",
+    )
+
+    # Chrome options
+    headless: bool = Field(
+        default=True,
+        description="Whether to run Chrome in headless mode (default True for servers)",
+        env="HEADLESS",
+    )
+    disable_gpu: bool = Field(
+        default=True,
+        description="Whether to disable GPU acceleration",
+        env="DISABLE_GPU",
+    )
+    window_size: str = Field(
+        default="1920,1080",
+        description="Window size for Chrome (width,height)",
+        env="WINDOW_SIZE",
+    )
+    disable_extensions: bool = Field(
+        default=True,
+        description="Whether to disable Chrome extensions",
+        env="DISABLE_EXTENSIONS",
+    )
+    no_sandbox: bool = Field(
+        default=True,
+        description="Whether to disable Chrome sandbox (required for containerized environments)",
+        env="NO_SANDBOX",
+    )
+    disable_dev_shm_usage: bool = Field(
+        default=True,
+        description="Whether to disable /dev/shm usage (required for containerized environments)",
+        env="DISABLE_DEV_SHM_USAGE",
+    )
+
+    # Connection settings
+    connection_timeout: int = Field(
+        default=30,
+        description="Connection timeout in seconds",
+        env="CONNECTION_TIMEOUT",
+    )
+    page_load_timeout: int = Field(
+        default=30,
+        description="Page load timeout in seconds",
+        env="PAGE_LOAD_TIMEOUT",
+    )
+    implicit_wait: int = Field(
+        default=10,
+        description="Implicit wait timeout in seconds",
+        env="IMPLICIT_WAIT",
+    )
+
+    # Retry settings
+    max_retries: int = Field(
+        default=3,
+        description="Maximum number of retries for connection failures",
+        env="MAX_RETRIES",
+    )
+    retry_delay: int = Field(
+        default=2,
+        description="Delay between retries in seconds",
+        env="RETRY_DELAY",
+    )
+
+    # Process management
+    kill_existing_processes: bool = Field(
+        default=True,
+        description="Whether to kill existing Chrome processes before starting",
+        env="KILL_EXISTING_PROCESSES",
+    )
+
+    # Digital Ocean Apps and containerized environments
+    container_chrome_path: str = Field(
+        default="/usr/bin/google-chrome-stable",
+        description="Path to Chrome executable in container",
+        env="CONTAINER_CHROME_PATH",
+    )
+
+    @field_validator("window_size")
+    def validate_window_size(cls, v: str) -> str:
+        """Validate window size format."""
+        try:
+            width, height = map(int, v.split(","))
+            return f"{width},{height}"
+        except (ValueError, AttributeError):
+            raise ValueError("Window size must be in format 'width,height'")
+
+    @field_validator("chrome_profiles_dir", "user_data_base_dir")
+    def create_dir_if_not_exists(cls, v: Path) -> Path:
+        """Create directory if it doesn't exist."""
+        v.mkdir(parents=True, exist_ok=True)
+        return v
+
+    @field_validator("deployment_mode")
+    def validate_deployment_mode(cls, v: str) -> str:
+        """Validate deployment mode."""
+        valid_modes = ["local", "container", "cloud"]
+        v = v.lower()
+        if v not in valid_modes:
+            raise ValueError(f"Deployment mode must be one of {valid_modes}")
+        return v
+
+    def get_user_data_dir(self, user_id: str) -> Path:
+        """Get user-specific data directory."""
+        user_dir = self.user_data_base_dir / f"user_{user_id}"
+        user_dir.mkdir(parents=True, exist_ok=True)
+        return user_dir
+
+    def get_user_chrome_profile_dir(self, user_id: str) -> Path:
+        """Get user-specific Chrome profile directory."""
+        profile_dir = self.chrome_profiles_dir / f"user_{user_id}"
+        profile_dir.mkdir(parents=True, exist_ok=True)
+        return profile_dir
+
+    def is_containerized(self) -> bool:
+        """Check if running in a containerized environment."""
+        return self.deployment_mode in ["container", "cloud"]
 
 
 class LatexSettings(BaseSettings):
@@ -946,7 +1112,11 @@ class Settings(BaseSettings):
     )
     llm: LLMSettings = Field(default_factory=LLMSettings, description="LLM settings")
     linkedin: LinkedInSettings = Field(
-        default_factory=LinkedInSettings, description="LinkedIn settings"
+        default_factory=LinkedInSettings,
+        description="LinkedIn settings (user-specific)",
+    )
+    selenium: SeleniumSettings = Field(
+        default_factory=SeleniumSettings, description="Selenium WebDriver settings"
     )
     latex: LatexSettings = Field(
         default_factory=LatexSettings, description="LaTeX settings"

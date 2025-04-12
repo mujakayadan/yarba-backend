@@ -1,10 +1,12 @@
-"""Core services package for the resume builder application."""
+"""Services module initialization."""
 
 from .auth_service import AuthService
 from .base_service import BaseService
 from .cover_letter_generation_service import CoverLetterGenerationService
 from .cover_letter_service import CoverLetterService
+from .job_service import JobService
 from .latex_service import LatexService
+from .linkedin_service import LinkedInService
 from .llm_service import LLMService
 from .portfolio_service import PortfolioService
 from .profile_service import ProfileService
@@ -13,26 +15,17 @@ from .resume_generation_service import ResumeGenerationService
 from .resume_service import ResumeService
 
 __all__ = [
-    # Base service
-    "BaseService",
-    # Auth service
     "AuthService",
-    # Resume service
-    "ResumeService",
-    # Profile service
-    "ProfileService",
-    # Portfolio service
-    "PortfolioService",
-    # LaTeX service
-    "LatexService",
-    # LLM service
-    "LLMService",
-    # Prompt service
-    "PromptService",
-    # Resume generation service
-    "ResumeGenerationService",
-    # Cover letter service
-    "CoverLetterService",
-    # Cover letter generation service
+    "BaseService",
     "CoverLetterGenerationService",
+    "CoverLetterService",
+    "JobService",
+    "LatexService",
+    "LinkedInService",
+    "LLMService",
+    "PortfolioService",
+    "ProfileService",
+    "PromptService",
+    "ResumeGenerationService",
+    "ResumeService",
 ]

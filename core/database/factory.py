@@ -11,7 +11,6 @@ from config.settings import Settings
 from core.repositories import *
 
 from ..services.auth_service import AuthService
-from ..services.firebase_auth_service import FirebaseAuthService
 from .connection import get_async_database_connection
 from .unit_of_work import AsyncMongoUnitOfWork
 
@@ -88,23 +87,11 @@ async def get_unit_of_work() -> AsyncGenerator[AsyncMongoUnitOfWork, None]:
 
 
 async def get_auth_service() -> AsyncGenerator[AuthService, None]:
-    """Get an authentication service.
+    """Get authentication service instance.
+
+    This service handles all authentication operations using Firebase.
 
     Yields:
         AuthService: Authentication service instance
     """
-    user_repo = UserRepository()
-    if settings.auth.use_firebase_auth:
-        yield FirebaseAuthService(user_repository=user_repo)
-    else:
-        yield AuthService(user_repository=user_repo)
-
-
-async def get_firebase_auth_service() -> AsyncGenerator[FirebaseAuthService, None]:
-    """Get a Firebase authentication service.
-
-    Yields:
-        FirebaseAuthService: Firebase authentication service instance
-    """
-    user_repo = UserRepository()
-    yield FirebaseAuthService(user_repository=user_repo)
+    yield AuthService()

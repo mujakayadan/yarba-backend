@@ -144,11 +144,10 @@ async def get_current_user(
                 test_user = User(
                     email=test_email,
                     username=f"test_user_{datetime.now(timezone.utc).timestamp()}",
-                    hashed_password="",
                     is_active=True,
                     email_verified=True,
                     firebase_uid="test-firebase-uid",
-                    auth_provider="firebase",
+                    auth_provider="firebase.password",
                 )
                 test_user = await user_repo.create(test_user)
 
