@@ -75,3 +75,16 @@ class CoverLetterResponse(CoverLetterBase):
             # Remove the actual PDF bytes to reduce response size
             del data["cover_letter_pdf"]
         super().__init__(**data)
+
+    def model_dump(self, **kwargs):
+        data = super().model_dump(**kwargs)
+
+        # Add has_pdf field based on PDF key existence
+        data["has_pdf"] = bool(data.get("cover_letter_pdf_key"))
+
+        # Remove sensitive or internal fields
+        for field in ["cover_letter_pdf_key"]:
+            if field in data:
+                del data[field]
+
+        return data

@@ -51,6 +51,12 @@ router = APIRouter()
 logger = get_logger(__name__)
 
 
+class ResumePDFResponse(BaseModel):
+    """Response model for resume PDF URL."""
+
+    pdf_url: Optional[str] = None
+
+
 @router.post("", response_model=ResumeResponse, status_code=status.HTTP_201_CREATED)
 async def create_resume(
     request: ResumeCreate,
@@ -462,51 +468,71 @@ async def generate_resume(
 
 @router.get(
     "/{resume_id}/pdf",
-    response_class=Response,
-    responses={
-        200: {
-            "content": {"application/pdf": {}},
-            "description": "Return the PDF file",
-        }
-    },
+    response_model=ResumePDFResponse,
 )
 async def get_resume_pdf(
     resume_id: Annotated[PydanticObjectId, Path(description="Resume ID")],
     current_user: CurrentUser,
     timeout: int = Query(
         30,
-        description="Timeout in seconds for PDF generation",
+        description="Timeout in seconds for PDF generation if needed",
         ge=5,  # Minimum 5 seconds
         le=60,  # Maximum 60 seconds
     ),
+    resume_service: ResumeService = Depends(get_resume_service),
     resume_generation_service: ResumeGenerationService = Depends(
         get_resume_generation_service
     ),
-) -> Response:
+) -> ResumePDFResponse:
     """
-    Get resume as PDF.
+    Get resume PDF URL from S3.
+
+    NOTE: This endpoint returns a URL to the PDF file stored in S3, not the PDF content itself.
+    Clients should use the returned URL to download or display the PDF.
+
+    If the PDF doesn't exist yet, it will be generated and stored in S3 before returning the URL.
 
     Args:
         resume_id: Resume ID
         current_user: Current authenticated user
-        timeout: Timeout in seconds for PDF generation
+        timeout: Timeout in seconds for PDF generation if needed
+        resume_service: Resume service
         resume_generation_service: Resume generation service
 
     Returns:
-        Response: PDF content with the appropriate headers
+        ResumePDFResponse: Object containing the PDF URL
     """
     try:
-        logger.info(
-            f"Starting PDF generation for resume: {resume_id} with timeout {timeout}s"
+        logger.info(f"Getting PDF URL for resume: {resume_id}")
+
+        # Get the resume
+        resume = await resume_service.get_resume_by_id(
+            resume_id=resume_id,
+            user_id=PydanticObjectId(current_user.id),
         )
 
-        # Generate LaTeX
-        logger.info(f"Generating LaTeX for resume: {resume_id}")
+        # Check if resume PDF is already stored in S3
+        if resume.resume_pdf_key:
+            logger.info(f"Resume PDF already exists in S3: {resume.resume_pdf_key}")
+
+            # Get storage provider
+            storage_provider = get_storage_provider()
+
+            # Get the PDF URL
+            pdf_url = storage_provider.get_url(resume.resume_pdf_key)
+
+            if pdf_url:
+                return ResumePDFResponse(pdf_url=pdf_url)
+
+        # No S3 PDF exists, generate a new one
+        logger.info(f"No PDF found, generating new one for resume: {resume_id}")
 
         # Use asyncio.wait_for to implement timeout
         import asyncio
 
         try:
+            # Generate LaTeX
+            logger.info(f"Generating LaTeX for resume: {resume_id}")
             resume_latex = await asyncio.wait_for(
                 resume_generation_service.generate_latex(resume_id),
                 timeout=timeout
@@ -541,27 +567,43 @@ async def get_resume_pdf(
             )
 
         # Check if PDF was generated
-        if pdf_content:
-            logger.info(
-                f"PDF generated for resume: {resume_id}, size: {len(pdf_content)} bytes"
-            )
-        else:
+        if not pdf_content:
             logger.error(f"PDF compilation returned None for resume: {resume_id}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="PDF generation failed - no content returned",
             )
 
-        # Return PDF with appropriate headers
-        filename = f"resume_{resume_id}.pdf"
-        return Response(
-            content=pdf_content,
-            media_type="application/pdf",
-            headers={
-                "Content-Disposition": f'attachment; filename="{filename}"',
-                "Content-Length": str(len(pdf_content)),
-            },
+        logger.info(
+            f"PDF generated for resume: {resume_id}, size: {len(pdf_content)} bytes"
         )
+
+        # Save PDF to S3
+        try:
+            storage_provider = get_storage_provider()
+            pdf_key = await storage_provider.save_resume_pdf(
+                pdf_content, str(resume_id)
+            )
+
+            # Update resume with the new PDF key
+            await resume_service.update_resume(
+                resume_id=resume_id,
+                user_id=PydanticObjectId(current_user.id),
+                update_data={"resume_pdf_key": pdf_key},  # Only update the key
+            )
+
+            logger.info(f"PDF saved to S3: {pdf_key}")
+
+            # Get the URL for the PDF
+            pdf_url = storage_provider.get_url(pdf_key)
+            return ResumePDFResponse(pdf_url=pdf_url)
+
+        except Exception as s3_error:
+            logger.error(f"Error saving PDF to S3: {str(s3_error)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to save PDF to storage: {str(s3_error)}",
+            )
 
     except HTTPException:
         # Re-raise HTTP exceptions
@@ -655,9 +697,9 @@ async def debug_pdf_generation(
             updated_resume = await resume_service.get_resume_by_id(
                 resume_id=resume_id, user_id=PydanticObjectId(current_user.id)
             )
-            debug_info["pdf_stored_in_db"] = bool(updated_resume.resume_pdf)
-            debug_info["pdf_size_in_db"] = (
-                len(updated_resume.resume_pdf) if updated_resume.resume_pdf else 0
+            debug_info["pdf_stored_in_s3"] = bool(updated_resume.resume_pdf_key)
+            debug_info["pdf_key"] = (
+                updated_resume.resume_pdf_key if updated_resume.resume_pdf_key else None
             )
 
             debug_info["success"] = True
@@ -795,8 +837,8 @@ async def advanced_debug_pdf_generation(
             "portfolio_id": str(resume.portfolio_id),
             "has_content": bool(resume.content),
             "content_keys": list(resume.content.keys()) if resume.content else [],
-            "has_pdf": bool(resume.resume_pdf),
-            "pdf_size": len(resume.resume_pdf) if resume.resume_pdf else 0,
+            "has_pdf_in_s3": bool(resume.resume_pdf_key),
+            "pdf_key": resume.resume_pdf_key,
         }
 
         # Get profile
@@ -938,24 +980,22 @@ async def advanced_debug_pdf_generation(
                     {"size": len(pdf_content) if pdf_content else 0},
                 )
 
-                # 5. Check if PDF was saved in resume
-                add_step("Checking saved PDF")
+                # 5. Check if PDF was saved in S3
+                add_step("Checking saved PDF in S3")
                 final_resume = await resume_service.get_resume_by_id(
                     resume_id=resume_id, user_id=PydanticObjectId(current_user.id)
                 )
 
-                pdf_saved = bool(final_resume.resume_pdf)
-                pdf_size = (
-                    len(final_resume.resume_pdf) if final_resume.resume_pdf else 0
-                )
+                pdf_saved = bool(final_resume.resume_pdf_key)
+                pdf_key = final_resume.resume_pdf_key
 
                 add_step(
                     "Checking saved PDF",
                     "success" if pdf_saved else "warning",
-                    {"pdf_saved": pdf_saved, "pdf_size": pdf_size},
+                    {"pdf_saved_in_s3": pdf_saved, "pdf_key": pdf_key},
                 )
 
-                debug_info["success"] = pdf_saved and pdf_size > 0
+                debug_info["success"] = pdf_saved
 
             except Exception as step_error:
                 add_error("PDF generation process", step_error)
@@ -971,12 +1011,6 @@ async def advanced_debug_pdf_generation(
         add_error("Initialization", e)
         debug_info["success"] = False
         return debug_info
-
-
-class ResumePDFResponse(BaseModel):
-    """Response model for resume PDF URL."""
-
-    pdf_url: Optional[str] = None
 
 
 @router.post("/{resume_id}/upload-pdf", response_model=ResumePDFResponse)
@@ -1007,33 +1041,39 @@ async def upload_resume_pdf(
 
     try:
         # Get the resume
-        resume = await resume_service.get_resume_by_id(resume_id)
-
-        # Check if the resume belongs to the user
-        if resume.user_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don't have permission to upload this resume",
-            )
-
-        # Get storage provider
-        storage_provider = get_storage_provider()
-
-        # If resume already has a PDF, delete it
-        if resume.pdf_key:
-            await storage_provider.delete_file(resume.pdf_key)
+        resume = await resume_service.get_resume_by_id(
+            resume_id=resume_id,
+            user_id=PydanticObjectId(current_user.id),
+        )
 
         # Read the file content
         content = await file.read()
 
-        # Save the new PDF
+        # Get storage provider
+        storage_provider = get_storage_provider()
+
+        # If resume already has a PDF stored in S3, delete it
+        if resume.resume_pdf_key:
+            try:
+                await storage_provider.delete_file(resume.resume_pdf_key)
+                logger.info(f"Deleted previous PDF from S3: {resume.resume_pdf_key}")
+            except Exception as delete_error:
+                logger.error(f"Error deleting previous PDF: {str(delete_error)}")
+
+        # Save the new PDF to S3
         pdf_key = await storage_provider.save_resume_pdf(content, str(resume_id))
+        logger.info(f"Saved new PDF to S3: {pdf_key}")
 
         # Update resume with the new PDF key
-        resume.pdf_key = pdf_key
-        updated_resume = await resume_service.update_resume(resume)
+        await resume_service.update_resume(
+            resume_id=resume_id,
+            user_id=PydanticObjectId(current_user.id),
+            update_data={"resume_pdf_key": pdf_key},  # Only update the key
+        )
 
-        # Return URL for the PDF
+        logger.info(f"PDF saved to S3: {pdf_key}")
+
+        # Get the URL for the PDF
         pdf_url = storage_provider.get_url(pdf_key)
         return {"pdf_url": pdf_url}
 
@@ -1069,27 +1109,35 @@ async def delete_resume_pdf(
     """
     try:
         # Get the resume
-        resume = await resume_service.get_resume_by_id(resume_id)
-
-        # Check if the resume belongs to the user
-        if resume.user_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don't have permission to delete this resume's PDF",
-            )
+        resume = await resume_service.get_resume_by_id(
+            resume_id=resume_id,
+            user_id=PydanticObjectId(current_user.id),
+        )
 
         # Get storage provider
         storage_provider = get_storage_provider()
 
-        # If resume has a PDF, delete it
-        if resume.pdf_key:
-            success = await storage_provider.delete_file(resume.pdf_key)
-            if not success:
-                logger.warning(f"Failed to delete resume PDF file: {resume.pdf_key}")
+        # If resume has a PDF in S3, delete it
+        if resume.resume_pdf_key:
+            try:
+                success = await storage_provider.delete_file(resume.resume_pdf_key)
+                if success:
+                    logger.info(f"Deleted PDF from S3: {resume.resume_pdf_key}")
+                else:
+                    logger.warning(
+                        f"Failed to delete PDF from S3: {resume.resume_pdf_key}"
+                    )
+            except Exception as e:
+                logger.error(f"Error deleting PDF from S3: {str(e)}")
 
-            # Update resume to remove PDF reference
-            resume.pdf_key = None
-            await resume_service.update_resume(resume)
+            # Update resume to remove PDF references
+            await resume_service.update_resume(
+                resume_id=resume_id,
+                user_id=PydanticObjectId(current_user.id),
+                update_data={
+                    "resume_pdf_key": None,
+                },
+            )
 
         return {"pdf_url": None}
 

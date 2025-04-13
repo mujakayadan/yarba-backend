@@ -97,17 +97,20 @@ def mock_tex_service():
 
 @pytest.fixture
 def sample_cover_letter(user_id, profile_id, portfolio_id, resume_id):
-    """Fixture for a sample cover letter."""
-    return CoverLetter(
-        id=PydanticObjectId(),
+    """Sample cover letter for testing."""
+    return MagicMock(
+        id=cover_letter_id,
         user_id=user_id,
         profile_id=profile_id,
         portfolio_id=portfolio_id,
         resume_id=resume_id,
-        title="Sample Cover Letter",
+        title="Test Cover Letter",
         company_name="Test Company",
-        job_title="Test Position",
-        job_description="This is a test job description.",
+        job_title="Test Job",
+        job_description="Test job description",
+        content={},
+        cover_letter_content=None,
+        cover_letter_pdf_key=None,
         template_id="default",
     )
 
@@ -256,72 +259,59 @@ class TestCoverLetterGenerationService:
     @patch(
         "core.services.cover_letter_generation_service.settings", new_callable=MagicMock
     )
-    async def test_generate_pdf(
-        self,
-        mock_settings,
-        generation_service,
-        cover_letter_id,
-        mock_cover_letter_service,
-        mock_tex_service,
-        sample_cover_letter,
-    ):
-        """Test generating PDF."""
-        # Setup
-        mock_settings.latex.enabled = True
-        sample_cover_letter.content = "Cover letter content"
-        mock_cover_letter_service.get_cover_letter_by_id.return_value = (
-            sample_cover_letter
-        )
-        mock_tex_service.generate_pdf.return_value = b"PDF content"
-
-        # Execute
-        result = await generation_service.generate_pdf(
-            cover_letter_id=cover_letter_id,
-            regenerate=False,
-        )
-
-        # Assert
-        assert result == b"PDF content"
-        mock_cover_letter_service.get_cover_letter_by_id.assert_called_once()
-        mock_tex_service.generate_pdf.assert_called_once()
-        mock_cover_letter_service.update_cover_letter.assert_called_once()
-
-    @patch(
-        "core.services.cover_letter_generation_service.settings", new_callable=MagicMock
-    )
+    @patch("core.services.cover_letter_generation_service.get_storage_provider")
     async def test_generate_pdf_with_existing_pdf(
         self,
+        mock_get_storage_provider,
         mock_settings,
         generation_service,
         cover_letter_id,
         mock_cover_letter_service,
         sample_cover_letter,
     ):
-        """Test generating PDF when PDF already exists."""
+        """Test generating PDF when PDF already exists in S3."""
         # Setup
         mock_settings.latex.enabled = True
-        sample_cover_letter.content = "Cover letter content"
-        sample_cover_letter.cover_letter_pdf = b"Existing PDF"
+        sample_cover_letter.cover_letter_content = "Cover letter content"
+        sample_cover_letter.cover_letter_pdf_key = "s3-key-for-pdf.pdf"
         mock_cover_letter_service.get_cover_letter_by_id.return_value = (
             sample_cover_letter
         )
 
-        # Execute
-        result = await generation_service.generate_pdf(
-            cover_letter_id=cover_letter_id,
-            regenerate=False,
-        )
+        # Mock S3 storage provider
+        mock_storage = MagicMock()
+        mock_storage.get_url.return_value = "https://example.com/s3-key-for-pdf.pdf"
+        mock_get_storage_provider.return_value = mock_storage
+
+        # Mock httpx client
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.content = b"PDF content from S3"
+            mock_client.get.return_value = mock_response
+            mock_client_class.return_value.__aenter__.return_value = mock_client
+
+            # Execute
+            result = await generation_service.generate_pdf(
+                cover_letter_id=cover_letter_id,
+                regenerate=False,
+            )
 
         # Assert
-        assert result == b"Existing PDF"
+        assert result == b"PDF content from S3"
         mock_cover_letter_service.get_cover_letter_by_id.assert_called_once()
-        mock_cover_letter_service.update_cover_letter.assert_not_called()
+        mock_storage.get_url.assert_called_once_with(
+            sample_cover_letter.cover_letter_pdf_key
+        )
 
     @patch(
         "core.services.cover_letter_generation_service.settings", new_callable=MagicMock
     )
+    @patch("core.services.cover_letter_generation_service.get_storage_provider")
     async def test_generate_pdf_force_regenerate(
         self,
+        mock_get_storage_provider,
         mock_settings,
         generation_service,
         cover_letter_id,
@@ -329,15 +319,25 @@ class TestCoverLetterGenerationService:
         mock_tex_service,
         sample_cover_letter,
     ):
-        """Test forcing regeneration of PDF."""
+        """Test forcing regeneration of PDF even when one exists in S3."""
         # Setup
         mock_settings.latex.enabled = True
-        sample_cover_letter.content = "Cover letter content"
-        sample_cover_letter.cover_letter_pdf = b"Existing PDF"
+        sample_cover_letter.cover_letter_content = "Cover letter content"
+        sample_cover_letter.cover_letter_pdf_key = "old-s3-key.pdf"
         mock_cover_letter_service.get_cover_letter_by_id.return_value = (
             sample_cover_letter
         )
-        mock_tex_service.generate_pdf.return_value = b"Regenerated PDF content"
+
+        # Mock LaTeX generation
+        generation_service.generate_latex = AsyncMock(return_value="LaTeX content")
+
+        # Mock PDF compilation
+        mock_tex_service.compile_latex_to_pdf.return_value = b"New PDF content"
+
+        # Mock S3 storage
+        mock_storage = MagicMock()
+        mock_storage.save_cover_letter_pdf.return_value = "new-s3-key.pdf"
+        mock_get_storage_provider.return_value = mock_storage
 
         # Execute
         result = await generation_service.generate_pdf(
@@ -346,7 +346,9 @@ class TestCoverLetterGenerationService:
         )
 
         # Assert
-        assert result == b"Regenerated PDF content"
+        assert result == b"New PDF content"
         mock_cover_letter_service.get_cover_letter_by_id.assert_called_once()
-        mock_tex_service.generate_pdf.assert_called_once()
-        mock_cover_letter_service.update_cover_letter.assert_called_once()
+        generation_service.generate_latex.assert_called_once()
+        mock_tex_service.compile_latex_to_pdf.assert_called_once()
+        mock_storage.save_cover_letter_pdf.assert_called_once()
+        mock_cover_letter_service.update.assert_called_once()

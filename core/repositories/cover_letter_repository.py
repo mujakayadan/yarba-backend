@@ -142,6 +142,28 @@ class CoverLetterRepository(BeanieRepository[CoverLetter]):
         await cover_letter.save()
         return cover_letter
 
+    async def update_pdf_key(
+        self, cover_letter_id: PydanticObjectId, pdf_key: str
+    ) -> bool:
+        """
+        Update cover letter PDF key.
+
+        Args:
+            cover_letter_id: Cover letter ID
+            pdf_key: S3 key for the PDF
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        cover_letter = await self.get_by_id(cover_letter_id)
+        if not cover_letter:
+            return False
+
+        cover_letter.cover_letter_pdf_key = pdf_key
+        cover_letter.updated_at = datetime.now(timezone.utc)
+        await cover_letter.save()
+        return True
+
 
 async def get_cover_letter_repository() -> CoverLetterRepository:
     """Get a cover letter repository.

@@ -100,6 +100,7 @@ class ResumeResponse(BaseModel):
     company_name: Optional[str] = Field(None, description="Company name")
     job_description: Optional[str] = Field(None, description="Job description")
     content: Optional[Dict[str, Any]] = Field(None, description="Resume content")
+    has_pdf: bool = Field(False, description="Whether the resume has a PDF")
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
 
@@ -108,6 +109,23 @@ class ResumeResponse(BaseModel):
 
         from_attributes = True
         json_encoders = {PydanticObjectId: str}
+
+    def model_dump(self, **kwargs):
+        """Custom dump method to add has_pdf field and remove internal fields."""
+        # Get the standard model dump
+        data = super().model_dump(**kwargs)
+
+        # Calculate has_pdf field from resume_pdf_key if it exists in source data
+        if hasattr(self, "__pydantic_private__"):
+            original_data = self.__pydantic_private__.get("data", {})
+            data["has_pdf"] = bool(original_data.get("resume_pdf_key"))
+
+        # Remove any sensitive or internal fields
+        for field in ["resume_pdf_key"]:
+            if field in data:
+                del data[field]
+
+        return data
 
 
 class PaginatedResumeResponse(BaseModel):

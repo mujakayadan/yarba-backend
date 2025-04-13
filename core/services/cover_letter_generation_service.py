@@ -282,11 +282,11 @@ class CoverLetterGenerationService:
         regenerate: bool = False,
     ) -> bytes:
         """
-        Generate a PDF for a cover letter.
+        Generate PDF for a cover letter.
 
         Args:
             cover_letter_id: Cover letter ID
-            regenerate: Whether to regenerate the PDF even if it exists
+            regenerate: Force regeneration even if PDF exists
 
         Returns:
             PDF bytes
@@ -299,9 +299,28 @@ class CoverLetterGenerationService:
             cover_letter_id
         )
 
-        # If PDF exists and regenerate is False, return existing
-        if cover_letter.cover_letter_pdf and not regenerate:
-            return cover_letter.cover_letter_pdf
+        # If PDF exists in S3 and regenerate is False, get and return existing
+        if cover_letter.cover_letter_pdf_key and not regenerate:
+            # Get the PDF from S3
+            try:
+                from utils.storage import get_storage_provider
+
+                storage_provider = get_storage_provider()
+
+                # Get the URL
+                pdf_url = storage_provider.get_url(cover_letter.cover_letter_pdf_key)
+
+                # If URL is available, download the content
+                if pdf_url:
+                    import httpx
+
+                    async with httpx.AsyncClient() as client:
+                        response = await client.get(pdf_url)
+                        if response.status_code == 200:
+                            return response.content
+            except Exception as e:
+                self.logger.error(f"Error retrieving PDF from storage: {e}")
+                # Continue to regenerate PDF if retrieval fails
 
         # Ensure cover letter content exists
         if not cover_letter.cover_letter_content:
@@ -319,10 +338,24 @@ class CoverLetterGenerationService:
                 latex, is_cover_letter=True
             )
 
-            # Update cover letter
-            cover_letter.cover_letter_pdf = pdf_bytes
-            cover_letter.updated_at = datetime.now(timezone.utc)
-            await self.cover_letter_repository.update(cover_letter)
+            # Save PDF to S3
+            try:
+                from utils.storage import get_storage_provider
+
+                storage_provider = get_storage_provider()
+                pdf_key = await storage_provider.save_cover_letter_pdf(
+                    pdf_bytes, str(cover_letter_id)
+                )
+
+                # Update cover letter with S3 key
+                cover_letter.cover_letter_pdf_key = pdf_key
+                cover_letter.updated_at = datetime.now(timezone.utc)
+                await self.cover_letter_repository.update(cover_letter)
+
+                self.logger.info(f"Saved cover letter PDF to storage: {pdf_key}")
+            except Exception as storage_error:
+                self.logger.error(f"Error saving PDF to storage: {storage_error}")
+                # Continue to return the PDF bytes even if saving to S3 fails
 
             return pdf_bytes
 

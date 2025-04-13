@@ -363,13 +363,7 @@ async def generate_cover_letter(
 
 @router.post(
     "/{cover_letter_id}/pdf",
-    response_class=Response,
-    responses={
-        200: {
-            "content": {"application/pdf": {}},
-            "description": "Return the PDF file",
-        }
-    },
+    response_model=CoverLetterPDFResponse,
 )
 async def generate_cover_letter_pdf(
     cover_letter_id: Annotated[PydanticObjectId, Path(description="Cover letter ID")],
@@ -387,9 +381,14 @@ async def generate_cover_letter_pdf(
     generation_service: CoverLetterGenerationService = Depends(
         get_cover_letter_generation_service
     ),
-) -> Response:
+) -> CoverLetterPDFResponse:
     """
-    Generate PDF for a cover letter.
+    Generate PDF for a cover letter and return its URL.
+
+    NOTE: This endpoint returns a URL to the PDF file stored in S3, not the PDF content itself.
+    Clients should use the returned URL to download or display the PDF.
+
+    The PDF will be generated (or regenerated if requested) and stored in S3 before returning the URL.
 
     Args:
         cover_letter_id: Cover letter ID
@@ -400,7 +399,7 @@ async def generate_cover_letter_pdf(
         generation_service: Cover letter generation service
 
     Returns:
-        Response: PDF content with appropriate headers
+        CoverLetterPDFResponse: Object containing the PDF URL
     """
     try:
         # Verify cover letter exists and belongs to user
@@ -436,16 +435,28 @@ async def generate_cover_letter_pdf(
             f"Generated PDF for cover letter {cover_letter_id}, size: {len(pdf_content)} bytes"
         )
 
-        # Return PDF with appropriate headers
-        filename = f"cover_letter_{cover_letter_id}.pdf"
-        return Response(
-            content=pdf_content,
-            media_type="application/pdf",
-            headers={
-                "Content-Disposition": f'attachment; filename="{filename}"',
-                "Content-Length": str(len(pdf_content)),
-            },
+        # Get the updated cover letter to retrieve the S3 key
+        updated_cover_letter = await cover_letter_service.get_cover_letter_by_id(
+            cover_letter_id=cover_letter_id,
+            user_id=current_user.id,
         )
+
+        # Get the PDF URL from S3
+        if updated_cover_letter.cover_letter_pdf_key:
+            storage_provider = get_storage_provider()
+            pdf_url = storage_provider.get_url(
+                updated_cover_letter.cover_letter_pdf_key
+            )
+            return CoverLetterPDFResponse(pdf_url=pdf_url)
+        else:
+            # This should never happen, but just in case
+            logger.error(
+                f"PDF was generated but S3 key is missing for cover letter {cover_letter_id}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="PDF was generated but storage key is missing",
+            )
 
     except HTTPException:
         raise
@@ -488,38 +499,40 @@ async def upload_cover_letter_pdf(
     try:
         # Get the cover letter
         cover_letter = await cover_letter_service.get_cover_letter_by_id(
-            cover_letter_id
+            cover_letter_id=cover_letter_id,
+            user_id=current_user.id,
         )
-
-        # Check if the cover letter belongs to the user
-        if cover_letter.user_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don't have permission to upload this cover letter",
-            )
-
-        # Get storage provider
-        storage_provider = get_storage_provider()
-
-        # If cover letter already has a PDF, delete it
-        if cover_letter.cover_letter_pdf_key:
-            await storage_provider.delete_file(cover_letter.cover_letter_pdf_key)
 
         # Read the file content
         content = await file.read()
 
-        # Save the new PDF
+        # Get storage provider
+        storage_provider = get_storage_provider()
+
+        # If cover letter already has a PDF in S3, delete it
+        if cover_letter.cover_letter_pdf_key:
+            try:
+                await storage_provider.delete_file(cover_letter.cover_letter_pdf_key)
+                logger.info(
+                    f"Deleted previous PDF from S3: {cover_letter.cover_letter_pdf_key}"
+                )
+            except Exception as delete_error:
+                logger.error(f"Error deleting previous PDF: {str(delete_error)}")
+
+        # Save the new PDF to S3
         pdf_key = await storage_provider.save_cover_letter_pdf(
             content, str(cover_letter_id)
         )
+        logger.info(f"Saved new cover letter PDF to S3: {pdf_key}")
 
         # Update cover letter with the new PDF key
-        cover_letter.cover_letter_pdf_key = pdf_key
-        updated_cover_letter = await cover_letter_service.update_cover_letter(
-            cover_letter
+        await cover_letter_service.update_cover_letter(
+            cover_letter_id=cover_letter_id,
+            user_id=current_user.id,
+            update_data={"cover_letter_pdf_key": pdf_key},
         )
 
-        # Return URL for the PDF
+        # Get the URL for the PDF
         pdf_url = storage_provider.get_url(pdf_key)
         return {"pdf_url": pdf_url}
 
@@ -556,32 +569,36 @@ async def delete_cover_letter_pdf(
     try:
         # Get the cover letter
         cover_letter = await cover_letter_service.get_cover_letter_by_id(
-            cover_letter_id
+            cover_letter_id=cover_letter_id,
+            user_id=current_user.id,
         )
-
-        # Check if the cover letter belongs to the user
-        if cover_letter.user_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don't have permission to delete this cover letter's PDF",
-            )
 
         # Get storage provider
         storage_provider = get_storage_provider()
 
-        # If cover letter has a PDF, delete it
+        # If cover letter has a PDF in S3, delete it
         if cover_letter.cover_letter_pdf_key:
-            success = await storage_provider.delete_file(
-                cover_letter.cover_letter_pdf_key
-            )
-            if not success:
-                logger.warning(
-                    f"Failed to delete cover letter PDF file: {cover_letter.cover_letter_pdf_key}"
+            try:
+                success = await storage_provider.delete_file(
+                    cover_letter.cover_letter_pdf_key
                 )
+                if success:
+                    logger.info(
+                        f"Deleted PDF from S3: {cover_letter.cover_letter_pdf_key}"
+                    )
+                else:
+                    logger.warning(
+                        f"Failed to delete PDF from S3: {cover_letter.cover_letter_pdf_key}"
+                    )
+            except Exception as e:
+                logger.error(f"Error deleting PDF from S3: {str(e)}")
 
-            # Update cover letter to remove PDF reference
-            cover_letter.cover_letter_pdf_key = None
-            await cover_letter_service.update_cover_letter(cover_letter)
+            # Update cover letter to remove PDF key
+            await cover_letter_service.update_cover_letter(
+                cover_letter_id=cover_letter_id,
+                user_id=current_user.id,
+                update_data={"cover_letter_pdf_key": None},
+            )
 
         return {"pdf_url": None}
 

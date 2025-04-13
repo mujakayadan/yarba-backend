@@ -61,7 +61,6 @@ class Resume(Document):
     custom_sections: List[ResumeSection] = Field(default_factory=list)
 
     # Generated PDFs
-    resume_pdf: Optional[bytes] = None
     resume_pdf_key: Optional[str] = Field(
         default=None, description="S3 key for the resume PDF"
     )

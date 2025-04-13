@@ -49,7 +49,6 @@ class CoverLetter(Document):
     custom_sections: List[CoverLetterSection] = Field(default_factory=list)
 
     # Generated PDFs
-    cover_letter_pdf: Optional[bytes] = None
     cover_letter_pdf_key: Optional[str] = Field(
         default=None, description="S3 key for the cover letter PDF"
     )

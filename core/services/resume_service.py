@@ -172,7 +172,6 @@ class ResumeService:
             job_description=job_description or "",
             content={},
             custom_sections=[],
-            resume_pdf=b"",
         )
 
         created_resume = await self.resume_repository.create(resume)

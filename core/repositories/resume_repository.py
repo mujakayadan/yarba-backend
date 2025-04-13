@@ -295,13 +295,13 @@ class ResumeRepository(BeanieRepository[Resume]):
         await result.save()
         return True
 
-    async def update_pdf(self, resume_id: PydanticObjectId, pdf_data: bytes) -> bool:
+    async def update_pdf_key(self, resume_id: PydanticObjectId, pdf_key: str) -> bool:
         """
-        Update resume PDF.
+        Update resume PDF key.
 
         Args:
             resume_id: Resume ID
-            pdf_data: PDF data
+            pdf_key: S3 key for the PDF
 
         Returns:
             bool: True if successful, False otherwise
@@ -310,7 +310,7 @@ class ResumeRepository(BeanieRepository[Resume]):
         if not result:
             return False
 
-        result.resume_pdf = pdf_data
+        result.resume_pdf_key = pdf_key
         result.updated_at = datetime.now(timezone.utc)
         await result.save()
         return True
@@ -319,15 +319,13 @@ class ResumeRepository(BeanieRepository[Resume]):
         self,
         resume_id: PydanticObjectId,
         content: str,
-        pdf_data: Optional[bytes] = None,
     ) -> bool:
         """
-        Update cover letter content and PDF.
+        Update cover letter content.
 
         Args:
             resume_id: Resume ID
             content: Cover letter content
-            pdf_data: Cover letter PDF data
 
         Returns:
             bool: True if successful, False otherwise
@@ -337,8 +335,6 @@ class ResumeRepository(BeanieRepository[Resume]):
             return False
 
         result.cover_letter_content = content
-        if pdf_data:
-            result.cover_letter_pdf = pdf_data
         result.updated_at = datetime.now(timezone.utc)
         await result.save()
         return True
@@ -395,6 +391,7 @@ class ResumeRepository(BeanieRepository[Resume]):
             job_description=original.job_description,
             content=original.content,
             custom_sections=original.custom_sections,
+            resume_pdf_key=None,  # Initialize with no PDF
             llm_settings=original.llm_settings,
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),

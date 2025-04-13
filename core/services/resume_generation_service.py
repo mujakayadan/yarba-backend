@@ -529,10 +529,24 @@ class ResumeGenerationService:
             # Log success
             self.logger.info(f"Successfully compiled PDF, size: {len(pdf_bytes)} bytes")
 
-            # Save PDF to resume
-            resume.resume_pdf = pdf_bytes
-            resume.updated_at = datetime.now(timezone.utc)
-            await self.resume_repository.update(resume.id, resume)
+            # Save PDF to S3 and update resume with the key
+            try:
+                from utils.storage import get_storage_provider
+
+                storage_provider = get_storage_provider()
+                pdf_key = await storage_provider.save_resume_pdf(
+                    pdf_bytes, str(resume_id)
+                )
+
+                # Update resume with pdf key
+                resume.resume_pdf_key = pdf_key
+                resume.updated_at = datetime.now(timezone.utc)
+                await self.resume_repository.update(resume.id, resume)
+
+                self.logger.info(f"Saved PDF to storage: {pdf_key}")
+            except Exception as storage_error:
+                self.logger.error(f"Error saving PDF to storage: {storage_error}")
+                # Don't raise exception here, we'll still return the PDF bytes
 
             return pdf_bytes
         except Exception as e:

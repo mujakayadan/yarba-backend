@@ -160,7 +160,7 @@ class InitialSchemaMigration(Migration):
                 "validator": {
                     "$jsonSchema": {
                         "bsonType": "object",
-                        "required": ["user_id", "profile_id", "title"],
+                        "required": ["user_id", "profile_id", "portfolio_id"],
                         "properties": {
                             "user_id": {"bsonType": "objectId"},
                             "profile_id": {"bsonType": "objectId"},
@@ -173,10 +173,7 @@ class InitialSchemaMigration(Migration):
                             "job_description": {"bsonType": "string"},
                             "content": {"bsonType": "object"},
                             "custom_sections": {"bsonType": "array"},
-                            "resume_pdf": {"bsonType": "binData"},
-                            "cover_letter_content": {"bsonType": "string"},
-                            "cover_letter_pdf": {"bsonType": "binData"},
-                            "llm_settings": {"bsonType": "object"},
+                            "resume_pdf_key": {"bsonType": "string"},
                             "created_at": {"bsonType": "date"},
                             "updated_at": {"bsonType": "date"},
                         },
