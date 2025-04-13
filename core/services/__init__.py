@@ -6,7 +6,8 @@ from .cover_letter_generation_service import CoverLetterGenerationService
 from .cover_letter_service import CoverLetterService
 from .job_service import JobService
 from .latex_service import LatexService
-from .linkedin_service import LinkedInService
+
+# from .linkedin_service import LinkedInService
 from .llm_service import LLMService
 from .portfolio_service import PortfolioService
 from .profile_service import ProfileService
@@ -21,7 +22,7 @@ __all__ = [
     "CoverLetterService",
     "JobService",
     "LatexService",
-    "LinkedInService",
+    # "LinkedInService",
     "LLMService",
     "PortfolioService",
     "ProfileService",

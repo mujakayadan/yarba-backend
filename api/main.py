@@ -125,7 +125,9 @@ if settings.storage.provider.lower() == "local":
     )
 
 # Import and include routers
-from api.routers import auth, cover_letters, linkedin, portfolios, profiles, resumes
+from api.routers import auth, cover_letters, portfolios, profiles, resumes
+
+# from api.routers import linkedin
 
 app.include_router(auth.router, prefix=f"{API_V1_PREFIX}/auth", tags=["auth"])
 app.include_router(resumes.router, prefix=f"{API_V1_PREFIX}/resumes", tags=["resumes"])
@@ -144,11 +146,11 @@ app.include_router(
     prefix=f"{API_V1_PREFIX}/profiles",
     tags=["profiles"],
 )
-app.include_router(
-    linkedin.router,
-    prefix=f"{API_V1_PREFIX}/linkedin",
-    tags=["linkedin"],
-)
+# app.include_router(
+#     linkedin.router,
+#     prefix=f"{API_V1_PREFIX}/linkedin",
+#     tags=["linkedin"],
+# )
 
 
 @app.get("/", tags=["health"])
