@@ -78,3 +78,19 @@ def remove_special_chars(
 
     # Replace special characters
     return re.sub(pattern, replacement, text)
+
+
+def sanitize_mongodb_uri(uri: str) -> str:
+    """
+    Sanitize a MongoDB URI by removing credentials.
+
+    Args:
+        uri: The URI to sanitize
+
+    Returns:
+        str: Sanitized URI
+    """
+    if not uri:
+        return ""
+    # Replace credentials in MongoDB URI with ***
+    return re.sub(r"(mongodb(\+srv)?://)[^:]+:[^@]+@", r"\1***:***@", uri)

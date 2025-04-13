@@ -20,24 +20,10 @@ from core.models.profile import Profile
 from core.models.resume import Resume
 from core.models.tex_header import TexHeader
 from core.models.user import User
+from utils.text import sanitize_mongodb_uri
 
 logger = get_logger(__name__)
 settings = Settings()
-
-
-def get_sanitized_uri(uri: str) -> str:
-    """Sanitize MongoDB URI by removing credentials for logging purposes.
-
-    Args:
-        uri: MongoDB connection URI
-
-    Returns:
-        str: Sanitized URI with credentials removed
-    """
-    if not uri:
-        return ""
-    # Replace credentials in MongoDB URI with ***
-    return re.sub(r"(mongodb(\+srv)?://)[^:]+:[^@]+@", r"\1***:***@", uri)
 
 
 async def init_db() -> Optional[AsyncIOMotorClient]:
@@ -52,7 +38,7 @@ async def init_db() -> Optional[AsyncIOMotorClient]:
         mongodb_db = os.environ.get("MONGODB_DATABASE", settings.database.name)
 
         # Log sanitized URI
-        sanitized_uri = get_sanitized_uri(mongodb_uri)
+        sanitized_uri = sanitize_mongodb_uri(mongodb_uri)
         logger.info(
             f"Connecting to MongoDB at: {sanitized_uri} (database: {mongodb_db})"
         )
