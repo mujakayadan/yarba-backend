@@ -37,10 +37,33 @@ class JobService:
         Returns:
             Dictionary containing extracted job information (company_name, job_title)
         """
+        if not job_description or not job_description.strip():
+            self.logger.warning("Empty job description provided")
+            return {
+                "company_name": "unknown_company",
+                "job_title": "unknown_position",
+                "job_description": job_description or "",
+                "requires_clearance": False,
+            }
+
         try:
             # Use LLM service to extract company name and job title
             company_name, job_title = (
                 await self.llm_service.extract_job_title_and_company(job_description)
+            )
+
+            # Validate extracted values
+            if not company_name or company_name == "":
+                self.logger.warning("Empty company name extracted, using default")
+                company_name = "unknown_company"
+
+            if not job_title or job_title == "":
+                self.logger.warning("Empty job title extracted, using default")
+                job_title = "unknown_position"
+
+            # Log the successful extraction
+            self.logger.info(
+                f"Extracted job info - company: {company_name}, title: {job_title}"
             )
 
             # Check for security clearance if feature is enabled

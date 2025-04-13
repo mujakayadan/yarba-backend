@@ -10,6 +10,7 @@ from ..exceptions.base import NotFoundException
 from ..models.resume import Resume
 from ..repositories.resume_repository import ResumeFilter, ResumeRepository
 from ..repositories.user_repository import UserRepository
+from ..services.job_service import JobService
 
 logger = get_logger(__name__)
 
@@ -21,6 +22,7 @@ class ResumeService:
         self,
         resume_repository: ResumeRepository,
         user_repository: UserRepository,
+        job_service: Optional[JobService] = None,
     ):
         """
         Initialize the service.
@@ -28,9 +30,11 @@ class ResumeService:
         Args:
             resume_repository: Resume repository instance
             user_repository: User repository instance
+            job_service: Job service instance for extracting job information
         """
         self.resume_repository = resume_repository
         self.user_repository = user_repository
+        self.job_service = job_service
         self.logger = get_logger(self.__class__.__name__)
 
     def _generate_proper_title(self, company_name: str, job_title: str) -> str:
@@ -155,6 +159,23 @@ class ResumeService:
         if not user:
             self.logger.warning(f"User not found: {user_id}")
             raise NotFoundException("User not found")
+
+        # Extract job info from description if not provided but job_description is available
+        if job_description and self.job_service and (not company_name or not job_title):
+            try:
+                self.logger.info("Extracting job information from job description")
+                job_info = await self.job_service.extract_job_info(job_description)
+
+                if not company_name and job_info.get("company_name"):
+                    company_name = job_info["company_name"]
+                    self.logger.info(f"Extracted company name: {company_name}")
+
+                if not job_title and job_info.get("job_title"):
+                    job_title = job_info["job_title"]
+                    self.logger.info(f"Extracted job title: {job_title}")
+            except Exception as e:
+                self.logger.error(f"Error extracting job info: {str(e)}")
+                # Continue even if extraction fails
 
         # Always generate title from company_name and job_title
         title = self._generate_proper_title(company_name or "", job_title or "")

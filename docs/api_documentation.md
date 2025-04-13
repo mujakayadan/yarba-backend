@@ -82,9 +82,17 @@ GET /api/v1/auth/me
 
 ## Profile Management
 
-These endpoints manage user profiles containing personal information, skills, education, etc.
+These endpoints manage user profiles containing personal information, preferences, and profile media.
 
 ### Profile Endpoints
+
+#### Get Current User Profile
+
+```
+GET /api/v1/profiles/me
+```
+
+**Response:** Profile object
 
 #### Create Profile
 
@@ -95,30 +103,157 @@ POST /api/v1/profiles
 **Request Body:**
 ```json
 {
-  "full_name": "string",
-  "email": "string",
-  "phone": "string",
-  "location": "string",
-  "website": "string",
-  "linkedin": "string",
-  "github": "string",
-  "summary": "string"
+  "personal_information": {
+    "full_name": "string",
+    "email": "string",
+    "phone": "string (optional)",
+    "address": "string (optional)",
+    "linkedin": "string (optional)",
+    "github": "string (optional)",
+    "website": "string (optional)"
+  },
+  "preferences": {
+    // Optional preferences object
+  }
 }
 ```
 
-#### Get Current User Profile
+**Response:** Profile object
+
+#### Update Current User Profile
 
 ```
-GET /api/v1/profiles/me
+PUT /api/v1/profiles/me
 ```
 
-#### Update Profile
+**Request Body:**
+```json
+{
+  "personal_information": {
+    "full_name": "string (optional)",
+    "email": "string (optional)",
+    "phone": "string (optional)",
+    "address": "string (optional)",
+    "linkedin": "string (optional)",
+    "github": "string (optional)",
+    "website": "string (optional)"
+  }
+}
+```
+
+**Response:** Profile object
+
+#### Patch Current User Profile
 
 ```
-PUT /api/v1/profiles/{profile_id}
+PATCH /api/v1/profiles/me
 ```
 
-**Request Body:** Same as Create Profile, all fields optional
+**Request Body:**
+```json
+{
+  "life_story": "string (optional)",
+  "api_keys": { /* optional API keys object */ }
+}
+```
+
+**Response:** Profile object
+
+#### Update Current User Preferences
+
+```
+PUT /api/v1/profiles/me/preferences
+```
+
+**Request Body:**
+```json
+{
+  "project_details": { /* optional object */ },
+  "work_experience_details": { /* optional object */ },
+  "skills_details": { /* optional object */ },
+  "career_summary_details": { /* optional object */ },
+  "education_details": { /* optional object */ },
+  "cover_letter_details": { /* optional object */ },
+  "awards_details": { /* optional object */ },
+  "publications_details": { /* optional object */ },
+  "feature_preferences": { /* optional object */ },
+  "notifications": { /* optional object */ },
+  "privacy": { /* optional object */ },
+  "llm_preferences": { /* optional object */ },
+  "section_preferences": { /* optional object */ }
+}
+```
+
+**Response:** Profile object
+
+#### Patch Current User Preferences
+
+```
+PATCH /api/v1/profiles/me/preferences
+```
+
+**Request Body:** Same as PUT endpoint, all fields optional
+
+**Response:** Profile object
+
+#### Patch Personal Information
+
+```
+PATCH /api/v1/profiles/me/personal-information
+```
+
+**Request Body:**
+```json
+{
+  "full_name": "string (optional)",
+  "email": "string (optional)",
+  "phone": "string (optional)",
+  "address": "string (optional)",
+  "linkedin": "string (optional)",
+  "github": "string (optional)",
+  "website": "string (optional)"
+}
+```
+
+**Response:** Profile object
+
+#### Get Profile by ID
+
+```
+GET /api/v1/profiles/{profile_id}
+```
+
+**Response:** Profile object
+
+### Life Story Endpoints
+
+#### Patch Life Story
+
+```
+PATCH /api/v1/profiles/me/life-story
+```
+
+**Request Body:**
+```json
+{
+  "life_story": "string"
+}
+```
+
+**Response:** Profile object
+
+#### Get Life Story
+
+```
+GET /api/v1/profiles/me/life-story
+```
+
+**Response:**
+```json
+{
+  "life_story": "string"
+}
+```
 
 ### Profile Picture Endpoints
 
@@ -133,11 +268,11 @@ POST /api/v1/profiles/me/profile-picture
 **Response:**
 ```json
 {
-  "profile_picture_url": "string"
+  "profile_picture_key": "string"
 }
 ```
 
-#### Get Profile Picture URL
+#### Get Profile Picture Key
 
 ```
 GET /api/v1/profiles/me/profile-picture
@@ -146,7 +281,7 @@ GET /api/v1/profiles/me/profile-picture
 **Response:**
 ```json
 {
-  "profile_picture_url": "string"
+  "profile_picture_key": "string"
 }
 ```
 
@@ -159,7 +294,7 @@ DELETE /api/v1/profiles/me/profile-picture
 **Response:**
 ```json
 {
-  "profile_picture_url": null
+  "profile_picture_key": null
 }
 ```
 
@@ -176,11 +311,11 @@ POST /api/v1/profiles/me/signature
 **Response:**
 ```json
 {
-  "signature_url": "string"
+  "signature_key": "string"
 }
 ```
 
-#### Get Signature URL
+#### Get Signature Key
 
 ```
 GET /api/v1/profiles/me/signature
@@ -189,7 +324,7 @@ GET /api/v1/profiles/me/signature
 **Response:**
 ```json
 {
-  "signature_url": "string"
+  "signature_key": "string"
 }
 ```
 
@@ -202,7 +337,7 @@ DELETE /api/v1/profiles/me/signature
 **Response:**
 ```json
 {
-  "signature_url": null
+  "signature_key": null
 }
 ```
 

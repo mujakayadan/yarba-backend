@@ -16,6 +16,7 @@ from ..repositories.portfolio_repository import PortfolioRepository
 from ..repositories.profile_repository import ProfileRepository
 from ..repositories.resume_repository import ResumeRepository
 from ..repositories.user_repository import UserRepository
+from ..services.job_service import JobService
 
 logger = get_logger(__name__)
 
@@ -30,22 +31,25 @@ class CoverLetterService:
         profile_repository: Optional[ProfileRepository] = None,
         portfolio_repository: Optional[PortfolioRepository] = None,
         resume_repository: Optional[ResumeRepository] = None,
+        job_service: Optional[JobService] = None,
     ):
         """
         Initialize the service.
 
         Args:
-            cover_letter_repository: Cover letter repository instance
-            user_repository: User repository instance
-            profile_repository: Profile repository instance (optional)
-            portfolio_repository: Portfolio repository instance (optional)
-            resume_repository: Resume repository instance (optional)
+            cover_letter_repository: Cover letter repository
+            user_repository: User repository
+            profile_repository: Profile repository (optional)
+            portfolio_repository: Portfolio repository (optional)
+            resume_repository: Resume repository (optional)
+            job_service: Job service for extracting job information (optional)
         """
         self.cover_letter_repository = cover_letter_repository
         self.user_repository = user_repository
         self.profile_repository = profile_repository
         self.portfolio_repository = portfolio_repository
         self.resume_repository = resume_repository
+        self.job_service = job_service
         self.logger = get_logger(self.__class__.__name__)
 
     async def get_cover_letter_by_id(
@@ -124,9 +128,9 @@ class CoverLetterService:
 
         Args:
             user_id: User ID
-            profile_id: Profile ID (optional - if not provided, will look for user's default profile)
+            profile_id: Profile ID (optional)
             portfolio_id: Portfolio ID (optional)
-            resume_id: Resume ID (optional) - reference to the resume to base the cover letter on
+            resume_id: Resume ID (optional)
             title: Cover letter title (optional)
             company_name: Company name (optional)
             job_title: Job title (optional)
@@ -137,12 +141,30 @@ class CoverLetterService:
             CoverLetter: Created cover letter
 
         Raises:
-            NotFoundException: If user not found
+            NotFoundException: If user, profile, portfolio, or resume doesn't exist
         """
         # Verify user exists
-        if not await self.user_repository.exists(user_id):
+        user = await self.user_repository.get_by_id(user_id)
+        if not user:
             self.logger.warning(f"User not found: {user_id}")
             raise NotFoundException("User not found")
+
+        # Extract job info from description if not provided but job_description is available
+        if job_description and self.job_service and (not company_name or not job_title):
+            try:
+                self.logger.info("Extracting job information from job description")
+                job_info = await self.job_service.extract_job_info(job_description)
+
+                if not company_name and job_info.get("company_name"):
+                    company_name = job_info["company_name"]
+                    self.logger.info(f"Extracted company name: {company_name}")
+
+                if not job_title and job_info.get("job_title"):
+                    job_title = job_info["job_title"]
+                    self.logger.info(f"Extracted job title: {job_title}")
+            except Exception as e:
+                self.logger.error(f"Error extracting job info: {str(e)}")
+                # Continue even if extraction fails
 
         # Verify profile exists if provided
         if profile_id and self.profile_repository:

@@ -90,6 +90,7 @@ async def get_job_service(
 async def get_resume_service(
     user_repo=Depends(get_user_repository),
     resume_repo=Depends(get_resume_repository),
+    job_service=Depends(get_job_service),
 ) -> ResumeService:
     """Get a resume service.
 
@@ -99,6 +100,7 @@ async def get_resume_service(
     return ResumeService(
         user_repository=user_repo,
         resume_repository=resume_repo,
+        job_service=job_service,
     )
 
 
@@ -139,6 +141,7 @@ def get_cover_letter_service(
     profile_repo=Depends(get_profile_repository),
     portfolio_repo=Depends(get_portfolio_repository),
     resume_repo=Depends(get_resume_repository),
+    job_service=Depends(get_job_service),
 ) -> CoverLetterService:
     """Get a cover letter service.
 
@@ -151,6 +154,7 @@ def get_cover_letter_service(
         profile_repository=profile_repo,
         portfolio_repository=portfolio_repo,
         resume_repository=resume_repo,
+        job_service=job_service,
     )
 
 

@@ -324,7 +324,21 @@ class ResumeGenerationService:
                 if portfolio.custom_sections and portfolio.custom_sections.enabled:
                     for custom_section in portfolio.custom_sections.enabled:
                         if custom_section not in sections_data:
-                            sections_data[custom_section] = portfolio.custom_sections
+                            # Only add the section if it actually exists in the portfolio
+                            # Don't blindly add the entire custom_sections object
+                            # Check if the section exists as an attribute in the portfolio
+                            if hasattr(portfolio, custom_section):
+                                # Get the section data from the portfolio
+                                section_value = getattr(portfolio, custom_section)
+                                if section_value:  # Only add non-empty sections
+                                    sections_data[custom_section] = section_value
+                                    self.logger.debug(
+                                        f"Added custom section from portfolio: {custom_section}"
+                                    )
+                            else:
+                                self.logger.warning(
+                                    f"Custom section '{custom_section}' is enabled but does not exist in portfolio"
+                                )
 
         except Exception as e:
             self.logger.error(f"Error collecting portfolio sections: {e}")

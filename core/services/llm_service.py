@@ -304,51 +304,91 @@ class LLMService:
         Get a completion from the LLM.
 
         Args:
-            prompt: The prompt text
-            system_prompt: Optional system prompt
-            model: Optional model override
-            temperature: Optional temperature override
-            max_tokens: Optional max tokens override
+            prompt: The prompt to send to the LLM
+            system_prompt: Optional system prompt (for models that support it)
+            model: Optional model to use (overrides instance default)
+            temperature: Optional temperature (overrides instance default)
+            max_tokens: Optional max tokens (overrides instance default)
 
         Returns:
-            Completion text from the LLM
+            str: The LLM's completion
+
+        Raises:
+            Exception: If the LLM call fails
         """
         try:
-            # Use provided values or fall back to instance defaults
+            # Use provided parameters or class defaults
             model = model or self.model
-            temperature = temperature or self.temperature
+            temperature = temperature if temperature is not None else self.temperature
             max_tokens = max_tokens or self.max_tokens
 
-            # Prepare messages
+            # Get provider from model name
+            provider = self._get_provider_from_model(model)
+
+            # Create messages with both system and user content
             messages = []
             if system_prompt:
                 messages.append({"role": "system", "content": system_prompt})
             messages.append({"role": "user", "content": prompt})
 
-            # Get the provider for this model
-            provider = self._get_provider_from_model(model)
-            api_key = self.api_keys.get(provider) if provider else None
+            # Set up the completion parameters
+            completion_kwargs = {
+                "model": model,
+                "messages": messages,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            }
 
-            # Log the request
-            self.logger.debug(
-                f"Sending request to {model} with temperature {temperature}"
-            )
+            # Add provider if available
+            if provider:
+                completion_kwargs["api_base"] = None  # Let LiteLLM handle API base
+                completion_kwargs["api_key"] = self.api_keys.get(provider)
 
-            # Call the LLM with the appropriate API key
-            response = await acompletion(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                api_key=api_key,  # Pass API key directly to the completion function
-            )
+            self.logger.debug(f"Calling LLM with model: {model}, temp: {temperature}")
 
-            # Process the response
-            content = response.choices[0].message.content
-            return content
+            # Make the API call with retry logic to handle transient failures
+            max_retries = 2
+            retry_delay = 2  # seconds
+
+            for attempt in range(max_retries + 1):
+                try:
+                    # Get completion from LiteLLM
+                    response = await acompletion(**completion_kwargs)
+
+                    # Extract and return the completion text
+                    completion_text = response.choices[0].message.content
+
+                    # Truncate for logging if too long
+                    log_text = (
+                        completion_text
+                        if len(completion_text) < 100
+                        else f"{completion_text[:100]}... (truncated)"
+                    )
+                    self.logger.debug(f"LLM response: {log_text}")
+
+                    return completion_text
+
+                except Exception as e:
+                    if attempt < max_retries:
+                        self.logger.warning(
+                            f"LLM call attempt {attempt+1} failed: {str(e)}. Retrying in {retry_delay}s..."
+                        )
+                        await asyncio.sleep(retry_delay)
+                        # Double delay for next retry
+                        retry_delay *= 2
+                    else:
+                        # Last attempt failed, raise the exception
+                        self.logger.error(
+                            f"All LLM call attempts failed. Last error: {str(e)}"
+                        )
+                        raise
 
         except Exception as e:
-            self.logger.error(f"Error getting completion: {e}")
+            self.logger.error(f"Error getting LLM completion: {str(e)}")
+            self.logger.error(f"Model: {model}, Prompt length: {len(prompt)}")
+            # Log prompt first 100 chars for debugging
+            truncated_prompt = prompt[:100] + "..." if len(prompt) > 100 else prompt
+            self.logger.error(f"Prompt start: {truncated_prompt}")
             raise
 
     async def get_structured_completion(
@@ -619,6 +659,10 @@ Resume Content:
         Returns:
             Tuple of (company_name, job_title)
         """
+        if not job_description or len(job_description.strip()) < 50:
+            self.logger.warning(f"Job description too short: {job_description}")
+            return "unknown_company", "unknown_position"
+
         try:
             # Get the folder name prompt
             folder_name_prompt = await self.prompt_service.get_folder_name_prompt()
@@ -626,22 +670,55 @@ Resume Content:
             # Use the LLM service to get the completion
             system_prompt = await self.prompt_service.get_system_prompt()
 
+            # Trim job description if it's too long to avoid token limits
+            max_desc_length = 5000
+            trimmed_job_description = (
+                job_description[:max_desc_length]
+                if len(job_description) > max_desc_length
+                else job_description
+            )
+
+            # Create a very explicit prompt
+            prompt = f'{folder_name_prompt}\n\nJob Description:\n{trimmed_job_description}\n\nYour task is to extract ONLY the company name and job title from this job description. Reply with VALID JSON only in this format: {{"company_name": "extracted_company_name", "job_title": "extracted_job_title"}}'
+
             response = await self.get_completion(
-                prompt=f"{folder_name_prompt}\n\nJob Description:\n{job_description}",
+                prompt=prompt,
                 system_prompt=system_prompt,
+                temperature=0.1,  # Lower temperature for more deterministic results
             )
 
             # Parse the JSON response according to CompanyJobSchema format
             try:
                 import json
 
-                parsed_response = json.loads(response)
+                # Clean the response to ensure it's valid JSON
+                cleaned_response = response.strip()
+                # Sometimes the response includes markdown code blocks or extra text
+                if "```json" in cleaned_response:
+                    json_start = cleaned_response.find("```json") + 7
+                    json_end = cleaned_response.find("```", json_start)
+                    cleaned_response = cleaned_response[json_start:json_end].strip()
+                elif "```" in cleaned_response:
+                    json_start = cleaned_response.find("```") + 3
+                    json_end = cleaned_response.find("```", json_start)
+                    cleaned_response = cleaned_response[json_start:json_end].strip()
+
+                # Parse the JSON
+                parsed_response = json.loads(cleaned_response)
 
                 # Extract values from the parsed JSON
                 company_name = parsed_response.get("company_name", "unknown_company")
                 job_title = parsed_response.get("job_title", "unknown_position")
 
-                # Return the extracted values
+                # Validate that we don't have empty values
+                if not company_name or company_name == "":
+                    company_name = "unknown_company"
+                if not job_title or job_title == "":
+                    job_title = "unknown_position"
+
+                self.logger.info(
+                    f"Successfully extracted company: {company_name}, job: {job_title}"
+                )
                 return company_name, job_title
 
             except json.JSONDecodeError as e:
@@ -657,6 +734,42 @@ Resume Content:
             if company_match and job_match:
                 company_name = company_match.group(1)
                 job_title = job_match.group(1)
+
+                # Validate that we don't have empty values
+                if not company_name or company_name == "":
+                    company_name = "unknown_company"
+                if not job_title or job_title == "":
+                    job_title = "unknown_position"
+
+                self.logger.info(
+                    f"Extracted via regex - company: {company_name}, job: {job_title}"
+                )
+                return company_name, job_title
+
+            # Try other regex patterns that might match different formats
+            company_matches = [
+                re.search(r'company_name["\']:\s*["\']([^"\']+)["\']', response),
+                re.search(r'company["\']:\s*["\']([^"\']+)["\']', response),
+                re.search(r"company:\s*([^\n,]+)", response),
+            ]
+
+            job_matches = [
+                re.search(r'job_title["\']:\s*["\']([^"\']+)["\']', response),
+                re.search(r'job["\']:\s*["\']([^"\']+)["\']', response),
+                re.search(r'position["\']:\s*["\']([^"\']+)["\']', response),
+                re.search(r'title["\']:\s*["\']([^"\']+)["\']', response),
+                re.search(r"job_title:\s*([^\n,]+)", response),
+            ]
+
+            company_name = next(
+                (m.group(1) for m in company_matches if m), "unknown_company"
+            )
+            job_title = next((m.group(1) for m in job_matches if m), "unknown_position")
+
+            if company_name != "unknown_company" or job_title != "unknown_position":
+                self.logger.info(
+                    f"Extracted via alternate regex - company: {company_name}, job: {job_title}"
+                )
                 return company_name, job_title
 
             # If all parsing fails, return default values
