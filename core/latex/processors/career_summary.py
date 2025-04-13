@@ -36,13 +36,17 @@ class CareerSummaryProcessor(SectionProcessor):
             summary = sanitize_latex(data)
         # Handle dictionary format
         elif isinstance(data, dict):
-            # Extract job title - prioritize job_titles array
-            if (
+            # First check for the default_job_title field
+            if "default_job_title" in data and data["default_job_title"]:
+                job_title = sanitize_latex(data["default_job_title"])
+            # Fall back to first job title in the list if default not set
+            elif (
                 "job_titles" in data
                 and isinstance(data["job_titles"], list)
                 and data["job_titles"]
             ):
                 job_title = sanitize_latex(data["job_titles"][0])
+            # Check for a single job_title field
             elif "job_title" in data:
                 job_title = sanitize_latex(data.get("job_title", ""))
 

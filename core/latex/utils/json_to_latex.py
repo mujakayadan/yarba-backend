@@ -420,12 +420,17 @@ def process_career_summary(content: Any) -> str:
 
     if isinstance(data, dict):
         job_titles = data.get("job_titles", [])
+        default_job_title = data.get("default_job_title", "")
         years_of_experience = data.get("years_of_experience", "")
         default_summary = data.get("default_summary", "")
 
         # Get the primary job title
         primary_title = ""
-        if isinstance(job_titles, list) and job_titles:
+        # Prioritize default_job_title if available
+        if default_job_title:
+            primary_title = sanitize_latex(default_job_title)
+        # Fall back to first job title in the list
+        elif isinstance(job_titles, list) and job_titles:
             primary_title = sanitize_latex(job_titles[0])
         elif isinstance(job_titles, str):
             primary_title = sanitize_latex(job_titles)

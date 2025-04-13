@@ -17,6 +17,10 @@ class CareerSummary(BaseModel):
         default=[],
         description="List of job titles the user has held. The LLM will choose the most suitable one.",
     )
+    default_job_title: str = Field(
+        default="",
+        description="Default job title to use when hardcoding or when LLM fails to select one.",
+    )
     years_of_experience: str = Field(
         default="", description="Years of experience in the field."
     )
@@ -26,6 +30,13 @@ class CareerSummary(BaseModel):
     )
 
     model_config = {"validate_assignment": True}
+
+    @model_validator(mode="after")
+    def set_default_job_title_if_empty(self) -> "CareerSummary":
+        """Set default_job_title to the first job title if not specified and job_titles exists."""
+        if not self.default_job_title and self.job_titles:
+            self.default_job_title = self.job_titles[0]
+        return self
 
 
 class WorkExperience(BaseModel):
