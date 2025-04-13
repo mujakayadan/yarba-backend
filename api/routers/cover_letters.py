@@ -1,5 +1,6 @@
 """API router for cover letter endpoints."""
 
+from datetime import datetime
 from typing import Annotated, List, Optional
 
 from beanie import PydanticObjectId
@@ -23,7 +24,9 @@ from core.models.user import User
 from core.services.cover_letter_generation_service import CoverLetterGenerationService
 from core.services.cover_letter_service import CoverLetterService
 from core.services.job_service import JobService
+from core.services.portfolio_service import PortfolioService
 from core.services.profile_service import ProfileService
+from core.services.resume_service import ResumeService
 from utils.storage import get_storage_provider
 
 from ..dependencies.auth import CurrentUser, get_current_active_user
@@ -31,7 +34,9 @@ from ..dependencies.services import (
     get_cover_letter_generation_service,
     get_cover_letter_service,
     get_job_service,
+    get_portfolio_service,
     get_profile_service,
+    get_resume_service,
 )
 from ..schemas.cover_letter import (
     CoverLetterCreate,
@@ -48,6 +53,22 @@ class CoverLetterPDFResponse(BaseModel):
     """Response model for cover letter PDF URL."""
 
     pdf_url: Optional[str] = None
+
+
+def convert_cover_letter_to_response(cover_letter) -> CoverLetterResponse:
+    """
+    Convert a CoverLetter model to a CoverLetterResponse schema, ensuring has_pdf is set correctly.
+
+    Args:
+        cover_letter: CoverLetter model instance
+
+    Returns:
+        CoverLetterResponse: API response model with correctly set has_pdf field
+    """
+    response = CoverLetterResponse.model_validate(cover_letter)
+    # Explicitly set has_pdf based on cover_letter_pdf_key
+    response.has_pdf = bool(cover_letter.cover_letter_pdf_key)
+    return response
 
 
 @router.get("", response_model=List[CoverLetterResponse])
@@ -92,7 +113,7 @@ async def get_cover_letters(
         logger.info(
             f"Retrieved {len(cover_letters)} cover letters for user {current_user.username}"
         )
-        return [CoverLetterResponse.model_validate(cl) for cl in cover_letters]
+        return [convert_cover_letter_to_response(cl) for cl in cover_letters]
 
     except Exception as e:
         logger.error(f"Error retrieving cover letters: {str(e)}")
@@ -128,7 +149,7 @@ async def get_cover_letter(
         logger.info(
             f"Retrieved cover letter {cover_letter_id} for user {current_user.username}"
         )
-        return CoverLetterResponse.model_validate(cover_letter)
+        return convert_cover_letter_to_response(cover_letter)
 
     except Exception as e:
         logger.error(f"Error retrieving cover letter {cover_letter_id}: {str(e)}")
@@ -147,30 +168,91 @@ async def create_cover_letter(
     ],
     current_user: CurrentUser,
     cover_letter_service: CoverLetterService = Depends(get_cover_letter_service),
+    resume_service: ResumeService = Depends(get_resume_service),
     job_service: JobService = Depends(get_job_service),
+    generation_service: CoverLetterGenerationService = Depends(
+        get_cover_letter_generation_service
+    ),
+    profile_service: ProfileService = Depends(get_profile_service),
+    portfolio_service: PortfolioService = Depends(get_portfolio_service),
 ) -> CoverLetterResponse:
     """
     Create a new cover letter.
 
     Args:
-        cover_letter_data: Cover letter creation data
+        cover_letter_data: Cover letter creation data containing:
+            - resume_id: Resume ID that this cover letter is based on
+            - generate_pdf: Optional boolean to trigger immediate PDF generation (default: False)
         current_user: Current authenticated user
         cover_letter_service: Cover letter service
+        resume_service: Resume service for getting resume details
         job_service: Job service for extracting job information
+        generation_service: Cover letter generation service for PDF generation
+        profile_service: Profile service for accessing user preferences
+        portfolio_service: Portfolio service for getting active portfolio
 
     Returns:
-        CoverLetterResponse: Created cover letter
+        CoverLetterResponse: Created cover letter with has_pdf=True if PDF was generated
+
+    Raises:
+        HTTPException: If cover letter creation fails
     """
     try:
-        # Extract job information from job description if provided
-        company_name = cover_letter_data.company_name
-        job_title = cover_letter_data.job_title
+        # Get user ID
+        user_id = PydanticObjectId(current_user.id)
 
-        if cover_letter_data.job_description and (not company_name or not job_title):
-            try:
-                job_info = await job_service.extract_job_info(
-                    cover_letter_data.job_description
+        # Get user profile
+        try:
+            profile = await profile_service.get_profile_by_user_id(user_id)
+            if not profile:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No profile found. Please create a profile first.",
                 )
+        except Exception as e:
+            logger.error(f"Error retrieving profile: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to retrieve user profile.",
+            )
+
+        # Get user portfolio
+        try:
+            portfolio = await portfolio_service.get_portfolio_by_user_id(user_id)
+            if not portfolio:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No portfolio found. Please create a portfolio first.",
+                )
+        except Exception as e:
+            logger.error(f"Error retrieving portfolio: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to retrieve user portfolio.",
+            )
+
+        # Get resume to base the cover letter on
+        try:
+            resume = await resume_service.get_resume_by_id(
+                resume_id=cover_letter_data.resume_id,
+                user_id=user_id,
+            )
+        except Exception as e:
+            logger.error(f"Error retrieving resume: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Resume not found or access denied.",
+            )
+
+        # Extract job information from resume
+        company_name = resume.company_name
+        job_title = resume.job_title
+        job_description = resume.job_description
+
+        # If resume doesn't have job info, try to extract it
+        if job_description and (not company_name or not job_title):
+            try:
+                job_info = await job_service.extract_job_info(job_description)
                 if not company_name and "company_name" in job_info:
                     company_name = job_info["company_name"]
                 if not job_title and "job_title" in job_info:
@@ -179,24 +261,81 @@ async def create_cover_letter(
                 logger.warning(f"Error extracting job info: {str(e)}")
                 # Continue even if job info extraction fails
 
+        # Get default template from profile or use default
+        template_id = "default"
+        if (
+            profile.preferences
+            and hasattr(profile.preferences, "default_latex_templates")
+            and profile.preferences.default_latex_templates
+        ):
+            template_id = profile.preferences.default_latex_templates.get(
+                "default_cover_letter_template_id", "default"
+            )
+
+        # Generate a title based on job info
+        title = f"Cover Letter"
+        if job_title and company_name:
+            title = f"Cover Letter for {job_title} at {company_name}"
+        elif job_title:
+            title = f"Cover Letter for {job_title}"
+        elif company_name:
+            title = f"Cover Letter for {company_name}"
+
+        # Add timestamp to title
+        title = f"{title} - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+
         # Create cover letter
         cover_letter = await cover_letter_service.create_cover_letter(
-            user_id=current_user.id,
-            profile_id=cover_letter_data.profile_id,
-            portfolio_id=cover_letter_data.portfolio_id,
+            user_id=user_id,
+            profile_id=profile.id,
+            portfolio_id=portfolio.id,
             resume_id=cover_letter_data.resume_id,
-            title=cover_letter_data.title,
+            title=title,
             company_name=company_name,
             job_title=job_title,
-            job_description=cover_letter_data.job_description,
-            template_id=cover_letter_data.template_id,
+            job_description=job_description,
+            template_id=template_id,
         )
 
         logger.info(
             f"Created cover letter {cover_letter.id} for user {current_user.username}"
         )
-        return CoverLetterResponse.model_validate(cover_letter)
 
+        # If PDF generation is requested, generate content and PDF
+        if cover_letter_data.generate_pdf:
+            try:
+                logger.info(
+                    f"Generating content and PDF for cover letter: {cover_letter.id}"
+                )
+
+                # Generate cover letter content
+                await generation_service.generate_cover_letter_content(
+                    cover_letter_id=cover_letter.id
+                )
+
+                # Generate PDF
+                await generation_service.generate_pdf(cover_letter.id)
+
+                # Get the updated cover letter with PDF key
+                cover_letter = await cover_letter_service.get_cover_letter_by_id(
+                    cover_letter_id=cover_letter.id,
+                    user_id=user_id,
+                )
+                logger.info(
+                    f"PDF generated successfully for cover letter: {cover_letter.id}"
+                )
+            except Exception as pdf_error:
+                # Log error but don't fail the entire cover letter creation
+                logger.error(
+                    f"Error generating PDF during cover letter creation: {str(pdf_error)}"
+                )
+                # We'll still return the created cover letter without PDF
+
+        return convert_cover_letter_to_response(cover_letter)
+
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
         logger.error(f"Error creating cover letter: {str(e)}")
         raise HTTPException(
@@ -240,7 +379,7 @@ async def update_cover_letter(
         logger.info(
             f"Updated cover letter {cover_letter_id} for user {current_user.username}"
         )
-        return CoverLetterResponse.model_validate(updated_cover_letter)
+        return convert_cover_letter_to_response(updated_cover_letter)
 
     except Exception as e:
         logger.error(f"Error updating cover letter {cover_letter_id}: {str(e)}")
@@ -347,7 +486,7 @@ async def generate_cover_letter(
         )
 
         logger.info(f"Generated cover letter content for {cover_letter_id}")
-        return CoverLetterResponse.model_validate(updated_cover_letter)
+        return convert_cover_letter_to_response(updated_cover_letter)
 
     except HTTPException:
         raise

@@ -39,6 +39,7 @@ from config.settings import settings
 from core.exceptions.base import NotFoundException
 from core.models.portfolio import Portfolio
 from core.models.profile import PersonalInformation
+from core.models.resume import Resume
 from core.models.user import User
 from core.services.job_service import JobService
 from core.services.portfolio_service import PortfolioService
@@ -57,12 +58,27 @@ class ResumePDFResponse(BaseModel):
     pdf_url: Optional[str] = None
 
 
+def convert_resume_to_response(resume: Resume) -> ResumeResponse:
+    """
+    Convert a Resume model to a ResumeResponse schema, ensuring has_pdf is set correctly.
+
+    Args:
+        resume: Resume model instance
+
+    Returns:
+        ResumeResponse: API response model with correctly set has_pdf field
+    """
+    response = ResumeResponse.model_validate(resume)
+    # Explicitly set has_pdf based on resume_pdf_key
+    response.has_pdf = bool(resume.resume_pdf_key)
+    return response
+
+
 @router.post("", response_model=ResumeResponse, status_code=status.HTTP_201_CREATED)
 async def create_resume(
     request: ResumeCreate,
     current_user: CurrentUser,
     resume_service: ResumeService = Depends(get_resume_service),
-    job_service: JobService = Depends(get_job_service),
     resume_generation_service: ResumeGenerationService = Depends(
         get_resume_generation_service
     ),
@@ -70,156 +86,108 @@ async def create_resume(
     portfolio_service: PortfolioService = Depends(get_portfolio_service),
 ) -> ResumeResponse:
     """
-    Create a new resume using user profile preferences.
+    Create a new resume.
 
     Args:
-        request: Resume creation request (minimal, most settings come from profile)
+        request: Resume creation request containing:
+            - job_description: Required description of the job being applied for
+            - generate_pdf: Optional boolean to trigger immediate PDF generation (default: False)
         current_user: Current authenticated user
         resume_service: Resume service
-        job_service: Job service
         resume_generation_service: Resume generation service
         profile_service: Profile service
         portfolio_service: Portfolio service
 
     Returns:
-        ResumeResponse: Created resume
+        ResumeResponse: Created resume with has_pdf=True if PDF was generated
 
     Raises:
         HTTPException: If resume creation fails
     """
     try:
-        # First, get the user's profile - this is required
-        try:
-            profile = await profile_service.get_profile_by_user_id(current_user.id)
-            profile_id = profile.id
-        except Exception as e:
-            logger.error(f"Error getting profile for user {current_user.id}: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User profile not found. Please create a profile first.",
-            )
+        # Get user ID
+        user_id = PydanticObjectId(current_user.id)
 
-        # Get the user's portfolio or create one if it doesn't exist
+        # Get user profile
         try:
-            # Try to get an existing portfolio
-            portfolio = await portfolio_service.get_portfolio_by_user_id(
-                current_user.id
-            )
-            portfolio_id = portfolio.id
-        except NotFoundException:
-            # Create a default portfolio if none exists
-            logger.info(
-                f"No portfolio found for user {current_user.id}, creating a default one"
-            )
-            portfolio_repository = portfolio_service.portfolio_repository
-            portfolio = await portfolio_repository.create_for_user(
-                user_id=PydanticObjectId(current_user.id), profile_id=profile_id
-            )
-            portfolio_id = portfolio.id
-
-        # Get template ID from request or from profile preferences
-        template_id = request.template_id
-        if (
-            not template_id
-            and profile.preferences
-            and profile.preferences.default_latex_templates
-        ):
-            template_id = profile.preferences.default_latex_templates.get(
-                "default_resume_template_id", "classic"
-            )
-
-        # Create the resume with the profile ID and other fields
-        try:
-            resume = await resume_service.create_resume(
-                user_id=PydanticObjectId(current_user.id),
-                profile_id=profile_id,
-                portfolio_id=portfolio_id,
-                template_id=template_id,
-                job_description=getattr(request, "job_description", None),
-            )
-        except NotFoundException as e:
-            if "portfolio" in str(e).lower():
-                # Specific error message for missing portfolio
-                logger.warning(f"Portfolio not found for user {current_user.id}")
+            profile = await profile_service.get_profile_by_user_id(user_id)
+            if not profile:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="User portfolio not found. Please create a portfolio first.",
+                    detail="No profile found. Please create a profile first.",
                 )
-            # Re-raise other NotFoundException errors
+        except Exception as e:
+            logger.error(f"Error retrieving profile: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=str(e),
+                detail="Failed to retrieve user profile.",
             )
 
-        # If job description is provided, use it to enhance the resume
-        if request.job_description:
-            # Extract job info
-            job_info = await job_service.extract_job_info(request.job_description)
-
-            # Update resume with job information
-            update_data = {
-                "job_description": request.job_description,
-                "company_name": job_info.get("company_name"),
-                "job_title": job_info.get("job_title"),
-            }
-
-            # The title will be automatically generated by ResumeService's update_resume method
-            # based on company_name and job_title
-
-            resume = await resume_service.update_resume(
-                resume_id=resume.id,
-                user_id=PydanticObjectId(current_user.id),
-                update_data=update_data,
+        # Get user portfolio
+        try:
+            portfolio = await portfolio_service.get_portfolio_by_user_id(user_id)
+            if not portfolio:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No portfolio found. Please create a portfolio first.",
+                )
+        except Exception as e:
+            logger.error(f"Error retrieving portfolio: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to retrieve user portfolio.",
             )
 
-            # Use section preferences from profile
-            regenerate_sections = None
-            if profile and profile.preferences:
-                if hasattr(profile.preferences, "section_preferences"):
-                    regenerate_sections = profile.preferences.section_preferences
-                else:
-                    regenerate_sections = settings.preferences.section_preferences
-            else:
-                regenerate_sections = settings.preferences.section_preferences
+        # Create resume with minimal required parameters
+        # Template ID will be fetched from profile preferences
+        # Company name and job title will be extracted from job description
+        resume = await resume_service.create_resume(
+            user_id=user_id,
+            profile_id=profile.id,
+            portfolio_id=portfolio.id,
+            job_description=request.job_description,
+        )
+        logger.info(f"Resume created: {resume.id}")
 
-            # Override with request sections if explicitly provided
-            if request.selected_sections:
-                regenerate_sections = request.selected_sections
+        # If PDF generation is requested, generate content and PDF
+        if request.generate_pdf:
+            try:
+                logger.info(f"Generating content and PDF for resume: {resume.id}")
 
-            # Get LLM preferences from profile
-            llm_preferences = None
-            if (
-                profile
-                and profile.preferences
-                and hasattr(profile.preferences, "llm_preferences")
-            ):
-                llm_preferences = profile.preferences.llm_preferences
+                # Generate resume content
+                content = await resume_generation_service.generate_resume_content(
+                    resume_id=resume.id
+                )
 
-            # Override with request LLM preferences if explicitly provided
-            if request.llm_preferences:
-                llm_preferences = request.llm_preferences
+                # Generate LaTeX
+                await resume_generation_service.generate_latex(resume.id)
 
-            # Generate resume content based on job description
-            if regenerate_sections:
-                try:
-                    await resume_generation_service.generate_resume_content(
-                        resume_id=resume.id,
-                        regenerate_sections=list(regenerate_sections),
-                        llm_preferences=llm_preferences,
-                    )
-                    # Fetch the updated resume
+                # Compile PDF
+                pdf_content = await resume_generation_service.compile_pdf(resume.id)
+
+                if pdf_content:
+                    # Get the updated resume with PDF key
                     resume = await resume_service.get_resume_by_id(
-                        resume_id=resume.id, user_id=PydanticObjectId(current_user.id)
+                        resume_id=resume.id,
+                        user_id=user_id,
                     )
-                except Exception as generation_error:
-                    logger.error(
-                        f"Error generating resume content: {str(generation_error)}"
+                    logger.info(f"PDF generated successfully for resume: {resume.id}")
+                else:
+                    logger.warning(
+                        f"PDF generation returned empty content for resume: {resume.id}"
                     )
-                    # Continue to return the resume without generated content to avoid blocking resume creation
+            except Exception as pdf_error:
+                # Log error but don't fail the entire resume creation
+                logger.error(
+                    f"Error generating PDF during resume creation: {str(pdf_error)}"
+                )
+                # We'll still return the created resume without PDF
 
-        logger.info(f"Resume created: {resume.id} for user {current_user.id}")
-        return ResumeResponse.model_validate(resume)
+        return convert_resume_to_response(resume)
 
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
         logger.error(f"Error creating resume: {str(e)}")
         raise HTTPException(
@@ -237,54 +205,51 @@ async def get_resumes(
     resume_service: ResumeService = Depends(get_resume_service),
 ) -> PaginatedResumeResponse:
     """
-    Get all resumes for the current user with pagination.
+    Get all resumes for the current user.
 
     Args:
         current_user: Current authenticated user
         skip: Number of resumes to skip
         limit: Number of resumes to return
-        sort_by: Sort option (updated_desc, updated_asc, created_desc, created_asc, title_asc, title_desc)
+        sort_by: Sort field and direction
         resume_service: Resume service
 
     Returns:
-        PaginatedResumeResponse: Paginated list of resumes with total count
+        PaginatedResumeResponse: List of resumes and total count
     """
     try:
-        # Create filter using the API schema ResumeFilter
+        # Create filter
         filter_params = ResumeFilter(
             skip=skip,
             limit=limit,
             sort_by=sort_by,
         )
 
-        # Get total count first (without pagination)
-        total_count = await resume_service.count_resumes(
-            user_id=PydanticObjectId(current_user.id),
-            filter_params=filter_params,
-        )
-
-        # Get resumes with pagination and sorting
+        # Get resumes matching filter
         resumes = await resume_service.filter_resumes(
             user_id=PydanticObjectId(current_user.id),
             filter_params=filter_params,
         )
 
-        # Apply pagination manually since we're using API pagination
-        paginated_resumes = resumes[skip : skip + limit]
+        # Count total matching filter (without pagination)
+        total = await resume_service.count_resumes(
+            user_id=PydanticObjectId(current_user.id),
+            filter_params=filter_params,
+        )
 
-        # Create response with paginated items and total count
+        # Convert resumes to response schema
+        resume_responses = [convert_resume_to_response(resume) for resume in resumes]
+
         return PaginatedResumeResponse(
-            items=[
-                ResumeResponse.model_validate(resume) for resume in paginated_resumes
-            ],
-            total=total_count,
+            items=resume_responses,
+            total=total,
         )
 
     except Exception as e:
         logger.error(f"Error getting resumes: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get resumes",
+            detail=f"Failed to get resumes: {str(e)}",
         )
 
 
@@ -314,7 +279,7 @@ async def get_resume(
             user_id=PydanticObjectId(current_user.id),
         )
 
-        return ResumeResponse.model_validate(resume)
+        return convert_resume_to_response(resume)
 
     except Exception as e:
         logger.error(f"Error getting resume {resume_id}: {str(e)}")
@@ -358,7 +323,7 @@ async def update_resume(
         )
 
         logger.info(f"Resume updated: {resume_id}")
-        return ResumeResponse.model_validate(resume)
+        return convert_resume_to_response(resume)
 
     except Exception as e:
         logger.error(f"Error updating resume {resume_id}: {str(e)}")
@@ -421,32 +386,34 @@ async def generate_resume(
     resume_service: ResumeService = Depends(get_resume_service),
 ) -> ResumeResponse:
     """
-    Generate resume content based on job description.
+    Generate resume content using LLM.
 
     Args:
         resume_id: Resume ID
-        selected_sections: List of section names to generate
+        selected_sections: Selected sections to generate
         current_user: Current authenticated user
         resume_generation_service: Resume generation service
         resume_service: Resume service
 
     Returns:
-        ResumeResponse: Updated resume with generated content
+        ResumeResponse: Generated resume
 
     Raises:
-        HTTPException: If resume not found or generation fails
+        HTTPException: If resume generation fails
     """
     try:
-        # Verify resume exists and belongs to user
+        logger.info(f"Generating resume content for resume: {resume_id}")
+
+        # Get resume
         resume = await resume_service.get_resume_by_id(
             resume_id=resume_id,
             user_id=PydanticObjectId(current_user.id),
         )
 
-        # Generate resume content
-        await resume_generation_service.generate_resume_content(
+        # Generate content
+        content = await resume_generation_service.generate_resume_content(
             resume_id=resume_id,
-            regenerate_sections=selected_sections,
+            selected_sections=set(selected_sections) if selected_sections else None,
         )
 
         # Get updated resume
@@ -455,14 +422,14 @@ async def generate_resume(
             user_id=PydanticObjectId(current_user.id),
         )
 
-        logger.info(f"Resume content generated: {resume_id}")
-        return ResumeResponse.model_validate(updated_resume)
+        logger.info(f"Resume content generated for resume: {resume_id}")
+        return convert_resume_to_response(updated_resume)
 
     except Exception as e:
-        logger.error(f"Error generating resume content for {resume_id}: {str(e)}")
+        logger.error(f"Error generating resume content: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to generate resume content",
+            detail=f"Failed to generate resume content: {str(e)}",
         )
 
 

@@ -19,30 +19,15 @@ class ResumeCreate(BaseModel):
     """
     Schema for resume creation.
 
-    By default, preferences such as section selections and LLM settings will be taken
-    from the user's profile. These can be optionally overridden by providing the fields below.
+    Only job description is required - all other information will be extracted from the
+    job description or taken from the user's profile preferences automatically.
     """
 
     job_description: str = Field(
         ..., description="Job description to tailor the resume for"
     )
-    company_name: Optional[str] = Field(
-        None, description="Company name to tailor the resume for"
-    )
-    job_title: Optional[str] = Field(
-        None, description="Job title to tailor the resume for"
-    )
-    template_id: Optional[str] = Field(
-        None,
-        description="Template ID (if not provided, will be taken from profile preferences)",
-    )
-    selected_sections: Optional[Dict[str, str]] = Field(
-        None,
-        description="Optional sections to include and their processing method (will use profile preferences if not provided)",
-    )
-    llm_preferences: Optional[Dict[str, Any]] = Field(
-        None,
-        description="Optional LLM settings for generation (will use profile preferences if not provided)",
+    generate_pdf: bool = Field(
+        False, description="Whether to generate PDF immediately after resume creation"
     )
 
 
@@ -115,10 +100,24 @@ class ResumeResponse(BaseModel):
         # Get the standard model dump
         data = super().model_dump(**kwargs)
 
-        # Calculate has_pdf field from resume_pdf_key if it exists in source data
-        if hasattr(self, "__pydantic_private__"):
+        # With Pydantic v2, we need a different approach to access the original data
+        original_obj = getattr(self, "__dict__", {}).get(
+            "__pydantic_fields_set__", None
+        )
+
+        # Try different methods to get resume_pdf_key
+        if hasattr(self, "resume_pdf_key"):
+            # Direct attribute access if available
+            data["has_pdf"] = bool(self.resume_pdf_key)
+        elif hasattr(self, "__pydantic_private__"):
+            # Traditional private data approach
             original_data = self.__pydantic_private__.get("data", {})
             data["has_pdf"] = bool(original_data.get("resume_pdf_key"))
+        elif hasattr(self, "__dict__") and "_obj" in self.__dict__:
+            # Access via the underlying object if using from_attributes
+            data["has_pdf"] = bool(
+                getattr(self.__dict__["_obj"], "resume_pdf_key", None)
+            )
 
         # Remove any sensitive or internal fields
         for field in ["resume_pdf_key"]:
