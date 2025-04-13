@@ -6,12 +6,11 @@ TEMPLATE = """Task:
 Based on the provided job description and the given education information, create a structured education section.
 
 Instructions:
-- Include a maximum of ${education_details_max_entries} educational entries, prioritizing the most relevant and recent
+- Include a maximum of ${education_details_max_entries} schools, prioritizing the most relevant and recent
 - List education in reverse chronological order (most recent first)
 - Include only the most relevant educational experiences that support the target position
 - For each degree, include up to ${education_details_max_courses} key courses that are most relevant to the job description
 - Format degree types consistently (e.g., "B.Sc.", "M.S.", "Ph.D.")
-- Include GPA if it's above 3.5 or if it's specifically mentioned as important in the job description
 - Focus on education details that demonstrate qualifications for the position
 
 Output Format:
