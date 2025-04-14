@@ -354,24 +354,7 @@ POST /api/v1/resumes
 **Request Body:**
 ```json
 {
-  "title": "string",
-  "template_id": "string",
-  "job_description": "string (optional)",
-  "selected_sections": {
-    "personal_information": "Hardcode|Process",
-    "career_summary": "Hardcode|Process",
-    "skills": "Hardcode|Process",
-    "work_experience": "Hardcode|Process",
-    "education": "Hardcode|Process",
-    "projects": "Hardcode|Process",
-    "awards": "Hardcode|Process",
-    "publications": "Hardcode|Process",
-    "certifications": "Hardcode|Process"
-  },
-  "llm_preferences": {
-    "model": "string",
-    "temperature": 0.7
-  }
+  "job_description": "string"
 }
 ```
 
@@ -386,10 +369,16 @@ GET /api/v1/resumes
 Query parameters:
 - `skip`: Number of resumes to skip (default: 0)
 - `limit`: Number of resumes to return (default: 10, max: 100)
-- `title`: Filter by title
-- `template_id`: Filter by template ID
+- `sort_by`: Sort field and direction (default: "updated_desc")
 
-**Response:** Array of Resume objects
+**Response:** Paginated list of Resume objects
+
+```json
+{
+  "items": [Resume objects],
+  "total": integer
+}
+```
 
 #### Get Resume by ID
 
@@ -446,7 +435,6 @@ POST /api/v1/resumes/{resume_id}/generate
 **Request Body:**
 ```json
 {
-  "job_description": "string",
   "selected_sections": ["personal_information", "career_summary", "skills", ...]
 }
 ```
@@ -462,7 +450,41 @@ GET /api/v1/resumes/{resume_id}/pdf
 Query parameters:
 - `timeout`: PDF generation timeout in seconds (default: 30, min: 5, max: 60)
 
-**Response:** PDF file
+**Response:** PDF URL
+
+```json
+{
+  "pdf_url": "string"
+}
+```
+
+#### Upload Resume PDF
+
+```
+POST /api/v1/resumes/{resume_id}/upload-pdf
+```
+
+**Request:** Multipart form with PDF file upload
+
+**Response:**
+```json
+{
+  "pdf_url": "string"
+}
+```
+
+#### Delete Resume PDF
+
+```
+DELETE /api/v1/resumes/{resume_id}/pdf
+```
+
+**Response:**
+```json
+{
+  "pdf_url": null
+}
+```
 
 #### Debug PDF Generation
 
@@ -471,6 +493,14 @@ POST /api/v1/resumes/{resume_id}/debug-pdf
 ```
 
 **Response:** Debugging information about PDF generation
+
+#### Advanced Debug PDF Generation
+
+```
+POST /api/v1/resumes/{resume_id}/advanced-debug
+```
+
+**Response:** Detailed debugging information about PDF generation
 
 ## Cover Letter Management
 
@@ -522,8 +552,18 @@ GET /api/v1/cover-letters
 Query parameters:
 - `template_id`: Filter by template ID
 - `resume_id`: Filter by resume ID
+- `skip`: Number of cover letters to skip (default: 0)
+- `limit`: Number of cover letters to return (default: 10, max: 100)
+- `sort_by`: Sort field and direction (default: "updated_desc")
 
-**Response:** Array of Cover Letter objects
+**Response:** Paginated list of Cover Letter objects
+
+```json
+{
+  "items": [Cover Letter objects],
+  "total": integer
+}
+```
 
 #### Get Cover Letter by ID
 

@@ -23,6 +23,9 @@ class CoverLetterFilter(BaseModel):
     profile_id: Optional[PydanticObjectId] = None
     portfolio_id: Optional[PydanticObjectId] = None
     resume_id: Optional[PydanticObjectId] = None
+    skip: Optional[int] = 0
+    limit: Optional[int] = 10
+    sort_by: Optional[str] = "updated_desc"
 
 
 class CoverLetterRepository(BeanieRepository[CoverLetter]):
@@ -79,31 +82,87 @@ class CoverLetterRepository(BeanieRepository[CoverLetter]):
         self, user: User, filter_params: CoverLetterFilter
     ) -> List[CoverLetter]:
         """
-        Get cover letters by filter criteria.
+        Get cover letters by filter parameters with pagination and sorting.
 
         Args:
-            user: User to filter by
+            user: User
             filter_params: Filter parameters
 
         Returns:
-            List of filtered cover letters
+            List[CoverLetter]: List of cover letters
         """
         query = {"user_id": user.id}
 
-        # Add filter parameters to query if they exist
+        if filter_params.profile_id:
+            query["profile_id"] = filter_params.profile_id
+
+        if filter_params.portfolio_id:
+            query["portfolio_id"] = filter_params.portfolio_id
+
         if filter_params.template_id:
             query["template_id"] = filter_params.template_id
 
+        if filter_params.resume_id:
+            query["resume_id"] = filter_params.resume_id
+
+        # Create query and apply sorting
+        cover_letters_query = self.model_class.find(query)
+
+        # Apply sorting based on sort_by parameter
+        if filter_params.sort_by:
+            sort_option = filter_params.sort_by
+            if sort_option == "updated_desc":
+                cover_letters_query = cover_letters_query.sort([("updated_at", -1)])
+            elif sort_option == "updated_asc":
+                cover_letters_query = cover_letters_query.sort([("updated_at", 1)])
+            elif sort_option == "created_desc":
+                cover_letters_query = cover_letters_query.sort([("created_at", -1)])
+            elif sort_option == "created_asc":
+                cover_letters_query = cover_letters_query.sort([("created_at", 1)])
+            elif sort_option == "template_asc":
+                cover_letters_query = cover_letters_query.sort([("template_id", 1)])
+            elif sort_option == "template_desc":
+                cover_letters_query = cover_letters_query.sort([("template_id", -1)])
+        else:
+            # Default sort by updated_at desc
+            cover_letters_query = cover_letters_query.sort([("updated_at", -1)])
+
+        # Apply pagination
+        if filter_params.skip is not None:
+            cover_letters_query = cover_letters_query.skip(filter_params.skip)
+        if filter_params.limit is not None:
+            cover_letters_query = cover_letters_query.limit(filter_params.limit)
+
+        return await cover_letters_query.to_list()
+
+    async def count_by_filter(
+        self, user: User, filter_params: CoverLetterFilter
+    ) -> int:
+        """
+        Count cover letters matching filter criteria.
+
+        Args:
+            user: User
+            filter_params: Filter parameters
+
+        Returns:
+            int: Count of matching cover letters
+        """
+        query = {"user_id": user.id}
+
         if filter_params.profile_id:
-            query["profile_id"] = PydanticObjectId(filter_params.profile_id)
+            query["profile_id"] = filter_params.profile_id
 
         if filter_params.portfolio_id:
-            query["portfolio_id"] = PydanticObjectId(filter_params.portfolio_id)
+            query["portfolio_id"] = filter_params.portfolio_id
+
+        if filter_params.template_id:
+            query["template_id"] = filter_params.template_id
 
         if filter_params.resume_id:
-            query["resume_id"] = PydanticObjectId(filter_params.resume_id)
+            query["resume_id"] = filter_params.resume_id
 
-        return await self.model_class.find(query).to_list()
+        return await self.model_class.find(query).count()
 
     async def update_metadata(
         self, cover_letter_id: PydanticObjectId, **kwargs

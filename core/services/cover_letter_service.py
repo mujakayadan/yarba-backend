@@ -238,14 +238,14 @@ class CoverLetterService:
         return result
 
     async def filter_cover_letters(
-        self, user_id: PydanticObjectId, filter_params: CoverLetterFilter
+        self, user_id: PydanticObjectId, filter_params
     ) -> List[CoverLetter]:
         """
-        Filter cover letters by parameters.
+        Filter cover letters by parameters with pagination and sorting.
 
         Args:
             user_id: User ID
-            filter_params: Filter parameters
+            filter_params: Filter parameters (from API schema)
 
         Returns:
             List[CoverLetter]: List of filtered cover letters
@@ -258,4 +258,82 @@ class CoverLetterService:
             self.logger.warning(f"User not found: {user_id}")
             raise NotFoundException("User not found")
 
-        return await self.cover_letter_repository.get_by_filter(user, filter_params)
+        # Convert API schema filter to repository filter
+        from core.repositories.cover_letter_repository import (
+            CoverLetterFilter as RepositoryFilter,
+        )
+
+        # Create a repository filter with default values
+        repo_filter = RepositoryFilter()
+
+        # Map API filter fields to repository filter fields when they exist
+        if (
+            hasattr(filter_params, "template_id")
+            and filter_params.template_id is not None
+        ):
+            repo_filter.template_id = filter_params.template_id
+
+        if hasattr(filter_params, "resume_id") and filter_params.resume_id is not None:
+            repo_filter.resume_id = filter_params.resume_id
+
+        # Handle pagination parameters
+        if hasattr(filter_params, "skip") and filter_params.skip is not None:
+            repo_filter.skip = filter_params.skip
+
+        if hasattr(filter_params, "limit") and filter_params.limit is not None:
+            repo_filter.limit = filter_params.limit
+
+        # Handle sorting parameter
+        if hasattr(filter_params, "sort_by") and filter_params.sort_by is not None:
+            repo_filter.sort_by = filter_params.sort_by
+
+        # Get cover letters with repository filter
+        cover_letters = await self.cover_letter_repository.get_by_filter(
+            user, repo_filter
+        )
+
+        return cover_letters
+
+    async def count_cover_letters(
+        self, user_id: PydanticObjectId, filter_params
+    ) -> int:
+        """
+        Count cover letters matching the filter criteria.
+
+        Args:
+            user_id: User ID
+            filter_params: Filter parameters (from API schema)
+
+        Returns:
+            int: Total count of matching cover letters
+
+        Raises:
+            NotFoundException: If user not found
+        """
+        user = await self.user_repository.get_by_id(user_id)
+        if not user:
+            self.logger.warning(f"User not found: {user_id}")
+            raise NotFoundException("User not found")
+
+        # Convert API schema filter to repository filter
+        from core.repositories.cover_letter_repository import (
+            CoverLetterFilter as RepositoryFilter,
+        )
+
+        # Create a repository filter with default values
+        repo_filter = RepositoryFilter()
+
+        # Map API filter fields to repository filter fields when they exist
+        if (
+            hasattr(filter_params, "template_id")
+            and filter_params.template_id is not None
+        ):
+            repo_filter.template_id = filter_params.template_id
+
+        if hasattr(filter_params, "resume_id") and filter_params.resume_id is not None:
+            repo_filter.resume_id = filter_params.resume_id
+
+        # Count cover letters with repository filter
+        count = await self.cover_letter_repository.count_by_filter(user, repo_filter)
+
+        return count

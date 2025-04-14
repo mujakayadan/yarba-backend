@@ -42,6 +42,7 @@ from ..schemas.cover_letter import (
     CoverLetterCreate,
     CoverLetterResponse,
     CoverLetterUpdate,
+    PaginatedCoverLetterResponse,
 )
 
 logger = get_logger(__name__)
@@ -74,7 +75,7 @@ def convert_cover_letter_to_response(cover_letter) -> CoverLetterResponse:
     return response
 
 
-@router.get("", response_model=List[CoverLetterResponse])
+@router.get("", response_model=PaginatedCoverLetterResponse)
 async def get_cover_letters(
     current_user: CurrentUser,
     cover_letter_service: CoverLetterService = Depends(get_cover_letter_service),
@@ -82,38 +83,64 @@ async def get_cover_letters(
     resume_id: Optional[PydanticObjectId] = Query(
         None, description="Filter by resume ID"
     ),
-) -> List[CoverLetterResponse]:
+    skip: int = Query(0, ge=0, description="Number of cover letters to skip"),
+    limit: int = Query(
+        10, ge=1, le=100, description="Number of cover letters to return"
+    ),
+    sort_by: str = Query("updated_desc", description="Sort field and direction"),
+) -> PaginatedCoverLetterResponse:
     """
-    Get all cover letters for current user with optional filtering.
+    Get all cover letters for current user with optional filtering, pagination and sorting.
 
     Args:
         current_user: Current authenticated user
         cover_letter_service: Cover letter service
         template_id: Template ID to filter by
         resume_id: Resume ID to filter by
+        skip: Number of cover letters to skip
+        limit: Number of cover letters to return
+        sort_by: Sort field and direction
 
     Returns:
-        List[CoverLetterResponse]: List of cover letters
+        PaginatedCoverLetterResponse: Paginated list of cover letters
     """
     try:
-        from core.repositories.cover_letter_repository import CoverLetterFilter
+        # Create filter
+        from api.schemas import CoverLetterFilter
 
-        # Create filter from query parameters
         filter_params = CoverLetterFilter(
             template_id=template_id,
-            resume_id=str(resume_id) if resume_id else None,
+            resume_id=resume_id,
+            skip=skip,
+            limit=limit,
+            sort_by=sort_by,
         )
 
-        # Get filtered cover letters
+        # Get cover letters matching filter
         cover_letters = await cover_letter_service.filter_cover_letters(
             user_id=current_user.id,
             filter_params=filter_params,
         )
 
-        logger.info(
-            f"Retrieved {len(cover_letters)} cover letters for user {current_user.username}"
+        # Count total matching filter (without pagination)
+        total = await cover_letter_service.count_cover_letters(
+            user_id=current_user.id,
+            filter_params=filter_params,
         )
-        return [convert_cover_letter_to_response(cl) for cl in cover_letters]
+
+        logger.info(
+            f"Retrieved {len(cover_letters)} cover letters for user {current_user.username}, total: {total}"
+        )
+
+        # Convert to response format
+        cover_letter_responses = [
+            convert_cover_letter_to_response(cl) for cl in cover_letters
+        ]
+
+        return PaginatedCoverLetterResponse(
+            items=cover_letter_responses,
+            total=total,
+        )
 
     except Exception as e:
         logger.error(f"Error retrieving cover letters: {str(e)}")
