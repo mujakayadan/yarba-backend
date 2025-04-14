@@ -20,7 +20,6 @@ class CoverLetterFilter(BaseModel):
     """
 
     template_id: Optional[str] = None
-    title_contains: Optional[str] = None
     profile_id: Optional[PydanticObjectId] = None
     portfolio_id: Optional[PydanticObjectId] = None
     resume_id: Optional[PydanticObjectId] = None
@@ -103,9 +102,6 @@ class CoverLetterRepository(BeanieRepository[CoverLetter]):
 
         if filter_params.resume_id:
             query["resume_id"] = PydanticObjectId(filter_params.resume_id)
-
-        if filter_params.title_contains:
-            query["title"] = {"$regex": filter_params.title_contains, "$options": "i"}
 
         return await self.model_class.find(query).to_list()
 

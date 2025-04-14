@@ -474,6 +474,8 @@ POST /api/v1/resumes/{resume_id}/debug-pdf
 
 ## Cover Letter Management
 
+Cover letters in this system are directly linked to resumes. Each cover letter must reference a resume, and it automatically inherits the resume's job title, company name, job description, and other metadata. This approach avoids data duplication and ensures consistency. When you create or retrieve a cover letter, the associated resume data is used for PDF generation and content creation.
+
 ### Cover Letter Endpoints
 
 #### Create Cover Letter
@@ -485,22 +487,31 @@ POST /api/v1/cover-letters
 **Request Body:**
 ```json
 {
-  "title": "string",
-  "template_id": "string",
-  "resume_id": "string (optional)",
-  "job_description": "string (optional)",
-  "recipient_name": "string (optional)",
-  "recipient_title": "string (optional)",
-  "company_name": "string (optional)",
-  "company_address": "string (optional)",
-  "llm_preferences": {
-    "model": "string",
-    "temperature": 0.7
-  }
+  "resume_id": "string",
+  "template_id": "string (optional)",
+  "generate_pdf": false
 }
 ```
 
 **Response:** Cover Letter object
+
+**Cover Letter Object Structure:**
+```json
+{
+  "id": "string",
+  "user_id": "string",
+  "profile_id": "string",
+  "portfolio_id": "string",
+  "resume_id": "string",
+  "template_id": "string",
+  "content": {
+    "cover_letter_content": "string"
+  },
+  "has_pdf": boolean,
+  "created_at": "2023-01-01T00:00:00.000Z",
+  "updated_at": "2023-01-01T00:00:00.000Z"
+}
+```
 
 #### Get All Cover Letters
 
@@ -509,8 +520,8 @@ GET /api/v1/cover-letters
 ```
 
 Query parameters:
-- `skip`: Number of items to skip (default: 0)
-- `limit`: Number of items to return (default: 10, max: 100)
+- `template_id`: Filter by template ID
+- `resume_id`: Filter by resume ID
 
 **Response:** Array of Cover Letter objects
 
@@ -531,11 +542,7 @@ PUT /api/v1/cover-letters/{cover_letter_id}
 **Request Body:**
 ```json
 {
-  "title": "string (optional)",
   "template_id": "string (optional)",
-  "job_title": "string (optional)",
-  "company_name": "string (optional)",
-  "job_description": "string (optional)",
   "content": {...}
 }
 ```
@@ -556,13 +563,8 @@ DELETE /api/v1/cover-letters/{cover_letter_id}
 POST /api/v1/cover-letters/{cover_letter_id}/generate
 ```
 
-**Request Body:**
-```json
-{
-  "job_description": "string",
-  "resume_id": "string (optional)"
-}
-```
+Query parameters:
+- `regenerate`: Whether to regenerate content even if it exists (default: false)
 
 **Response:** Cover Letter object with generated content
 
@@ -574,8 +576,45 @@ GET /api/v1/cover-letters/{cover_letter_id}/pdf
 
 Query parameters:
 - `timeout`: PDF generation timeout in seconds (default: 30, min: 5, max: 60)
+- `regenerate`: Whether to regenerate the PDF even if it exists (default: false)
 
-**Response:** PDF file
+**Response:** PDF file URL
+
+```json
+{
+  "pdf_url": "https://storage.example.com/cover-letters/abc123.pdf"
+}
+```
+
+#### Upload Cover Letter PDF
+
+```
+POST /api/v1/cover-letters/{cover_letter_id}/upload-pdf
+```
+
+**Request:** Multipart form with PDF file upload
+
+**Response:** PDF file URL
+
+```json
+{
+  "pdf_url": "https://storage.example.com/cover-letters/abc123.pdf"
+}
+```
+
+#### Delete Cover Letter PDF
+
+```
+DELETE /api/v1/cover-letters/{cover_letter_id}/pdf
+```
+
+**Response:**
+
+```json
+{
+  "pdf_url": null
+}
+```
 
 ## Portfolio Management
 

@@ -159,6 +159,7 @@ class LatexService:
         self,
         cover_letter: CoverLetter,
         profile: Profile,
+        resume: Resume,
     ) -> str:
         """
         Generate LaTeX for a cover letter.
@@ -166,6 +167,7 @@ class LatexService:
         Args:
             cover_letter: Cover letter model
             profile: Profile model
+            resume: Resume model linked to the cover letter
 
         Returns:
             str: LaTeX document
@@ -173,11 +175,18 @@ class LatexService:
         try:
             self.logger.info(f"Generating LaTeX for cover letter ID: {cover_letter.id}")
             self.logger.info(f"Using profile ID: {profile.id}")
+            self.logger.info(f"Using resume ID: {resume.id}")
 
-            # Get cover letter data
-            cover_letter_text = cover_letter.cover_letter_content or ""
-            company_name = cover_letter.company_name or ""
-            job_title = cover_letter.job_title or ""
+            # Get cover letter content from the unified content field
+            cover_letter_text = (
+                cover_letter.content.get("cover_letter_content", "")
+                if cover_letter.content
+                else ""
+            )
+
+            # Get job data from the resume
+            company_name = resume.company_name or ""
+            job_title = resume.job_title or ""
 
             # Prepare template data
             template_data = await self._prepare_template_data(
@@ -187,7 +196,7 @@ class LatexService:
             # Generate the LaTeX content using the compiler
             self.logger.info("Calling cover letter compiler to generate tex content")
             latex_content = await self.cover_letter_compiler.generate_tex_content(
-                cover_letter, template_data
+                cover_letter, template_data, resume=resume
             )
 
             self.logger.info(

@@ -114,27 +114,19 @@ class CoverLetterService:
     async def create_cover_letter(
         self,
         user_id: PydanticObjectId,
+        resume_id: PydanticObjectId,
         profile_id: Optional[PydanticObjectId] = None,
         portfolio_id: Optional[PydanticObjectId] = None,
-        resume_id: Optional[PydanticObjectId] = None,
-        title: Optional[str] = None,
-        company_name: Optional[str] = None,
-        job_title: Optional[str] = None,
-        job_description: Optional[str] = None,
         template_id: Optional[str] = None,
     ) -> CoverLetter:
         """
-        Create a new cover letter.
+        Create a new cover letter based on a resume.
 
         Args:
             user_id: User ID
+            resume_id: Resume ID (required)
             profile_id: Profile ID (optional)
             portfolio_id: Portfolio ID (optional)
-            resume_id: Resume ID (optional)
-            title: Cover letter title (optional)
-            company_name: Company name (optional)
-            job_title: Job title (optional)
-            job_description: Job description (optional)
             template_id: Template ID (optional)
 
         Returns:
@@ -149,22 +141,15 @@ class CoverLetterService:
             self.logger.warning(f"User not found: {user_id}")
             raise NotFoundException("User not found")
 
-        # Extract job info from description if not provided but job_description is available
-        if job_description and self.job_service and (not company_name or not job_title):
-            try:
-                self.logger.info("Extracting job information from job description")
-                job_info = await self.job_service.extract_job_info(job_description)
+        # Verify resume exists (required)
+        if not self.resume_repository:
+            self.logger.error("Resume repository not available")
+            raise NotFoundException("Resume repository not available")
 
-                if not company_name and job_info.get("company_name"):
-                    company_name = job_info["company_name"]
-                    self.logger.info(f"Extracted company name: {company_name}")
-
-                if not job_title and job_info.get("job_title"):
-                    job_title = job_info["job_title"]
-                    self.logger.info(f"Extracted job title: {job_title}")
-            except Exception as e:
-                self.logger.error(f"Error extracting job info: {str(e)}")
-                # Continue even if extraction fails
+        resume = await self.resume_repository.get_by_id(resume_id)
+        if not resume:
+            self.logger.warning(f"Resume not found: {resume_id}")
+            raise NotFoundException("Resume not found")
 
         # Verify profile exists if provided
         if profile_id and self.profile_repository:
@@ -178,22 +163,12 @@ class CoverLetterService:
                 self.logger.warning(f"Portfolio not found: {portfolio_id}")
                 raise NotFoundException("Portfolio not found")
 
-        # Verify resume exists if provided
-        if resume_id and self.resume_repository:
-            if not await self.resume_repository.exists(resume_id):
-                self.logger.warning(f"Resume not found: {resume_id}")
-                raise NotFoundException("Resume not found")
-
-        # Create new cover letter
+        # Create new cover letter with reference to resume
         cover_letter = CoverLetter(
             user_id=user_id,
             profile_id=profile_id,
             portfolio_id=portfolio_id,
             resume_id=resume_id,
-            title=title or "My Cover Letter",
-            company_name=company_name,
-            job_title=job_title,
-            job_description=job_description or "",
             template_id=template_id or "default",
         )
 

@@ -65,9 +65,12 @@ def convert_cover_letter_to_response(cover_letter) -> CoverLetterResponse:
     Returns:
         CoverLetterResponse: API response model with correctly set has_pdf field
     """
+    # Create a response with the data we have
     response = CoverLetterResponse.model_validate(cover_letter)
+
     # Explicitly set has_pdf based on cover_letter_pdf_key
     response.has_pdf = bool(cover_letter.cover_letter_pdf_key)
+
     return response
 
 
@@ -75,7 +78,6 @@ def convert_cover_letter_to_response(cover_letter) -> CoverLetterResponse:
 async def get_cover_letters(
     current_user: CurrentUser,
     cover_letter_service: CoverLetterService = Depends(get_cover_letter_service),
-    title: Optional[str] = Query(None, description="Filter by title (partial match)"),
     template_id: Optional[str] = Query(None, description="Filter by template ID"),
     resume_id: Optional[PydanticObjectId] = Query(
         None, description="Filter by resume ID"
@@ -87,7 +89,6 @@ async def get_cover_letters(
     Args:
         current_user: Current authenticated user
         cover_letter_service: Cover letter service
-        title: Title to filter by (partial match)
         template_id: Template ID to filter by
         resume_id: Resume ID to filter by
 
@@ -99,7 +100,6 @@ async def get_cover_letters(
 
         # Create filter from query parameters
         filter_params = CoverLetterFilter(
-            title_contains=title,
             template_id=template_id,
             resume_id=str(resume_id) if resume_id else None,
         )
@@ -169,15 +169,14 @@ async def create_cover_letter(
     current_user: CurrentUser,
     cover_letter_service: CoverLetterService = Depends(get_cover_letter_service),
     resume_service: ResumeService = Depends(get_resume_service),
-    job_service: JobService = Depends(get_job_service),
+    profile_service: ProfileService = Depends(get_profile_service),
+    portfolio_service: PortfolioService = Depends(get_portfolio_service),
     generation_service: CoverLetterGenerationService = Depends(
         get_cover_letter_generation_service
     ),
-    profile_service: ProfileService = Depends(get_profile_service),
-    portfolio_service: PortfolioService = Depends(get_portfolio_service),
 ) -> CoverLetterResponse:
     """
-    Create a new cover letter.
+    Create a new cover letter based on an existing resume.
 
     Args:
         cover_letter_data: Cover letter creation data containing:
@@ -186,10 +185,9 @@ async def create_cover_letter(
         current_user: Current authenticated user
         cover_letter_service: Cover letter service
         resume_service: Resume service for getting resume details
-        job_service: Job service for extracting job information
-        generation_service: Cover letter generation service for PDF generation
         profile_service: Profile service for accessing user preferences
         portfolio_service: Portfolio service for getting active portfolio
+        generation_service: Cover letter generation service for PDF generation
 
     Returns:
         CoverLetterResponse: Created cover letter with has_pdf=True if PDF was generated
@@ -231,25 +229,6 @@ async def create_cover_letter(
                 detail="Failed to retrieve user portfolio.",
             )
 
-        # Get resume to base the cover letter on
-        try:
-            resume = await resume_service.get_resume_by_id(
-                resume_id=cover_letter_data.resume_id,
-                user_id=user_id,
-            )
-        except Exception as e:
-            logger.error(f"Error retrieving resume: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Resume not found or access denied.",
-            )
-
-        # Extract job information from resume
-        company_name = resume.company_name
-        job_title = resume.job_title
-        job_description = resume.job_description
-        title = resume.title
-
         # Get default template from profile or use default
         template_id = "default"
         if (
@@ -267,10 +246,6 @@ async def create_cover_letter(
             profile_id=profile.id,
             portfolio_id=portfolio.id,
             resume_id=cover_letter_data.resume_id,
-            title=title,
-            company_name=company_name,
-            job_title=job_title,
-            job_description=job_description,
             template_id=template_id,
         )
 

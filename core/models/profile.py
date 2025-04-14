@@ -167,5 +167,7 @@ class Profile(Document):
         name = "profiles"
         use_state_management = True
         bson_encoders = {
-            datetime: lambda x: x,
+            datetime: lambda dt: (
+                dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
+            ),
         }

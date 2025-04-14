@@ -32,20 +32,13 @@ class CoverLetter(Document):
     profile: Optional[Link[Profile]] = None
     portfolio_id: Optional[PydanticObjectId] = None
     portfolio: Optional[Link[Portfolio]] = None
-    resume_id: Optional[PydanticObjectId] = None
+    resume_id: PydanticObjectId
     resume: Optional[Link["Resume"]] = None
 
-    title: str = "My Cover Letter"
     template_id: Optional[str] = "default"
 
-    # Job targeting information
-    company_name: Optional[str] = None
-    job_title: Optional[str] = None
-    job_description: Optional[str] = None
-
-    # Content can be either structured data or LaTeX string
-    content: Dict[str, Any] = Field(default_factory=dict)
-    cover_letter_content: Optional[str] = None
+    # Content - use a single field for the content
+    content: Dict[str, Any] = Field(default_factory=dict)  # Structured content
 
     # Generated PDFs
     cover_letter_pdf_key: Optional[str] = Field(
@@ -71,5 +64,7 @@ class CoverLetter(Document):
         use_state_management = True
         indexes = ["user_id", "profile_id", "portfolio_id", "resume_id"]
         bson_encoders = {
-            datetime: lambda x: x,
+            datetime: lambda dt: (
+                dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
+            ),
         }
