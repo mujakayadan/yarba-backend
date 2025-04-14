@@ -4,7 +4,7 @@ import importlib.util
 import os
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -162,7 +162,7 @@ class MigrationManager:
                 "$set": {
                     "version": version,
                     "description": description,
-                    "applied_at": datetime.utcnow(),
+                    "applied_at": datetime.now(timezone.utc),
                 }
             },
             upsert=True,
@@ -191,7 +191,7 @@ class MigrationManager:
         os.makedirs(self.migrations_dir, exist_ok=True)
 
         # Generate version based on current timestamp
-        version = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        version = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
 
         # Convert description to snake_case for filename
         filename = f"{version}_{description.lower().replace(' ', '_')}.py"
@@ -203,7 +203,7 @@ class MigrationManager:
                 f'''"""
 {description}
 
-Migration created at: {datetime.utcnow().isoformat()}
+Migration created at: {datetime.now(timezone.utc).isoformat()}
 """
 
 from pymongo.database import Database

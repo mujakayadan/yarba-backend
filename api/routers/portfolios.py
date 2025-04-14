@@ -237,7 +237,7 @@ async def update_portfolio(
         portfolio.career_summary = CareerSummary(**portfolio_data.career_summary)
 
     # Update portfolio fields
-    for field, value in portfolio_data.dict(exclude_unset=True).items():
+    for field, value in portfolio_data.model_dump(exclude_unset=True).items():
         if field != "career_summary":  # Skip career summary as it's handled above
             setattr(portfolio, field, value)
 
@@ -279,7 +279,7 @@ async def patch_portfolio(
         )
 
     # Update only the fields that were provided in the request
-    patch_data = portfolio_data.dict(exclude_unset=True)
+    patch_data = portfolio_data.model_dump(exclude_unset=True)
 
     # Handle special case for career_summary which needs to be instantiated as a model
     if "career_summary" in patch_data:
