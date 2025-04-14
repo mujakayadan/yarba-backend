@@ -61,6 +61,30 @@ POST /api/v1/auth/login
 }
 ```
 
+#### Swagger Login (Development Only)
+
+```
+POST /api/v1/auth/swagger-login
+```
+
+This endpoint is for **development use only** and is disabled in production. It allows testing API endpoints in Swagger UI by providing an ID token.
+
+**Request Body:**
+```json
+{
+  "email": "string",
+  "password": "string"
+}
+```
+
+**Response:**
+```json
+{
+  "id_token": "string",
+  "message": "Use this ID token with the /auth/login endpoint in Swagger UI"
+}
+```
+
 #### Get Current User Info
 
 ```
@@ -79,6 +103,21 @@ GET /api/v1/auth/me
   "last_active": "2023-01-01T00:00:00.000Z"
 }
 ```
+
+## Rate Limiting
+
+The API implements rate limiting to prevent abuse. Different endpoints have different rate limits:
+
+- **Default rate limit**: 60 requests per 60 seconds
+- **Resume endpoints**: 30 requests per 60 seconds
+- **PDF generation endpoints**: 3 requests per 120 seconds
+
+When a rate limit is exceeded, the API will respond with a 429 Too Many Requests status code.
+
+The following headers are included in the response:
+- `X-RateLimit-Limit`: The maximum number of requests allowed in the window
+- `X-RateLimit-Remaining`: The number of requests remaining in the current window
+- `X-RateLimit-Reset`: The time when the current rate limit window resets
 
 ## Profile Management
 
@@ -484,6 +523,33 @@ DELETE /api/v1/resumes/{resume_id}/pdf
 {
   "pdf_url": null
 }
+```
+
+#### Get Cover Letters For Resume
+
+```
+GET /api/v1/resumes/{resume_id}/cover-letters
+```
+
+**Response:** List of Cover Letter objects associated with this resume
+
+```json
+[
+  {
+    "id": "string",
+    "user_id": "string",
+    "profile_id": "string",
+    "portfolio_id": "string",
+    "resume_id": "string",
+    "template_id": "string",
+    "content": {
+      "cover_letter_content": "string"
+    },
+    "has_pdf": boolean,
+    "created_at": "2023-01-01T00:00:00.000Z",
+    "updated_at": "2023-01-01T00:00:00.000Z"
+  }
+]
 ```
 
 #### Debug PDF Generation
@@ -1040,6 +1106,99 @@ GET /api/v1/
 }
 ```
 
+## LinkedIn Integration
+
+> **Note:** LinkedIn integration endpoints are currently commented out in the API implementation and are not available for use. The documentation below is for reference only and will be updated when these endpoints are enabled.
+
+### LinkedIn Credentials
+
+#### Save LinkedIn Credentials
+
+```
+POST /api/v1/linkedin/credentials
+```
+
+**Request Body:**
+```json
+{
+  "email": "string",
+  "password": "string"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "LinkedIn credentials saved successfully"
+}
+```
+
+#### Get LinkedIn Status
+
+```
+GET /api/v1/linkedin/status
+```
+
+**Response:**
+```json
+{
+  "enabled": true,
+  "email": "user@example.com",
+  "last_login": "2023-01-01T00:00:00.000Z"
+}
+```
+
+### LinkedIn Job Search & Applications
+
+#### Search for Jobs
+
+```
+POST /api/v1/linkedin/search
+```
+
+**Request Body:**
+```json
+{
+  "keywords": "string",
+  "location": "string",
+  "num_jobs": 10
+}
+```
+
+**Response:** List of job descriptions
+
+#### Apply for Multiple Jobs
+
+```
+POST /api/v1/linkedin/apply
+```
+
+**Request Body:**
+```json
+{
+  "job_urls": ["string", "string"],
+  "resume_id": "string"
+}
+```
+
+**Response:** Application results
+
+#### Apply for Single Job
+
+```
+POST /api/v1/linkedin/apply/single
+```
+
+**Request Body:**
+```json
+{
+  "job_url": "string",
+  "resume_id": "string"
+}
+```
+
+**Response:** Application result
+
 ## Error Responses
 
 All endpoints may return the following error responses:
@@ -1048,4 +1207,5 @@ All endpoints may return the following error responses:
 - `401 Unauthorized`: Authentication is required or failed
 - `403 Forbidden`: The authenticated user does not have permission
 - `404 Not Found`: The requested resource was not found
+- `429 Too Many Requests`: Rate limit exceeded
 - `500 Internal Server Error`: An unexpected error occurred

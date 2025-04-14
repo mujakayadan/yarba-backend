@@ -60,49 +60,30 @@ async def verify_token(
         return payload
 
     except (JWTError, ExpiredSignatureError) as jwt_error:
-        # If not a valid JWT and Firebase auth is enabled, try as Firebase token
-        if settings.auth.use_firebase_auth:
-            try:
-                # Verify Firebase token
-                firebase_payload = await FirebaseAuth.verify_token(token)
+        # If not a valid JWT, try as Firebase token
+        try:
+            # Verify Firebase token
+            firebase_payload = await FirebaseAuth.verify_token(token)
 
-                # Add a type field to distinguish in the current_user dependency
-                firebase_payload["token_type"] = "firebase"
+            # Add a type field to distinguish in the current_user dependency
+            firebase_payload["token_type"] = "firebase"
 
-                # Log successful token verification
-                logger.debug(
-                    f"Firebase token verified for user {firebase_payload.get('email')}"
-                )
-                return firebase_payload
+            # Log successful token verification
+            logger.debug(
+                f"Firebase token verified for user {firebase_payload.get('email')}"
+            )
+            return firebase_payload
 
-            except Exception as e:
-                # If failed as both JWT and Firebase token, log and raise error
-                logger.warning(
-                    f"Invalid token used for {request.url.path}: JWT error: {str(jwt_error)}, Firebase error: {str(e)}"
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail=f"Invalid authentication token",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
-        else:
-            # If Firebase is disabled, just handle as JWT error
-            if isinstance(jwt_error, ExpiredSignatureError):
-                logger.warning(f"Expired token used for {request.url.path}")
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Token has expired",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
-            else:
-                logger.warning(
-                    f"Invalid JWT token used for {request.url.path}: {str(jwt_error)}"
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid authentication token",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
+        except Exception as e:
+            # If failed as both JWT and Firebase token, log and raise error
+            logger.warning(
+                f"Invalid token used for {request.url.path}: JWT error: {str(jwt_error)}, Firebase error: {str(e)}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"Invalid authentication token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
 
 async def get_current_user(

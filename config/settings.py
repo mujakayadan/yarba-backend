@@ -74,7 +74,7 @@ class AuthSettings(BaseSettings):
         extra="ignore",
     )
 
-    # JWT settings
+    # JWT settings for API authentication after Firebase verification
     jwt_secret_key: SecretStr = Field(
         default="your-secret-key",
         description="Secret key for JWT token generation",
@@ -86,44 +86,12 @@ class AuthSettings(BaseSettings):
         env="JWT_ALGORITHM",
     )
     jwt_access_token_expire_minutes: int = Field(
-        default=30,
+        default=1440,  # Set to 24 hours (1440 minutes) for debug purposes
         description="Access token expiration time in minutes",
         env="JWT_ACCESS_TOKEN_EXPIRE_MINUTES",
     )
-    password_reset_token_expire_hours: int = Field(
-        default=24,
-        description="Password reset token expiration time in hours",
-        env="PASSWORD_RESET_TOKEN_EXPIRE_HOURS",
-    )
-    verification_token_expire_hours: int = Field(
-        default=48,
-        description="Email verification token expiration time in hours",
-        env="VERIFICATION_TOKEN_EXPIRE_HOURS",
-    )
-    max_login_attempts: int = Field(
-        default=5,
-        description="Maximum number of login attempts before account lockout",
-        env="MAX_LOGIN_ATTEMPTS",
-    )
-    account_lockout_minutes: int = Field(
-        default=15,
-        description="Account lockout time in minutes after max login attempts",
-        env="ACCOUNT_LOCKOUT_MINUTES",
-    )
 
-    # Firebase settings
-    use_firebase_auth: bool = Field(
-        default=True,
-        description="Firebase Authentication is the only supported authentication method. This should always be True.",
-        env="USE_FIREBASE_AUTH",
-    )
-
-    firebase_api_key: Optional[str] = Field(
-        default=None,
-        description="Firebase Web API key - required for REST API authentication",
-        env="FIREBASE_API_KEY",
-    )
-
+    # API URLs
     api_base_url: str = Field(
         default="http://localhost:8000",
         description="Base URL for API endpoints",
@@ -140,7 +108,12 @@ class AuthSettings(BaseSettings):
         env="PASSWORD_RESET_PATH",
     )
 
-    # Firebase credentials direct from environment variables
+    # Firebase settings
+    firebase_api_key: Optional[str] = Field(
+        default=None,
+        description="Firebase Web API key - required for REST API authentication",
+        env="FIREBASE_API_KEY",
+    )
     firebase_type: str = Field(
         default="service_account",
         description="Firebase credential type",
@@ -194,7 +167,6 @@ class AuthSettings(BaseSettings):
         description="Firebase universe domain",
         env="FIREBASE_UNIVERSE_DOMAIN",
     )
-
     firebase_private_key_base64: Optional[str] = Field(
         default=None,
         description="Firebase private key encoded in base64",
@@ -1161,26 +1133,6 @@ class Settings(BaseSettings):
     def jwt_access_token_expire_minutes(self) -> int:
         """Get JWT access token expiration time."""
         return self.auth.jwt_access_token_expire_minutes
-
-    @property
-    def password_reset_token_expire_hours(self) -> int:
-        """Get password reset token expiration time."""
-        return self.auth.password_reset_token_expire_hours
-
-    @property
-    def verification_token_expire_hours(self) -> int:
-        """Get verification token expiration time."""
-        return self.auth.verification_token_expire_hours
-
-    @property
-    def max_login_attempts(self) -> int:
-        """Get maximum login attempts."""
-        return self.auth.max_login_attempts
-
-    @property
-    def account_lockout_minutes(self) -> int:
-        """Get account lockout time."""
-        return self.auth.account_lockout_minutes
 
     @property
     def cors_origins(self) -> List[Union[str, AnyHttpUrl]]:

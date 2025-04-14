@@ -52,9 +52,16 @@ class CoverLetterGenerationService:
         self.resume_repository = resume_repository
 
         # Create services if not provided
+        from core.repositories.user_repository import UserRepository
+
+        user_repository = UserRepository()
+
+        # Initialize prompt service first since the LLM service depends on it
         self.prompt_service = prompt_service or PromptService(
-            user_repository=ProfileRepository()
+            user_repository=user_repository
         )
+
+        # Initialize LLM service with prompt service
         self.llm_service = llm_service or LLMService(
             profile_repository=profile_repository,
             prompt_service=self.prompt_service,
@@ -166,16 +173,12 @@ class CoverLetterGenerationService:
     async def generate_cover_letter_content(
         self,
         cover_letter_id: PydanticObjectId,
-        regenerate: bool = False,
-        llm_preferences: Optional[dict] = None,
     ) -> str:
         """
         Generate a cover letter content.
 
         Args:
             cover_letter_id: Cover letter ID
-            regenerate: Whether to regenerate the content even if it exists
-            llm_preferences: Optional LLM preferences to override defaults
 
         Returns:
             Generated cover letter text
@@ -194,22 +197,8 @@ class CoverLetterGenerationService:
                 f"Required resume for cover letter {cover_letter_id} is not found"
             )
 
-        # If cover letter content exists and regenerate is False, return existing content
-        content = (
-            cover_letter.content.get("cover_letter_content")
-            if cover_letter.content
-            else None
-        )
-        if content and not regenerate:
-            return content
-
         # Configure LLM for user
         await self.configure_for_user(cover_letter.user_id)
-
-        # Apply LLM preferences if provided
-        if llm_preferences:
-            self.logger.info(f"Applying custom LLM preferences: {llm_preferences}")
-            self.llm_service.set_llm_preferences(llm_preferences)
 
         # Get resume content
         resume_data = None
@@ -224,33 +213,61 @@ class CoverLetterGenerationService:
         company_name = resume.company_name or "your company"
         job_description = resume.job_description or ""
 
-        # Load cover letter generation prompt
-        self.logger.info(f"Generating cover letter content for {cover_letter_id}")
-        prompt = await self.prompt_service.load_prompt(
-            "cover_letter_generation",
-            full_name=profile.full_name,
-            job_title=job_title,
-            company_name=company_name,
-            job_description=job_description,
-            resume_data=resume_data,
-        )
+        # Get candidate's full name
+        candidate_name = "Candidate"
+        if profile:
+            if (
+                hasattr(profile, "personal_information")
+                and profile.personal_information
+            ):
+                candidate_name = getattr(
+                    profile.personal_information, "full_name", "Candidate"
+                )
+            elif hasattr(profile, "full_name"):
+                candidate_name = profile.full_name
 
-        # Generate content
+        # Get cover letter prompt
+        self.logger.info(f"Generating cover letter content for {cover_letter_id}")
         try:
-            content = await self.llm_service.generate_text(prompt)
+            # Get the cover letter prompt
+            prompt_text = await self.prompt_service.get_cover_letter_prompt()
+
+            # Get system prompt
+            system_prompt = await self.prompt_service.get_system_prompt()
+
+            # Create the full prompt
+            full_prompt = f"""
+Job Title: {job_title}
+Company Name: {company_name}
+Job Description:
+{job_description}
+
+Resume Data:
+{resume_data}
+
+Candidate Name: {candidate_name}
+
+{prompt_text}
+"""
+            # Generate content using get_completion method
+            content = await self.llm_service.get_completion(
+                prompt=full_prompt,
+                system_prompt=system_prompt,
+            )
+
+            # Update the cover letter with the generated content
+            cover_letter.content = {"cover_letter_content": content}
+            cover_letter.updated_at = datetime.now(timezone.utc)
+            await cover_letter.save()
+
+            self.logger.info(
+                f"Successfully generated cover letter content ({len(content)} chars)"
+            )
+            return content
+
         except Exception as e:
             self.logger.error(f"Error generating cover letter: {e}")
             raise ValueError(f"Error generating cover letter: {e}")
-
-        # Update the cover letter with the generated content
-        cover_letter.content = {"cover_letter_content": content}
-        cover_letter.updated_at = datetime.now(timezone.utc)
-        await self.cover_letter_repository.save(cover_letter)
-
-        self.logger.info(
-            f"Successfully generated cover letter content ({len(content)} chars)"
-        )
-        return content
 
     async def generate_latex(
         self,
@@ -268,43 +285,56 @@ class CoverLetterGenerationService:
         Raises:
             ValueError: If cover letter, profile, or portfolio is not found
         """
-        # Get cover letter data
-        cover_letter, profile, portfolio, resume = await self.get_cover_letter_data(
-            cover_letter_id
-        )
-
-        # Check if we have a valid resume
-        if not resume:
-            raise ValueError(
-                f"Required resume for cover letter {cover_letter_id} is not found"
+        try:
+            # Get cover letter data
+            cover_letter, profile, portfolio, resume = await self.get_cover_letter_data(
+                cover_letter_id
             )
 
-        # Ensure cover letter content exists
-        content = (
-            cover_letter.content.get("cover_letter_content")
-            if cover_letter.content
-            else None
-        )
-        if not content:
-            await self.generate_cover_letter_content(cover_letter_id)
-            # Reload cover letter to get updated content
-            cover_letter = await self.cover_letter_repository.get_by_id(cover_letter_id)
+            # Check if we have a valid resume
+            if not resume:
+                raise ValueError(
+                    f"Required resume for cover letter {cover_letter_id} is not found"
+                )
+
+            # Ensure cover letter content exists
             content = (
                 cover_letter.content.get("cover_letter_content")
                 if cover_letter.content
                 else None
             )
-
             if not content:
-                raise ValueError("Failed to generate cover letter content")
+                self.logger.info(
+                    f"No content found, generating content for cover letter: {cover_letter_id}"
+                )
+                await self.generate_cover_letter_content(cover_letter_id)
+                # Reload cover letter to get updated content
+                cover_letter = await self.cover_letter_repository.get_by_id(
+                    cover_letter_id
+                )
+                content = (
+                    cover_letter.content.get("cover_letter_content")
+                    if cover_letter.content
+                    else None
+                )
 
-        # Generate LaTeX
-        try:
-            # Generate LaTeX using LatexService
+                if not content:
+                    raise ValueError(
+                        "Failed to generate cover letter content after attempt"
+                    )
+
+            # Generate LaTeX
+            self.logger.info(f"Generating LaTeX for cover letter: {cover_letter_id}")
             latex = await self.latex_service.generate_cover_letter_latex(
                 cover_letter, profile, resume
             )
 
+            if not latex:
+                raise ValueError("LaTeX generation produced empty content")
+
+            self.logger.info(
+                f"Successfully generated LaTeX for cover letter: {cover_letter_id}"
+            )
             return latex
 
         except Exception as e:
@@ -314,14 +344,12 @@ class CoverLetterGenerationService:
     async def generate_pdf(
         self,
         cover_letter_id: PydanticObjectId,
-        regenerate: bool = False,
     ) -> bytes:
         """
         Generate PDF for a cover letter.
 
         Args:
             cover_letter_id: Cover letter ID
-            regenerate: Force regeneration even if PDF exists
 
         Returns:
             PDF bytes
@@ -329,60 +357,60 @@ class CoverLetterGenerationService:
         Raises:
             ValueError: If cover letter not found
         """
-        # Get cover letter
-        cover_letter, profile, portfolio, resume = await self.get_cover_letter_data(
-            cover_letter_id
-        )
-
-        # Check if we have a valid resume
-        if not resume:
-            raise ValueError(
-                f"Required resume for cover letter {cover_letter_id} is not found"
+        try:
+            # Get cover letter
+            cover_letter, profile, portfolio, resume = await self.get_cover_letter_data(
+                cover_letter_id
             )
 
-        # If PDF exists in S3 and regenerate is False, get and return existing
-        if cover_letter.cover_letter_pdf_key and not regenerate:
-            # Get the PDF from S3
-            try:
-                from utils.storage import get_storage_provider
+            # Check if we have a valid resume
+            if not resume:
+                raise ValueError(
+                    f"Required resume for cover letter {cover_letter_id} is not found"
+                )
 
-                storage_provider = get_storage_provider()
+            # Ensure cover letter content exists
+            content = (
+                cover_letter.content.get("cover_letter_content")
+                if cover_letter.content
+                else None
+            )
+            if not content:
+                self.logger.info(
+                    f"No content found, generating content for cover letter: {cover_letter_id}"
+                )
+                await self.generate_cover_letter_content(cover_letter_id)
+                # Reload cover letter to get updated content
+                cover_letter = await self.cover_letter_repository.get_by_id(
+                    cover_letter_id
+                )
+                content = (
+                    cover_letter.content.get("cover_letter_content")
+                    if cover_letter.content
+                    else None
+                )
 
-                # Get the URL
-                pdf_url = storage_provider.get_url(cover_letter.cover_letter_pdf_key)
+                if not content:
+                    raise ValueError(
+                        "Failed to generate cover letter content after attempt"
+                    )
 
-                # If URL is available, download the content
-                if pdf_url:
-                    import httpx
-
-                    async with httpx.AsyncClient() as client:
-                        response = await client.get(pdf_url)
-                        if response.status_code == 200:
-                            return response.content
-            except Exception as e:
-                self.logger.error(f"Error retrieving PDF from storage: {e}")
-                # Continue to regenerate PDF if retrieval fails
-
-        # Ensure cover letter content exists
-        content = (
-            cover_letter.content.get("cover_letter_content")
-            if cover_letter.content
-            else None
-        )
-        if not content:
-            await self.generate_cover_letter_content(cover_letter_id)
-            # Reload cover letter to get updated content
-            cover_letter = await self.cover_letter_repository.get_by_id(cover_letter_id)
-
-        # Generate PDF
-        try:
+            # Generate PDF
             # Generate LaTeX using the generate_latex method
+            self.logger.info(f"Generating LaTeX for cover letter: {cover_letter_id}")
             latex = await self.generate_latex(cover_letter_id)
 
             # Compile to PDF using LatexService
+            self.logger.info(
+                f"Compiling LaTeX to PDF for cover letter: {cover_letter_id}"
+            )
             pdf_bytes = await self.latex_service.compile_latex_to_pdf(
                 latex, is_cover_letter=True
             )
+
+            if not pdf_bytes or len(pdf_bytes) == 0:
+                self.logger.error("PDF compilation returned empty bytes")
+                raise ValueError("PDF compilation failed - empty result")
 
             # Save PDF to S3
             try:
@@ -407,4 +435,4 @@ class CoverLetterGenerationService:
 
         except Exception as e:
             self.logger.error(f"Error generating PDF: {e}")
-            raise
+            raise ValueError(f"Failed to generate PDF: {str(e)}")

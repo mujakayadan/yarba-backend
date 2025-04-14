@@ -280,35 +280,30 @@ async def create_cover_letter(
             f"Created cover letter {cover_letter.id} for user {current_user.username}"
         )
 
-        # If PDF generation is requested, generate content and PDF
-        if cover_letter_data.generate_pdf:
-            try:
-                logger.info(
-                    f"Generating content and PDF for cover letter: {cover_letter.id}"
-                )
+        try:
+            # Always generate cover letter content
+            logger.info(f"Generating content for cover letter: {cover_letter.id}")
+            await generation_service.generate_cover_letter_content(
+                cover_letter_id=cover_letter.id
+            )
 
-                # Generate cover letter content
-                await generation_service.generate_cover_letter_content(
-                    cover_letter_id=cover_letter.id
-                )
-
-                # Generate PDF
+            # If PDF generation is requested, generate PDF
+            if cover_letter_data.generate_pdf:
+                logger.info(f"Generating PDF for cover letter: {cover_letter.id}")
                 await generation_service.generate_pdf(cover_letter.id)
 
-                # Get the updated cover letter with PDF key
-                cover_letter = await cover_letter_service.get_cover_letter_by_id(
-                    cover_letter_id=cover_letter.id,
-                    user_id=user_id,
-                )
-                logger.info(
-                    f"PDF generated successfully for cover letter: {cover_letter.id}"
-                )
-            except Exception as pdf_error:
-                # Log error but don't fail the entire cover letter creation
-                logger.error(
-                    f"Error generating PDF during cover letter creation: {str(pdf_error)}"
-                )
-                # We'll still return the created cover letter without PDF
+            # Get the updated cover letter
+            cover_letter = await cover_letter_service.get_cover_letter_by_id(
+                cover_letter_id=cover_letter.id,
+                user_id=user_id,
+            )
+            logger.info(f"Cover letter generation completed for: {cover_letter.id}")
+        except Exception as generation_error:
+            # Log error but don't fail the entire cover letter creation
+            logger.error(
+                f"Error during cover letter generation: {str(generation_error)}"
+            )
+            # We'll still return the created cover letter without content or PDF
 
         return convert_cover_letter_to_response(cover_letter)
 
@@ -404,25 +399,19 @@ async def delete_cover_letter(
 async def generate_cover_letter(
     cover_letter_id: Annotated[PydanticObjectId, Path(description="Cover letter ID")],
     current_user: CurrentUser,
-    regenerate: bool = Query(
-        False, description="Whether to regenerate even if content exists"
-    ),
     cover_letter_service: CoverLetterService = Depends(get_cover_letter_service),
     generation_service: CoverLetterGenerationService = Depends(
         get_cover_letter_generation_service
     ),
-    profile_service: ProfileService = Depends(get_profile_service),
 ) -> CoverLetterResponse:
     """
-    Generate cover letter content based on job description using user profile preferences.
+    Generate cover letter content based on job description.
 
     Args:
         cover_letter_id: Cover letter ID
         current_user: Current authenticated user
-        regenerate: Whether to regenerate even if content exists
         cover_letter_service: Cover letter service
         generation_service: Cover letter generation service
-        profile_service: Profile service for accessing user preferences
 
     Returns:
         CoverLetterResponse: Updated cover letter with generated content
@@ -434,28 +423,9 @@ async def generate_cover_letter(
             user_id=current_user.id,
         )
 
-        # Get user profile for preferences
-        llm_preferences = None
-        try:
-            profile = await profile_service.get_profile_by_user_id(current_user.id)
-            if (
-                profile
-                and profile.preferences
-                and hasattr(profile.preferences, "llm_preferences")
-            ):
-                llm_preferences = profile.preferences.llm_preferences
-                logger.debug(
-                    f"Using LLM preferences from user profile: {llm_preferences}"
-                )
-        except Exception as e:
-            logger.warning(f"Error getting profile preferences: {e}")
-            # Continue with default preferences
-
-        # Generate content with preferences
+        # Generate content
         await generation_service.generate_cover_letter_content(
-            cover_letter_id=cover_letter_id,
-            regenerate=regenerate,
-            llm_preferences=llm_preferences,
+            cover_letter_id=cover_letter_id
         )
 
         # Get updated cover letter
@@ -486,9 +456,6 @@ async def generate_cover_letter(
 async def generate_cover_letter_pdf(
     cover_letter_id: Annotated[PydanticObjectId, Path(description="Cover letter ID")],
     current_user: CurrentUser,
-    regenerate: bool = Query(
-        False, description="Whether to regenerate PDF even if exists"
-    ),
     timeout: int = Query(
         30,
         description="Timeout in seconds for PDF generation",
@@ -506,12 +473,11 @@ async def generate_cover_letter_pdf(
     NOTE: This endpoint returns a URL to the PDF file stored in S3, not the PDF content itself.
     Clients should use the returned URL to download or display the PDF.
 
-    The PDF will be generated (or regenerated if requested) and stored in S3 before returning the URL.
+    The PDF will be generated and stored in S3 before returning the URL.
 
     Args:
         cover_letter_id: Cover letter ID
         current_user: Current authenticated user
-        regenerate: Whether to regenerate PDF even if exists
         timeout: Timeout in seconds for PDF generation
         cover_letter_service: Cover letter service
         generation_service: Cover letter generation service
@@ -536,7 +502,6 @@ async def generate_cover_letter_pdf(
             pdf_content = await asyncio.wait_for(
                 generation_service.generate_pdf(
                     cover_letter_id=cover_letter_id,
-                    regenerate=regenerate,
                 ),
                 timeout=timeout,
             )

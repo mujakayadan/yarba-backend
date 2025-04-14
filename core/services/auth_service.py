@@ -101,8 +101,7 @@ class AuthService:
             self.logger.info(f"User registered with Firebase: {email}")
 
             # Generate and send verification email
-            if settings.auth.use_firebase_auth:
-                await self.send_verification_email(email)
+            await self.send_verification_email(email)
 
             return created_user
 
