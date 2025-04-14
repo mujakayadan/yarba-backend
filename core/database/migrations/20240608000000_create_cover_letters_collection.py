@@ -35,7 +35,6 @@ class CreateCoverLettersCollectionMigration(Migration):
                             "job_title": {"bsonType": "string"},
                             "job_description": {"bsonType": "string"},
                             "template_id": {"bsonType": "string"},
-                            "version": {"bsonType": "int"},
                             "content": {"bsonType": "object"},
                             "cover_letter_content": {"bsonType": "string"},
                             "cover_letter_pdf_key": {"bsonType": "string"},
@@ -65,7 +64,6 @@ class CreateCoverLettersCollectionMigration(Migration):
                     "portfolio_id": cover_letter.get("portfolio_id"),
                     "resume_id": None,  # No resume link in the old structure
                     "title": cover_letter.get("title", "My Cover Letter"),
-                    "version": cover_letter.get("version"),
                     "template_id": cover_letter.get("template_id", "default"),
                     "company_name": cover_letter.get("company_name"),
                     "job_title": cover_letter.get("job_title"),
@@ -97,7 +95,6 @@ class CreateCoverLettersCollectionMigration(Migration):
                     "profile_id": cover_letter["profile_id"],
                     "portfolio_id": cover_letter.get("portfolio_id"),
                     "title": cover_letter.get("title", "My Cover Letter"),
-                    "version": cover_letter.get("version"),
                     "template_id": cover_letter.get("template_id", "default"),
                     "company_name": cover_letter.get("company_name"),
                     "job_title": cover_letter.get("job_title"),

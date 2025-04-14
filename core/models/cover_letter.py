@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from .portfolio import Portfolio
 from .profile import Profile
+from .resume import Resume
 from .user import User
 
 
@@ -31,22 +32,20 @@ class CoverLetter(Document):
     profile: Optional[Link[Profile]] = None
     portfolio_id: Optional[PydanticObjectId] = None
     portfolio: Optional[Link[Portfolio]] = None
+    resume_id: Optional[PydanticObjectId] = None
+    resume: Optional[Link["Resume"]] = None
 
     title: str = "My Cover Letter"
-    version: Optional[int] = None
     template_id: Optional[str] = "default"
 
     # Job targeting information
     company_name: Optional[str] = None
     job_title: Optional[str] = None
-    hiring_manager: Optional[str] = None
     job_description: Optional[str] = None
 
     # Content can be either structured data or LaTeX string
     content: Dict[str, Any] = Field(default_factory=dict)
-
-    # Custom sections
-    custom_sections: List[CoverLetterSection] = Field(default_factory=list)
+    cover_letter_content: Optional[str] = None
 
     # Generated PDFs
     cover_letter_pdf_key: Optional[str] = Field(
@@ -70,7 +69,7 @@ class CoverLetter(Document):
 
         name = "cover_letters"
         use_state_management = True
-        indexes = ["user_id", "profile_id", "portfolio_id"]
+        indexes = ["user_id", "profile_id", "portfolio_id", "resume_id"]
         bson_encoders = {
             datetime: lambda x: x,
         }

@@ -20,7 +20,6 @@ class CoverLetterFilter(BaseModel):
     """
 
     template_id: Optional[str] = None
-    version: Optional[int] = None
     title_contains: Optional[str] = None
     profile_id: Optional[PydanticObjectId] = None
     portfolio_id: Optional[PydanticObjectId] = None
@@ -95,9 +94,6 @@ class CoverLetterRepository(BeanieRepository[CoverLetter]):
         # Add filter parameters to query if they exist
         if filter_params.template_id:
             query["template_id"] = filter_params.template_id
-
-        if filter_params.version is not None:
-            query["version"] = filter_params.version
 
         if filter_params.profile_id:
             query["profile_id"] = PydanticObjectId(filter_params.profile_id)

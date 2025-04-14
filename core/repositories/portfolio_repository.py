@@ -79,6 +79,19 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         """
         return await Portfolio.find_one({"profile_id": profile_id})
 
+    async def exists(self, portfolio_id: PydanticObjectId) -> bool:
+        """
+        Check if a portfolio with the given ID exists.
+
+        Args:
+            portfolio_id: Portfolio ID to check
+
+        Returns:
+            bool: True if portfolio exists, False otherwise
+        """
+        portfolio = await Portfolio.find_one({"_id": portfolio_id})
+        return portfolio is not None
+
     async def update_skills(
         self, portfolio_id: PydanticObjectId, skills: List[Skill]
     ) -> bool:
@@ -269,7 +282,6 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
             publications=[],
             certifications=[],
             custom_sections=CustomSections(enabled=[], order=[]),
-            version="1.0",
             created_at=now,
             updated_at=now,
         )

@@ -29,7 +29,7 @@ class LLMService:
         self,
         profile_repository: ProfileRepository,
         prompt_service: Optional[PromptService] = None,
-        model: str = "claude-3-5-haiku-20241022",  # needs to be updated from env
+        model: str = "claude-3-5-haiku-20241022",
         temperature: float = 0.1,
         enable_json_validation: bool = True,
     ):

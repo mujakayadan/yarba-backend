@@ -186,7 +186,6 @@ class ResumeService:
             profile_id=profile_id,
             portfolio_id=portfolio_id,
             title=title,
-            version=1,
             template_id=template_id or "default",
             company_name=company_name or "",
             job_title=job_title or "",
@@ -273,37 +272,6 @@ class ResumeService:
 
         return result
 
-    async def create_resume_version(
-        self,
-        resume_id: PydanticObjectId,
-        user_id: PydanticObjectId,
-        title: Optional[str] = None,
-    ) -> Resume:
-        """
-        Create a new version of an existing resume.
-
-        Args:
-            resume_id: Resume ID
-            user_id: User ID
-            title: New resume title
-
-        Returns:
-            Resume: New resume version
-
-        Raises:
-            NotFoundException: If resume not found or doesn't belong to user
-        """
-        # Verify resume exists and belongs to user
-        await self.get_resume_by_id(resume_id, user_id)
-
-        new_resume = await self.resume_repository.create_version(resume_id, title)
-        if not new_resume:
-            self.logger.error(f"Failed to create resume version: {resume_id}")
-            raise NotFoundException("Resume not found")
-
-        self.logger.info(f"Resume version created: {new_resume.id} from {resume_id}")
-        return new_resume
-
     async def filter_resumes(
         self, user_id: PydanticObjectId, filter_params: ResumeFilter
     ) -> List[Resume]:
@@ -337,9 +305,6 @@ class ResumeService:
             and filter_params.template_id is not None
         ):
             repo_filter.template_id = filter_params.template_id
-
-        if hasattr(filter_params, "version") and filter_params.version is not None:
-            repo_filter.version = filter_params.version
 
         if hasattr(filter_params, "title") and filter_params.title:
             repo_filter.title_contains = filter_params.title

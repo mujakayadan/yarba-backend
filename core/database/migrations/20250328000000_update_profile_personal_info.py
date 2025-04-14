@@ -20,7 +20,6 @@ class UpdateProfilePersonalInfoMigration(MigrationBase):
     """Migration to update profile model with personal_information structure."""
 
     name = "update_profile_personal_info"
-    version = "20250328000000"
     description = "Updates the profile model to use personal_information structure"
 
     async def up(self) -> bool:

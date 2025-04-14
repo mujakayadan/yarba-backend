@@ -248,18 +248,7 @@ async def create_cover_letter(
         company_name = resume.company_name
         job_title = resume.job_title
         job_description = resume.job_description
-
-        # If resume doesn't have job info, try to extract it
-        if job_description and (not company_name or not job_title):
-            try:
-                job_info = await job_service.extract_job_info(job_description)
-                if not company_name and "company_name" in job_info:
-                    company_name = job_info["company_name"]
-                if not job_title and "job_title" in job_info:
-                    job_title = job_info["job_title"]
-            except Exception as e:
-                logger.warning(f"Error extracting job info: {str(e)}")
-                # Continue even if job info extraction fails
+        title = resume.title
 
         # Get default template from profile or use default
         template_id = "default"
@@ -271,18 +260,6 @@ async def create_cover_letter(
             template_id = profile.preferences.default_latex_templates.get(
                 "default_cover_letter_template_id", "default"
             )
-
-        # Generate a title based on job info
-        title = f"Cover Letter"
-        if job_title and company_name:
-            title = f"Cover Letter for {job_title} at {company_name}"
-        elif job_title:
-            title = f"Cover Letter for {job_title}"
-        elif company_name:
-            title = f"Cover Letter for {company_name}"
-
-        # Add timestamp to title
-        title = f"{title} - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
 
         # Create cover letter
         cover_letter = await cover_letter_service.create_cover_letter(

@@ -157,8 +157,6 @@ class Portfolio(Document):
         default_factory=CustomSections, description="Custom sections configuration."
     )
 
-    version: str = Field(default="1.0", description="Version of the portfolio.")
-
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         description="When the portfolio was created.",

@@ -263,7 +263,6 @@ class UpdateModelsMigration(Migration):
                             },
                             "is_active": {"bsonType": "bool"},
                             "profile_id": {"bsonType": "objectId"},
-                            "version": {"bsonType": "string"},
                             "created_at": {"bsonType": "date"},
                             "updated_at": {"bsonType": "date"},
                         },

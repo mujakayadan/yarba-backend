@@ -63,7 +63,6 @@ class ResumeFilter(BaseModel):
     title: Optional[str] = Field(None, description="Filter by title")
     template_id: Optional[str] = Field(None, description="Filter by template ID")
     is_cover_letter: Optional[bool] = Field(None, description="Filter by document type")
-    version: Optional[int] = Field(None, description="Filter by version")
     sort_by: Optional[str] = Field(
         SortOptions.UPDATED_DESC,
         description="Sort field and direction (updated_desc, updated_asc, created_desc, created_asc, title_asc, title_desc)",

@@ -114,7 +114,6 @@ class FixPortfolioUserIdMigration(Migration):
                             "certifications": {"bsonType": "array"},
                             "custom_sections": {"bsonType": "object"},
                             "is_active": {"bsonType": "bool"},
-                            "version": {"bsonType": "string"},
                             "created_at": {"bsonType": "date"},
                             "updated_at": {"bsonType": "date"},
                         },

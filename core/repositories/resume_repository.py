@@ -21,7 +21,6 @@ class ResumeFilter(BaseModel):
     which is used for API request validation.
     """
 
-    version: Optional[int] = None
     title_contains: Optional[str] = None
     profile_id: Optional[str] = None
     portfolio_id: Optional[str] = None
@@ -124,6 +123,19 @@ class ResumeRepository(BeanieRepository[Resume]):
         portfolio = resume.portfolio
 
         return user, profile, portfolio
+
+    async def exists(self, resume_id: PydanticObjectId) -> bool:
+        """
+        Check if a resume with the given ID exists.
+
+        Args:
+            resume_id: Resume ID to check
+
+        Returns:
+            bool: True if resume exists, False otherwise
+        """
+        resume = await Resume.get(resume_id)
+        return resume is not None
 
     async def get_by_user(self, user: User) -> List[Resume]:
         """
@@ -256,9 +268,6 @@ class ResumeRepository(BeanieRepository[Resume]):
         """
         query = {"user_id": user.id}
 
-        if filter_params.version is not None:
-            query["version"] = filter_params.version
-
         if filter_params.profile_id:
             query["profile_id"] = filter_params.profile_id
 
@@ -361,45 +370,6 @@ class ResumeRepository(BeanieRepository[Resume]):
         await result.save()
         return True
 
-    async def create_version(
-        self, resume_id: PydanticObjectId, title: Optional[str] = None
-    ) -> Optional[Resume]:
-        """
-        Create a new version of a resume.
-
-        Args:
-            resume_id: Resume ID
-            title: New resume title
-
-        Returns:
-            Optional[Resume]: New resume version if successful, None otherwise
-        """
-        original = await Resume.find_one({"_id": resume_id})
-        if not original:
-            return None
-
-        # Create a new resume with incremented version
-        new_resume = Resume(
-            user_id=original.user_id,
-            profile_id=original.profile_id,
-            portfolio_id=original.portfolio_id,
-            title=title or original.title,
-            version=original.version + 1,
-            template_id=original.template_id,
-            company_name=original.company_name,
-            job_title=original.job_title,
-            job_description=original.job_description,
-            content=original.content,
-            custom_sections=original.custom_sections,
-            resume_pdf_key=None,  # Initialize with no PDF
-            llm_settings=original.llm_settings,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
-        )
-
-        await new_resume.create()
-        return new_resume
-
     async def create_for_user(
         self,
         user: User,
@@ -426,7 +396,6 @@ class ResumeRepository(BeanieRepository[Resume]):
             profile_id=profile_id,
             portfolio_id=portfolio_id,
             title=title,
-            version=1,
             template_id=template_id,
             content={},
             custom_sections=[],

@@ -233,6 +233,23 @@ class ProfileRepository(BeanieRepository[Profile]):
         self.logger.debug(f"Getting profile by ID: {object_id}")
         return await Profile.find_one({"_id": object_id})
 
+    async def exists(self, profile_id: Union[str, PydanticObjectId, ObjectId]) -> bool:
+        """Check if a profile with the given ID exists.
+
+        Args:
+            profile_id: Profile ID (ObjectId, PydanticObjectId, or str)
+
+        Returns:
+            bool: True if profile exists, False otherwise
+        """
+        object_id = self._ensure_object_id(profile_id)
+        if not object_id:
+            return False
+
+        self.logger.debug(f"Checking if profile exists with ID: {object_id}")
+        profile = await Profile.find_one({"_id": object_id})
+        return profile is not None
+
     async def get_user(self, profile_id: str) -> Optional[User]:
         """Get the user associated with this profile.
 
