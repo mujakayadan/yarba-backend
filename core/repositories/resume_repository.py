@@ -413,6 +413,82 @@ class ResumeRepository(BeanieRepository[Resume]):
         await resume.create()
         return resume
 
+    async def add_cover_letter(
+        self, resume_id: PydanticObjectId, cover_letter_id: PydanticObjectId
+    ) -> bool:
+        """
+        Add a cover letter ID to a resume's cover_letter_ids list.
+
+        Args:
+            resume_id: Resume ID
+            cover_letter_id: Cover letter ID to add
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        resume = await Resume.get(resume_id)
+        if not resume:
+            return False
+
+        # Add cover letter ID to resume's list if not already there
+        if not hasattr(resume, "cover_letter_ids"):
+            resume.cover_letter_ids = []
+
+        if cover_letter_id not in resume.cover_letter_ids:
+            resume.cover_letter_ids.append(cover_letter_id)
+            resume.updated_at = datetime.now(timezone.utc)
+            await resume.save()
+            return True
+
+        return True  # Already in the list
+
+    async def remove_cover_letter(
+        self, resume_id: PydanticObjectId, cover_letter_id: PydanticObjectId
+    ) -> bool:
+        """
+        Remove a cover letter ID from a resume's cover_letter_ids list.
+
+        Args:
+            resume_id: Resume ID
+            cover_letter_id: Cover letter ID to remove
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        resume = await Resume.get(resume_id)
+        if not resume:
+            return False
+
+        # Remove cover letter ID from resume's list if it exists
+        if (
+            hasattr(resume, "cover_letter_ids")
+            and cover_letter_id in resume.cover_letter_ids
+        ):
+            resume.cover_letter_ids.remove(cover_letter_id)
+            resume.updated_at = datetime.now(timezone.utc)
+            await resume.save()
+            return True
+
+        return True  # Not in the list, so nothing to remove
+
+    async def get_cover_letters(
+        self, resume_id: PydanticObjectId
+    ) -> List[PydanticObjectId]:
+        """
+        Get all cover letter IDs associated with a resume.
+
+        Args:
+            resume_id: Resume ID
+
+        Returns:
+            List[PydanticObjectId]: List of cover letter IDs
+        """
+        resume = await Resume.get(resume_id)
+        if not resume:
+            return []
+
+        return resume.cover_letter_ids if hasattr(resume, "cover_letter_ids") else []
+
 
 async def get_resume_repository(self) -> ResumeRepository:
     """

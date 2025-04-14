@@ -176,6 +176,15 @@ class CoverLetterService:
         created_cover_letter = await self.cover_letter_repository.create(cover_letter)
         self.logger.info(f"Created new cover letter: {created_cover_letter.id}")
 
+        # Update the resume to track this cover letter
+        if self.resume_repository and created_cover_letter and created_cover_letter.id:
+            await self.resume_repository.add_cover_letter(
+                resume_id, created_cover_letter.id
+            )
+            self.logger.info(
+                f"Updated resume {resume_id} to track cover letter {created_cover_letter.id}"
+            )
+
         return created_cover_letter
 
     async def update_cover_letter(
@@ -231,6 +240,14 @@ class CoverLetterService:
         """
         # Verify cover letter exists and belongs to user
         cover_letter = await self.get_cover_letter_by_id(cover_letter_id, user_id)
+
+        # Remove the cover letter ID from the resume's tracking list
+        if cover_letter and self.resume_repository:
+            resume_id = cover_letter.resume_id
+            await self.resume_repository.remove_cover_letter(resume_id, cover_letter_id)
+            self.logger.info(
+                f"Removed cover letter {cover_letter_id} from resume {resume_id}"
+            )
 
         # Delete cover letter
         result = await self.cover_letter_repository.delete(cover_letter_id)

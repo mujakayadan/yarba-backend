@@ -65,6 +65,11 @@ class Resume(Document):
         default=None, description="S3 key for the resume PDF"
     )
 
+    # Cover letters associated with this resume
+    cover_letter_ids: List[PydanticObjectId] = Field(
+        default_factory=list, description="IDs of cover letters based on this resume"
+    )
+
     # AI generation parameters
     llm_settings: LLMSettings = Field(default_factory=LLMSettings)
 

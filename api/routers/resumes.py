@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 
 from api.dependencies.auth import get_current_active_user
 from api.dependencies.services import (
+    get_cover_letter_service,
     get_job_service,
     get_portfolio_service,
     get_profile_service,
@@ -27,12 +28,14 @@ from api.dependencies.services import (
 )
 from api.middleware.auth import CurrentUser
 from api.schemas import (
+    CoverLetterResponse,
     PaginatedResumeResponse,
     ResumeCreate,
     ResumeFilter,
     ResumeResponse,
     ResumeUpdate,
 )
+from api.schemas.cover_letter import CoverLetterFilter
 from config import get_logger
 from config.logging_config import get_logger
 from config.settings import settings
@@ -41,6 +44,7 @@ from core.models.portfolio import Portfolio
 from core.models.profile import PersonalInformation
 from core.models.resume import Resume
 from core.models.user import User
+from core.services.cover_letter_service import CoverLetterService
 from core.services.job_service import JobService
 from core.services.portfolio_service import PortfolioService
 from core.services.profile_service import ProfileService
@@ -1118,4 +1122,71 @@ async def delete_resume_pdf(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete resume PDF: {str(e)}",
+        )
+
+
+@router.get(
+    "/{resume_id}/cover-letters",
+    response_model=List[CoverLetterResponse],
+    summary="Get cover letters for a resume",
+)
+async def get_resume_cover_letters(
+    resume_id: Annotated[PydanticObjectId, Path(description="Resume ID")],
+    current_user: CurrentUser,
+    resume_service: ResumeService = Depends(get_resume_service),
+    cover_letter_service: CoverLetterService = Depends(get_cover_letter_service),
+) -> List[CoverLetterResponse]:
+    """
+    Get all cover letters associated with a resume.
+
+    Args:
+        resume_id: Resume ID
+        current_user: Current authenticated user
+        resume_service: Resume service
+        cover_letter_service: Cover letter service
+
+    Returns:
+        List[CoverLetterResponse]: List of cover letters associated with the resume
+
+    Raises:
+        HTTPException: If resume not found or doesn't belong to the user
+    """
+    try:
+        # Verify resume exists and belongs to user
+        resume = await resume_service.get_resume_by_id(
+            resume_id=resume_id,
+            user_id=PydanticObjectId(current_user.id),
+        )
+
+        # Get cover letters by resume ID
+        filter_params = CoverLetterFilter(
+            resume_id=resume_id,
+            limit=100,  # Get all cover letters for this resume
+        )
+
+        cover_letters = await cover_letter_service.filter_cover_letters(
+            user_id=PydanticObjectId(current_user.id),
+            filter_params=filter_params,
+        )
+
+        # Convert to response format
+        from api.routers.cover_letters import convert_cover_letter_to_response
+
+        cover_letter_responses = [
+            convert_cover_letter_to_response(cover_letter)
+            for cover_letter in cover_letters
+        ]
+
+        return cover_letter_responses
+
+    except NotFoundException:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Resume not found",
+        )
+    except Exception as e:
+        logger.error(f"Error getting cover letters for resume {resume_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get cover letters",
         )
