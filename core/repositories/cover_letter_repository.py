@@ -215,6 +215,84 @@ class CoverLetterRepository(BeanieRepository[CoverLetter]):
         await cover_letter.save()
         return True
 
+    async def update_llm_usage(
+        self,
+        cover_letter_id: PydanticObjectId,
+        tokens_used: int,
+        input_tokens: int,
+        output_tokens: int,
+        cost: float,
+        model_name: str,
+        operation_type: str,
+    ) -> bool:
+        """
+        Update LLM usage statistics for a specific cover letter.
+
+        Args:
+            cover_letter_id: Cover letter ID
+            tokens_used: Total number of tokens used in this operation
+            input_tokens: Number of input tokens used
+            output_tokens: Number of output tokens used
+            cost: Cost of this LLM operation in USD
+            model_name: Name of the LLM model used
+            operation_type: Type of operation (e.g., "generation", "extract_job_details")
+
+        Returns:
+            bool: True if update was successful, False otherwise
+        """
+        try:
+            # Get cover letter
+            cover_letter = await CoverLetter.get(cover_letter_id)
+            if not cover_letter:
+                self.logger.error(f"Cover letter not found for ID: {cover_letter_id}")
+                return False
+
+            # Get current date
+            now = datetime.now(timezone.utc)
+
+            # Initialize if this is first usage
+            if not cover_letter.llm_usage.last_used:
+                cover_letter.llm_usage.last_used = now
+
+            # Update total usage
+            cover_letter.llm_usage.total_tokens += tokens_used
+            cover_letter.llm_usage.total_input_tokens += input_tokens
+            cover_letter.llm_usage.total_output_tokens += output_tokens
+            cover_letter.llm_usage.total_cost += cost
+            cover_letter.llm_usage.last_used = now
+
+            # Update usage by model
+            if model_name not in cover_letter.llm_usage.usage_by_model:
+                cover_letter.llm_usage.usage_by_model[model_name] = {
+                    "tokens": 0,
+                    "cost": 0.0,
+                }
+            cover_letter.llm_usage.usage_by_model[model_name]["tokens"] += tokens_used
+            cover_letter.llm_usage.usage_by_model[model_name]["cost"] += cost
+
+            # Update usage by operation
+            if operation_type not in cover_letter.llm_usage.usage_by_operation:
+                cover_letter.llm_usage.usage_by_operation[operation_type] = {
+                    "tokens": 0,
+                    "cost": 0.0,
+                }
+            cover_letter.llm_usage.usage_by_operation[operation_type][
+                "tokens"
+            ] += tokens_used
+            cover_letter.llm_usage.usage_by_operation[operation_type]["cost"] += cost
+
+            # Save changes
+            cover_letter.updated_at = now
+            await cover_letter.save()
+            self.logger.info(
+                f"Updated LLM usage for cover_letter_id: {cover_letter_id}, added {tokens_used} tokens, ${cost:.6f}"
+            )
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error updating LLM usage for cover letter: {e}")
+            return False
+
 
 async def get_cover_letter_repository() -> CoverLetterRepository:
     """Get a cover letter repository.

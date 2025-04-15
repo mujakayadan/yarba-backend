@@ -1,7 +1,7 @@
 """Service for cover letter generation using LLM."""
 
 from datetime import datetime, timezone
-from typing import Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from beanie import PydanticObjectId
 
@@ -173,32 +173,38 @@ class CoverLetterGenerationService:
     async def generate_cover_letter_content(
         self,
         cover_letter_id: PydanticObjectId,
-    ) -> str:
+        regenerate: bool = False,
+        llm_preferences: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """
-        Generate a cover letter content.
+        Generate content for a cover letter.
 
         Args:
             cover_letter_id: Cover letter ID
+            regenerate: Whether to regenerate content even if it already exists
+            llm_preferences: Optional LLM preferences to override defaults
 
         Returns:
-            Generated cover letter text
+            Generated cover letter content
 
         Raises:
-            ValueError: If cover letter, profile, or portfolio is not found
+            ValueError: If cover letter, resume, or profile is not found
         """
         # Get cover letter data
-        cover_letter, profile, portfolio, resume = await self.get_cover_letter_data(
+        cover_letter, resume, profile, portfolio = await self.get_cover_letter_data(
             cover_letter_id
         )
 
-        # Check if we have a valid resume
-        if not resume:
-            raise ValueError(
-                f"Required resume for cover letter {cover_letter_id} is not found"
-            )
-
         # Configure LLM for user
         await self.configure_for_user(cover_letter.user_id)
+
+        # Apply LLM preferences if provided
+        if llm_preferences:
+            self.logger.info(f"Applying custom LLM preferences: {llm_preferences}")
+            await self.llm_service.set_model_parameters(llm_preferences)
+
+        # Set cover_letter_id for cost tracking in LLM service
+        self.llm_service.current_cover_letter_id = cover_letter_id
 
         # Get resume content
         resume_data = None

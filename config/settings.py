@@ -322,6 +322,34 @@ class LLMSettings(BaseSettings):
         env="JSON_COMPATIBLE_MODELS",
     )
 
+    # Cost tracking settings
+    enable_cost_tracking: bool = Field(
+        default=True,
+        description="Whether to enable cost tracking for LLM calls",
+        env="ENABLE_COST_TRACKING",
+    )
+
+    # Use LiteLLM's model cost map
+    use_litellm_model_cost_map: bool = Field(
+        default=True,
+        description="Whether to use LiteLLM's built-in model cost map",
+        env="USE_LITELLM_MODEL_COST_MAP",
+    )
+
+    # URL for custom model cost map (optional)
+    custom_model_cost_map_url: Optional[str] = Field(
+        default=None,
+        description="URL to custom model cost map JSON for LiteLLM",
+        env="CUSTOM_MODEL_COST_MAP_URL",
+    )
+
+    # Custom price overrides only for models not in LiteLLM's cost map
+    # These are provided as fallbacks and can be empty if using LiteLLM's cost map
+    model_pricing: Dict[str, Dict[str, float]] = Field(
+        default_factory=dict,
+        description="Custom price overrides for LLM models not in LiteLLM's model cost map",
+    )
+
 
 class LinkedInSettings(BaseSettings):
     """LinkedIn settings for job scraping.

@@ -11,6 +11,59 @@ from config.settings import settings
 from .user import User
 
 
+class LLMUsage(BaseModel):
+    """LLM usage and cost tracking for users."""
+
+    # Summary of total usage
+    total_tokens: int = Field(default=0, description="Total number of tokens used")
+    total_input_tokens: int = Field(
+        default=0, description="Total number of input tokens"
+    )
+    total_output_tokens: int = Field(
+        default=0, description="Total number of output tokens"
+    )
+    total_cost: float = Field(default=0.0, description="Total cost in USD")
+
+    # Breakdown by model
+    usage_by_model: Dict[str, Dict[str, float]] = Field(
+        default_factory=dict,
+        description="Usage breakdown by model: {model_name: {tokens: count, cost: amount}}",
+    )
+
+    # Breakdown by operation type
+    usage_by_operation: Dict[str, Dict[str, float]] = Field(
+        default_factory=dict,
+        description="Usage breakdown by operation type: {operation: {tokens: count, cost: amount}}",
+    )
+
+    # Usage limits and quotas
+    monthly_quota: Optional[int] = Field(
+        default=None, description="Monthly token quota (None means unlimited)"
+    )
+    monthly_cost_limit: Optional[float] = Field(
+        default=None, description="Monthly cost limit in USD (None means unlimited)"
+    )
+
+    # Time-based tracking
+    last_used: Optional[datetime] = Field(
+        default=None, description="Last time LLM was used"
+    )
+    current_month_tokens: int = Field(
+        default=0, description="Tokens used in current month"
+    )
+    current_month_cost: float = Field(
+        default=0.0, description="Cost accumulated in current month"
+    )
+
+    # Historical usage by month - format: {'YYYY-MM': {'tokens': count, 'cost': amount}}
+    monthly_history: Dict[str, Dict[str, float]] = Field(
+        default_factory=dict,
+        description="Historical usage by month: {'YYYY-MM': {'tokens': count, 'cost': amount}}",
+    )
+
+    model_config = {"validate_assignment": True}
+
+
 class Preferences(BaseModel):
     """User preferences model."""
 
@@ -148,6 +201,11 @@ class Profile(Document):
 
     # User preferences
     preferences: Preferences = Field(default_factory=Preferences)
+
+    # LLM usage tracking
+    llm_usage: LLMUsage = Field(
+        default_factory=LLMUsage, description="LLM usage and cost tracking"
+    )
 
     # Metadata
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

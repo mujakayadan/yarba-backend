@@ -104,6 +104,67 @@ GET /api/v1/auth/me
 }
 ```
 
+#### Forgot Password
+
+```
+POST /api/v1/auth/forgot-password
+```
+
+**Request Body:**
+```json
+{
+  "email": "string"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Password reset instructions sent to your email"
+}
+```
+
+#### Verify Email
+
+```
+POST /api/v1/auth/verify-email
+```
+
+**Request Body:**
+```json
+{
+  "email": "string"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Email verification instructions sent to your email"
+}
+```
+
+#### Change Password
+
+```
+POST /api/v1/auth/change-password
+```
+
+**Request Body:**
+```json
+{
+  "current_password": "string",
+  "new_password": "string"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Password changed successfully"
+}
+```
+
 ## Rate Limiting
 
 The API implements rate limiting to prevent abuse. Different endpoints have different rate limits:

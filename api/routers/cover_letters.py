@@ -16,10 +16,12 @@ from fastapi import (
     UploadFile,
     status,
 )
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from config.logging_config import get_logger
 from core.exceptions.base import NotFoundException
+from core.models.cover_letter import CoverLetter
+from core.models.resume import LLMUsageStats
 from core.models.user import User
 from core.services.cover_letter_generation_service import CoverLetterGenerationService
 from core.services.cover_letter_service import CoverLetterService
@@ -54,6 +56,20 @@ class CoverLetterPDFResponse(BaseModel):
     """Response model for cover letter PDF URL."""
 
     pdf_url: Optional[str] = None
+
+
+class CoverLetterLLMUsageResponse(BaseModel):
+    """Response model for cover letter LLM usage statistics."""
+
+    cover_letter_id: str = Field(..., description="Cover letter ID")
+    resume_id: str = Field(..., description="Resume ID")
+    company_name: Optional[str] = Field(None, description="Company name")
+    job_title: Optional[str] = Field(None, description="Job title")
+    usage: LLMUsageStats = Field(..., description="LLM usage statistics")
+    created_at: datetime = Field(..., description="When the cover letter was created")
+    updated_at: datetime = Field(
+        ..., description="When the cover letter was last updated"
+    )
 
 
 def convert_cover_letter_to_response(cover_letter) -> CoverLetterResponse:
@@ -780,4 +796,72 @@ async def delete_cover_letter_pdf(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete cover letter PDF: {str(e)}",
+        )
+
+
+@router.get("/{cover_letter_id}/llm-usage", response_model=CoverLetterLLMUsageResponse)
+async def get_cover_letter_llm_usage(
+    cover_letter_id: Annotated[PydanticObjectId, Path(description="Cover Letter ID")],
+    current_user: CurrentUser,
+    cover_letter_service: CoverLetterService = Depends(get_cover_letter_service),
+    resume_service: ResumeService = Depends(get_resume_service),
+) -> CoverLetterLLMUsageResponse:
+    """
+    Get LLM usage statistics for a specific cover letter.
+
+    Args:
+        cover_letter_id: Cover letter ID
+        current_user: Current authenticated user
+        cover_letter_service: Cover letter service
+        resume_service: Resume service
+
+    Returns:
+        Cover letter LLM usage statistics
+
+    Raises:
+        HTTPException: If cover letter is not found or access is denied
+    """
+    try:
+        # Get cover letter with usage statistics
+        cover_letter = await cover_letter_service.get_cover_letter_by_id(
+            cover_letter_id=cover_letter_id,
+            user_id=PydanticObjectId(current_user.id),
+        )
+
+        # Get associated resume data for company name and job title
+        company_name = None
+        job_title = None
+        if cover_letter.resume_id:
+            try:
+                resume = await resume_service.get_resume_by_id(
+                    resume_id=cover_letter.resume_id,
+                    user_id=PydanticObjectId(current_user.id),
+                )
+                company_name = resume.company_name
+                job_title = resume.job_title
+            except Exception:
+                # Just continue without resume details if we can't get them
+                pass
+
+        # Return usage data along with basic cover letter info
+        return {
+            "cover_letter_id": str(cover_letter.id),
+            "resume_id": str(cover_letter.resume_id),
+            "company_name": company_name,
+            "job_title": job_title,
+            "usage": cover_letter.llm_usage,
+            "created_at": cover_letter.created_at,
+            "updated_at": cover_letter.updated_at,
+        }
+
+    except NotFoundException:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Cover letter not found",
+        )
+    except Exception as e:
+        logger.error(f"Error retrieving cover letter LLM usage: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve cover letter LLM usage: {str(e)}",
         )

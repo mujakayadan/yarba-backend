@@ -489,6 +489,79 @@ class ResumeRepository(BeanieRepository[Resume]):
 
         return resume.cover_letter_ids if hasattr(resume, "cover_letter_ids") else []
 
+    async def update_llm_usage(
+        self,
+        resume_id: PydanticObjectId,
+        tokens_used: int,
+        input_tokens: int,
+        output_tokens: int,
+        cost: float,
+        model_name: str,
+        operation_type: str,
+    ) -> bool:
+        """
+        Update LLM usage statistics for a specific resume.
+
+        Args:
+            resume_id: Resume ID
+            tokens_used: Total number of tokens used in this operation
+            input_tokens: Number of input tokens used
+            output_tokens: Number of output tokens used
+            cost: Cost of this LLM operation in USD
+            model_name: Name of the LLM model used
+            operation_type: Type of operation (e.g., "generation", "extract_job_details")
+
+        Returns:
+            bool: True if update was successful, False otherwise
+        """
+        try:
+            # Get resume
+            resume = await Resume.get(resume_id)
+            if not resume:
+                self.logger.error(f"Resume not found for ID: {resume_id}")
+                return False
+
+            # Get current date
+            now = datetime.now(timezone.utc)
+
+            # Initialize if this is first usage
+            if not resume.llm_usage.last_used:
+                resume.llm_usage.last_used = now
+
+            # Update total usage
+            resume.llm_usage.total_tokens += tokens_used
+            resume.llm_usage.total_input_tokens += input_tokens
+            resume.llm_usage.total_output_tokens += output_tokens
+            resume.llm_usage.total_cost += cost
+            resume.llm_usage.last_used = now
+
+            # Update usage by model
+            if model_name not in resume.llm_usage.usage_by_model:
+                resume.llm_usage.usage_by_model[model_name] = {"tokens": 0, "cost": 0.0}
+            resume.llm_usage.usage_by_model[model_name]["tokens"] += tokens_used
+            resume.llm_usage.usage_by_model[model_name]["cost"] += cost
+
+            # Update usage by operation
+            if operation_type not in resume.llm_usage.usage_by_operation:
+                resume.llm_usage.usage_by_operation[operation_type] = {
+                    "tokens": 0,
+                    "cost": 0.0,
+                }
+            resume.llm_usage.usage_by_operation[operation_type]["tokens"] += tokens_used
+            resume.llm_usage.usage_by_operation[operation_type]["cost"] += cost
+
+            # Save changes
+            resume.updated_at = now
+            await resume.save()
+            self.logger.info(
+                f"Updated LLM usage for resume_id: {resume_id}, added {tokens_used} tokens, ${cost:.6f}"
+            )
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error updating LLM usage for resume: {e}")
+            return False
+
 
 async def get_resume_repository(self) -> ResumeRepository:
     """

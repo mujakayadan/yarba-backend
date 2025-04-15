@@ -380,6 +380,9 @@ class ResumeGenerationService:
             self.logger.info(f"Applying custom LLM preferences: {llm_preferences}")
             await self.llm_service.set_model_parameters(llm_preferences)
 
+        # Set resume_id for cost tracking in LLM service
+        self.llm_service.current_resume_id = resume_id
+
         # Update resume title with properly formatted version
         if resume.company_name or resume.job_title:
             resume.title = self._generate_proper_title(

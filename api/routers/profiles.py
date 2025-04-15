@@ -1,6 +1,7 @@
 """Profile router for the API."""
 
-from typing import Optional
+from datetime import datetime
+from typing import Dict, Optional
 
 from beanie import PydanticObjectId
 from bson import ObjectId
@@ -895,4 +896,191 @@ async def get_my_signature(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get signature: {str(e)}",
+        )
+
+
+class LLMUsageResponse(BaseModel):
+    """Response model for LLM usage statistics."""
+
+    # Total usage
+    total_tokens: int = Field(default=0, description="Total number of tokens used")
+    total_input_tokens: int = Field(
+        default=0, description="Total number of input tokens"
+    )
+    total_output_tokens: int = Field(
+        default=0, description="Total number of output tokens"
+    )
+    total_cost: float = Field(default=0.0, description="Total cost in USD")
+
+    # Current month usage
+    current_month_tokens: int = Field(
+        default=0, description="Tokens used in current month"
+    )
+    current_month_cost: float = Field(
+        default=0.0, description="Cost accumulated in current month"
+    )
+
+    # Usage limits
+    monthly_quota: Optional[int] = Field(
+        default=None, description="Monthly token quota (None means unlimited)"
+    )
+    monthly_cost_limit: Optional[float] = Field(
+        default=None, description="Monthly cost limit in USD (None means unlimited)"
+    )
+
+    # Time tracking
+    last_used: Optional[datetime] = Field(
+        default=None, description="Last time LLM was used"
+    )
+
+    # Breakdown
+    usage_by_model: Dict[str, Dict[str, float]] = Field(
+        default_factory=dict, description="Usage breakdown by model"
+    )
+    usage_by_operation: Dict[str, Dict[str, float]] = Field(
+        default_factory=dict, description="Usage breakdown by operation type"
+    )
+
+    # Monthly history
+    monthly_history: Dict[str, Dict[str, float]] = Field(
+        default_factory=dict, description="Historical usage by month"
+    )
+
+
+@router.get("/me/llm-usage", response_model=LLMUsageResponse)
+async def get_my_llm_usage(
+    current_user: User = Depends(get_current_active_user),
+    profile_service: ProfileService = Depends(get_profile_service),
+):
+    """
+    Get the current user's LLM usage statistics.
+
+    Args:
+        current_user: Current authenticated user
+        profile_service: Profile service
+
+    Returns:
+        LLM usage statistics
+    """
+    try:
+        # Get current profile
+        profile = await profile_service.get_profile_by_user_id(current_user.id)
+
+        # Return LLM usage data
+        return profile.llm_usage.model_dump()
+
+    except NotFoundException:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found",
+        )
+    except Exception as e:
+        logger.error(f"Error getting LLM usage statistics: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get LLM usage statistics: {str(e)}",
+        )
+
+
+class LLMUsageSummary(BaseModel):
+    """Simplified response model for LLM usage summary statistics."""
+
+    total_tokens: int = Field(default=0, description="Total number of tokens used")
+    total_cost: float = Field(default=0.0, description="Total cost in USD")
+    current_month_tokens: int = Field(
+        default=0, description="Tokens used in current month"
+    )
+    current_month_cost: float = Field(
+        default=0.0, description="Cost accumulated in current month"
+    )
+    monthly_quota: Optional[int] = Field(
+        default=None, description="Monthly token quota (None means unlimited)"
+    )
+    monthly_cost_limit: Optional[float] = Field(
+        default=None, description="Monthly cost limit in USD (None means unlimited)"
+    )
+    usage_limit_percentage: float = Field(
+        default=0.0, description="Percentage of monthly quota used (0-100)"
+    )
+    cost_limit_percentage: float = Field(
+        default=0.0, description="Percentage of monthly cost limit used (0-100)"
+    )
+    model_count: int = Field(default=0, description="Number of different models used")
+    operation_count: int = Field(
+        default=0, description="Number of different operation types used"
+    )
+
+
+@router.get("/me/llm-usage/summary", response_model=LLMUsageSummary)
+async def get_my_llm_usage_summary(
+    current_user: User = Depends(get_current_active_user),
+    profile_service: ProfileService = Depends(get_profile_service),
+):
+    """
+    Get a simplified summary of the current user's LLM usage statistics.
+
+    This endpoint provides a dashboard-friendly overview of LLM usage without detailed breakdowns.
+
+    Args:
+        current_user: Current authenticated user
+        profile_service: Profile service
+
+    Returns:
+        Simplified LLM usage summary
+    """
+    try:
+        # Get current profile
+        profile = await profile_service.get_profile_by_user_id(current_user.id)
+
+        # Calculate usage limit percentage
+        usage_limit_percentage = 0.0
+        if profile.llm_usage.monthly_quota and profile.llm_usage.monthly_quota > 0:
+            usage_limit_percentage = min(
+                100.0,
+                (
+                    profile.llm_usage.current_month_tokens
+                    / profile.llm_usage.monthly_quota
+                )
+                * 100,
+            )
+
+        # Calculate cost limit percentage
+        cost_limit_percentage = 0.0
+        if (
+            profile.llm_usage.monthly_cost_limit
+            and profile.llm_usage.monthly_cost_limit > 0
+        ):
+            cost_limit_percentage = min(
+                100.0,
+                (
+                    profile.llm_usage.current_month_cost
+                    / profile.llm_usage.monthly_cost_limit
+                )
+                * 100,
+            )
+
+        # Return simplified summary
+        return {
+            "total_tokens": profile.llm_usage.total_tokens,
+            "total_cost": profile.llm_usage.total_cost,
+            "current_month_tokens": profile.llm_usage.current_month_tokens,
+            "current_month_cost": profile.llm_usage.current_month_cost,
+            "monthly_quota": profile.llm_usage.monthly_quota,
+            "monthly_cost_limit": profile.llm_usage.monthly_cost_limit,
+            "usage_limit_percentage": usage_limit_percentage,
+            "cost_limit_percentage": cost_limit_percentage,
+            "model_count": len(profile.llm_usage.usage_by_model),
+            "operation_count": len(profile.llm_usage.usage_by_operation),
+        }
+
+    except NotFoundException:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found",
+        )
+    except Exception as e:
+        logger.error(f"Error getting LLM usage summary: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get LLM usage summary: {str(e)}",
         )

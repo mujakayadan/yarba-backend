@@ -42,7 +42,7 @@ from config.settings import settings
 from core.exceptions.base import NotFoundException
 from core.models.portfolio import Portfolio
 from core.models.profile import PersonalInformation
-from core.models.resume import Resume
+from core.models.resume import LLMUsageStats, Resume
 from core.models.user import User
 from core.services.cover_letter_service import CoverLetterService
 from core.services.job_service import JobService
@@ -60,6 +60,18 @@ class ResumePDFResponse(BaseModel):
     """Response model for resume PDF URL."""
 
     pdf_url: Optional[str] = None
+
+
+class ResumeLLMUsageResponse(BaseModel):
+    """Response model for resume LLM usage statistics."""
+
+    resume_id: str = Field(..., description="Resume ID")
+    title: Optional[str] = Field(None, description="Resume title")
+    company_name: Optional[str] = Field(None, description="Company name")
+    job_title: Optional[str] = Field(None, description="Job title")
+    usage: LLMUsageStats = Field(..., description="LLM usage statistics")
+    created_at: datetime = Field(..., description="When the resume was created")
+    updated_at: datetime = Field(..., description="When the resume was last updated")
 
 
 def convert_resume_to_response(resume: Resume) -> ResumeResponse:
@@ -1189,4 +1201,55 @@ async def get_resume_cover_letters(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get cover letters",
+        )
+
+
+@router.get("/{resume_id}/llm-usage", response_model=ResumeLLMUsageResponse)
+async def get_resume_llm_usage(
+    resume_id: Annotated[PydanticObjectId, Path(description="Resume ID")],
+    current_user: CurrentUser,
+    resume_service: ResumeService = Depends(get_resume_service),
+) -> ResumeLLMUsageResponse:
+    """
+    Get LLM usage statistics for a specific resume.
+
+    Args:
+        resume_id: Resume ID
+        current_user: Current authenticated user
+        resume_service: Resume service
+
+    Returns:
+        Resume LLM usage statistics
+
+    Raises:
+        HTTPException: If resume is not found or access is denied
+    """
+    try:
+        # Get resume with usage statistics
+        resume = await resume_service.get_resume_by_id(
+            resume_id=resume_id,
+            user_id=PydanticObjectId(current_user.id),
+        )
+
+        # Return usage data along with basic resume info
+        return {
+            "resume_id": str(resume.id),
+            "title": resume.title,
+            "company_name": resume.company_name,
+            "job_title": resume.job_title,
+            "usage": resume.llm_usage,
+            "created_at": resume.created_at,
+            "updated_at": resume.updated_at,
+        }
+
+    except NotFoundException:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Resume not found",
+        )
+    except Exception as e:
+        logger.error(f"Error retrieving resume LLM usage: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve resume LLM usage: {str(e)}",
         )

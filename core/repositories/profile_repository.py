@@ -543,6 +543,293 @@ class ProfileRepository(BeanieRepository[Profile]):
         profile = await self.get_by_user_id(user_id)
         return profile.api_keys if profile and hasattr(profile, "api_keys") else {}
 
+    async def update_llm_usage(
+        self,
+        user_id: Union[str, PydanticObjectId],
+        tokens_used: int,
+        input_tokens: int,
+        output_tokens: int,
+        cost: float,
+        model_name: str,
+        operation_type: str,
+    ) -> bool:
+        """
+        Update LLM usage statistics for a user.
+
+        Args:
+            user_id: User ID
+            tokens_used: Total number of tokens used in this operation
+            input_tokens: Number of input tokens used
+            output_tokens: Number of output tokens used
+            cost: Cost of this LLM operation in USD
+            model_name: Name of the LLM model used
+            operation_type: Type of operation (e.g., "generation", "extract_job_details")
+
+        Returns:
+            bool: True if update was successful, False otherwise
+        """
+        try:
+            # Validate user_id format
+            object_id = self._ensure_object_id(user_id)
+            if not object_id:
+                self.logger.error(f"Invalid user_id format: {user_id}")
+                return False
+
+            # Get current profile
+            profile = await self.get_by_user_id(user_id)
+            if not profile:
+                self.logger.error(f"Profile not found for user_id: {user_id}")
+                return False
+
+            # Get current date
+            now = datetime.now(timezone.utc)
+            month_key = now.strftime("%Y-%m")
+
+            # Initialize if this is first usage
+            if not profile.llm_usage.last_used:
+                profile.llm_usage.last_used = now
+
+            # Update total usage
+            profile.llm_usage.total_tokens += tokens_used
+            profile.llm_usage.total_input_tokens += input_tokens
+            profile.llm_usage.total_output_tokens += output_tokens
+            profile.llm_usage.total_cost += cost
+            profile.llm_usage.last_used = now
+
+            # Update current month usage
+            profile.llm_usage.current_month_tokens += tokens_used
+            profile.llm_usage.current_month_cost += cost
+
+            # Add to monthly history
+            if month_key not in profile.llm_usage.monthly_history:
+                profile.llm_usage.monthly_history[month_key] = {
+                    "tokens": 0,
+                    "cost": 0.0,
+                }
+            profile.llm_usage.monthly_history[month_key]["tokens"] += tokens_used
+            profile.llm_usage.monthly_history[month_key]["cost"] += cost
+
+            # Update usage by model
+            if model_name not in profile.llm_usage.usage_by_model:
+                profile.llm_usage.usage_by_model[model_name] = {
+                    "tokens": 0,
+                    "cost": 0.0,
+                }
+            profile.llm_usage.usage_by_model[model_name]["tokens"] += tokens_used
+            profile.llm_usage.usage_by_model[model_name]["cost"] += cost
+
+            # Update usage by operation
+            if operation_type not in profile.llm_usage.usage_by_operation:
+                profile.llm_usage.usage_by_operation[operation_type] = {
+                    "tokens": 0,
+                    "cost": 0.0,
+                }
+            profile.llm_usage.usage_by_operation[operation_type][
+                "tokens"
+            ] += tokens_used
+            profile.llm_usage.usage_by_operation[operation_type]["cost"] += cost
+
+            # Save changes
+            await profile.save()
+            self.logger.info(
+                f"Updated LLM usage for user_id: {user_id}, added {tokens_used} tokens, ${cost:.6f}"
+            )
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error updating LLM usage: {e}")
+            return False
+
+    async def get_llm_usage(
+        self, user_id: Union[str, PydanticObjectId]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get LLM usage statistics for a user.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            Dict with LLM usage statistics or None if error
+        """
+        try:
+            # Validate user_id format
+            object_id = self._ensure_object_id(user_id)
+            if not object_id:
+                self.logger.error(f"Invalid user_id format: {user_id}")
+                return None
+
+            # Get current profile
+            profile = await self.get_by_user_id(user_id)
+            if not profile:
+                self.logger.error(f"Profile not found for user_id: {user_id}")
+                return None
+
+            # Return usage data
+            return profile.llm_usage.model_dump()
+
+        except Exception as e:
+            self.logger.error(f"Error retrieving LLM usage: {e}")
+            return None
+
+    async def check_llm_usage_limits(
+        self, user_id: Union[str, PydanticObjectId]
+    ) -> Dict[str, Any]:
+        """
+        Check if a user has exceeded their LLM usage limits.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            Dict with limit information: {
+                "can_use": bool,
+                "monthly_quota_exceeded": bool,
+                "monthly_cost_exceeded": bool,
+                "current_month_tokens": int,
+                "current_month_cost": float,
+                "monthly_quota": int or None,
+                "monthly_cost_limit": float or None
+            }
+        """
+        try:
+            # Validate user_id format
+            object_id = self._ensure_object_id(user_id)
+            if not object_id:
+                self.logger.error(f"Invalid user_id format: {user_id}")
+                return {"can_use": False, "error": "Invalid user ID"}
+
+            # Get current profile
+            profile = await self.get_by_user_id(user_id)
+            if not profile:
+                self.logger.error(f"Profile not found for user_id: {user_id}")
+                return {"can_use": False, "error": "Profile not found"}
+
+            # Check for quota limits
+            current_month_tokens = profile.llm_usage.current_month_tokens
+            current_month_cost = profile.llm_usage.current_month_cost
+            monthly_quota = profile.llm_usage.monthly_quota
+            monthly_cost_limit = profile.llm_usage.monthly_cost_limit
+
+            quota_exceeded = (
+                monthly_quota is not None and current_month_tokens >= monthly_quota
+            )
+            cost_exceeded = (
+                monthly_cost_limit is not None
+                and current_month_cost >= monthly_cost_limit
+            )
+
+            # This month could be different from when token count started, do a check
+            now = datetime.now(timezone.utc)
+            current_month_key = now.strftime("%Y-%m")
+            last_used = profile.llm_usage.last_used
+
+            # If it's a new month, reset current month counters
+            if last_used and last_used.strftime("%Y-%m") != current_month_key:
+                await self.reset_current_month_usage(user_id)
+                quota_exceeded = False
+                cost_exceeded = False
+                current_month_tokens = 0
+                current_month_cost = 0.0
+
+            return {
+                "can_use": not (quota_exceeded or cost_exceeded),
+                "monthly_quota_exceeded": quota_exceeded,
+                "monthly_cost_exceeded": cost_exceeded,
+                "current_month_tokens": current_month_tokens,
+                "current_month_cost": current_month_cost,
+                "monthly_quota": monthly_quota,
+                "monthly_cost_limit": monthly_cost_limit,
+            }
+
+        except Exception as e:
+            self.logger.error(f"Error checking LLM usage limits: {e}")
+            return {"can_use": False, "error": str(e)}
+
+    async def reset_current_month_usage(
+        self, user_id: Union[str, PydanticObjectId]
+    ) -> bool:
+        """
+        Reset the current month's usage counters.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            bool: True if reset was successful, False otherwise
+        """
+        try:
+            # Validate user_id format
+            object_id = self._ensure_object_id(user_id)
+            if not object_id:
+                self.logger.error(f"Invalid user_id format: {user_id}")
+                return False
+
+            # Get current profile
+            profile = await self.get_by_user_id(user_id)
+            if not profile:
+                self.logger.error(f"Profile not found for user_id: {user_id}")
+                return False
+
+            # Reset current month counters
+            profile.llm_usage.current_month_tokens = 0
+            profile.llm_usage.current_month_cost = 0.0
+
+            # Save changes
+            await profile.save()
+            self.logger.info(f"Reset current month LLM usage for user_id: {user_id}")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error resetting current month LLM usage: {e}")
+            return False
+
+    async def set_llm_usage_limits(
+        self,
+        user_id: Union[str, PydanticObjectId],
+        monthly_quota: Optional[int] = None,
+        monthly_cost_limit: Optional[float] = None,
+    ) -> bool:
+        """
+        Set usage limits for a user.
+
+        Args:
+            user_id: User ID
+            monthly_quota: Maximum number of tokens per month (None for unlimited)
+            monthly_cost_limit: Maximum cost per month in USD (None for unlimited)
+
+        Returns:
+            bool: True if update was successful, False otherwise
+        """
+        try:
+            # Validate user_id format
+            object_id = self._ensure_object_id(user_id)
+            if not object_id:
+                self.logger.error(f"Invalid user_id format: {user_id}")
+                return False
+
+            # Get current profile
+            profile = await self.get_by_user_id(user_id)
+            if not profile:
+                self.logger.error(f"Profile not found for user_id: {user_id}")
+                return False
+
+            # Update limits
+            profile.llm_usage.monthly_quota = monthly_quota
+            profile.llm_usage.monthly_cost_limit = monthly_cost_limit
+
+            # Save changes
+            await profile.save()
+            self.logger.info(
+                f"Set LLM usage limits for user_id: {user_id}, "
+                f"monthly_quota: {monthly_quota}, monthly_cost_limit: {monthly_cost_limit}"
+            )
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error setting LLM usage limits: {e}")
+            return False
+
 
 async def get_profile_repository() -> ProfileRepository:
     """

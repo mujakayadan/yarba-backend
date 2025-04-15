@@ -35,6 +35,41 @@ class LLMSettings(BaseModel):
     model_config = {"validate_assignment": True}
 
 
+class LLMUsageStats(BaseModel):
+    """LLM usage statistics for a specific resume."""
+
+    total_tokens: int = Field(
+        default=0, description="Total number of tokens used for this resume"
+    )
+    total_input_tokens: int = Field(
+        default=0, description="Total number of input tokens"
+    )
+    total_output_tokens: int = Field(
+        default=0, description="Total number of output tokens"
+    )
+    total_cost: float = Field(
+        default=0.0, description="Total cost in USD for this resume"
+    )
+
+    # Breakdown by operation
+    usage_by_operation: Dict[str, Dict[str, float]] = Field(
+        default_factory=dict,
+        description="Usage breakdown by operation type: {operation: {tokens: count, cost: amount}}",
+    )
+
+    # Breakdown by model
+    usage_by_model: Dict[str, Dict[str, float]] = Field(
+        default_factory=dict,
+        description="Usage breakdown by model: {model_name: {tokens: count, cost: amount}}",
+    )
+
+    last_used: Optional[datetime] = Field(
+        default=None, description="Last time LLM was used for this resume"
+    )
+
+    model_config = {"validate_assignment": True}
+
+
 class Resume(Document):
     """Resume model for MongoDB using Beanie ODM."""
 
@@ -72,6 +107,12 @@ class Resume(Document):
 
     # AI generation parameters
     llm_settings: LLMSettings = Field(default_factory=LLMSettings)
+
+    # LLM usage statistics for this specific resume
+    llm_usage: LLMUsageStats = Field(
+        default_factory=LLMUsageStats,
+        description="LLM usage statistics for this resume",
+    )
 
     # Metadata
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 from .portfolio import Portfolio
 from .profile import Profile
-from .resume import Resume
+from .resume import LLMUsageStats, Resume
 from .user import User
 
 
@@ -43,6 +43,12 @@ class CoverLetter(Document):
     # Generated PDFs
     cover_letter_pdf_key: Optional[str] = Field(
         default=None, description="S3 key for the cover letter PDF"
+    )
+
+    # LLM usage statistics for this specific cover letter
+    llm_usage: LLMUsageStats = Field(
+        default_factory=LLMUsageStats,
+        description="LLM usage statistics for this cover letter",
     )
 
     # Metadata

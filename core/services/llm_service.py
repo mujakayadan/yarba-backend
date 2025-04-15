@@ -49,6 +49,7 @@ class LLMService:
         self.temperature = temperature
         self.max_tokens = settings.llm.max_tokens
         self.enable_json_validation = enable_json_validation
+        self.logger = logger
 
         # Store API keys from environment config as fallbacks
         self.api_keys = {
@@ -59,12 +60,16 @@ class LLMService:
             "mistral": None,
         }
 
+        # For tracking costs against specific documents
+        self.current_resume_id: Optional[PydanticObjectId] = None
+        self.current_cover_letter_id: Optional[PydanticObjectId] = None
+
         self._setup_litellm()
         self.logger = get_logger(self.__class__.__name__)
         self.logger.info(f"LLM service initialized with model: {self.model}")
 
     def _setup_litellm(self):
-        """Set up litellm with API keys."""
+        """Set up litellm with API keys and custom pricing."""
         # Configure litellm with API keys
         try:
             litellm.api_key_dict = {
@@ -77,9 +82,85 @@ class LLMService:
             if self.enable_json_validation:
                 litellm.enable_json_schema_validation = True
 
-            logger.debug("LiteLLM configured with API keys")
+            # Configure cost tracking
+            if settings.llm.enable_cost_tracking:
+                # Use LiteLLM's built-in model cost map if enabled
+                if settings.llm.use_litellm_model_cost_map:
+                    # If we have a custom URL for the model cost map, use it
+                    if settings.llm.custom_model_cost_map_url:
+                        try:
+                            self.logger.debug(
+                                f"Using custom model cost map URL: {settings.llm.custom_model_cost_map_url}"
+                            )
+                            # Register the custom cost map from URL
+                            litellm.register_model(
+                                model_cost=settings.llm.custom_model_cost_map_url
+                            )
+                        except Exception as e:
+                            self.logger.warning(
+                                f"Error loading custom model cost map from URL: {e}"
+                            )
+                            self.logger.info(
+                                "Falling back to LiteLLM's built-in model cost map"
+                            )
+                    else:
+                        # Use the default model_cost_map from LiteLLM
+                        self.logger.debug("Using LiteLLM's built-in model cost map")
+                        # No need to do anything as LiteLLM uses its cost map by default
+
+                # Register any custom model prices (only for models not in LiteLLM's cost map)
+                if settings.llm.model_pricing:
+                    self.logger.debug(
+                        f"Registering custom pricing for {len(settings.llm.model_pricing)} models"
+                    )
+
+                    # Import model_cost here to check against it
+                    from litellm import model_cost
+
+                    for model_name, pricing in settings.llm.model_pricing.items():
+                        # Skip if model is already in LiteLLM's cost map and we're using it
+                        if (
+                            settings.llm.use_litellm_model_cost_map
+                            and model_name in model_cost
+                        ):
+                            self.logger.debug(
+                                f"Skipping {model_name} as it's already in LiteLLM's cost map"
+                            )
+                            continue
+
+                        input_cost = pricing.get("input_cost_per_token")
+                        output_cost = pricing.get("output_cost_per_token")
+
+                        if input_cost and output_cost:
+                            self.logger.debug(
+                                f"Setting custom pricing for model: {model_name}"
+                            )
+
+                            # Configure model info with pricing
+                            model_info = {
+                                "input_cost_per_token": input_cost,
+                                "output_cost_per_token": output_cost,
+                            }
+
+                            # If we need to use a base model for tracking, add it
+                            if "/" in model_name:
+                                provider, base_model = model_name.split("/", 1)
+                                if provider.lower() == "azure":
+                                    model_info["base_model"] = model_name
+
+                            # Use litellm's custom cost tracking
+                            try:
+                                litellm.register_model(
+                                    model_name=model_name, model_info=model_info
+                                )
+                            except Exception as e:
+                                self.logger.warning(
+                                    f"Error registering custom pricing for {model_name}: {e}"
+                                )
+
+            self.logger.debug("LiteLLM configured with API keys and cost tracking")
         except Exception as e:
-            logger.error(f"Error configuring LiteLLM: {e}")
+            self.logger.error(f"Error configuring LiteLLM: {e}")
             raise
 
     async def _get_user_preferences(self, user_id: str) -> Dict[str, Any]:
@@ -292,6 +373,127 @@ class LLMService:
             self.logger.warning(f"Error checking JSON schema support: {e}")
             return False
 
+    async def _track_usage(
+        self,
+        user_id: Optional[str],
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        total_tokens: int,
+        cost: float,
+        operation_type: str,
+        resume_id: Optional[PydanticObjectId] = None,
+        cover_letter_id: Optional[PydanticObjectId] = None,
+    ) -> None:
+        """
+        Track LLM usage in the user's profile and optionally in a specific resume or cover letter.
+
+        Args:
+            user_id: User ID (optional)
+            model: Model name
+            input_tokens: Number of input tokens
+            output_tokens: Number of output tokens
+            total_tokens: Total number of tokens
+            cost: Cost of the operation
+            operation_type: Type of operation
+            resume_id: Optional Resume ID to track usage against
+            cover_letter_id: Optional Cover Letter ID to track usage against
+        """
+        if (
+            not user_id
+            or not self.profile_repository
+            or not settings.llm.enable_cost_tracking
+        ):
+            return
+
+        try:
+            # Extract operation type from tags if provided as a list
+            if isinstance(operation_type, list) and len(operation_type) > 0:
+                # Find the first tag that starts with "operation:"
+                for tag in operation_type:
+                    if isinstance(tag, str) and tag.startswith("operation:"):
+                        operation_type = tag
+                        break
+                else:
+                    # No operation tag found, use the first tag
+                    operation_type = operation_type[0]
+
+            # Ensure operation_type is a string
+            if not isinstance(operation_type, str):
+                operation_type = "unknown"
+
+            # Update usage in profile
+            await self.profile_repository.update_llm_usage(
+                user_id=user_id,
+                tokens_used=total_tokens,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cost=cost,
+                model_name=model,
+                operation_type=operation_type,
+            )
+
+            # If resume_id is provided directly or as a class property, track usage against the resume
+            resume_id_to_use = resume_id or self.current_resume_id
+            if resume_id_to_use:
+                from core.repositories.resume_repository import ResumeRepository
+
+                resume_repo = ResumeRepository()
+                await resume_repo.update_llm_usage(
+                    resume_id=resume_id_to_use,
+                    tokens_used=total_tokens,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    cost=cost,
+                    model_name=model,
+                    operation_type=operation_type,
+                )
+
+            # If cover_letter_id is provided directly or as a class property, track usage against the cover letter
+            cover_letter_id_to_use = cover_letter_id or self.current_cover_letter_id
+            if cover_letter_id_to_use:
+                from core.repositories.cover_letter_repository import (
+                    CoverLetterRepository,
+                )
+
+                cover_letter_repo = CoverLetterRepository()
+                await cover_letter_repo.update_llm_usage(
+                    cover_letter_id=cover_letter_id_to_use,
+                    tokens_used=total_tokens,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    cost=cost,
+                    model_name=model,
+                    operation_type=operation_type,
+                )
+        except Exception as e:
+            self.logger.error(f"Error tracking LLM usage: {e}")
+
+    async def check_usage_limits(self, user_id: Optional[str]) -> Dict[str, Any]:
+        """
+        Check if a user has exceeded their LLM usage limits.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            Dict with limit information
+        """
+        if (
+            not user_id
+            or not self.profile_repository
+            or not settings.llm.enable_cost_tracking
+        ):
+            return {"can_use": True}
+
+        try:
+            limits = await self.profile_repository.check_llm_usage_limits(user_id)
+            return limits
+        except Exception as e:
+            self.logger.error(f"Error checking LLM usage limits: {e}")
+            # Allow usage on error
+            return {"can_use": True, "error": str(e)}
+
     async def get_completion(
         self,
         prompt: str,
@@ -299,6 +501,8 @@ class LLMService:
         model: Optional[str] = None,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        user_id: Optional[str] = None,
+        tags: Optional[List[str]] = None,
     ) -> str:
         """
         Get a completion from the LLM.
@@ -309,6 +513,8 @@ class LLMService:
             model: Optional model to use (overrides instance default)
             temperature: Optional temperature (overrides instance default)
             max_tokens: Optional max tokens (overrides instance default)
+            user_id: Optional user ID for LiteLLM cost tracking
+            tags: Optional tags for LiteLLM cost tracking
 
         Returns:
             str: The LLM's completion
@@ -317,6 +523,20 @@ class LLMService:
             Exception: If the LLM call fails
         """
         try:
+            # If user_id is provided, check usage limits
+            if user_id and settings.llm.enable_cost_tracking:
+                limits = await self.check_usage_limits(user_id)
+                if not limits.get("can_use", True):
+                    reason = "usage limit exceeded"
+                    if limits.get("monthly_quota_exceeded"):
+                        reason = "monthly token quota exceeded"
+                    elif limits.get("monthly_cost_exceeded"):
+                        reason = "monthly cost limit exceeded"
+
+                    error_msg = f"LLM usage limit exceeded for user {user_id}: {reason}"
+                    self.logger.warning(error_msg)
+                    raise ValueError(error_msg)
+
             # Use provided parameters or class defaults
             model = model or self.model
             temperature = temperature if temperature is not None else self.temperature
@@ -344,6 +564,14 @@ class LLMService:
                 completion_kwargs["api_base"] = None  # Let LiteLLM handle API base
                 completion_kwargs["api_key"] = self.api_keys.get(provider)
 
+            # Add cost tracking parameters
+            if user_id:
+                completion_kwargs["user"] = user_id
+
+            # Add metadata with tags for cost tracking
+            if tags:
+                completion_kwargs["metadata"] = {"tags": tags}
+
             self.logger.debug(f"Calling LLM with model: {model}, temp: {temperature}")
 
             # Make the API call with retry logic to handle transient failures
@@ -357,6 +585,52 @@ class LLMService:
 
                     # Extract and return the completion text
                     completion_text = response.choices[0].message.content
+
+                    # Log cost if available in response
+                    if hasattr(response, "usage") and hasattr(
+                        response.usage, "completion_tokens"
+                    ):
+                        input_tokens = getattr(response.usage, "prompt_tokens", 0)
+                        output_tokens = getattr(response.usage, "completion_tokens", 0)
+                        total_tokens = getattr(
+                            response.usage, "total_tokens", input_tokens + output_tokens
+                        )
+
+                        # Calculate cost using litellm's completion_cost function
+                        from litellm import completion_cost
+
+                        # Try to get cost from response first
+                        cost = getattr(response, "cost", None)
+
+                        # If not available in response, calculate it
+                        if cost is None and settings.llm.enable_cost_tracking:
+                            try:
+                                cost = completion_cost(completion_response=response)
+                            except Exception as cost_e:
+                                self.logger.warning(
+                                    f"Error calculating completion cost: {cost_e}"
+                                )
+
+                        if cost:
+                            self.logger.info(
+                                f"Request cost: ${float(cost):.6f}, total tokens: {total_tokens} (in: {input_tokens}, out: {output_tokens})"
+                            )
+
+                            # Track usage in user profile
+                            if user_id and settings.llm.enable_cost_tracking:
+                                await self._track_usage(
+                                    user_id=user_id,
+                                    model=model,
+                                    input_tokens=input_tokens,
+                                    output_tokens=output_tokens,
+                                    total_tokens=total_tokens,
+                                    cost=float(cost),
+                                    operation_type=tags if tags else "completion",
+                                )
+                        else:
+                            self.logger.info(
+                                f"Request used {total_tokens} tokens (in: {input_tokens}, out: {output_tokens})"
+                            )
 
                     # Truncate for logging if too long
                     log_text = (
@@ -400,6 +674,8 @@ class LLMService:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         fallback_to_text: bool = True,
+        user_id: Optional[str] = None,
+        tags: Optional[List[str]] = None,
     ) -> Union[BaseModel, str]:
         """
         Get a structured completion from the LLM using JSON schema.
@@ -412,6 +688,8 @@ class LLMService:
             temperature: Optional temperature override
             max_tokens: Optional max tokens override
             fallback_to_text: Whether to fallback to text completion if JSON mode not supported
+            user_id: Optional user ID for cost tracking
+            tags: Optional tags for cost tracking
 
         Returns:
             Instance of schema_model or raw text if fallback_to_text=True
@@ -420,6 +698,20 @@ class LLMService:
             ValueError: If model doesn't support JSON mode and fallback_to_text=False
         """
         try:
+            # If user_id is provided, check usage limits
+            if user_id and settings.llm.enable_cost_tracking:
+                limits = await self.check_usage_limits(user_id)
+                if not limits.get("can_use", True):
+                    reason = "usage limit exceeded"
+                    if limits.get("monthly_quota_exceeded"):
+                        reason = "monthly token quota exceeded"
+                    elif limits.get("monthly_cost_exceeded"):
+                        reason = "monthly cost limit exceeded"
+
+                    error_msg = f"LLM usage limit exceeded for user {user_id}: {reason}"
+                    self.logger.warning(error_msg)
+                    raise ValueError(error_msg)
+
             # Use provided values or fall back to instance defaults
             model = model or self.model
             temperature = temperature or self.temperature
@@ -471,6 +763,14 @@ class LLMService:
                     f"Model {model} doesn't support JSON mode, will use text mode and try to parse result"
                 )
 
+            # Add cost tracking parameters
+            if user_id:
+                kwargs["user"] = user_id
+
+            # Add metadata with tags for cost tracking
+            if tags:
+                kwargs["metadata"] = {"tags": tags}
+
             # Log the request
             self.logger.debug(
                 f"Sending structured request to {model} with temperature {temperature}"
@@ -485,6 +785,52 @@ class LLMService:
                 api_key=api_key,
                 **kwargs,
             )
+
+            # Log cost if available in response
+            if hasattr(response, "usage") and hasattr(
+                response.usage, "completion_tokens"
+            ):
+                input_tokens = getattr(response.usage, "prompt_tokens", 0)
+                output_tokens = getattr(response.usage, "completion_tokens", 0)
+                total_tokens = getattr(
+                    response.usage, "total_tokens", input_tokens + output_tokens
+                )
+
+                # Calculate cost using litellm's completion_cost function
+                from litellm import completion_cost
+
+                # Try to get cost from response first
+                cost = getattr(response, "cost", None)
+
+                # If not available in response, calculate it
+                if cost is None and settings.llm.enable_cost_tracking:
+                    try:
+                        cost = completion_cost(completion_response=response)
+                    except Exception as cost_e:
+                        self.logger.warning(
+                            f"Error calculating completion cost: {cost_e}"
+                        )
+
+                if cost:
+                    self.logger.info(
+                        f"Request cost: ${float(cost):.6f}, total tokens: {total_tokens} (in: {input_tokens}, out: {output_tokens})"
+                    )
+
+                    # Track usage in user profile
+                    if user_id and settings.llm.enable_cost_tracking:
+                        await self._track_usage(
+                            user_id=user_id,
+                            model=model,
+                            input_tokens=input_tokens,
+                            output_tokens=output_tokens,
+                            total_tokens=total_tokens,
+                            cost=float(cost),
+                            operation_type=tags if tags else "structured_completion",
+                        )
+                else:
+                    self.logger.info(
+                        f"Request used {total_tokens} tokens (in: {input_tokens}, out: {output_tokens})"
+                    )
 
             # Process the response
             content = response.choices[0].message.content
@@ -542,6 +888,7 @@ class LLMService:
         job_description: str,
         use_json_schema: bool = True,
         schema_model: Optional[Type[BaseModel]] = None,
+        user_id: Optional[str] = None,
     ) -> Union[BaseModel, str]:
         """
         Generate content for a resume section.
@@ -552,6 +899,7 @@ class LLMService:
             job_description: Job description to target
             use_json_schema: Whether to use JSON schema output
             schema_model: Optional Pydantic model to use for JSON schema output
+            user_id: Optional user ID for cost tracking
 
         Returns:
             Generated section content as a Pydantic model instance or string
@@ -577,6 +925,9 @@ Job Description:
 Section Data:
 {context}
 """
+            # Cost tracking tags
+            tags = [f"operation:generate_section", f"section:{section_name}"]
+
             # If using JSON schema and a model is provided, use structured completion
             if use_json_schema and schema_model is not None:
                 return await self.get_structured_completion(
@@ -584,12 +935,16 @@ Section Data:
                     schema_model=schema_model,
                     system_prompt=system_prompt,
                     fallback_to_text=True,  # Fallback to text if model doesn't support JSON
+                    user_id=user_id,
+                    tags=tags,
                 )
             else:
                 # Otherwise use regular completion
                 return await self.get_completion(
                     prompt=full_prompt,
                     system_prompt=system_prompt,
+                    user_id=user_id,
+                    tags=tags,
                 )
 
         except Exception as e:
@@ -602,6 +957,7 @@ Section Data:
         job_description: str,
         company_name: str,
         job_title: str,
+        user_id: Optional[str] = None,
     ) -> str:
         """
         Generate a cover letter based on resume content and job description.
@@ -611,6 +967,7 @@ Section Data:
             job_description: Job description text
             company_name: Company name
             job_title: Job title
+            user_id: Optional user ID for cost tracking
 
         Returns:
             Generated cover letter text
@@ -634,6 +991,12 @@ Resume Content:
 
 {prompt_text}
 """
+            # Cost tracking tags
+            tags = [
+                "operation:generate_cover_letter",
+                f"company:{company_name}",
+                f"job:{job_title}",
+            ]
 
             # Get completion
             return await self.get_completion(
@@ -641,6 +1004,8 @@ Resume Content:
                 system_prompt=system_prompt,
                 # Cover letters can be longer
                 max_tokens=self.max_tokens * 2,
+                user_id=user_id,
+                tags=tags,
             )
 
         except Exception as e:
@@ -648,13 +1013,14 @@ Resume Content:
             raise
 
     async def extract_job_title_and_company(
-        self, job_description: str
+        self, job_description: str, user_id: Optional[str] = None
     ) -> Tuple[str, str]:
         """
         Extract job title and company name from a job description using LLM.
 
         Args:
             job_description: The job description text
+            user_id: Optional user ID for cost tracking
 
         Returns:
             Tuple of (company_name, job_title)
@@ -681,10 +1047,15 @@ Resume Content:
             # Create a very explicit prompt
             prompt = f'{folder_name_prompt}\n\nJob Description:\n{trimmed_job_description}\n\nYour task is to extract ONLY the company name and job title from this job description. Reply with VALID JSON only in this format: {{"company_name": "extracted_company_name", "job_title": "extracted_job_title"}}'
 
+            # Add cost tracking tags
+            tags = ["operation:extract_job_details"]
+
             response = await self.get_completion(
                 prompt=prompt,
                 system_prompt=system_prompt,
                 temperature=0.1,  # Lower temperature for more deterministic results
+                user_id=user_id,
+                tags=tags,
             )
 
             # Parse the JSON response according to CompanyJobSchema format
@@ -781,3 +1152,196 @@ Resume Content:
         except Exception as e:
             self.logger.error(f"Error extracting job title and company: {e}")
             return "unknown_company", "unknown_position"
+
+    async def get_usage_statistics(
+        self,
+        user_id: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Get usage statistics from LiteLLM cost tracking.
+
+        Args:
+            user_id: Optional user ID to filter by
+            start_date: Optional start date in format YYYY-MM-DD
+            end_date: Optional end date in format YYYY-MM-DD
+
+        Returns:
+            Dictionary with usage statistics
+        """
+        try:
+            # Verify that litellm is properly configured
+            if not settings.llm.enable_cost_tracking:
+                self.logger.warning("Cost tracking is not enabled in settings")
+                return {"error": "Cost tracking is not enabled", "enabled": False}
+
+            # Note: In a production setup with LiteLLM proxy server,
+            # you would use the LiteLLM API to get cost data from its database
+            # This is a simpler implementation using the in-memory tracking
+
+            # Get tracking data from litellm
+            # This would typically come from a database in a proxy server setup
+            cost_data = {
+                "enabled": settings.llm.enable_cost_tracking,
+                "message": "Cost tracking enabled but no database configured. Log data available.",
+                "note": "For full cost tracking, configure LiteLLM with a database.",
+                "models": list(settings.llm.model_pricing.keys()),
+            }
+
+            # If we had a proxy with database, we could query it here
+            # Example future implementation:
+            # if settings.litellm_proxy_url:
+            #     async with httpx.AsyncClient() as client:
+            #         params = {"user_id": user_id} if user_id else {}
+            #         if start_date:
+            #             params["start_date"] = start_date
+            #         if end_date:
+            #             params["end_date"] = end_date
+            #
+            #         response = await client.get(
+            #             f"{settings.litellm_proxy_url}/spend/report",
+            #             params=params,
+            #             headers={"Authorization": f"Bearer {settings.litellm_proxy_key}"}
+            #         )
+            #         return response.json()
+
+            return cost_data
+
+        except Exception as e:
+            self.logger.error(f"Error retrieving usage statistics: {e}")
+            return {"error": str(e), "enabled": settings.llm.enable_cost_tracking}
+
+    async def get_model_cost_info(self) -> Dict[str, Any]:
+        """
+        Get model cost information from LiteLLM.
+
+        Returns:
+            Dictionary with model cost information from LiteLLM
+        """
+        try:
+            # Import model_cost from litellm
+            from litellm import model_cost
+
+            # Return key information about the models
+            models_info = {}
+
+            # Format the model cost information for better readability
+            for model_name, cost_info in model_cost.items():
+                # Skip entries that don't have proper cost info
+                if not isinstance(cost_info, dict):
+                    continue
+
+                # Only include key pricing info
+                models_info[model_name] = {
+                    "input_cost_per_token": cost_info.get("input_cost_per_token", 0),
+                    "output_cost_per_token": cost_info.get("output_cost_per_token", 0),
+                    "max_tokens": cost_info.get("max_tokens", 0),
+                }
+
+                # Add other useful info if available
+                for key in ["litellm_provider", "mode"]:
+                    if key in cost_info:
+                        models_info[model_name][key] = cost_info[key]
+
+            return {
+                "enabled": settings.llm.enable_cost_tracking,
+                "using_litellm_model_cost_map": settings.llm.use_litellm_model_cost_map,
+                "models": models_info,
+            }
+
+        except Exception as e:
+            self.logger.error(f"Error retrieving model cost information: {e}")
+            return {
+                "error": str(e),
+                "enabled": settings.llm.enable_cost_tracking,
+                "using_litellm_model_cost_map": settings.llm.use_litellm_model_cost_map,
+            }
+
+    async def get_user_llm_usage(self, user_id: str) -> Dict[str, Any]:
+        """
+        Get LLM usage statistics for a user.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            Dict with LLM usage statistics
+        """
+        if (
+            not user_id
+            or not self.profile_repository
+            or not settings.llm.enable_cost_tracking
+        ):
+            return {
+                "enabled": settings.llm.enable_cost_tracking,
+                "error": "Cost tracking not enabled or user ID/profile repository not available",
+            }
+
+        try:
+            # Get usage data from profile repository
+            usage_data = await self.profile_repository.get_llm_usage(user_id)
+            if not usage_data:
+                return {
+                    "enabled": settings.llm.enable_cost_tracking,
+                    "error": "No usage data found",
+                    "total_tokens": 0,
+                    "total_cost": 0.0,
+                }
+
+            # Check usage limits
+            limits = await self.profile_repository.check_llm_usage_limits(user_id)
+
+            # Combine usage data with limits data
+            result = {"enabled": settings.llm.enable_cost_tracking, **usage_data}
+
+            # Add limits info
+            if limits:
+                result["limits"] = {
+                    "can_use": limits.get("can_use", True),
+                    "monthly_quota_exceeded": limits.get(
+                        "monthly_quota_exceeded", False
+                    ),
+                    "monthly_cost_exceeded": limits.get("monthly_cost_exceeded", False),
+                }
+
+            return result
+
+        except Exception as e:
+            self.logger.error(f"Error getting user LLM usage: {e}")
+            return {"enabled": settings.llm.enable_cost_tracking, "error": str(e)}
+
+    async def set_user_llm_limits(
+        self,
+        user_id: str,
+        monthly_quota: Optional[int] = None,
+        monthly_cost_limit: Optional[float] = None,
+    ) -> bool:
+        """
+        Set LLM usage limits for a user.
+
+        Args:
+            user_id: User ID
+            monthly_quota: Maximum number of tokens per month (None for unlimited)
+            monthly_cost_limit: Maximum cost per month in USD (None for unlimited)
+
+        Returns:
+            bool: True if update was successful, False otherwise
+        """
+        if (
+            not user_id
+            or not self.profile_repository
+            or not settings.llm.enable_cost_tracking
+        ):
+            return False
+
+        try:
+            # Set limits in profile repository
+            return await self.profile_repository.set_llm_usage_limits(
+                user_id=user_id,
+                monthly_quota=monthly_quota,
+                monthly_cost_limit=monthly_cost_limit,
+            )
+        except Exception as e:
+            self.logger.error(f"Error setting user LLM limits: {e}")
+            return False
