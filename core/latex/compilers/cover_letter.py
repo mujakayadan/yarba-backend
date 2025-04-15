@@ -52,9 +52,17 @@ class CoverLetterCompiler(LatexCompiler):
 
             # Get cover letter content from template and process it
             cover_letter_content_raw = template.get("cover_letter_content", "")
-            cover_letter_content = self._process_cover_letter_content(
+            processed_content = self._process_cover_letter_content(
                 cover_letter_content_raw
             )
+
+            # Handle either string or dictionary return value
+            if isinstance(processed_content, dict):
+                cover_letter_content = processed_content.get("content", "")
+                closing = processed_content.get("closing", "Sincerely,")
+            else:
+                cover_letter_content = processed_content
+                closing = "Sincerely,"
 
             # Get signature information
             signature_path = template.get("signature_path")
@@ -75,23 +83,32 @@ class CoverLetterCompiler(LatexCompiler):
                     "\\usepackage{graphicx}", "\\usepackage[dvips,pdftex]{graphicx}"
                 )
 
-            # Generate the closing for the letter (including today's date and optionally signature)
+            # Generate the closing for the letter (including signature, name, and date)
             if signature_path:
                 # Use quoted path for better handling of special characters
-                closing = f"""
+                closing_part = f"""
+\\vspace{{0.5cm}}
+{closing}
+
 \\vspace{{0.3cm}}
 \\includegraphics[width=1in]{{{signature_path}}}
-\\newline
-\\vspace{{0.1cm}}
+
+\\textbf{{{name}}}
+
 \\today
 \\end{{letter}}
 \\end{{document}}"""
             else:
-                closing = """
-\\vspace{0.3cm}
+                closing_part = f"""
+\\vspace{{0.5cm}}
+{closing}
+
+\\vspace{{0.5cm}}
+\\textbf{{{name}}}
+
 \\today
-\\end{letter}
-\\end{document}"""
+\\end{{letter}}
+\\end{{document}}"""
 
             # Replace placeholders in the cover letter
             return (
@@ -109,7 +126,7 @@ class CoverLetterCompiler(LatexCompiler):
 {{COVER_LETTER_CONTENT}}
 
 """
-                    + closing
+                    + closing_part
                 )
                 .replace("{{NAME}}", name)
                 .replace("{{PHONE}}", phone)
@@ -141,6 +158,9 @@ class CoverLetterCompiler(LatexCompiler):
             if not content:
                 return ""
 
+            # Dictionary to store extracted parts
+            content_parts = {"content": "", "closing": "Sincerely,"}
+
             # Check if it looks like a JSON object
             if content.strip().startswith("{") and "paragraphs" in content:
                 try:
@@ -156,14 +176,32 @@ class CoverLetterCompiler(LatexCompiler):
                         data = json.loads(content)
                     except json.JSONDecodeError:
                         # If still fails, use the content as is
-                        return sanitize_latex(content)
+                        content_parts["content"] = sanitize_latex(content)
+                        return content_parts
 
                 # Process JSON data
                 if isinstance(data, dict):
+                    # Get the closing
+                    if "closing" in data and data["closing"]:
+                        content_parts["closing"] = sanitize_latex(data["closing"])
+
                     # If we have a full_document field, use that
                     if "full_document" in data and data["full_document"]:
-                        full_doc = sanitize_latex(data["full_document"])
-                        return full_doc
+                        # Extract just the main content without the closing
+                        full_text = data["full_document"]
+                        # This will usually already include the closing text, let's separate it
+
+                        # The content will be everything up to the last paragraph
+                        parts = full_text.split("\n\n")
+                        if len(parts) > 1:
+                            # Keep all but the last paragraph, as it usually contains the closing
+                            content_parts["content"] = sanitize_latex(
+                                "\n\n".join(parts[:-1])
+                            )
+                        else:
+                            content_parts["content"] = sanitize_latex(full_text)
+
+                        return content_parts
 
                     # Otherwise, build from paragraphs
                     if "paragraphs" in data and isinstance(data["paragraphs"], list):
@@ -171,20 +209,20 @@ class CoverLetterCompiler(LatexCompiler):
                             data.get("greeting", "Dear Hiring Manager,")
                         )
                         paragraphs = [sanitize_latex(p) for p in data["paragraphs"]]
-                        closing = sanitize_latex(data.get("closing", "Sincerely,"))
 
                         # Build the content with proper paragraph spacing
-                        content = f"{greeting}\n\n"
-                        content += "\n\n".join(paragraphs)
-                        content += f"\n\n{closing}"
-                        return content
+                        content_parts["content"] = f"{greeting}\n\n" + "\n\n".join(
+                            paragraphs
+                        )
+                        return content_parts
 
             # Return sanitized content if it's not JSON or if parsing failed
-            return sanitize_latex(content)
+            content_parts["content"] = sanitize_latex(content)
+            return content_parts
         except Exception as e:
             self.logger.error(f"Error processing cover letter content: {e}")
             # Return sanitized original content on error
-            return sanitize_latex(content)
+            return {"content": sanitize_latex(content), "closing": "Sincerely,"}
 
     async def generate_pdf(
         self, cover_letter: CoverLetter, template: Dict[str, Any]
