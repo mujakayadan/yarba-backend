@@ -750,6 +750,7 @@ class SignatureResponse(BaseModel):
     """Response model for signature storage key."""
 
     signature_key: Optional[str] = None
+    signature_url: Optional[str] = None
 
 
 @router.post("/me/signature", response_model=SignatureResponse)
@@ -767,7 +768,7 @@ async def upload_signature(
         profile_service: Profile service
 
     Returns:
-        Signature storage key
+        Signature storage key and URL
     """
     try:
         # Get current profile
@@ -792,8 +793,11 @@ async def upload_signature(
         profile.signature_key = signature_key
         updated_profile = await profile_service.update_profile(profile)
 
-        # Return the storage key
-        return {"signature_key": signature_key}
+        # Get URL for the signature
+        signature_url = storage_provider.get_url(signature_key)
+
+        # Return the storage key and URL
+        return {"signature_key": signature_key, "signature_url": signature_url}
 
     except NotFoundException:
         raise HTTPException(
@@ -821,7 +825,7 @@ async def delete_my_signature(
         profile_service: Profile service
 
     Returns:
-        Empty signature key
+        Empty signature key and URL
     """
     try:
         # Get current profile
@@ -842,7 +846,7 @@ async def delete_my_signature(
             profile.signature_key = None
             await profile_service.update_profile(profile)
 
-        return {"signature_key": None}
+        return {"signature_key": None, "signature_url": None}
 
     except NotFoundException:
         raise HTTPException(
@@ -863,20 +867,23 @@ async def get_my_signature(
     profile_service: ProfileService = Depends(get_profile_service),
 ):
     """
-    Get the current user's signature key.
+    Get the current user's signature key and URL.
 
     Args:
         current_user: Current authenticated user
         profile_service: Profile service
 
     Returns:
-        Signature storage key
+        Signature storage key and URL
     """
     try:
         # Get current profile
         profile = await profile_service.get_profile_by_user_id(current_user.id)
 
-        return {"signature_key": profile.signature_key}
+        # Get signature URL using the new method
+        signature_url = await profile_service.get_signature_url(current_user.id)
+
+        return {"signature_key": profile.signature_key, "signature_url": signature_url}
 
     except NotFoundException:
         raise HTTPException(

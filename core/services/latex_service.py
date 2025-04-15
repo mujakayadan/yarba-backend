@@ -236,6 +236,51 @@ class LatexService:
                 }
             )
 
+            # Add signature URL if available
+            if hasattr(profile, "signature_key") and profile.signature_key:
+                from core.services.storage_service import get_storage_provider
+
+                # Get storage provider
+                storage_provider = get_storage_provider()
+
+                # Get URL for the signature from CloudFront
+                signature_url = storage_provider.get_url(profile.signature_key)
+                self.logger.info(f"Using signature URL: {signature_url}")
+
+                # Create a temporary file to store the signature image
+                import os
+                import tempfile
+                from pathlib import Path
+
+                import requests
+
+                # Create a temporary directory for the signature
+                # Use a LaTeX-friendly path: no spaces, special characters, etc.
+                signature_filename = (
+                    f"signature_{str(cover_letter.id).replace('-', '')}.png"
+                )
+                temp_dir = Path(tempfile.gettempdir())
+                os.makedirs(temp_dir, exist_ok=True)
+
+                # Download the signature image
+                try:
+                    self.logger.info(f"Downloading signature from URL: {signature_url}")
+                    response = requests.get(signature_url, timeout=10)
+                    response.raise_for_status()
+
+                    # Save the image to the temporary directory
+                    signature_path = temp_dir / signature_filename
+                    with open(signature_path, "wb") as f:
+                        f.write(response.content)
+
+                    self.logger.info(f"Signature downloaded to: {signature_path}")
+
+                    # Add the local path to the template
+                    template_data["signature_path"] = str(signature_path)
+                except Exception as e:
+                    self.logger.error(f"Error downloading signature: {e}")
+                    # Continue without signature if download fails
+
             # Generate the LaTeX content using the compiler
             self.logger.info("Calling cover letter compiler to generate tex content")
             latex_content = await self.cover_letter_compiler.generate_tex_content(

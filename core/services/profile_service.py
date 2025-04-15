@@ -489,3 +489,83 @@ class ProfileService:
         except Exception as e:
             self.logger.error(f"Error getting signature key: {e}")
             raise
+
+    async def get_signature_url(self, user_id: PydanticObjectId) -> Optional[str]:
+        """
+        Get the signature URL for a user.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            Optional[str]: Signature URL if exists, None otherwise
+
+        Raises:
+            NotFoundException: If profile not found
+            Exception: For other errors
+        """
+        self.logger.debug(f"Getting signature URL for user: {user_id}")
+
+        try:
+            # Get profile
+            profile = await self.profile_repository.get_by_user_id(user_id)
+
+            if not profile:
+                raise NotFoundException(f"Profile not found for user: {user_id}")
+
+            if not profile.signature_key:
+                return None
+
+            # Get storage provider
+            from core.services.storage_service import get_storage_provider
+
+            storage_provider = get_storage_provider()
+
+            # Get URL for the signature
+            return storage_provider.get_url(profile.signature_key)
+
+        except NotFoundException:
+            raise
+        except Exception as e:
+            self.logger.error(f"Error getting signature URL: {e}")
+            raise
+
+    async def get_profile_picture_url(self, user_id: PydanticObjectId) -> Optional[str]:
+        """
+        Get the profile picture URL for a user.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            Optional[str]: Profile picture URL if exists, None otherwise
+
+        Raises:
+            NotFoundException: If profile not found
+            Exception: For other errors
+        """
+        self.logger.debug(f"Getting profile picture URL for user: {user_id}")
+
+        try:
+            # Get profile
+            profile = await self.profile_repository.get_by_user_id(user_id)
+
+            if not profile:
+                raise NotFoundException(f"Profile not found for user: {user_id}")
+
+            if not profile.profile_picture_key:
+                return None
+
+            # Get storage provider
+            from core.services.storage_service import get_storage_provider
+
+            storage_provider = get_storage_provider()
+
+            # Get URL for the profile picture
+            return storage_provider.get_url(profile.profile_picture_key)
+
+        except NotFoundException:
+            raise
+        except Exception as e:
+            self.logger.error(f"Error getting profile picture URL: {e}")
+            raise
