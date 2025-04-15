@@ -9,8 +9,8 @@ Instructions:
 - Organize skills into logical categories relevant to the job description
 - Prioritize skills that are most relevant to the target position
 - Omit any categories or skills not relevant to the job requirements
-- Include ${skills_details_max_categories} skill categories maximum
-- Include at least ${skills_details_min_skills_per_category} and maximum ${skills_details_max_skills_per_category} skills per category
+- Include ${skills_details_max_categories} skill categories.
+- Include at least ${skills_details_min_skills_per_category} and maximum ${skills_details_max_skills_per_category} skills per category. Strictly follow these numbers, regardless of the example below.
 - Sort skills within each category by relevance to the job
 
 Output Format:
@@ -50,7 +50,12 @@ Example:
         "Feature Extraction",
         "Image Processing",
         "Object Tracking",
-        "Semantic Segmentation"
+        "Semantic Segmentation",
+        "Image Classification",
+        "Pose Estimation",
+        "Optical Flow",
+        "3D Reconstruction",
+        "Face Recognition"
       ]
     },
     {
@@ -60,17 +65,42 @@ Example:
         "Transfer Learning",
         "Generative Networks",
         "NLP",
-        "Transformers"
+        "Transformers",
+        "Reinforcement Learning",
+        "Gradient Boosting",
+        "Random Forests",
+        "Support Vector Machines",
+        "Clustering"
       ]
     },
     {
-      "category": "Frameworks",
+      "category": "Frameworks & Libraries",
       "skills": [
         "OpenCV",
         "TensorFlow",
         "PyTorch",
         "Keras",
-        "Scikit-Learn"
+        "Scikit-Learn",
+        "NLTK",
+        "spaCy",
+        "XGBoost",
+        "LightGBM",
+        "Pandas"
+      ]
+    },
+    {
+      "category": "Development Tools",
+      "skills": [
+        "Git",
+        "Jupyter Notebook",
+        "Google Colab",
+        "Docker",
+        "VS Code",
+        "PyCharm",
+        "Linux",
+        "Bash",
+        "Make",
+        "CI/CD"
       ]
     }
   ]

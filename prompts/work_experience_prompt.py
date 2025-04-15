@@ -6,7 +6,7 @@ TEMPLATE = """Based on the provided job description and candidate's work experie
 
 Important instructions:
 1. List jobs in reverse chronological order (most recent first)
-2. Include maximum ${work_experience_details_max_jobs} jobs
+2. Include ${work_experience_details_max_jobs} jobs
 3. Each job should have exactly ${work_experience_details_bullet_points_per_job} bullet points
 4. Focus on relevant experiences and accomplishments that demonstrate skills applicable to the target position
 5. Use action verbs and quantifiable achievements wherever possible
