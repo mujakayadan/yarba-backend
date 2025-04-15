@@ -281,10 +281,30 @@ async def create_cover_letter(
         )
 
         try:
-            # Always generate cover letter content
+            # Always generate cover letter content first
             logger.info(f"Generating content for cover letter: {cover_letter.id}")
             await generation_service.generate_cover_letter_content(
                 cover_letter_id=cover_letter.id
+            )
+
+            # Fetch the updated cover letter with content before proceeding
+            cover_letter = await cover_letter_service.get_cover_letter_by_id(
+                cover_letter_id=cover_letter.id,
+                user_id=user_id,
+            )
+
+            # Verify content was generated successfully
+            if (
+                not cover_letter.content
+                or "cover_letter_content" not in cover_letter.content
+            ):
+                logger.error(
+                    f"Content generation failed for cover letter: {cover_letter.id}"
+                )
+                raise Exception("Failed to generate cover letter content")
+
+            logger.info(
+                f"Successfully generated content for cover letter: {cover_letter.id}"
             )
 
             # If PDF generation is requested, generate PDF
@@ -292,11 +312,12 @@ async def create_cover_letter(
                 logger.info(f"Generating PDF for cover letter: {cover_letter.id}")
                 await generation_service.generate_pdf(cover_letter.id)
 
-            # Get the updated cover letter
-            cover_letter = await cover_letter_service.get_cover_letter_by_id(
-                cover_letter_id=cover_letter.id,
-                user_id=user_id,
-            )
+                # Get the updated cover letter with PDF information
+                cover_letter = await cover_letter_service.get_cover_letter_by_id(
+                    cover_letter_id=cover_letter.id,
+                    user_id=user_id,
+                )
+
             logger.info(f"Cover letter generation completed for: {cover_letter.id}")
         except Exception as generation_error:
             # Log error but don't fail the entire cover letter creation
@@ -550,6 +571,70 @@ async def generate_cover_letter_pdf(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to generate PDF",
+        )
+
+
+@router.get(
+    "/{cover_letter_id}/pdf",
+    response_model=CoverLetterPDFResponse,
+    responses={
+        200: {"description": "PDF URL"},
+        404: {"description": "Cover letter not found or PDF not available"},
+    },
+)
+async def get_cover_letter_pdf(
+    cover_letter_id: Annotated[PydanticObjectId, Path(description="Cover letter ID")],
+    current_user: CurrentUser,
+    cover_letter_service: CoverLetterService = Depends(get_cover_letter_service),
+) -> CoverLetterPDFResponse:
+    """
+    Get the URL for a cover letter PDF.
+
+    Args:
+        cover_letter_id: Cover letter ID
+        current_user: Current authenticated user
+        cover_letter_service: Cover letter service
+
+    Returns:
+        CoverLetterPDFResponse: Object containing the PDF URL
+
+    Raises:
+        HTTPException: If cover letter not found or PDF not available
+    """
+    try:
+        # Verify cover letter exists and belongs to user
+        cover_letter = await cover_letter_service.get_cover_letter_by_id(
+            cover_letter_id=cover_letter_id,
+            user_id=current_user.id,
+        )
+
+        # Check if PDF exists
+        if not cover_letter.cover_letter_pdf_key:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="PDF not available for this cover letter. Generate PDF first.",
+            )
+
+        # Get the PDF URL from S3
+        storage_provider = get_storage_provider()
+        pdf_url = storage_provider.get_url(cover_letter.cover_letter_pdf_key)
+
+        logger.info(f"Retrieved PDF URL for cover letter {cover_letter_id}")
+        return CoverLetterPDFResponse(pdf_url=pdf_url)
+
+    except NotFoundException:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Cover letter not found",
+        )
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving cover letter PDF URL: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve PDF URL",
         )
 
 

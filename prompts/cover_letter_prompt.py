@@ -13,6 +13,7 @@ Instructions:
 - Focus on demonstrating relevant qualifications and enthusiasm for the role
 - Use the candidate's actual experiences - do not invent or assume details
 - Structure the cover letter with a clear introduction, body, and conclusion
+- If a life story is provided, integrate it thoughtfully to create a personal connection, showing how the candidate's background has shaped their career path and makes them uniquely qualified for this role
 
 Paragraph Structure:
 1. Introduction: State the position, where you found it, and express enthusiasm

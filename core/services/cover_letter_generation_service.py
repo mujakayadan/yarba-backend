@@ -236,6 +236,14 @@ class CoverLetterGenerationService:
             system_prompt = await self.prompt_service.get_system_prompt()
 
             # Create the full prompt
+            # Include life story if available
+            life_story = ""
+            if profile and hasattr(profile, "life_story") and profile.life_story:
+                life_story = f"""
+Life Story:
+{profile.life_story}
+"""
+
             full_prompt = f"""
 Job Title: {job_title}
 Company Name: {company_name}
@@ -246,7 +254,7 @@ Resume Data:
 {resume_data}
 
 Candidate Name: {candidate_name}
-
+{life_story}
 {prompt_text}
 """
             # Generate content using get_completion method
@@ -424,7 +432,7 @@ Candidate Name: {candidate_name}
                 # Update cover letter with S3 key
                 cover_letter.cover_letter_pdf_key = pdf_key
                 cover_letter.updated_at = datetime.now(timezone.utc)
-                await self.cover_letter_repository.update(cover_letter)
+                await cover_letter.save()
 
                 self.logger.info(f"Saved cover letter PDF to storage: {pdf_key}")
             except Exception as storage_error:

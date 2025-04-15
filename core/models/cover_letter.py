@@ -57,6 +57,18 @@ class CoverLetter(Document):
         },
     }
 
+    # Fields used temporarily during LaTeX generation but not persisted
+    company_name: Optional[str] = Field(default=None, exclude=True)
+    job_title: Optional[str] = Field(default=None, exclude=True)
+    cover_letter_content: Optional[str] = Field(default=None, exclude=True)
+    name: Optional[str] = Field(default=None, exclude=True)
+    phone: Optional[str] = Field(default=None, exclude=True)
+    email: Optional[str] = Field(default=None, exclude=True)
+    linkedin: Optional[str] = Field(default=None, exclude=True)
+    github: Optional[str] = Field(default=None, exclude=True)
+    website: Optional[str] = Field(default=None, exclude=True)
+    address: Optional[str] = Field(default=None, exclude=True)
+
     class Settings:
         """Beanie document settings."""
 

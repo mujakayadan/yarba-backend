@@ -46,11 +46,14 @@ class CoverLetterResponse(CoverLetterBase):
     user_id: PydanticObjectId = Field(..., description="User ID")
     content: Dict[str, Any] = Field(default_factory=dict, description="Content data")
     has_pdf: bool = Field(default=False, description="Whether PDF is available")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
 
     class Config:
         """Pydantic config."""
 
         from_attributes = True
+        json_encoders = {PydanticObjectId: str}
 
     def model_dump(self, **kwargs):
         data = super().model_dump(**kwargs)

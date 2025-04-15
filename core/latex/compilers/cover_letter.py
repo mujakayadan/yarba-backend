@@ -29,42 +29,29 @@ class CoverLetterCompiler(LatexCompiler):
 
         Args:
             cover_letter: Cover letter data
-            template: LaTeX template data
+            template: LaTeX template data containing personal_info, company_name, job_title, and cover_letter_content
 
         Returns:
             str: Generated LaTeX content
         """
         try:
-            # Get personal information from cover_letter
-            name = sanitize_latex(
-                cover_letter.name if hasattr(cover_letter, "name") else ""
-            )
-            phone = sanitize_latex(
-                cover_letter.phone if hasattr(cover_letter, "phone") else ""
-            )
-            email = sanitize_latex(
-                cover_letter.email if hasattr(cover_letter, "email") else ""
-            )
-            linkedin = sanitize_latex(
-                cover_letter.linkedin if hasattr(cover_letter, "linkedin") else "#"
-            )
-            github = sanitize_latex(
-                cover_letter.github if hasattr(cover_letter, "github") else "#"
-            )
-            website = sanitize_latex(
-                cover_letter.website if hasattr(cover_letter, "website") else "#"
-            )
-            address = sanitize_latex(
-                cover_letter.address if hasattr(cover_letter, "address") else ""
-            )
+            # Get personal information from template
+            personal_info = template.get("personal_info", {})
+            name = sanitize_latex(personal_info.get("name", ""))
+            phone = sanitize_latex(personal_info.get("phone", ""))
+            email = sanitize_latex(personal_info.get("email", ""))
+            linkedin = sanitize_latex(personal_info.get("linkedin", "#"))
+            github = sanitize_latex(personal_info.get("github", "#"))
+            website = sanitize_latex(personal_info.get("website", "#"))
+            address = sanitize_latex(personal_info.get("address", ""))
 
-            # Get job information
-            company_name = sanitize_latex(cover_letter.company_name or "")
-            job_title = sanitize_latex(cover_letter.job_title or "")
+            # Get job information from template
+            company_name = sanitize_latex(template.get("company_name", ""))
+            job_title = sanitize_latex(template.get("job_title", ""))
 
-            # Get cover letter content
+            # Get cover letter content from template
             cover_letter_content = sanitize_latex(
-                cover_letter.cover_letter_content or ""
+                template.get("cover_letter_content", "")
             )
 
             # Get the template preamble or use default
@@ -72,9 +59,32 @@ class CoverLetterCompiler(LatexCompiler):
             if template and "header" in template and "preamble" in template["header"]:
                 preamble = template["header"]["preamble"]
 
+            # Generate the closing for the letter (including today's date but without signature image)
+            closing = """
+\\vspace{0.3cm}
+\\today
+\\end{letter}
+\\end{document}"""
+
             # Replace placeholders in the cover letter
             return (
-                preamble.replace("{{NAME}}", name)
+                (
+                    preamble
+                    + """
+\\begin{document}
+\\begin{letter}{{{COMPANY_NAME}} \\\\ {{JOB_TITLE}}}
+
+\\personalInformation{{{NAME}}}{{{PHONE}}}{{{EMAIL}}}{{{LINKEDIN}}}{{{GITHUB}}}{{{WEBSITE}}}{{{ADDRESS}}}
+
+\\vspace{0.3cm}
+\\justifying  % Enable justification for the letter content
+
+{{COVER_LETTER_CONTENT}}
+
+"""
+                    + closing
+                )
+                .replace("{{NAME}}", name)
                 .replace("{{PHONE}}", phone)
                 .replace("{{EMAIL}}", email)
                 .replace("{{LINKEDIN}}", linkedin)

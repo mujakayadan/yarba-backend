@@ -1,6 +1,6 @@
 """LaTeX service for LaTeX document generation."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 from config.logging_config import get_logger
@@ -177,26 +177,69 @@ class LatexService:
             self.logger.info(f"Using profile ID: {profile.id}")
             self.logger.info(f"Using resume ID: {resume.id}")
 
-            # Get cover letter content from the unified content field
-            cover_letter_text = (
-                cover_letter.content.get("cover_letter_content", "")
-                if cover_letter.content
-                else ""
-            )
-
             # Get job data from the resume
             company_name = resume.company_name or ""
             job_title = resume.job_title or ""
+
+            # Get cover letter content
+            cover_letter_content = ""
+            if cover_letter.content and "cover_letter_content" in cover_letter.content:
+                cover_letter_content = cover_letter.content["cover_letter_content"]
+
+            # Get personal information from profile
+            personal_info = {
+                "name": "",
+                "phone": "",
+                "email": "",
+                "linkedin": "#",
+                "github": "#",
+                "website": "#",
+                "address": "",
+            }
+
+            if profile:
+                # Check if profile has personal_information field
+                if (
+                    hasattr(profile, "personal_information")
+                    and profile.personal_information
+                ):
+                    info = profile.personal_information
+                    personal_info["name"] = getattr(info, "full_name", "")
+                    personal_info["phone"] = getattr(info, "phone", "")
+                    personal_info["email"] = getattr(info, "email", "")
+                    personal_info["linkedin"] = getattr(info, "linkedin", "#")
+                    personal_info["github"] = getattr(info, "github", "#")
+                    personal_info["website"] = getattr(info, "website", "#")
+                    personal_info["address"] = getattr(info, "address", "")
+                else:
+                    # Try to get fields directly from profile as fallback
+                    personal_info["name"] = getattr(profile, "full_name", "")
+                    personal_info["phone"] = getattr(profile, "phone", "")
+                    personal_info["email"] = getattr(profile, "email", "")
+                    personal_info["linkedin"] = getattr(profile, "linkedin", "#")
+                    personal_info["github"] = getattr(profile, "github", "#")
+                    personal_info["website"] = getattr(profile, "website", "#")
+                    personal_info["address"] = getattr(profile, "address", "")
 
             # Prepare template data
             template_data = await self._prepare_template_data(
                 document_type="cover_letter"
             )
 
+            # Add all the needed data to template_data
+            template_data.update(
+                {
+                    "company_name": company_name,
+                    "job_title": job_title,
+                    "cover_letter_content": cover_letter_content,
+                    "personal_info": personal_info,
+                }
+            )
+
             # Generate the LaTeX content using the compiler
             self.logger.info("Calling cover letter compiler to generate tex content")
             latex_content = await self.cover_letter_compiler.generate_tex_content(
-                cover_letter, template_data, resume=resume
+                cover_letter, template_data
             )
 
             self.logger.info(
