@@ -50,6 +50,7 @@ from core.services.portfolio_service import PortfolioService
 from core.services.profile_service import ProfileService
 from core.services.resume_generation_service import ResumeGenerationService
 from core.services.resume_service import ResumeService
+from core.utils.json_helper import convert_to_serializable
 from utils.storage import get_storage_provider
 
 router = APIRouter()
@@ -429,7 +430,6 @@ async def generate_resume(
         # Generate content
         content = await resume_generation_service.generate_resume_content(
             resume_id=resume_id,
-            selected_sections=set(selected_sections) if selected_sections else None,
         )
 
         # Get updated resume
@@ -864,7 +864,30 @@ async def advanced_debug_pdf_generation(
             # 1. Generate resume content if needed
             if not resume.content or not resume.content.get("personal_information"):
                 add_step("Generating resume content", "started")
+
+                # Add inspection of the portfolio data collection process
+                add_step("Portfolio data collection", "started")
                 try:
+                    # Call the _collect_portfolio_data method directly to see what's happening
+                    portfolio_data = (
+                        await resume_generation_service._collect_portfolio_data(resume)
+                    )
+                    add_step(
+                        "Portfolio data collection",
+                        "success",
+                        {
+                            "sections": list(portfolio_data.keys()),
+                            "data_types": {
+                                k: type(v).__name__ for k, v in portfolio_data.items()
+                            },
+                        },
+                    )
+                except Exception as e:
+                    add_step("Portfolio data collection", "error", {"error": str(e)})
+                    add_error("Portfolio data collection", e)
+
+                try:
+                    # Using comprehensive resume generation with unified template
                     content = await resume_generation_service.generate_resume_content(
                         resume_id
                     )
@@ -902,23 +925,44 @@ async def advanced_debug_pdf_generation(
             # 3. Generate LaTeX
             add_step("Generating LaTeX", "started")
             try:
-                # Save a sample of the content data before conversion
-                for section_name, section_data in updated_resume.content.items():
-                    if not isinstance(section_data, str):
-                        sample_data = safe_object_to_dict(section_data)
-                        add_step(
-                            "Content sample",
-                            "info",
-                            {
-                                "section": section_name,
-                                "data_type": type(section_data).__name__,
-                                "sample": (
-                                    str(sample_data)[:500] + "..."
-                                    if len(str(sample_data)) > 500
-                                    else str(sample_data)
-                                ),
-                            },
-                        )
+                # Save a sample of the content data for debugging
+                if updated_resume.content:
+                    add_step(
+                        "Content overview",
+                        "info",
+                        {
+                            "content_type": type(updated_resume.content).__name__,
+                            "content_keys": list(updated_resume.content.keys()),
+                            "content_size": len(str(updated_resume.content)),
+                        },
+                    )
+
+                    # Sample just a few key fields for debugging instead of full content dump
+                    sample_fields = [
+                        "personal_information",
+                        "skills",
+                        "work_experience",
+                    ]
+                    for field in sample_fields:
+                        if field in updated_resume.content:
+                            field_data = updated_resume.content[field]
+                            if not isinstance(field_data, str):
+                                field_data = safe_object_to_dict(field_data)
+                                add_step(
+                                    "Content sample",
+                                    "info",
+                                    {
+                                        "field": field,
+                                        "data_type": type(
+                                            updated_resume.content[field]
+                                        ).__name__,
+                                        "sample": (
+                                            str(field_data)[:300] + "..."
+                                            if len(str(field_data)) > 300
+                                            else str(field_data)
+                                        ),
+                                    },
+                                )
 
                 # Debug the _convert_to_serializable method
                 add_step("Testing serialization", "started")
@@ -929,9 +973,7 @@ async def advanced_debug_pdf_generation(
                         "nested": {"id": resume_id},
                         "list": [resume_id, {"id": resume_id}],
                     }
-                    serialized = resume_generation_service._convert_to_serializable(
-                        test_data
-                    )
+                    serialized = convert_to_serializable(test_data)
                     add_step(
                         "Testing serialization", "success", {"serialized": serialized}
                     )

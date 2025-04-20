@@ -102,7 +102,7 @@ To run this migration:
 
 ```bash
 # Navigate to the project root
-cd /path/to/resume_builder
+cd /path/to/yarba-backend
 
 # Run the migration
 poetry run python -m core.database.migrations.migration_manager migrate

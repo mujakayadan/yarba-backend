@@ -1,6 +1,6 @@
 """Prompt template for job titles."""
 
-from .base import BasePrompt
+from .base_prompt import BasePrompt
 
 TEMPLATE = """Task: Based on the provided job description and candidate's skills, select the most appropriate job title.
 

@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from config.logging_config import get_logger
 
-from .sanitizer import sanitize_latex
+from .safety import sanitize_latex
 
 logger = get_logger(__name__)
 

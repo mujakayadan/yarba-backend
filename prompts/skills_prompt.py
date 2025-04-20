@@ -1,6 +1,6 @@
 """Prompt template for skills."""
 
-from .base import BasePrompt
+from .base_prompt import BasePrompt
 
 TEMPLATE = """Task: Create a structured skills section based on the candidate's skills and the job description.
 

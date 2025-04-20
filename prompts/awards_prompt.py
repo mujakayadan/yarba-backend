@@ -1,6 +1,6 @@
 """Prompt template for awards."""
 
-from .base import BasePrompt
+from .base_prompt import BasePrompt
 
 TEMPLATE = """Task: Based on the provided job description and candidate's achievements, create a concise awards section.
 

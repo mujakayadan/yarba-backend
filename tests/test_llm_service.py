@@ -13,15 +13,24 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config.settings import Settings
 from core.models.profile import Preferences, Profile
-from core.repositories.profile_repository import ProfileRepository
 from core.services.llm_service import LLMService
+from core.services.profile_service import ProfileService
 from core.services.prompt_service import PromptService
 
 
 @pytest.fixture
 def mock_profile_repository():
     """Create a mock profile repository."""
+    from core.repositories.profile_repository import ProfileRepository
+
     repo = AsyncMock(spec=ProfileRepository)
+    return repo
+
+
+@pytest.fixture
+def mock_profile_service(mock_profile_repository):
+    """Create a mock profile service."""
+    service = AsyncMock(spec=ProfileService)
 
     # Mock a profile instead of creating an actual Profile instance
     profile = MagicMock(spec=Profile)
@@ -33,8 +42,10 @@ def mock_profile_repository():
     }
     profile.api_keys = {"OPENAI_API_KEY": "test_key"}
 
-    repo.get_by_user_id.return_value = profile
-    return repo
+    service.get_profile_by_user_id.return_value = profile
+    service.get_api_keys.return_value = {"OPENAI_API_KEY": "test_key"}
+    service.profile_repository = mock_profile_repository
+    return service
 
 
 @pytest.fixture
@@ -58,38 +69,39 @@ def mock_prompt_service():
 @pytest.mark.asyncio
 @patch("core.services.llm_service.litellm")
 @patch("core.services.llm_service.acompletion")
-async def test_llm_init(mock_acompletion, mock_litellm):
+async def test_llm_init(mock_acompletion, mock_litellm, mock_profile_service):
     """Test LLM service initialization."""
     # Test with default settings
-    llm = LLMService()
+    llm = LLMService(profile_service=mock_profile_service)
     assert llm.model is not None
     assert llm.temperature is not None
 
     # Test with custom settings
-    llm = LLMService(model="custom-model", temperature=0.7, api_key="test_api_key")
+    llm = LLMService(
+        profile_service=mock_profile_service, model="custom-model", temperature=0.7
+    )
     assert llm.model == "custom-model"
     assert llm.temperature == 0.7
-    assert llm.api_key == "test_api_key"
 
 
 @pytest.mark.asyncio
-async def test_configure_for_user(mock_profile_repository, mock_prompt_service):
+async def test_configure_for_user(mock_profile_service, mock_prompt_service):
     """Test configuring LLM for a specific user."""
     user_id = str(PydanticObjectId())  # Convert to string for the method call
 
     # Reset the mock before using it
-    mock_profile_repository.reset_mock()
+    mock_profile_service.reset_mock()
 
     with patch("core.services.llm_service.litellm"):
         llm = LLMService(
-            profile_repository=mock_profile_repository,
+            profile_service=mock_profile_service,
             prompt_service=mock_prompt_service,
         )
 
         await llm.configure_for_user(user_id)
 
         # Verify profile was retrieved - use assert_called_with instead of assert_called_once_with
-        mock_profile_repository.get_by_user_id.assert_called_with(user_id)
+        mock_profile_service.get_profile_by_user_id.assert_called_with(user_id)
 
         # Verify user preferences were applied
         assert llm.model == "test-model"

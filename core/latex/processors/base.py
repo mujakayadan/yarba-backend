@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from config.logging_config import get_logger
 
-from ..utils.sanitizer import sanitize_latex
+from ..utils.safety import sanitize_latex
 
 
 class SectionProcessor:

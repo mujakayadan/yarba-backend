@@ -1,6 +1,6 @@
 """Prompt template for education."""
 
-from .base import BasePrompt
+from .base_prompt import BasePrompt
 
 TEMPLATE = """Task:
 Based on the provided job description and the given education information, create a structured education section.

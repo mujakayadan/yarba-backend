@@ -290,12 +290,12 @@ class LLMSettings(BaseSettings):
         default=None, description="Google Gemini API key", env="GEMINI_API_KEY"
     )
     default_model: str = Field(
-        default="claude-3-sonnet-20240229", description="Default LLM model to use"
+        default="gpt-4.1-mini-2025-04-14", description="Default LLM model to use"
     )
     temperature: float = Field(
-        default=0.7, description="Default temperature for LLM responses"
+        default=0.1, description="Default temperature for LLM responses"
     )
-    max_tokens: int = Field(default=2000, description="Maximum tokens in LLM responses")
+    max_tokens: int = Field(default=4000, description="Maximum tokens in LLM responses")
     ollama_uri: str = Field(
         default="http://localhost:11434", description="URI for Ollama API"
     )
@@ -311,6 +311,7 @@ class LLMSettings(BaseSettings):
     )
     json_compatible_models: List[str] = Field(
         default=[
+            "gpt-4.1-mini-2025-04-14",
             "gpt-4",
             "gpt-4-turbo",
             "gpt-4o",

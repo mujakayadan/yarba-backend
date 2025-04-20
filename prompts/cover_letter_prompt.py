@@ -1,6 +1,6 @@
 """Prompt template for cover letter."""
 
-from .base import BasePrompt
+from .base_prompt import BasePrompt
 
 TEMPLATE = """Task: Create a structured cover letter based on the provided resume content and job description.
 

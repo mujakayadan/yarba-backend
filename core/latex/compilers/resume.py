@@ -9,7 +9,7 @@ from ...models.resume import Resume
 from ..base import LatexCompiler
 from ..processors import get_processor_for_section
 from ..templates import DEFAULT_RESUME_PREAMBLE
-from ..utils.sanitizer import sanitize_latex
+from ..utils.safety import sanitize_latex
 
 
 class ResumeCompiler(LatexCompiler):

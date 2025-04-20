@@ -1,6 +1,6 @@
 """Prompt template for header."""
 
-from .base import BasePrompt
+from .base_prompt import BasePrompt
 
 TEMPLATE = """Task: Create a structured header section for a resume based on the provided personal information.
 

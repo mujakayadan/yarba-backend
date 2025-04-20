@@ -1,6 +1,6 @@
 """Prompt template for work experience."""
 
-from .base import BasePrompt
+from .base_prompt import BasePrompt
 
 TEMPLATE = """Based on the provided job description and candidate's work experience, create a concise work experience section.
 

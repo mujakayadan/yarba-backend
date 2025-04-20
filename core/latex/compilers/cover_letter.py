@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 from ...models.cover_letter import CoverLetter
 from ..base import LatexCompiler
 from ..templates import DEFAULT_COVER_LETTER_PREAMBLE
-from ..utils.sanitizer import sanitize_latex
+from ..utils.safety import sanitize_latex
 
 
 class CoverLetterCompiler(LatexCompiler):

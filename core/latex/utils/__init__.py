@@ -12,10 +12,12 @@ from .json_to_latex import (
     process_skills,
     process_work_experience,
 )
-from .latex_escaper import escape_latex, escape_latex_brackets, latex_escape_map
 from .placeholder import PlaceholderManager
-from .sanitizer import (
+from .safety import (
     MAX_LATEX_LINE_LENGTH,
+    escape_latex,
+    escape_latex_brackets,
+    latex_escape_map,
     sanitize_latex,
     sanitize_latex_paragraph,
     strip_latex_commands,

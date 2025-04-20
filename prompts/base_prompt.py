@@ -1,6 +1,8 @@
 """Base prompt template."""
 
-from typing import Dict, Optional
+from typing import Any, Dict
+
+from jinja2 import Template
 
 
 class BasePrompt:
@@ -13,8 +15,9 @@ class BasePrompt:
             template: The prompt template string
         """
         self._template = template.strip()
+        self._jinja_template = Template(self._template)
 
-    def format(self, **kwargs: Dict[str, str]) -> str:
+    def format(self, **kwargs: Dict[str, Any]) -> str:
         """Format the prompt template with the given arguments.
 
         Args:
@@ -23,7 +26,7 @@ class BasePrompt:
         Returns:
             The formatted prompt string
         """
-        return self._template.format(**kwargs)
+        return self._jinja_template.render(**kwargs)
 
     def __str__(self) -> str:
         """Return the prompt template as a string."""

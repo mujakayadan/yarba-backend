@@ -388,3 +388,91 @@ poetry run python scripts/examples/generate_resume.py
 
 - LLM should return list of items instead of Latex embeddings to reduce token usage.
 - LLM parameters are hard coded for now
+
+# YARBA Backend
+
+Yarba (Yet Another Resume Builder App) is a backend service for generating resumes and cover letters using advanced language models.
+
+## Variable Substitution Process
+
+The variable substitution process has been improved to streamline data handling and prevent unsubstituted variables in prompts:
+
+### Key Improvements
+
+1. **Single Data Object**:
+   - Combined portfolio and profile data into a single `data` object
+   - Simplified prompt template variables
+   - Better organization of personal information and portfolio sections
+
+2. **Enhanced Validation**:
+   - Added validation to detect unsubstituted variables
+   - Defined critical variables that must be present for each prompt type
+   - Better error handling with clear error messages
+
+3. **Support for Dot Notation**:
+   - Added support for dot notation in variable names (e.g., `${data.personal_information.name}`)
+   - Workaround for Python's Template class limitation
+
+4. **Better Error Handling**:
+   - Improved error logging
+   - Validation before sending to LLM
+   - Clearer error messages for debugging
+
+### How to Use
+
+```python
+# Old approach (still supported)
+variables = {
+    "job_description": job_description,
+    "portfolio": portfolio_data,
+    "profile": profile_data
+}
+
+# New approach (recommended)
+combined_data = {**portfolio_data}
+combined_data["personal_information"] = profile_data["personal_information"]
+
+variables = {
+    "job_description": job_description,
+    "data": combined_data
+}
+
+# Get formatted prompt
+prompt = await prompt_service.get_resume_prompt(variables)
+```
+
+## Architecture
+
+- `core/services/prompt_service.py`: Handles prompt loading and variable substitution
+- `prompts/`: Contains prompt templates
+- `core/loaders/prompt_loader.py`: Loads raw prompt templates
+- `core/services/llm_service.py`: Handles communication with language models
+
+## Development
+
+### Setup
+
+1. Install dependencies:
+   ```
+   poetry install
+   ```
+
+2. Set up environment variables:
+   ```
+   cp .env.example .env
+   ```
+
+3. Run the development server:
+   ```
+   poetry run uvicorn api.main:app --reload
+   ```
+
+### Testing
+
+```
+poetry run pytest
+```
+
+## License
+
+[MIT License](LICENSE)

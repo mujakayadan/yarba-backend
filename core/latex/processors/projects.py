@@ -2,7 +2,9 @@
 
 from typing import Any, Dict, List
 
-from ..utils.sanitizer import sanitize_latex
+from config.settings import settings
+
+from ..utils.safety import sanitize_latex
 from .base import SectionProcessor
 
 

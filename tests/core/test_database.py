@@ -128,7 +128,7 @@ class TestDatabaseConnection:
 
                 # Assert
                 mock_client.assert_called_once_with("mongodb://localhost:27017")
-                mock_mongo_client.get_database.assert_called_once_with("resume_builder")
+                mock_mongo_client.get_database.assert_called_once_with("yarba-backend")
                 assert db is not None
 
     @pytest.mark.asyncio
@@ -149,6 +149,6 @@ class TestDatabaseConnection:
                 # Assert
                 mock_client.assert_called_once_with("mongodb://localhost:27017")
                 mock_async_mongo_client.get_database.assert_called_once_with(
-                    "resume_builder"
+                    "yarba-backend"
                 )
                 assert db is not None

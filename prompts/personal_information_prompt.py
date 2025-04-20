@@ -1,6 +1,6 @@
 """Prompt template for personal information."""
 
-from .base import BasePrompt
+from .base_prompt import BasePrompt
 
 TEMPLATE = """Extract or generate personal information from the provided context.
 

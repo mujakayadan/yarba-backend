@@ -6,6 +6,8 @@ from typing import Any, Dict, List, Optional, Tuple
 from beanie import PydanticObjectId
 from pydantic import BaseModel
 
+from config.logging_config import get_logger
+
 from ..models.portfolio import Portfolio
 from ..models.profile import Profile
 from ..models.resume import LLMSettings, Resume
@@ -34,6 +36,7 @@ class ResumeRepository(BeanieRepository[Resume]):
     def __init__(self):
         """Initialize the repository."""
         super().__init__(Resume)
+        self.logger = get_logger(__name__)
 
     async def get_user(self, resume_id: PydanticObjectId) -> Optional[User]:
         """

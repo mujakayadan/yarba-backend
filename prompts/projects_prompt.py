@@ -1,6 +1,6 @@
 """Prompt template for projects."""
 
-from .base import BasePrompt
+from .base_prompt import BasePrompt
 
 TEMPLATE = """Based on the provided job description and candidate's project experience, create a concise projects section.
 

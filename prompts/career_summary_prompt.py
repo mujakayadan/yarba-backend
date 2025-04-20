@@ -1,6 +1,6 @@
 """Prompt template for career summary."""
 
-from .base import BasePrompt
+from .base_prompt import BasePrompt
 
 TEMPLATE = """Task: Based on the provided job description, candidate's job titles, and years of experience, create a concise career summary for the resume.
 

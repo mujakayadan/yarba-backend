@@ -18,10 +18,10 @@ DEFAULT_RESUME_PREAMBLE = """\\documentclass[letterpaper,11pt]{article}
 \\usepackage[english]{babel}
 \\usepackage{tabularx}
 \\usepackage{hyphenat}
-\\usepackage{fontawesome}
+\\usepackage{fontawesome5}
 \\usepackage{seqsplit}
 \\usepackage[T1]{fontenc}
-\\usepackage[utf8x]{inputenc}
+\\usepackage[utf8]{inputenc}
 \\usepackage{lmodern,textcomp}
 \\usepackage{bookmark}
 

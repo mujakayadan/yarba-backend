@@ -1,6 +1,6 @@
 """Prompt template for folder name."""
 
-from .base import BasePrompt
+from .base_prompt import BasePrompt
 
 TEMPLATE = """Task: Extract the company name and job title from the given job description.
 
