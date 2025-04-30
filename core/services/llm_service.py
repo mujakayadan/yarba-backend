@@ -503,6 +503,8 @@ class LLMService:
         max_tokens: Optional[int] = None,
         user_id: Optional[str] = None,
         tags: Optional[List[str]] = None,
+        variables: Optional[Dict[str, Any]] = None,
+        json_response: bool = False,
     ) -> str:
         """
         Get a completion from the LLM.
@@ -515,6 +517,8 @@ class LLMService:
             max_tokens: Optional max tokens (overrides instance default)
             user_id: Optional user ID for LiteLLM cost tracking
             tags: Optional tags for LiteLLM cost tracking
+            variables: Optional variables for template substitution
+            json_response: Whether to force JSON response format
 
         Returns:
             str: The LLM's completion
@@ -523,6 +527,39 @@ class LLMService:
             Exception: If the LLM call fails
         """
         try:
+            # If variables are provided, render the prompt as a Jinja2 template
+            if variables:
+                try:
+                    from jinja2 import Template
+
+                    template = Template(prompt)
+                    rendered_prompt = template.render(**variables)
+                    self.logger.debug("Rendered prompt template with variables")
+
+                    # Debug: Log a sample of the rendered prompt to verify variable substitution
+                    prompt_sample = (
+                        rendered_prompt[:500] + "..."
+                        if len(rendered_prompt) > 500
+                        else rendered_prompt
+                    )
+                    self.logger.debug(f"Rendered prompt sample: {prompt_sample}")
+
+                    # Check for any remaining template variables that might not have been substituted
+                    import re
+
+                    template_vars = re.findall(r"{{[^}]+}}", rendered_prompt)
+                    if template_vars:
+                        self.logger.warning(
+                            f"Unsubstituted template variables found: {template_vars}"
+                        )
+
+                    prompt = rendered_prompt
+                except Exception as template_error:
+                    self.logger.error(
+                        f"Error rendering prompt template: {template_error}"
+                    )
+                    # Continue with original prompt if template rendering fails
+
             # If user_id is provided, check usage limits
             if user_id and settings.llm.enable_cost_tracking:
                 limits = await self.check_usage_limits(user_id)
@@ -558,6 +595,11 @@ class LLMService:
                 "temperature": temperature,
                 "max_tokens": max_tokens,
             }
+
+            # Add response_format for JSON output if requested and supported
+            if json_response and self.model_supports_json_mode(model):
+                completion_kwargs["response_format"] = {"type": "json_object"}
+                self.logger.debug("Setting response_format to JSON")
 
             # Add provider if available
             if provider:

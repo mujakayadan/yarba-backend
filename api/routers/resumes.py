@@ -169,10 +169,10 @@ async def create_resume(
         # If PDF generation is requested, generate content and PDF
         if request.generate_pdf:
             try:
-                logger.info(f"Generating content and PDF for resume: {resume.id}")
+                logger.info(f"Generating complete resume content and PDF: {resume.id}")
 
-                # Generate resume content
-                content = await resume_generation_service.generate_resume_content(
+                # Generate resume content in a single LLM call
+                content = await resume_generation_service.generate_complete_resume(
                     resume_id=resume.id
                 )
 
@@ -1294,4 +1294,75 @@ async def get_resume_llm_usage(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve resume LLM usage: {str(e)}",
+        )
+
+
+@router.post("/{resume_id}/generate-complete", response_model=ResumeResponse)
+async def generate_complete_resume(
+    resume_id: Annotated[PydanticObjectId, Path(description="Resume ID")],
+    current_user: CurrentUser,
+    resume_generation_service: ResumeGenerationService = Depends(
+        get_resume_generation_service
+    ),
+    resume_service: ResumeService = Depends(get_resume_service),
+) -> ResumeResponse:
+    """
+    Generate a complete resume with all sections in a single LLM call.
+
+    This endpoint generates all resume sections at once using a comprehensive
+    prompt instead of generating each section separately. This can result in
+    more consistent content across sections and reduces the number of LLM calls.
+
+    Args:
+        resume_id: Resume ID
+        current_user: Current authenticated user
+        resume_generation_service: Resume generation service
+        resume_service: Resume service
+
+    Returns:
+        ResumeResponse: Updated resume with generated content
+
+    Raises:
+        HTTPException: If generation fails or resume is not found
+    """
+    try:
+        # Get the resume
+        resume = await resume_service.get_resume_by_id(
+            resume_id=resume_id, user_id=PydanticObjectId(current_user.id)
+        )
+
+        if not resume:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found"
+            )
+
+        logger.info(f"Generating complete resume content for resume: {resume.id}")
+
+        # Generate complete resume content
+        try:
+            await resume_generation_service.generate_complete_resume(
+                resume_id=resume_id
+            )
+        except Exception as e:
+            logger.error(f"Error generating complete resume content: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to generate complete resume content: {str(e)}",
+            )
+
+        # Get the updated resume
+        updated_resume = await resume_service.get_resume_by_id(
+            resume_id=resume_id, user_id=PydanticObjectId(current_user.id)
+        )
+
+        return convert_resume_to_response(updated_resume)
+
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        logger.error(f"Error generating complete resume: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate complete resume: {str(e)}",
         )

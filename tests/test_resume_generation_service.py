@@ -209,3 +209,72 @@ async def test_generate_cover_letter(
 
     # Verify result
     assert result == "Formatted TeX content"
+
+
+@pytest.mark.asyncio
+async def test_generate_complete_resume(
+    mock_resume, mock_profile, mock_portfolio, mock_llm
+):
+    """Test generate_complete_resume functionality."""
+
+    # Mock repositories
+    resume_repo = AsyncMock(spec=ResumeRepository)
+    profile_repo = AsyncMock(spec=ProfileRepository)
+    portfolio_repo = AsyncMock(spec=PortfolioRepository)
+
+    # Set up mock returns
+    resume_repo.get_by_id.return_value = mock_resume
+    profile_repo.get_by_id.return_value = mock_profile
+    portfolio_repo.get_by_id.return_value = mock_portfolio
+
+    # Mock LLM response
+    mock_llm.get_completion.return_value = """
+    {
+        "personal_information": {
+            "full_name": "John Doe",
+            "title": "Software Engineer",
+            "phone": "123-456-7890",
+            "email": "john@example.com",
+            "location": "New York, NY",
+            "linkedin": "linkedin.com/in/johndoe",
+            "github": "github.com/johndoe"
+        },
+        "career_summary": {
+            "job_title": "Software Engineer",
+            "years_of_experience": "5",
+            "default_summary": "A Software Engineer with 5 years of experience in web development."
+        },
+        "skills": [
+            {
+                "category": "Programming Languages",
+                "skills": ["Python", "JavaScript", "TypeScript", "Java"]
+            }
+        ]
+    }
+    """
+
+    # Initialize service with mocks
+    service = ResumeGenerationService(
+        resume_repository=resume_repo,
+        portfolio_repository=portfolio_repo,
+        profile_repository=profile_repo,
+        llm_service=mock_llm,
+    )
+
+    # Call the method under test
+    result = await service.generate_complete_resume(mock_resume.id)
+
+    # Assertions
+    resume_repo.get_by_id.assert_called_once_with(mock_resume.id)
+    profile_repo.get_by_id.assert_called_once()
+    mock_llm.get_completion.assert_called_once()
+    resume_repo.update.assert_called_once()
+
+    # Check that result contains expected structure
+    assert "personal_information" in result
+    assert "career_summary" in result
+    assert "skills" in result
+
+    # Verify the mock resume has been updated
+    assert mock_resume.content is not None
+    assert isinstance(mock_resume.content, dict)

@@ -23,7 +23,7 @@ The structure should be:
 ```json
 {
   "job_title": "Most Relevant Job Title",
-  "years_of_experience": "X",
+  "years_of_experience": X,
   "default_summary": "implementing and managing... (continuing the sentence as a natural flow)"
 }
 ```
@@ -31,7 +31,7 @@ The structure should be:
 Example:
 {
   "job_title": "Computer Vision Engineer",
-  "years_of_experience": "3",
+  "years_of_experience": 3,
   "default_summary": "implementing highly scalable robust industrial computer vision applications using machine learning algorithms. Proficient in algorithm development, research and development processes, and finding suitable solutions for complex industrial needs. Hands-on using Python, Matlab, C++, OpenCV, and Deep Learning libraries."
 }
 

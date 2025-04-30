@@ -44,6 +44,7 @@ class PromptService:
             "personal_information": PERSONAL_INFORMATION_PROMPT,
             "projects": PROJECTS_PROMPT,
             "publications": PUBLICATIONS_PROMPT,
+            "resume": RESUME_PROMPT,
             "skills": SKILLS_PROMPT,
             "system": SYSTEM_PROMPT,
             "work_experience": WORK_EXPERIENCE_PROMPT,
@@ -174,3 +175,18 @@ class PromptService:
         """
         self.user_id = user_id
         self.logger.debug(f"User changed to: {user_id}")
+
+    async def get_prompt(self, prompt_name: str) -> str:
+        """
+        Get the prompt by name (alias for get_section_prompt).
+
+        Args:
+            prompt_name: Name of the prompt
+
+        Returns:
+            str: The prompt text
+
+        Raises:
+            NotFoundException: If the prompt doesn't exist
+        """
+        return await self.get_section_prompt(prompt_name)

@@ -648,3 +648,125 @@ class PortfolioService:
 
         self.logger.info(f"Career summary updated for user: {user_id}")
         return updated_portfolio
+
+    async def get_skills(self, user_id: PydanticObjectId) -> List[Skill]:
+        """
+        Get user's skills from portfolio.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            List of skills or None if not found
+        """
+        try:
+            portfolio = await self.get_portfolio_by_user_id(user_id)
+            return portfolio.skills
+        except NotFoundException:
+            self.logger.warning(f"Portfolio not found for user: {user_id}")
+            return None
+        except Exception as e:
+            self.logger.error(f"Error getting skills for user {user_id}: {e}")
+            return None
+
+    async def get_work_experiences(
+        self, user_id: PydanticObjectId
+    ) -> List[WorkExperience]:
+        """
+        Get user's work experiences from portfolio.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            List of work experiences or None if not found
+        """
+        try:
+            portfolio = await self.get_portfolio_by_user_id(user_id)
+            return portfolio.work_experience
+        except NotFoundException:
+            self.logger.warning(f"Portfolio not found for user: {user_id}")
+            return None
+        except Exception as e:
+            self.logger.error(f"Error getting work experiences for user {user_id}: {e}")
+            return None
+
+    async def get_education(self, user_id: PydanticObjectId) -> List[Education]:
+        """
+        Get user's education from portfolio.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            List of education or None if not found
+        """
+        try:
+            portfolio = await self.get_portfolio_by_user_id(user_id)
+            return portfolio.education
+        except NotFoundException:
+            self.logger.warning(f"Portfolio not found for user: {user_id}")
+            return None
+        except Exception as e:
+            self.logger.error(f"Error getting education for user {user_id}: {e}")
+            return None
+
+    async def get_projects(self, user_id: PydanticObjectId) -> List[Project]:
+        """
+        Get user's projects from portfolio.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            List of projects or None if not found
+        """
+        try:
+            portfolio = await self.get_portfolio_by_user_id(user_id)
+            return portfolio.projects
+        except NotFoundException:
+            self.logger.warning(f"Portfolio not found for user: {user_id}")
+            return None
+        except Exception as e:
+            self.logger.error(f"Error getting projects for user {user_id}: {e}")
+            return None
+
+    async def get_publications(self, user_id: PydanticObjectId) -> List[Publication]:
+        """
+        Get user's publications from portfolio.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            List of publications or None if not found
+        """
+        try:
+            portfolio = await self.get_portfolio_by_user_id(user_id)
+            return portfolio.publications
+        except NotFoundException:
+            self.logger.warning(f"Portfolio not found for user: {user_id}")
+            return None
+        except Exception as e:
+            self.logger.error(f"Error getting publications for user {user_id}: {e}")
+            return None
+
+    async def get_awards(self, user_id: PydanticObjectId) -> List[Award]:
+        """
+        Get user's awards from portfolio.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            List of awards or None if not found
+        """
+        try:
+            portfolio = await self.get_portfolio_by_user_id(user_id)
+            return portfolio.awards
+        except NotFoundException:
+            self.logger.warning(f"Portfolio not found for user: {user_id}")
+            return None
+        except Exception as e:
+            self.logger.error(f"Error getting awards for user {user_id}: {e}")
+            return None

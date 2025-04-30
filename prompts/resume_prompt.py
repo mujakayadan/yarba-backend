@@ -35,11 +35,11 @@ Include only factual contact details explicitly provided - do not invent or assu
 # CAREER SUMMARY SECTION
 Create a concise career summary following these guidelines:
 - Select the most relevant job title from the candidate's history that best aligns with the target position
-- Use the candidate's actual years of experience (do not inflate or reduce)
+- Use the exact years of experience from the portfolio ( data.career_summary.years_of_experience )
 - Create a summary between {{ preferences.career_summary.min_words }} and {{ preferences.career_summary.max_words }} words
 - Only reference skills, technologies, and experiences the candidate actually has - do not fabricate or assume
 - Use strong action verbs and quantify achievements where possible
-- IMPORTANT: Start the summary with exactly "A [Job Title] with [X] years of experience in" followed by the candidate's expertise
+- IMPORTANT: Start the summary with exactly "A [Job Title] with  data.career_summary.years_of_experience  years of experience in" followed by the candidate's expertise
 - Use the {{ preferences.career_summary.tone }} tone
 The career summary should highlight the candidate's unique value proposition for the role.
 
@@ -75,11 +75,16 @@ Select relevant education from the portfolio:
 
 # PROJECTS SECTION (if applicable)
 Select relevant projects from the portfolio:
-- Choose {{ preferences.project.max_projects }} projects most relevant to the target position
+- IMPORTANT: Choose EXACTLY {{ preferences.project.max_projects }} projects most relevant to the target position
+- If fewer than {{ preferences.project.max_projects }} projects are available, include ALL available projects
+- If more than {{ preferences.project.max_projects }} projects are available, select the {{ preferences.project.max_projects }} most relevant ones
 - For each project, include name, role, and {{ preferences.project.bullet_points_per_project }} key bullet points
+- IMPORTANT: Each project MUST have exactly {{ preferences.project.bullet_points_per_project }} bullet points
 - Select projects that demonstrate skills mentioned in the job description
 - Prioritize projects with measurable outcomes or technical challenges overcome
 - Emphasize technologies used and quantifiable results
+- CRITICAL: YOU MUST INCLUDE {{ preferences.project.max_projects }} PROJECTS IN YOUR JSON RESPONSE (or all available projects if fewer than {{ preferences.project.max_projects }} exist)
+- The JSON response MUST include a complete array with ALL projects up to the maximum number
 
 # PUBLICATIONS SECTION (if applicable)
 Select relevant publications from the portfolio:
@@ -114,7 +119,7 @@ JSON Structure:
   },
   "career_summary": {
     "job_title": "/* SELECTED_JOB_TITLE */",
-    "years_of_experience": "/* YEARS */",
+    "years_of_experience": "data.career_summary.years_of_experience",
     "default_summary": "/* CAREER_SUMMARY_TEXT */"
   },
   "skills": [
@@ -138,7 +143,7 @@ JSON Structure:
         "/* ACHIEVEMENT_2_WITH_METRICS */"
       ]
     }
-  ],
+  ], // IMPORTANT: Include EXACTLY {{ preferences.work_experience.max_jobs }} work experiences, or all available if fewer
   "education": [
     {
       "degree_type": "/* DEGREE_TYPE */",
@@ -155,14 +160,51 @@ JSON Structure:
   ],
   "projects": [
     {
-      "name": "/* PROJECT_NAME */",
+      "name": "PROJECT_NAME_1",
+      "date": "DATE",
       "bullet_points": [
-        "/* PROJECT_BULLET_POINT_1 */",
-        "/* PROJECT_BULLET_POINT_2 */"
-      ],
-      "date": "/* PROJECT_DATE */"
+        "BULLET_POINT_1",
+        "BULLET_POINT_2",
+        "BULLET_POINT_3"
+      ]
+    },
+    {
+      "name": "PROJECT_NAME_2",
+      "date": "DATE",
+      "bullet_points": [
+        "BULLET_POINT_1",
+        "BULLET_POINT_2",
+        "BULLET_POINT_3"
+      ]
+    },
+    {
+      "name": "PROJECT_NAME_3",
+      "date": "DATE",
+      "bullet_points": [
+        "BULLET_POINT_1",
+        "BULLET_POINT_2",
+        "BULLET_POINT_3"
+      ]
+    },
+    {
+      "name": "PROJECT_NAME_4",
+      "date": "DATE",
+      "bullet_points": [
+        "BULLET_POINT_1",
+        "BULLET_POINT_2",
+        "BULLET_POINT_3"
+      ]
+    },
+    {
+      "name": "PROJECT_NAME_5",
+      "date": "DATE",
+      "bullet_points": [
+        "BULLET_POINT_1",
+        "BULLET_POINT_2",
+        "BULLET_POINT_3"
+      ]
     }
-  ],
+  ], // IMPORTANT: Include EXACTLY {{ preferences.project.max_projects }} projects, or all available if fewer
   "publications": [
     {
       "name": "/* PUBLICATION_TITLE */",

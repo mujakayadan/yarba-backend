@@ -164,8 +164,8 @@ DEFAULT_RESUME_PREAMBLE = """\\documentclass[letterpaper,11pt]{article}
 }
 
 % Custom command for career summary
-\\newcommand{\\careerSummary}[3]{%
-  {{#1} with {#2} years of experience {#3}}
+\\newcommand{\\careerSummary}[1]{%
+  {#1}
 }
 """
 

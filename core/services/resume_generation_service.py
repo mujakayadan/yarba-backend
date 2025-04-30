@@ -569,3 +569,374 @@ class ResumeGenerationService:
         except Exception as e:
             self.logger.error(f"Error compiling PDF: {e}")
             raise ValueError(f"Failed to compile PDF: {str(e)}")
+
+    async def generate_complete_resume(
+        self,
+        resume_id: PydanticObjectId,
+        llm_preferences: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Generate complete resume content in a single LLM call.
+
+        This method uses a comprehensive prompt to generate all resume sections
+        at once, reducing the number of LLM calls needed.
+
+        Args:
+            resume_id: Resume ID
+            llm_preferences: Optional LLM preferences to override defaults
+
+        Returns:
+            Generated resume content as a dictionary
+
+        Raises:
+            ValueError: If resume or profile is not found or job_description is missing
+        """
+        # Get resume data
+        resume, profile, portfolio = await self.get_resume_data(resume_id)
+
+        # Verify job description is present
+        if not resume.job_description:
+            raise ValueError("A job description is required to generate resume content")
+
+        # Configure LLM for user
+        await self.configure_for_user(resume.user_id)
+
+        # Apply LLM preferences if provided
+        if llm_preferences:
+            self.logger.info(f"Applying custom LLM preferences: {llm_preferences}")
+            await self.llm_service.set_model_parameters(llm_preferences)
+
+        # Set resume_id for cost tracking in LLM service
+        self.llm_service.current_resume_id = resume_id
+
+        # Update resume title with properly formatted version
+        if resume.company_name or resume.job_title:
+            resume.title = self._generate_proper_title(
+                resume.company_name, resume.job_title
+            )
+            self.logger.debug(f"Updated resume title to: {resume.title}")
+
+        # If template_id is not set, get it from profile preferences
+        if (
+            not resume.template_id
+            and profile.preferences
+            and profile.preferences.default_latex_templates
+        ):
+            resume.template_id = profile.preferences.default_latex_templates.get(
+                "default_resume_template_id"
+            )
+            self.logger.debug(
+                f"Set template_id from profile preferences: {resume.template_id}"
+            )
+
+        # Initialize content dictionary if needed
+        if not resume.content or not isinstance(resume.content, dict):
+            resume.content = {}
+
+        # Prepare portfolio data
+        portfolio_data = await self._prepare_portfolio_data(resume.user_id)
+        if not portfolio_data:
+            self.logger.warning("No portfolio data found for resume generation")
+
+        # Get the comprehensive resume prompt
+        try:
+            system_prompt = await self.prompt_service.get_system_prompt()
+            resume_prompt = await self.prompt_service.get_section_prompt("resume")
+
+            # Debug: Log a sample of the prompt template
+            prompt_sample = (
+                str(resume_prompt)[:500] + "..."
+                if len(str(resume_prompt)) > 500
+                else str(resume_prompt)
+            )
+            self.logger.debug(
+                f"Original resume prompt template sample: {prompt_sample}"
+            )
+
+            # Debug: Check for template variables in the prompt
+            import re
+
+            template_vars = re.findall(r"{{[^}]+}}", str(resume_prompt))
+            self.logger.debug(f"Template variables in prompt: {template_vars}")
+
+        except Exception as e:
+            self.logger.error(f"Error getting prompts: {e}")
+            raise ValueError(f"Failed to get prompts: {str(e)}")
+
+        # Create the context for the LLM call
+        context = {"job_description": resume.job_description, "data": portfolio_data}
+
+        # Get user preferences to customize the prompt
+        if profile.preferences:
+            # Create a preferences dictionary with required structure
+            preferences_dict = profile.preferences.model_dump()
+
+            # Map the preferences to the structure expected by the resume prompt
+            mapped_preferences = {
+                "career_summary": {
+                    "min_words": preferences_dict.get("career_summary_details", {}).get(
+                        "min_words", 75
+                    ),
+                    "max_words": preferences_dict.get("career_summary_details", {}).get(
+                        "max_words", 150
+                    ),
+                    "tone": "professional",
+                },
+                "skills": {
+                    "max_categories": preferences_dict.get("skills_details", {}).get(
+                        "max_categories", 4
+                    ),
+                    "min_skills_per_category": preferences_dict.get(
+                        "skills_details", {}
+                    ).get("min_skills_per_category", 3),
+                    "max_skills_per_category": preferences_dict.get(
+                        "skills_details", {}
+                    ).get("max_skills_per_category", 8),
+                },
+                "work_experience": {
+                    "max_jobs": preferences_dict.get("work_experience_details", {}).get(
+                        "max_jobs", 4
+                    ),
+                    "bullet_points_per_job": preferences_dict.get(
+                        "work_experience_details", {}
+                    ).get("bullet_points_per_job", 3),
+                    "focus": "achievements",
+                },
+                "education": {
+                    "max_courses": preferences_dict.get("education_details", {}).get(
+                        "max_courses", 4
+                    ),
+                    "max_entries": preferences_dict.get("education_details", {}).get(
+                        "max_entries", 3
+                    ),
+                },
+                "project": {
+                    "max_projects": preferences_dict.get("project_details", {}).get(
+                        "max_projects", 3
+                    ),
+                    "bullet_points_per_project": preferences_dict.get(
+                        "project_details", {}
+                    ).get("bullet_points_per_project", 2),
+                },
+                "publications": {
+                    "max_publications": preferences_dict.get(
+                        "publications_details", {}
+                    ).get("max_publications", 3)
+                },
+                "awards": {
+                    "max_awards": preferences_dict.get("awards_details", {}).get(
+                        "max_awards", 3
+                    )
+                },
+            }
+
+            # Add mapped preferences to the context
+            context["preferences"] = mapped_preferences
+
+            # Debug logging to show what preferences are being passed
+            self.logger.debug(
+                f"Original preferences: {json.dumps(preferences_dict, default=str)[:500]}..."
+            )
+            self.logger.debug(
+                f"Mapped preferences for prompt: {json.dumps(mapped_preferences, default=str)}"
+            )
+
+            # Log specific important values
+            self.logger.info(
+                f"Skills per category: min={mapped_preferences['skills']['min_skills_per_category']}, max={mapped_preferences['skills']['max_skills_per_category']}"
+            )
+            self.logger.info(
+                f"Career summary words: min={mapped_preferences['career_summary']['min_words']}, max={mapped_preferences['career_summary']['max_words']}"
+            )
+            self.logger.info(
+                f"Work experience: max_jobs={mapped_preferences['work_experience']['max_jobs']}, bullet_points={mapped_preferences['work_experience']['bullet_points_per_job']}"
+            )
+        else:
+            # Add default preferences if none exist
+            context["preferences"] = {
+                "career_summary": {
+                    "min_words": 75,
+                    "max_words": 150,
+                    "tone": "professional",
+                },
+                "skills": {
+                    "max_categories": 4,
+                    "min_skills_per_category": 3,
+                    "max_skills_per_category": 8,
+                },
+                "work_experience": {
+                    "max_jobs": 4,
+                    "bullet_points_per_job": 3,
+                    "focus": "achievements",
+                },
+                "education": {"max_courses": 4, "max_entries": 3},
+                "project": {"max_projects": 3, "bullet_points_per_project": 2},
+                "publications": {"max_publications": 3},
+                "awards": {"max_awards": 3},
+            }
+
+        try:
+            self.logger.info("Generating complete resume content with single LLM call")
+            # Call the LLM with specific instructions to return valid JSON
+            system_prompt = f"{system_prompt}\nYou MUST return only valid JSON as your response. Do not include any explanatory text or markdown code blocks."
+
+            # Check if model supports JSON mode
+            if self.llm_service.model_supports_json_mode():
+                self.logger.info("Using JSON mode for LLM response")
+                self.logger.debug("Making LLM request with JSON mode...")
+                result = await self.llm_service.get_completion(
+                    prompt=resume_prompt,
+                    system_prompt=system_prompt,
+                    variables=context,
+                    user_id=str(resume.user_id),
+                    tags=["operation:generate_complete_resume"],
+                    json_response=True,  # Explicitly request JSON response
+                )
+                self.logger.debug("LLM request complete with JSON mode")
+            else:
+                self.logger.info(
+                    "Using text mode with JSON instructions for LLM response"
+                )
+                self.logger.debug("Making LLM request with text mode...")
+                result = await self.llm_service.get_completion(
+                    prompt=f"{resume_prompt}\n\nIMPORTANT: You MUST ONLY return valid JSON without any additional text. Do not include code block markers or explanations.",
+                    system_prompt=system_prompt,
+                    variables=context,
+                    user_id=str(resume.user_id),
+                    tags=["operation:generate_complete_resume"],
+                )
+                self.logger.debug("LLM request complete with text mode")
+
+            # Parse the JSON response
+            try:
+                # Clean the response if needed
+                result = result.strip()
+
+                # Some models add code block markers - try to remove them
+                original_length = len(result)
+                if result.startswith("```json"):
+                    result = result[7:]
+                    self.logger.debug("Removed '```json' prefix from response")
+                elif result.startswith("```"):
+                    result = result[3:]
+                    self.logger.debug("Removed '```' prefix from response")
+                if result.endswith("```"):
+                    result = result[:-3]
+                    self.logger.debug("Removed '```' suffix from response")
+
+                result = result.strip()
+                if original_length != len(result):
+                    self.logger.info(
+                        f"Cleaned LLM response: removed {original_length - len(result)} characters of markdown formatting"
+                    )
+
+                self.logger.debug(
+                    f"Attempting to parse JSON response: {result[:200]}..."
+                )
+
+                try:
+                    content = json.loads(result)
+                    self.logger.info(
+                        f"Successfully parsed JSON with {len(content)} top-level keys"
+                    )
+                    for key in content.keys():
+                        self.logger.debug(f"Found section in response: {key}")
+                except json.JSONDecodeError as parse_error:
+                    self.logger.error(f"JSON parsing error: {parse_error}")
+                    self.logger.error(
+                        f"Error at position {parse_error.pos}: character '{result[parse_error.pos:parse_error.pos+1]}' in context '{result[max(0, parse_error.pos-20):min(len(result), parse_error.pos+20)]}'"
+                    )
+                    raise
+
+                # Update resume content with all sections
+                resume.content = content
+
+                # Update resume
+                resume.updated_at = datetime.now(timezone.utc)
+                await self.resume_repository.update(resume.id, resume)
+                self.logger.info(f"Updated resume with complete content")
+
+                return content
+
+            except json.JSONDecodeError as json_error:
+                self.logger.error(f"Failed to parse LLM response as JSON: {json_error}")
+                self.logger.debug(f"Raw response: {result[:500]}...")
+                raise ValueError(
+                    f"Failed to parse LLM response as JSON: {str(json_error)}"
+                )
+
+        except Exception as e:
+            self.logger.error(f"Error generating complete resume content: {e}")
+            raise ValueError(f"Failed to generate complete resume content: {str(e)}")
+
+    async def _prepare_portfolio_data(
+        self, user_id: PydanticObjectId
+    ) -> Dict[str, Any]:
+        """
+        Prepare portfolio data for the comprehensive resume prompt.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            Dictionary with portfolio data
+        """
+        result = {}
+
+        # Get personal information
+        try:
+            result["personal_information"] = (
+                await self.profile_service.get_personal_information(user_id)
+            )
+        except Exception as e:
+            self.logger.error(f"Error getting personal information: {e}")
+
+        # Get skills
+        try:
+            skills = await self.portfolio_service.get_skills(user_id)
+            if skills:
+                result["skills"] = skills
+        except Exception as e:
+            self.logger.error(f"Error getting skills: {e}")
+
+        # Get work experience
+        try:
+            work_experience = await self.portfolio_service.get_work_experiences(user_id)
+            if work_experience:
+                result["work_experience"] = work_experience
+        except Exception as e:
+            self.logger.error(f"Error getting work experience: {e}")
+
+        # Get education
+        try:
+            education = await self.portfolio_service.get_education(user_id)
+            if education:
+                result["education"] = education
+        except Exception as e:
+            self.logger.error(f"Error getting education: {e}")
+
+        # Get projects
+        try:
+            projects = await self.portfolio_service.get_projects(user_id)
+            if projects:
+                result["projects"] = projects
+        except Exception as e:
+            self.logger.error(f"Error getting projects: {e}")
+
+        # Get publications
+        try:
+            publications = await self.portfolio_service.get_publications(user_id)
+            if publications:
+                result["publications"] = publications
+        except Exception as e:
+            self.logger.error(f"Error getting publications: {e}")
+
+        # Get awards
+        try:
+            awards = await self.portfolio_service.get_awards(user_id)
+            if awards:
+                result["awards"] = awards
+        except Exception as e:
+            self.logger.error(f"Error getting awards: {e}")
+
+        return result
