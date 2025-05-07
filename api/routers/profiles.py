@@ -86,7 +86,7 @@ class PreferencesUpdate(BaseModel):
     notifications: Optional[dict] = None
     privacy: Optional[dict] = None
     llm_preferences: Optional[dict] = None
-    section_preferences: Optional[dict] = None
+    default_latex_templates: Optional[dict] = None
 
 
 class ObjectIdPath(BaseModel):

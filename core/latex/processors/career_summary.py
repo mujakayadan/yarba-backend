@@ -34,48 +34,61 @@ class CareerSummaryProcessor(SectionProcessor):
             full_summary = sanitize_latex(data)
         # Handle dictionary format
         elif isinstance(data, dict):
-            # If default_summary exists, use it directly as it already contains the complete sentence
-            if "default_summary" in data and data["default_summary"]:
-                full_summary = sanitize_latex(data.get("default_summary", ""))
-            # If not, try other fields and format appropriately
-            else:
-                # Get job title
-                job_title = ""
-                if "default_job_title" in data and data["default_job_title"]:
-                    job_title = sanitize_latex(data["default_job_title"])
-                elif (
-                    "job_titles" in data
-                    and isinstance(data["job_titles"], list)
-                    and data["job_titles"]
-                ):
-                    job_title = sanitize_latex(data["job_titles"][0])
-                elif "job_title" in data:
-                    job_title = sanitize_latex(data.get("job_title", ""))
+            # Extract components consistently. Assume 'years_of_experience' is provided correctly.
+            job_title = "Software Engineer"  # Default fallback
+            if "job_title" in data and data.get("job_title"):
+                job_title = sanitize_latex(data["job_title"])
+            elif "default_job_title" in data and data.get("default_job_title"):
+                job_title = sanitize_latex(data["default_job_title"])
+            elif (
+                "job_titles" in data
+                and isinstance(data.get("job_titles"), list)
+                and data["job_titles"]
+            ):
+                job_title = sanitize_latex(data["job_titles"][0])
+
+            # Years should be passed in from portfolio data.
+            # Check for existence, type, and handle potential None value.
+            years = "some"  # Default fallback
+            if "years_of_experience" in data:
+                years_raw = data.get("years_of_experience")
+                if years_raw is not None:
+                    # Check if it's a type we can reasonably convert to string
+                    if isinstance(years_raw, (str, int, float)):
+                        years = sanitize_latex(str(years_raw))
+                    else:
+                        self.logger.warning(
+                            f"'years_of_experience' has unexpected type: {type(years_raw)}. Using fallback."
+                        )
                 else:
-                    job_title = "Software Engineer"  # Default fallback
-
-                # Get years of experience
-                years = "3"  # Default fallback
-                if "years_of_experience" in data:
-                    years = sanitize_latex(str(data.get("years_of_experience", "")))
-
-                # Get summary text from other possible fields
-                summary = ""
-                if "summary" in data:
-                    summary = sanitize_latex(data.get("summary", ""))
-                elif "career_summary" in data:
-                    summary = sanitize_latex(data.get("career_summary", ""))
-
-                # Format complete summary if we need to build it
-                full_summary = (
-                    f"A {job_title} with {years} years of experience {summary}"
+                    self.logger.warning(
+                        "'years_of_experience' is None in career summary data. Using fallback."
+                    )
+            else:
+                self.logger.warning(
+                    "'years_of_experience' not found in career summary data. Using fallback."
                 )
 
+            # Summary text should now ONLY be the descriptive part from LLM
+            summary_description = "expertise in relevant fields."  # Default fallback
+            if "default_summary" in data and data.get("default_summary"):
+                summary_description = sanitize_latex(data["default_summary"])
+            elif "summary" in data and data.get(
+                "summary"
+            ):  # Fallback to 'summary' if 'default_summary' missing
+                summary_description = sanitize_latex(data["summary"])
+
+            # Always construct the full summary string using the standard format
+            # Ensure summary_description doesn't start with connector words like 'in' if not needed
+            # (This example assumes the LLM provides text like "in X, Y, and Z")
+            full_summary = f"A {job_title} with {years} years of experience {summary_description.strip()}"
+
         # Return the fully formatted career summary section
-        formatted_content = f"% Career Summary\n\\section{{Career Summary}}\n\\careerSummary{{{full_summary}}}\n\n"
-
-        self.logger.debug(
-            f"Career summary processed: summary_length={len(full_summary)}"
+        # Ensure the section command is generated correctly without being treated as a comment
+        formatted_content = (
+            f"% Career Summary\n"
+            f"\\section{{Career Summary}}\n"
+            f"\\careerSummary{{{full_summary}}}\n\n"
         )
-
+        self.logger.debug(f"Processed Career Summary: {formatted_content}")
         return formatted_content

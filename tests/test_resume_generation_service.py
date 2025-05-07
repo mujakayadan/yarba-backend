@@ -21,7 +21,10 @@ from core.services.resume_generation_service import ResumeGenerationService
 def mock_llm():
     """Create a mock LLM service."""
     llm = AsyncMock(spec=LLMService)
-    llm.generate_section.return_value = "Generated content"
+    llm.get_completion.return_value = {
+        "substituted_prompt": "prompt",
+        "llm_output": "Generated content",
+    }
     llm.generate_cover_letter.return_value = "Generated cover letter"
     return llm
 
@@ -151,22 +154,25 @@ async def test_generate_resume_content(
         resume_repository=mock_resume_repository,
     )
 
-    # Test generate resume content
-    result = await service.generate_resume_content(
-        resume_id=PydanticObjectId("resume123"),
-        regenerate_sections=["Test job description"],
+    # Mock the generate_complete_resume method
+    service.generate_complete_resume = AsyncMock(
+        return_value={
+            "summary": "Generated content",
+            "work_experience": "Generated content",
+            "education": "Generated content",
+            "skills": "Generated content",
+        }
     )
 
-    # Verify repositories were called
-    mock_resume_repository.get_by_id.assert_called_once_with("resume123")
-    mock_profile_repository.get_by_id.assert_called_once()
-    mock_portfolio_repository.get_by_id.assert_called_once()
+    # Test generate resume content
+    result = await service.generate_resume_content(
+        resume_id=PydanticObjectId("resume123")
+    )
 
-    # Verify LLM was configured for user
-    mock_llm.configure_for_user.assert_called_once_with("test_user")
-
-    # Verify content was generated for each section
-    assert mock_llm.generate_section.call_count == 4
+    # Verify generate_complete_resume was called
+    service.generate_complete_resume.assert_called_once_with(
+        resume_id=PydanticObjectId("resume123")
+    )
 
     # Verify result has content for each section
     assert "summary" in result

@@ -419,21 +419,22 @@ def process_career_summary(content: Any) -> str:
         return sanitize_latex(data)
 
     if isinstance(data, dict):
-        job_titles = data.get("job_titles", [])
-        default_job_title = data.get("default_job_title", "")
+        # Get the primary job title - prioritize job_title field
+        primary_title = ""
+        if "job_title" in data:
+            primary_title = sanitize_latex(data["job_title"])
+        elif "default_job_title" in data and data["default_job_title"]:
+            primary_title = sanitize_latex(data["default_job_title"])
+        elif "job_titles" in data:
+            job_titles = data.get("job_titles", [])
+            if isinstance(job_titles, list) and job_titles:
+                primary_title = sanitize_latex(job_titles[0])
+            elif isinstance(job_titles, str):
+                primary_title = sanitize_latex(job_titles)
+
+        # Get years of experience and default summary
         years_of_experience = data.get("years_of_experience", "")
         default_summary = data.get("default_summary", "")
-
-        # Get the primary job title
-        primary_title = ""
-        # Prioritize default_job_title if available
-        if default_job_title:
-            primary_title = sanitize_latex(default_job_title)
-        # Fall back to first job title in the list
-        elif isinstance(job_titles, list) and job_titles:
-            primary_title = sanitize_latex(job_titles[0])
-        elif isinstance(job_titles, str):
-            primary_title = sanitize_latex(job_titles)
 
         # Format the career summary using the careerSummary command
         if primary_title and years_of_experience and default_summary:

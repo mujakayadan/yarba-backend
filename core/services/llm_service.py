@@ -1,7 +1,8 @@
 """Service for LLM operations using LiteLLM as an abstraction layer."""
 
 import asyncio
-from typing import Any, Dict, List, Optional, Tuple, Type, Union
+import json
+from typing import Any, Dict, List, Optional, Type, Union
 
 import litellm
 from beanie.odm.fields import PydanticObjectId
@@ -10,9 +11,7 @@ from pydantic import BaseModel
 
 from config.logging_config import get_logger
 from config.settings import settings
-from core.models.profile import Profile
 from core.repositories.profile_repository import ProfileRepository
-from core.services.prompt_service import PromptService
 
 logger = get_logger(__name__)
 
@@ -28,7 +27,6 @@ class LLMService:
     def __init__(
         self,
         profile_repository: ProfileRepository,
-        prompt_service: Optional[PromptService] = None,
         model: str = "claude-3-5-haiku-20241022",
         temperature: float = 0.1,
         enable_json_validation: bool = True,
@@ -38,13 +36,11 @@ class LLMService:
 
         Args:
             profile_repository: Repository for accessing user profiles and preferences
-            prompt_service: Service for loading and formatting prompts
             model: Override the default model from settings
             temperature: Override the default temperature from settings
             enable_json_validation: Whether to enable client-side JSON schema validation
         """
         self.profile_repository = profile_repository
-        self.prompt_service = prompt_service
         self.model = model
         self.temperature = temperature
         self.max_tokens = settings.llm.max_tokens
@@ -178,14 +174,18 @@ class LLMService:
 
         try:
             profile = await self.profile_repository.get_by_user_id(user_id)
-            if profile and profile.preferences and profile.preferences.llm_preferences:
-                return profile.preferences.llm_preferences
+            if (
+                profile
+                and profile.system_preferences
+                and profile.system_preferences.llm
+            ):
+                return profile.system_preferences.llm
         except Exception as e:
             self.logger.error(f"Error fetching user preferences: {e}")
 
         return {}
 
-    async def _get_api_keys_for_user(self, user_id: str) -> Dict[str, str]:
+    async def _get_api_keys_for_user(self, user_id: PydanticObjectId) -> Dict[str, str]:
         """
         Get all API keys for a user.
 
@@ -204,7 +204,7 @@ class LLMService:
             self.logger.error(f"Error fetching API keys: {e}")
             return {}
 
-    async def configure_for_user(self, user_id: Union[str, PydanticObjectId]) -> None:
+    async def configure_for_user(self, user_id: PydanticObjectId) -> None:
         """
         Configure the LLM service for a specific user.
 
@@ -217,10 +217,10 @@ class LLMService:
 
             if (
                 profile
-                and profile.preferences
-                and "llm_preferences" in profile.preferences
+                and profile.system_preferences
+                and profile.system_preferences.llm
             ):
-                llm_prefs = profile.preferences["llm_preferences"]
+                llm_prefs = profile.system_preferences.llm
 
                 # Update model and temperature if specified
                 if "model_name" in llm_prefs:
@@ -252,10 +252,6 @@ class LLMService:
 
             # Reconfigure litellm with updated keys
             self._setup_litellm()
-
-            # Configure prompt service if available
-            if self.prompt_service:
-                self.prompt_service.set_user_id(user_id)
 
             self.logger.debug(f"LLM service configured for user {user_id}")
 
@@ -291,7 +287,7 @@ class LLMService:
                 self.logger.debug(f"Set max_tokens to: {self.max_tokens}")
 
             # Reconfigure litellm if needed
-            if any(key in parameters for key in ["model_type", "provider"]):
+            if "provider" in parameters:
                 self._setup_litellm()
 
             self.logger.info("LLM parameters updated")
@@ -312,28 +308,8 @@ class LLMService:
         Raises:
             ValueError: If prompt_service is not available
         """
-        if not self.prompt_service:
-            raise ValueError("Prompt service not available")
-
-        return await self.prompt_service.get_prompt(prompt_name)
-
-    async def get_section_prompt(self, section_name: str) -> str:
-        """
-        Get a prompt for a specific portfolio section.
-
-        Args:
-            section_name: Name of the section
-
-        Returns:
-            Formatted prompt text
-
-        Raises:
-            ValueError: If prompt_service is not available
-        """
-        if not self.prompt_service:
-            raise ValueError("Prompt service not available")
-
-        return await self.prompt_service.get_section_prompt(section_name)
+        # Removed prompt_service dependency
+        raise ValueError("Prompt service not available")
 
     def model_supports_json_mode(self, model: Optional[str] = None) -> bool:
         """
@@ -505,7 +481,7 @@ class LLMService:
         tags: Optional[List[str]] = None,
         variables: Optional[Dict[str, Any]] = None,
         json_response: bool = False,
-    ) -> str:
+    ) -> Dict[str, str]:
         """
         Get a completion from the LLM.
 
@@ -521,18 +497,22 @@ class LLMService:
             json_response: Whether to force JSON response format
 
         Returns:
-            str: The LLM's completion
+            Dict with substituted prompt and LLM output
 
         Raises:
             Exception: If the LLM call fails
         """
         try:
+            substituted_prompt = prompt  # Default to input prompt
             # If variables are provided, render the prompt as a Jinja2 template
             if variables:
                 try:
-                    from jinja2 import Template
+                    from jinja2 import StrictUndefined, Template
 
-                    template = Template(prompt)
+                    self.logger.debug(
+                        f"Prompt variables: {json.dumps(variables, default=str)}"
+                    )
+                    template = Template(prompt, undefined=StrictUndefined)
                     rendered_prompt = template.render(**variables)
                     self.logger.debug("Rendered prompt template with variables")
 
@@ -554,11 +534,13 @@ class LLMService:
                         )
 
                     prompt = rendered_prompt
+                    substituted_prompt = rendered_prompt
                 except Exception as template_error:
                     self.logger.error(
                         f"Error rendering prompt template: {template_error}"
                     )
                     # Continue with original prompt if template rendering fails
+                    substituted_prompt = prompt
 
             # If user_id is provided, check usage limits
             if user_id and settings.llm.enable_cost_tracking:
@@ -586,7 +568,7 @@ class LLMService:
             messages = []
             if system_prompt:
                 messages.append({"role": "system", "content": system_prompt})
-            messages.append({"role": "user", "content": prompt})
+            messages.append({"role": "user", "content": substituted_prompt})
 
             # Set up the completion parameters
             completion_kwargs = {
@@ -612,7 +594,14 @@ class LLMService:
 
             # Add metadata with tags for cost tracking
             if tags:
-                completion_kwargs["metadata"] = {"tags": tags}
+                completion_kwargs["metadata"] = {
+                    "tags": tags,
+                    "user_id": str(user_id) if user_id else None,
+                }
+            else:
+                completion_kwargs["metadata"] = {
+                    "user_id": str(user_id) if user_id else None
+                }
 
             self.logger.debug(f"Calling LLM with model: {model}, temp: {temperature}")
 
@@ -682,7 +671,10 @@ class LLMService:
                     )
                     self.logger.debug(f"LLM response: {log_text}")
 
-                    return completion_text
+                    return {
+                        "substituted_prompt": substituted_prompt,
+                        "llm_output": completion_text,
+                    }
 
                 except Exception as e:
                     if attempt < max_retries:
@@ -878,7 +870,7 @@ class LLMService:
             content = response.choices[0].message.content
 
             # If using JSON mode, content should already be structured
-            # If using text mode with fallback, try to parse the content
+            # If using text mode with fallback, try to parse if fallback enabled
             if isinstance(content, dict):
                 # Content is already a dict, parse it into the model
                 return schema_model.model_validate(content)
@@ -921,279 +913,10 @@ class LLMService:
         elif "llama" in model_lower or "mistral" in model_lower:
             return "mistral"
         else:
-            return None
-
-    async def generate_section(
-        self,
-        section_name: str,
-        context: Dict[str, Any],
-        job_description: str,
-        use_json_schema: bool = True,
-        schema_model: Optional[Type[BaseModel]] = None,
-        user_id: Optional[str] = None,
-    ) -> Union[BaseModel, str]:
-        """
-        Generate content for a resume section.
-
-        Args:
-            section_name: Name of the section to generate
-            context: Context data for the generation
-            job_description: Job description to target
-            use_json_schema: Whether to use JSON schema output
-            schema_model: Optional Pydantic model to use for JSON schema output
-            user_id: Optional user ID for cost tracking
-
-        Returns:
-            Generated section content as a Pydantic model instance or string
-        """
-        try:
-            # Get the appropriate prompt for this section
-            prompt_text = await self.get_section_prompt(section_name)
-
-            # Get system prompt
-            system_prompt = await self.prompt_service.get_system_prompt()
-
-            # If using JSON schema, append instructions to format as JSON
-            if use_json_schema and system_prompt:
-                system_prompt += "\nYou must output your response in valid JSON format."
-
-            # Combine prompt with context and job description
-            full_prompt = f"""
-Job Description:
-{job_description}
-
-{prompt_text}
-
-Section Data:
-{context}
-"""
-            # Cost tracking tags
-            tags = [f"operation:generate_section", f"section:{section_name}"]
-
-            # If using JSON schema and a model is provided, use structured completion
-            if use_json_schema and schema_model is not None:
-                return await self.get_structured_completion(
-                    prompt=full_prompt,
-                    schema_model=schema_model,
-                    system_prompt=system_prompt,
-                    fallback_to_text=True,  # Fallback to text if model doesn't support JSON
-                    user_id=user_id,
-                    tags=tags,
-                )
-            else:
-                # Otherwise use regular completion
-                return await self.get_completion(
-                    prompt=full_prompt,
-                    system_prompt=system_prompt,
-                    user_id=user_id,
-                    tags=tags,
-                )
-
-        except Exception as e:
-            self.logger.error(f"Error generating {section_name} section: {e}")
-            raise
-
-    async def generate_cover_letter(
-        self,
-        resume_content: Dict[str, Any],
-        job_description: str,
-        company_name: str,
-        job_title: str,
-        user_id: Optional[str] = None,
-    ) -> str:
-        """
-        Generate a cover letter based on resume content and job description.
-
-        Args:
-            resume_content: Resume content dictionary
-            job_description: Job description text
-            company_name: Company name
-            job_title: Job title
-            user_id: Optional user ID for cost tracking
-
-        Returns:
-            Generated cover letter text
-        """
-        try:
-            # Get cover letter prompt
-            prompt_text = await self.prompt_service.get_cover_letter_prompt()
-
-            # Get system prompt
-            system_prompt = await self.prompt_service.get_system_prompt()
-
-            # Combine prompt with resume content and job details
-            full_prompt = f"""
-Job Title: {job_title}
-Company Name: {company_name}
-Job Description:
-{job_description}
-
-Resume Content:
-{resume_content}
-
-{prompt_text}
-"""
-            # Cost tracking tags
-            tags = [
-                "operation:generate_cover_letter",
-                f"company:{company_name}",
-                f"job:{job_title}",
-            ]
-
-            # Get completion
-            return await self.get_completion(
-                prompt=full_prompt,
-                system_prompt=system_prompt,
-                # Cover letters can be longer
-                max_tokens=self.max_tokens * 2,
-                user_id=user_id,
-                tags=tags,
-            )
-
-        except Exception as e:
-            self.logger.error(f"Error generating cover letter: {e}")
-            raise
-
-    async def extract_job_title_and_company(
-        self, job_description: str, user_id: Optional[str] = None
-    ) -> Tuple[str, str]:
-        """
-        Extract job title and company name from a job description using LLM.
-
-        Args:
-            job_description: The job description text
-            user_id: Optional user ID for cost tracking
-
-        Returns:
-            Tuple of (company_name, job_title)
-        """
-        if not job_description or len(job_description.strip()) < 50:
-            self.logger.warning(f"Job description too short: {job_description}")
-            return "unknown_company", "unknown_position"
-
-        try:
-            # Get the folder name prompt
-            folder_name_prompt = await self.prompt_service.get_folder_name_prompt()
-
-            # Use the LLM service to get the completion
-            system_prompt = await self.prompt_service.get_system_prompt()
-
-            # Trim job description if it's too long to avoid token limits
-            max_desc_length = 5000
-            trimmed_job_description = (
-                job_description[:max_desc_length]
-                if len(job_description) > max_desc_length
-                else job_description
-            )
-
-            # Create a very explicit prompt
-            prompt = f'{folder_name_prompt}\n\nJob Description:\n{trimmed_job_description}\n\nYour task is to extract ONLY the company name and job title from this job description. Reply with VALID JSON only in this format: {{"company_name": "extracted_company_name", "job_title": "extracted_job_title"}}'
-
-            # Add cost tracking tags
-            tags = ["operation:extract_job_details"]
-
-            response = await self.get_completion(
-                prompt=prompt,
-                system_prompt=system_prompt,
-                temperature=0.1,  # Lower temperature for more deterministic results
-                user_id=user_id,
-                tags=tags,
-            )
-
-            # Parse the JSON response according to CompanyJobSchema format
-            try:
-                import json
-
-                # Clean the response to ensure it's valid JSON
-                cleaned_response = response.strip()
-                # Sometimes the response includes markdown code blocks or extra text
-                if "```json" in cleaned_response:
-                    json_start = cleaned_response.find("```json") + 7
-                    json_end = cleaned_response.find("```", json_start)
-                    cleaned_response = cleaned_response[json_start:json_end].strip()
-                elif "```" in cleaned_response:
-                    json_start = cleaned_response.find("```") + 3
-                    json_end = cleaned_response.find("```", json_start)
-                    cleaned_response = cleaned_response[json_start:json_end].strip()
-
-                # Parse the JSON
-                parsed_response = json.loads(cleaned_response)
-
-                # Extract values from the parsed JSON
-                company_name = parsed_response.get("company_name", "unknown_company")
-                job_title = parsed_response.get("job_title", "unknown_position")
-
-                # Validate that we don't have empty values
-                if not company_name or company_name == "":
-                    company_name = "unknown_company"
-                if not job_title or job_title == "":
-                    job_title = "unknown_position"
-
-                self.logger.info(
-                    f"Successfully extracted company: {company_name}, job: {job_title}"
-                )
-                return company_name, job_title
-
-            except json.JSONDecodeError as e:
-                self.logger.warning(f"Failed to parse JSON response: {response}")
-                self.logger.error(f"JSON parse error: {e}")
-
-            # If JSON parsing fails, try to search for keys in the raw text
-            import re
-
-            company_match = re.search(r'"company_name":\s*"([^"]+)"', response)
-            job_match = re.search(r'"job_title":\s*"([^"]+)"', response)
-
-            if company_match and job_match:
-                company_name = company_match.group(1)
-                job_title = job_match.group(1)
-
-                # Validate that we don't have empty values
-                if not company_name or company_name == "":
-                    company_name = "unknown_company"
-                if not job_title or job_title == "":
-                    job_title = "unknown_position"
-
-                self.logger.info(
-                    f"Extracted via regex - company: {company_name}, job: {job_title}"
-                )
-                return company_name, job_title
-
-            # Try other regex patterns that might match different formats
-            company_matches = [
-                re.search(r'company_name["\']:\s*["\']([^"\']+)["\']', response),
-                re.search(r'company["\']:\s*["\']([^"\']+)["\']', response),
-                re.search(r"company:\s*([^\n,]+)", response),
-            ]
-
-            job_matches = [
-                re.search(r'job_title["\']:\s*["\']([^"\']+)["\']', response),
-                re.search(r'job["\']:\s*["\']([^"\']+)["\']', response),
-                re.search(r'position["\']:\s*["\']([^"\']+)["\']', response),
-                re.search(r'title["\']:\s*["\']([^"\']+)["\']', response),
-                re.search(r"job_title:\s*([^\n,]+)", response),
-            ]
-
-            company_name = next(
-                (m.group(1) for m in company_matches if m), "unknown_company"
-            )
-            job_title = next((m.group(1) for m in job_matches if m), "unknown_position")
-
-            if company_name != "unknown_company" or job_title != "unknown_position":
-                self.logger.info(
-                    f"Extracted via alternate regex - company: {company_name}, job: {job_title}"
-                )
-                return company_name, job_title
-
-            # If all parsing fails, return default values
-            self.logger.warning(
-                f"Failed to extract company/title from response: {response}"
-            )
-            return "unknown_company", "unknown_position"
-
-        except Exception as e:
-            self.logger.error(f"Error extracting job title and company: {e}")
-            return "unknown_company", "unknown_position"
+            # Check for azure prefix
+            if model_lower.startswith("azure/"):
+                return "azure"
+            return None  # Return None if provider cannot be determined
 
     async def get_usage_statistics(
         self,

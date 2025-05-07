@@ -1,35 +1,26 @@
-"""Schema models for structured data in the application."""
+"""Schemas module initialization."""
 
-from core.schemas.section_schemas import (
+# Export schemas from the consolidated resume_schemas file
+from .resume_schemas import (
     AwardSchema,
-    AwardsListSchema,
     CareerSummarySchema,
-    EducationListSchema,
     EducationSchema,
     PersonalInformationSchema,
     ProjectSchema,
-    ProjectsListSchema,
     PublicationSchema,
-    PublicationsListSchema,
-    SkillSchema,
-    SkillsListSchema,
-    WorkExperienceListSchema,
+    ResumeOutputSchema,
+    SkillCategorySchema,
     WorkExperienceSchema,
 )
 
 __all__ = [
     "AwardSchema",
-    "AwardsListSchema",
     "CareerSummarySchema",
     "EducationSchema",
-    "EducationListSchema",
     "PersonalInformationSchema",
     "ProjectSchema",
-    "ProjectsListSchema",
     "PublicationSchema",
-    "PublicationsListSchema",
-    "SkillSchema",
-    "SkillsListSchema",
+    "ResumeOutputSchema",
+    "SkillCategorySchema",
     "WorkExperienceSchema",
-    "WorkExperienceListSchema",
 ]

@@ -1,8 +1,6 @@
-"""Utility functions for mapping between JSON schema objects and database models."""
+"""Utility functions for mapping between resume generation output schema and database models."""
 
-from typing import List, Optional, Type, TypeVar, Union
-
-from pydantic import EmailStr
+from typing import List, Tuple
 
 from core.models.portfolio import (
     Award,
@@ -14,75 +12,30 @@ from core.models.portfolio import (
     Skill,
     WorkExperience,
 )
-from core.models.profile import PersonalInformation, Profile
-from core.schemas import (
-    AwardsListSchema,
+from core.models.profile import PersonalInformation
+from core.schemas.resume_schemas import (
+    AwardSchema,
     CareerSummarySchema,
-    EducationListSchema,
+    EducationSchema,
     PersonalInformationSchema,
-    ProjectsListSchema,
-    PublicationsListSchema,
-    SkillsListSchema,
-    WorkExperienceListSchema,
+    ProjectSchema,
+    PublicationSchema,
+    ResumeOutputSchema,
+    SkillCategorySchema,
+    WorkExperienceSchema,
 )
 
-T = TypeVar("T")
+# --- Individual Section Mappers --- #
 
 
-def create_default_personal_info() -> PersonalInformation:
-    """Create a default PersonalInformation object with placeholder values.
-
-    This is used when personal information is missing but required.
-
-    Returns:
-        PersonalInformation with default placeholder values
-    """
-    return PersonalInformation(
-        full_name="Default User",
-        email="user@example.com",
-        phone=None,
-        address=None,
-        linkedin=None,
-        github=None,
-        website=None,
-    )
-
-
-def ensure_profile_has_personal_info(profile: Profile) -> Profile:
-    """Ensure a profile has personal_information, adding default if missing.
-
-    Args:
-        profile: The profile to check and possibly update
-
-    Returns:
-        Updated profile with personal_information field
-    """
-    if (
-        not hasattr(profile, "personal_information")
-        or profile.personal_information is None
-    ):
-        profile.personal_information = create_default_personal_info()
-
-    return profile
-
-
-def map_personal_info(
-    schema: Optional[PersonalInformationSchema],
+def _map_personal_info(
+    schema: PersonalInformationSchema,
 ) -> PersonalInformation:
-    """Map PersonalInformationSchema to PersonalInformation model.
-
-    Args:
-        schema: The schema object to map
-
-    Returns:
-        PersonalInformation model (default if schema is None or wrong type)
-    """
-    if not isinstance(schema, PersonalInformationSchema):
-        return create_default_personal_info()
-
+    """Map PersonalInformationSchema to PersonalInformation model."""
+    # Handles potential None values from schema
     return PersonalInformation(
-        full_name=schema.full_name,
-        email=schema.email,
+        full_name=schema.full_name or "Default User",
+        email=schema.email or "user@example.com",
         phone=schema.phone,
         address=schema.address,
         linkedin=schema.linkedin,
@@ -91,57 +44,34 @@ def map_personal_info(
     )
 
 
-def map_awards(schema: Optional[AwardsListSchema]) -> List[Award]:
-    """Map AwardsListSchema to list of Award models.
+def _map_career_summary(
+    schema: CareerSummarySchema,
+) -> CareerSummary:
+    """Map CareerSummarySchema to CareerSummary model."""
+    # NOTE: years_of_experience comes from the Profile, not the LLM output schema currently.
+    # We map the LLM's selected job_title to the job_titles list.
+    return CareerSummary(
+        job_titles=[schema.job_title] if schema.job_title else [],
+        years_of_experience="",  # This should be populated later from the Profile
+        default_summary=schema.default_summary or "",
+    )
 
-    Args:
-        schema: The schema object to map
 
-    Returns:
-        List of Award models or empty list if schema is None or wrong type
-    """
-    if not isinstance(schema, AwardsListSchema) or not schema.awards:
+def _map_skills(schemas: List[SkillCategorySchema]) -> List[Skill]:
+    """Map list of SkillCategorySchema to list of Skill models."""
+    if not schemas:
         return []
-
     return [
-        Award(name=award.name, explanation=award.explanation) for award in schema.awards
+        Skill(category=skill.category, skills=skill.skills)
+        for skill in schemas
+        if skill and skill.category  # Basic validation
     ]
 
 
-def map_projects(schema: Optional[ProjectsListSchema]) -> List[Project]:
-    """Map ProjectsListSchema to list of Project models.
-
-    Args:
-        schema: The schema object to map
-
-    Returns:
-        List of Project models or empty list if schema is None or wrong type
-    """
-    if not isinstance(schema, ProjectsListSchema) or not schema.projects:
+def _map_work_experience(schemas: List[WorkExperienceSchema]) -> List[WorkExperience]:
+    """Map list of WorkExperienceSchema to list of WorkExperience models."""
+    if not schemas:
         return []
-
-    return [
-        Project(
-            name=project.name, bullet_points=project.bullet_points, date=project.date
-        )
-        for project in schema.projects
-    ]
-
-
-def map_work_experience(
-    schema: Optional[WorkExperienceListSchema],
-) -> List[WorkExperience]:
-    """Map WorkExperienceListSchema to list of WorkExperience models.
-
-    Args:
-        schema: The schema object to map
-
-    Returns:
-        List of WorkExperience models or empty list if schema is None or wrong type
-    """
-    if not isinstance(schema, WorkExperienceListSchema) or not schema.work_experience:
-        return []
-
     return [
         WorkExperience(
             job_title=exp.job_title,
@@ -150,22 +80,15 @@ def map_work_experience(
             time=exp.time,
             responsibilities=exp.responsibilities,
         )
-        for exp in schema.work_experience
+        for exp in schemas
+        if exp  # Basic validation
     ]
 
 
-def map_education(schema: Optional[EducationListSchema]) -> List[Education]:
-    """Map EducationListSchema to list of Education models.
-
-    Args:
-        schema: The schema object to map
-
-    Returns:
-        List of Education models or empty list if schema is None or wrong type
-    """
-    if not isinstance(schema, EducationListSchema) or not schema.education:
+def _map_education(schemas: List[EducationSchema]) -> List[Education]:
+    """Map list of EducationSchema to list of Education models."""
+    if not schemas:
         return []
-
     return [
         Education(
             degree_type=edu.degree_type,
@@ -176,108 +99,96 @@ def map_education(schema: Optional[EducationListSchema]) -> List[Education]:
             GPA=edu.GPA or "",
             transcript=edu.transcript or [],
         )
-        for edu in schema.education
+        for edu in schemas
+        if edu  # Basic validation
     ]
 
 
-def map_publications(schema: Optional[PublicationsListSchema]) -> List[Publication]:
-    """Map PublicationsListSchema to list of Publication models.
-
-    Args:
-        schema: The schema object to map
-
-    Returns:
-        List of Publication models or empty list if schema is None or wrong type
-    """
-    if not isinstance(schema, PublicationsListSchema) or not schema.publications:
+def _map_projects(schemas: List[ProjectSchema]) -> List[Project]:
+    """Map list of ProjectSchema to list of Project models."""
+    if not schemas:
         return []
+    return [
+        Project(
+            name=project.name,
+            bullet_points=project.bullet_points,
+            date=project.date,
+        )
+        for project in schemas
+        if project  # Basic validation
+    ]
 
+
+def _map_publications(schemas: List[PublicationSchema]) -> List[Publication]:
+    """Map list of PublicationSchema to list of Publication models."""
+    if not schemas:
+        return []
     return [
         Publication(
-            name=pub.name, publisher=pub.publisher, link=pub.link or "", time=pub.time
+            name=pub.name,
+            publisher=pub.publisher,
+            link=pub.link or "",
+            time=pub.time,
         )
-        for pub in schema.publications
+        for pub in schemas
+        if pub  # Basic validation
     ]
 
 
-def map_skills(schema: Optional[SkillsListSchema]) -> List[Skill]:
-    """Map SkillsListSchema to list of Skill models.
-
-    Args:
-        schema: The schema object to map
-
-    Returns:
-        List of Skill models or empty list if schema is None or wrong type
-    """
-    if not isinstance(schema, SkillsListSchema) or not schema.skills:
+def _map_awards(schemas: List[AwardSchema]) -> List[Award]:
+    """Map list of AwardSchema to list of Award models."""
+    if not schemas:
         return []
-
     return [
-        Skill(category=skill.category, skills=skill.skills) for skill in schema.skills
+        Award(name=award.name, explanation=award.explanation)
+        for award in schemas
+        if award  # Basic validation
     ]
 
 
-def map_career_summary(schema: Optional[CareerSummarySchema]) -> CareerSummary:
-    """Map CareerSummarySchema to CareerSummary model.
+# --- Main Mapping Function --- #
+
+
+def map_resume_output_to_models(
+    resume_output: ResumeOutputSchema,
+) -> Tuple[Portfolio, PersonalInformation]:
+    """
+    Map the complete ResumeOutputSchema to Portfolio and PersonalInformation models.
 
     Args:
-        schema: The schema object to map
+        resume_output: The structured resume data from LLM output.
 
     Returns:
-        CareerSummary model (default if schema is None or wrong type)
+        A tuple containing the populated Portfolio model and PersonalInformation model.
     """
-    if not isinstance(schema, CareerSummarySchema):
-        # Create default CareerSummary
-        return CareerSummary(job_titles=[], years_of_experience="", default_summary="")
 
-    return CareerSummary(
-        job_titles=schema.job_titles,
-        years_of_experience=schema.years_of_experience,
-        default_summary=schema.default_summary,
+    # Map Personal Information first
+    personal_info_model = _map_personal_info(
+        resume_output.personal_information
+        if resume_output.personal_information
+        else PersonalInformationSchema(
+            full_name="", email=""
+        )  # Provide default if missing
     )
 
+    # Map each portfolio section
+    portfolio = Portfolio(
+        # Map career summary, ensuring it exists
+        career_summary=_map_career_summary(
+            resume_output.career_summary
+            if resume_output.career_summary
+            else CareerSummarySchema(
+                job_title="", default_summary=""
+            )  # Provide default
+        ),
+        # Map lists, handling potential None or empty lists from schema
+        skills=_map_skills(resume_output.skills or []),
+        work_experience=_map_work_experience(resume_output.work_experience or []),
+        education=_map_education(resume_output.education or []),
+        projects=_map_projects(resume_output.projects or []),
+        publications=_map_publications(resume_output.publications or []),
+        awards=_map_awards(resume_output.awards or []),
+        # Note: other portfolio fields like 'templates' or 'settings' are not mapped here
+    )
 
-def map_schema_to_portfolio(
-    portfolio: Portfolio,
-    section_name: str,
-    schema_result: Union[
-        AwardsListSchema,
-        ProjectsListSchema,
-        WorkExperienceListSchema,
-        EducationListSchema,
-        PublicationsListSchema,
-        SkillsListSchema,
-        CareerSummarySchema,
-        None,
-    ],
-) -> Portfolio:
-    """Map schema result to appropriate portfolio section.
-
-    Args:
-        portfolio: Portfolio object to update
-        section_name: Name of the section to update
-        schema_result: Schema result from LLM
-
-    Returns:
-        Updated portfolio object
-    """
-    if schema_result is None:
-        # Handle case where schema_result is None
-        return portfolio
-
-    if section_name == "awards":
-        portfolio.awards = map_awards(schema_result)
-    elif section_name == "projects":
-        portfolio.projects = map_projects(schema_result)
-    elif section_name == "work_experience":
-        portfolio.work_experience = map_work_experience(schema_result)
-    elif section_name == "education":
-        portfolio.education = map_education(schema_result)
-    elif section_name == "publications":
-        portfolio.publications = map_publications(schema_result)
-    elif section_name == "skills":
-        portfolio.skills = map_skills(schema_result)
-    elif section_name == "career_summary":
-        portfolio.career_summary = map_career_summary(schema_result)
-
-    return portfolio
+    return portfolio, personal_info_model

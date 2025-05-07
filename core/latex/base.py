@@ -1,7 +1,10 @@
 """Base LaTeX compiler implementation."""
 
+import asyncio
+import shutil
 import subprocess
 from abc import ABC, abstractmethod
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -43,148 +46,173 @@ class LatexCompiler(ABC):
         """
         pass
 
-    async def compile_pdf(self, tex_path: Path, tex_content: str) -> Optional[bytes]:
-        """Compile LaTeX content to PDF.
+    async def compile_pdf(
+        self, tex_path: Path, latex_content: str = None
+    ) -> Optional[bytes]:
+        """
+        Compile the LaTeX file to PDF.
 
         Args:
-            tex_path: Path to save the LaTeX file
-            tex_content: LaTeX content to compile
+            tex_path: Path to the LaTeX file
+            latex_content: Optional LaTeX content, used for logging on errors
 
         Returns:
-            Optional[bytes]: PDF content if successful, None otherwise
+            bytes: PDF content if successful, None otherwise
         """
-        try:
-            # Log compilation settings
-            self.logger.info(f"Starting LaTeX compilation at: {tex_path.parent}")
+        self.start_compile_time = datetime.now()
+        self.logger.info(f"Starting LaTeX compilation at: {tex_path.parent}")
+        compilation_failed = False  # Flag to track failure
 
-            # Create output directory if it doesn't exist
-            tex_path.parent.mkdir(parents=True, exist_ok=True)
-
-            # Write content to file
-            tex_path.write_text(tex_content)
-
-            if not tex_path.exists() or tex_path.stat().st_size == 0:
-                self.logger.error(f"Failed to write LaTeX content to {tex_path}")
-                return None
-
-            # Build command
-            command = [
-                self.compiler_path,
-                *self.compiler_options,
-                "-output-directory",
-                str(tex_path.parent.absolute()),
-                tex_path.name,
-            ]
-
-            # Log command based on log level settings
-            if self.log_level == "DEBUG":
-                self.logger.debug(f"Running: {' '.join(command)}")
-            else:
-                self.logger.info(f"Compiling LaTeX document: {tex_path.name}")
-
-            # Run pdflatex in the output directory with appropriate settings
-            # Capture output only if suppress_logs is True
-            result = subprocess.run(
-                command,
-                cwd=tex_path.parent,
-                capture_output=self.suppress_logs,
-                text=True,
+        # Check if tex_path exists
+        if not tex_path.exists() and latex_content:
+            self.logger.warning(
+                f"LaTeX file {tex_path} does not exist, writing content"
             )
+            tex_path.write_text(latex_content)
+        elif not tex_path.exists():
+            self.logger.error(f"LaTeX file {tex_path} does not exist")
+            return None
 
-            # Check if compilation was successful
-            if result.returncode != 0:
-                error_message = (
-                    f"LaTeX compilation failed with code {result.returncode}"
+        pdf_content = None
+        try:
+            # Prepare the command
+            cmd = [self.compiler_path, *self.compiler_options, tex_path.name]
+            self.logger.info(f"Compiling LaTeX document: {tex_path.name}")
+
+            # Function to run the subprocess
+            def run_compile():
+                return subprocess.run(
+                    cmd,
+                    cwd=str(tex_path.parent),
+                    capture_output=True,  # Always capture output for logging/checking
+                    check=False,  # Don't raise exception on non-zero exit, handle manually
+                    text=True,  # Decode stdout/stderr as text
                 )
-                self.logger.error(error_message)
 
-                # Save error output to file for easier debugging
-                error_log = tex_path.with_suffix(".error.log")
+            # Execute the command in a separate thread to avoid blocking asyncio loop
+            process_result = await asyncio.to_thread(run_compile)
 
-                # If suppress_logs is True, result.stdout and result.stderr will have the logs
-                if self.suppress_logs:
-                    error_log.write_text(
-                        f"STDOUT:\n{result.stdout}\n\nSTDERR:\n{result.stderr}"
-                    )
-                    self.logger.error(f"Saved error log to: {error_log}")
+            # Save logs regardless of success/failure
+            if process_result.stdout:
+                log_path = tex_path.parent / f"{tex_path.stem}.stdout.log"
+                log_path.write_text(process_result.stdout)
 
-                    # Log a preview of the error based on log level
-                    if self.log_level in ["DEBUG", "INFO"]:
-                        # Show more detailed error info for lower log levels
-                        stderr_preview = (
-                            result.stderr[-500:]
-                            if len(result.stderr) > 500
-                            else result.stderr
+            if process_result.stderr:
+                log_path = tex_path.parent / f"{tex_path.stem}.stderr.log"
+                log_path.write_text(process_result.stderr)
+
+            # Check if compilation was successful - returncode 0 means success
+            if process_result.returncode != 0:
+                compilation_failed = True  # Mark as failed
+                error_log_path = tex_path.parent / f"{tex_path.stem}.error.log"
+                self.logger.error(
+                    f"LaTeX compilation failed with code {process_result.returncode}"
+                )
+
+                # Save the main latex log if it exists
+                latex_log_path = tex_path.with_suffix(".log")
+                if latex_log_path.exists():
+                    try:
+                        shutil.copy(latex_log_path, error_log_path)
+                        self.logger.error(f"Saved main LaTeX log to: {error_log_path}")
+                    except Exception as copy_err:
+                        self.logger.error(
+                            f"Failed to copy latex log {latex_log_path} to {error_log_path}: {copy_err}"
                         )
-                        self.logger.error(f"LaTeX error preview:\n{stderr_preview}")
                 else:
-                    # If logs weren't captured, at least save the error message
-                    error_log.write_text(error_message)
                     self.logger.error(
-                        f"Compilation failed. Check LaTeX logs in console output."
+                        f"Main LaTeX log file not found at {latex_log_path}"
                     )
 
-                # List the directory to see what files were created
-                if self.log_level == "DEBUG":
-                    self.logger.debug("Output directory contents:")
-                    for file in tex_path.parent.iterdir():
-                        self.logger.debug(
-                            f"  {file.name} - {file.stat().st_size} bytes"
-                        )
+                # Check if PDF was created despite the errors
+                pdf_path = tex_path.with_suffix(".pdf")
+                if pdf_path.exists() and pdf_path.stat().st_size > 0:
+                    # PDF was created despite errors, let's continue but log a warning
+                    self.logger.warning(
+                        "PDF was created despite compilation errors, proceeding with non-critical errors"
+                    )
+                    # Proceed to read the PDF content below
+                else:
+                    # No PDF created, log details from stderr if available
+                    stderr_summary = process_result.stderr.strip().split("\n")[
+                        -5:
+                    ]  # Last 5 lines
+                    self.logger.error(
+                        f"No PDF generated. Stderr tail: {stderr_summary}"
+                    )
+                    return None
 
-                return None
-
-            # Check if PDF was generated
+            # Check if PDF was created (even if errors occurred but PDF exists)
             pdf_path = tex_path.with_suffix(".pdf")
             if not pdf_path.exists():
-                self.logger.error(f"PDF file not found: {pdf_path}")
-                # List directory contents for debugging
-                if self.log_level == "DEBUG":
-                    self.logger.debug("Output directory contents:")
-                    for file in tex_path.parent.iterdir():
-                        self.logger.debug(
-                            f"  {file.name} - {file.stat().st_size} bytes"
-                        )
+                compilation_failed = True  # Mark as failed if PDF doesn't exist
+                self.logger.error(f"PDF file {pdf_path} was not created")
                 return None
 
-            # Check PDF size
-            pdf_size = pdf_path.stat().st_size
-            if pdf_size == 0:
-                self.logger.error("PDF file is empty (0 bytes)")
-                return None
-
-            # Read and return PDF content
+            # Read the PDF content
             pdf_content = pdf_path.read_bytes()
-            self.logger.info(f"Successfully compiled PDF: {len(pdf_content)} bytes")
+            self.compile_time = datetime.now() - self.start_compile_time
+            self.logger.info(
+                f"LaTeX compilation completed in {self.compile_time.total_seconds():.2f} seconds"
+            )
+            self.logger.info(f"PDF size: {len(pdf_content)} bytes")
+
             return pdf_content
 
         except Exception as e:
-            self.logger.error(f"Error during PDF compilation: {str(e)}")
+            compilation_failed = (
+                True  # Mark as failed on any exception during compilation
+            )
+            self.logger.error(f"Exception during LaTeX compilation process: {e}")
+            import traceback
 
-            # Only show full traceback for DEBUG or INFO levels
-            if self.log_level in ["DEBUG", "INFO"]:
-                import traceback
-
-                self.logger.error(f"Traceback:\n{traceback.format_exc()}")
-
-            return None
-
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
+            return None  # Return None on unexpected errors
         finally:
-            if self.cleanup_temp_files:
-                await self._cleanup_temp_files(tex_path)
+            # Clean up temporary files ONLY if successful AND cleanup is enabled
+            if not compilation_failed and self.cleanup_temp_files:
+                self.logger.info("Compilation successful, cleaning up temporary files.")
+                self._cleanup_temp_files(tex_path)
+            elif compilation_failed:
+                self.logger.warning(
+                    f"Compilation failed, temporary files preserved in: {tex_path.parent}"
+                )
+            elif not self.cleanup_temp_files:
+                self.logger.info(
+                    f"Cleanup disabled, temporary files preserved in: {tex_path.parent}"
+                )
 
-    async def _cleanup_temp_files(self, tex_path: Path) -> None:
-        """Clean up temporary LaTeX files.
+    def _cleanup_temp_files(self, tex_path: Path) -> None:
+        """
+        Clean up temporary files generated by LaTeX.
 
         Args:
             tex_path: Path to the LaTeX file
         """
-        output_dir = tex_path.parent
-        for ext in self.temp_extensions:
-            temp_file = output_dir / f"{tex_path.stem}{ext}"
+        # List of extensions to clean up
+        temp_extensions = [
+            ".aux",
+            ".log",
+            ".out",
+            ".toc",
+            ".lof",
+            ".lot",
+            ".fls",
+            ".fdb_latexmk",
+        ]
+
+        # Add extensions from settings
+        if hasattr(self, "temp_extensions") and self.temp_extensions:
+            temp_extensions.extend(self.temp_extensions)
+
+        # Clean up
+        for ext in temp_extensions:
+            temp_file = tex_path.with_suffix(ext)
             if temp_file.exists():
                 try:
                     temp_file.unlink()
                     self.logger.debug(f"Cleaned up temporary file: {temp_file}")
                 except Exception as e:
-                    self.logger.warning(f"Failed to cleanup {temp_file}: {e}")
+                    self.logger.warning(f"Failed to delete {temp_file}: {e}")
+
+        # Don't delete the original tex file or the PDF output

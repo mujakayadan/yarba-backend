@@ -641,22 +641,6 @@ class PreferenceSettings(BaseSettings):
     or when specific fields are missing.
     """
 
-    # Default section preferences
-    section_preferences: Dict[str, str] = Field(
-        default={
-            "personal_information": "Hardcode",
-            "career_summary": "Process",
-            "skills": "Process",
-            "work_experience": "Process",
-            "education": "Process",
-            "projects": "Process",
-            "awards": "Hardcode",
-            "publications": "Hardcode",
-            "certifications": "Hardcode",
-        },
-        description="Default section processing methods",
-    )
-
     # Default LaTeX template preferences
     default_latex_templates: Dict[str, str] = Field(
         default={
@@ -668,129 +652,136 @@ class PreferenceSettings(BaseSettings):
 
     # Career summary preferences
     career_summary_min_words: int = Field(
-        default=15,
+        default=1,
         description="Minimum words in career summary",
         env="PREF_CAREER_SUMMARY_MIN_WORDS",
     )
     career_summary_max_words: int = Field(
-        default=25,
+        default=1,
         description="Maximum words in career summary",
         env="PREF_CAREER_SUMMARY_MAX_WORDS",
     )
 
     # Work experience preferences
     work_experience_max_jobs: int = Field(
-        default=4,
+        default=1,
         description="Maximum number of jobs to include",
         env="PREF_WORK_EXPERIENCE_MAX_JOBS",
     )
     work_experience_bullet_points_per_job: int = Field(
-        default=3,
+        default=1,
         description="Number of bullet points per job",
         env="PREF_WORK_EXPERIENCE_BULLET_POINTS",
     )
 
     # Project preferences
     project_max_projects: int = Field(
-        default=4,
+        default=1,
         description="Maximum number of projects to include",
         env="PREF_PROJECT_MAX_PROJECTS",
     )
     project_bullet_points_per_project: int = Field(
-        default=3,
+        default=1,
         description="Number of bullet points per project",
         env="PREF_PROJECT_BULLET_POINTS",
     )
 
     # Cover letter preferences
     cover_letter_paragraphs: int = Field(
-        default=4,
+        default=1,
         description="Number of paragraphs in cover letter",
         env="PREF_COVER_LETTER_PARAGRAPHS",
     )
-    cover_letter_target_grade_level: int = Field(
-        default=12,
-        description="Target grade level for cover letter readability",
-        env="PREF_COVER_LETTER_GRADE_LEVEL",
+    cover_letter_target_age: int = Field(
+        default=1,
+        description="Target age level for cover letter readability",
+        env="PREF_COVER_LETTER_AGE_LEVEL",
     )
 
     # Skills preferences
     skills_max_categories: int = Field(
-        default=5,
+        default=1,
         description="Maximum number of skill categories",
         env="PREF_SKILLS_MAX_CATEGORIES",
     )
     skills_min_per_category: int = Field(
-        default=3,
+        default=1,
         description="Minimum skills per category",
         env="PREF_SKILLS_MIN_PER_CATEGORY",
     )
     skills_max_per_category: int = Field(
-        default=10,
+        default=1,
         description="Maximum skills per category",
         env="PREF_SKILLS_MAX_PER_CATEGORY",
     )
 
     # Education preferences
     education_max_entries: int = Field(
-        default=3,
+        default=1,
         description="Maximum number of education entries",
         env="PREF_EDUCATION_MAX_ENTRIES",
     )
     education_max_courses: int = Field(
-        default=4,
+        default=1,
         description="Maximum number of courses per education entry",
         env="PREF_EDUCATION_MAX_COURSES",
     )
 
     # Awards preferences
     awards_max_awards: int = Field(
-        default=4,
+        default=1,
         description="Maximum number of awards to include",
         env="PREF_AWARDS_MAX_AWARDS",
     )
 
     # Publications preferences
     publications_max_publications: int = Field(
-        default=3,
+        default=1,
         description="Maximum number of publications to include",
         env="PREF_PUBLICATIONS_MAX_PUBLICATIONS",
     )
 
-    # Get variable mapping for prompt templates
     def get_prompt_variables(self) -> Dict[str, Any]:
-        """Get flattened dictionary of preferences for prompt variables.
+        """Get formatted dictionary of preferences for prompt variables.
 
         Returns:
             Dict[str, Any]: Dictionary of preference values in the format needed for prompt templates
         """
-        values = self.model_dump()
-        result = {}
-
-        # Map from settings format to prompt variable format
-        mappings = {
-            "career_summary_min_words": "career_summary_details_min_words",
-            "career_summary_max_words": "career_summary_details_max_words",
-            "work_experience_max_jobs": "work_experience_details_max_jobs",
-            "work_experience_bullet_points_per_job": "work_experience_details_bullet_points_per_job",
-            "project_max_projects": "project_details_max_projects",
-            "project_bullet_points_per_project": "project_details_bullet_points_per_project",
-            "cover_letter_paragraphs": "cover_letter_details_paragraphs",
-            "cover_letter_target_grade_level": "cover_letter_details_target_grade_level",
-            "skills_max_categories": "skills_details_max_categories",
-            "skills_min_per_category": "skills_details_min_skills_per_category",
-            "skills_max_per_category": "skills_details_max_skills_per_category",
-            "education_max_entries": "education_details_max_entries",
-            "education_max_courses": "education_details_max_courses",
-            "awards_max_awards": "awards_details_max_awards",
-            "publications_max_publications": "publications_details_max_publications",
+        # Create a nested structure that directly matches the profile.prompt_preferences structure
+        # This aligns with how the prompt templates reference variables
+        return {
+            "career_summary": {
+                "min_words": self.career_summary_min_words,
+                "max_words": self.career_summary_max_words,
+            },
+            "skills": {
+                "max_categories": self.skills_max_categories,
+                "min_skills_per_category": self.skills_min_per_category,
+                "max_skills_per_category": self.skills_max_per_category,
+            },
+            "work_experience": {
+                "max_jobs": self.work_experience_max_jobs,
+                "bullet_points_per_job": self.work_experience_bullet_points_per_job,
+            },
+            "education": {
+                "max_entries": self.education_max_entries,
+                "max_courses": self.education_max_courses,
+            },
+            "project": {
+                "max_projects": self.project_max_projects,
+                "bullet_points_per_project": self.project_bullet_points_per_project,
+            },
+            "publications": {
+                "max_publications": self.publications_max_publications,
+            },
+            "awards": {
+                "max_awards": self.awards_max_awards,
+            },
+            "cover_letter": {
+                "paragraphs": self.cover_letter_paragraphs,
+                "target_age": self.cover_letter_target_age,
+            },
         }
-
-        for key, prompt_key in mappings.items():
-            if key in values:
-                result[prompt_key] = values[key]
-
-        return result
 
 
 class APISettings(BaseSettings):

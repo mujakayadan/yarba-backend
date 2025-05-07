@@ -1,6 +1,6 @@
 """Resumes router."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Annotated, List, Optional
 
 from beanie import PydanticObjectId
@@ -39,7 +39,7 @@ from api.schemas.cover_letter import CoverLetterFilter
 from config import get_logger
 from config.logging_config import get_logger
 from config.settings import settings
-from core.exceptions.base import NotFoundException
+from core.exceptions.base import InternalServerException, NotFoundException
 from core.models.portfolio import Portfolio
 from core.models.profile import PersonalInformation
 from core.models.resume import LLMUsageStats, Resume
@@ -172,33 +172,71 @@ async def create_resume(
                 logger.info(f"Generating complete resume content and PDF: {resume.id}")
 
                 # Generate resume content in a single LLM call
-                content = await resume_generation_service.generate_complete_resume(
+                await resume_generation_service.generate_complete_resume(
                     resume_id=resume.id
                 )
 
-                # Generate LaTeX
-                await resume_generation_service.generate_latex(resume.id)
+                # Refetch resume, profile, portfolio after content generation for compile_pdf
+                # This ensures compile_pdf gets the latest content.
+                try:
+                    # We already have profile and portfolio from earlier, reuse them.
+                    # Fetch only the updated resume.
+                    updated_resume = await resume_service.get_resume_by_id(
+                        resume.id, user_id
+                    )
+                    if not updated_resume:
+                        raise ValueError(
+                            "Failed to fetch updated resume after content generation."
+                        )
+                    resume = updated_resume  # Use the potentially updated resume object
+                except Exception as fetch_error:
+                    logger.error(
+                        f"Error refetching resume {resume.id} after content gen: {fetch_error}"
+                    )
+                    raise ValueError(
+                        "Failed to retrieve updated resume data before PDF compilation."
+                    )
 
-                # Compile PDF
-                pdf_content = await resume_generation_service.compile_pdf(resume.id)
+                # Compile PDF using the fetched objects
+                pdf_content = await resume_generation_service.compile_pdf(
+                    resume, profile
+                )
 
                 if pdf_content:
-                    # Get the updated resume with PDF key
-                    resume = await resume_service.get_resume_by_id(
+                    # Save PDF to S3
+                    storage_provider = get_storage_provider()
+                    pdf_key = await storage_provider.save_resume_pdf(
+                        pdf_content, str(resume.id)
+                    )
+
+                    # Update resume with the PDF key via ResumeService
+                    update_data = ResumeUpdate(resume_pdf_key=pdf_key)
+                    resume = await resume_service.update_resume(
                         resume_id=resume.id,
                         user_id=user_id,
+                        update_data=update_data.model_dump(exclude_unset=True),
                     )
-                    logger.info(f"PDF generated successfully for resume: {resume.id}")
+                    logger.info(
+                        f"PDF generated and saved successfully for resume: {resume.id}"
+                    )
                 else:
                     logger.warning(
                         f"PDF generation returned empty content for resume: {resume.id}"
                     )
+                    # If PDF content is None after compilation attempt, raise an error
+                    raise InternalServerException(
+                        f"Failed to generate PDF content for resume {resume.id}"
+                    )
             except Exception as pdf_error:
-                # Log error but don't fail the entire resume creation
+                # Log error and re-raise as an HTTPException
                 logger.error(
                     f"Error generating PDF during resume creation: {str(pdf_error)}"
                 )
-                # We'll still return the created resume without PDF
+                # Raise HTTP 500, indicating the server failed to fulfill the request completely
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Resume created, but failed to generate PDF: {str(pdf_error)}",
+                )
 
         return convert_resume_to_response(resume)
 
@@ -360,30 +398,22 @@ async def delete_resume(
     Delete a resume.
 
     Args:
-        resume_id: Resume ID
+        resume_id: ID of the resume to delete
         current_user: Current authenticated user
         resume_service: Resume service
 
+    Returns:
+        None
+
     Raises:
-        HTTPException: If resume not found or deletion fails
+        HTTPException: If resume deletion fails
     """
     try:
-        # Delete resume
-        result = await resume_service.delete_resume(
-            resume_id=resume_id,
-            user_id=PydanticObjectId(current_user.id),
-        )
-
-        if not result:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Resume not found",
-            )
-
-        logger.info(f"Resume deleted: {resume_id}")
-
-    except HTTPException:
-        raise
+        user_id = PydanticObjectId(current_user.id)
+        await resume_service.delete_resume(resume_id, user_id)
+        logger.info(f"Resume {resume_id} deleted successfully for user {user_id}")
+    except NotFoundException as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
         logger.error(f"Error deleting resume {resume_id}: {str(e)}")
         raise HTTPException(
@@ -392,10 +422,9 @@ async def delete_resume(
         )
 
 
-@router.post("/{resume_id}/generate", response_model=ResumeResponse)
-async def generate_resume(
+@router.post("/{resume_id}/generate-complete", response_model=ResumeResponse)
+async def generate_complete_resume(
     resume_id: Annotated[PydanticObjectId, Path(description="Resume ID")],
-    selected_sections: List[str],
     current_user: CurrentUser,
     resume_generation_service: ResumeGenerationService = Depends(
         get_resume_generation_service
@@ -403,11 +432,10 @@ async def generate_resume(
     resume_service: ResumeService = Depends(get_resume_service),
 ) -> ResumeResponse:
     """
-    Generate resume content using LLM.
+    Generate complete resume content using LLM via a single structured call.
 
     Args:
         resume_id: Resume ID
-        selected_sections: Selected sections to generate
         current_user: Current authenticated user
         resume_generation_service: Resume generation service
         resume_service: Resume service
@@ -419,33 +447,40 @@ async def generate_resume(
         HTTPException: If resume generation fails
     """
     try:
-        logger.info(f"Generating resume content for resume: {resume_id}")
+        logger.info(f"Generating complete resume content for resume: {resume_id}")
+        user_object_id = PydanticObjectId(current_user.id)
 
-        # Get resume
+        # Get resume to ensure it exists and belongs to user
         resume = await resume_service.get_resume_by_id(
             resume_id=resume_id,
-            user_id=PydanticObjectId(current_user.id),
+            user_id=user_object_id,
         )
+        if not resume:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found"
+            )
 
-        # Generate content
-        content = await resume_generation_service.generate_resume_content(
+        # Generate content using the unified method
+        await resume_generation_service.generate_complete_resume(
             resume_id=resume_id,
         )
 
-        # Get updated resume
+        # Get updated resume to return the latest state including generated content
         updated_resume = await resume_service.get_resume_by_id(
             resume_id=resume_id,
-            user_id=PydanticObjectId(current_user.id),
+            user_id=user_object_id,
         )
 
-        logger.info(f"Resume content generated for resume: {resume_id}")
+        logger.info(f"Complete resume content generated for resume: {resume_id}")
         return convert_resume_to_response(updated_resume)
 
+    except HTTPException:  # Re-raise HTTP exceptions
+        raise
     except Exception as e:
-        logger.error(f"Error generating resume content: {str(e)}")
+        logger.error(f"Error generating complete resume content: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate resume content: {str(e)}",
+            detail=f"Failed to generate complete resume content: {str(e)}",
         )
 
 
@@ -487,12 +522,32 @@ async def get_resume_pdf(
     """
     try:
         logger.info(f"Getting PDF URL for resume: {resume_id}")
+        user_object_id = PydanticObjectId(current_user.id)
 
-        # Get the resume
-        resume = await resume_service.get_resume_by_id(
-            resume_id=resume_id,
-            user_id=PydanticObjectId(current_user.id),
-        )
+        # Get resume, profile, and portfolio data once
+        try:
+            resume, profile, portfolio = (
+                await resume_generation_service.get_resume_data(resume_id)
+            )
+            # Verify ownership
+            if resume.user_id != user_object_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="User does not have permission to access this resume.",
+                )
+        except ValueError as e:
+            logger.error(
+                f"Error fetching data for resume {resume_id} in /get-resume-pdf: {e}"
+            )
+            if "not found" in str(e).lower():
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail=str(e)
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to retrieve resume data.",
+                )
 
         # Check if resume PDF is already stored in S3
         if resume.resume_pdf_key:
@@ -506,47 +561,41 @@ async def get_resume_pdf(
 
             if pdf_url:
                 return ResumePDFResponse(pdf_url=pdf_url)
+            else:
+                logger.warning(
+                    f"PDF key {resume.resume_pdf_key} found but failed to get URL. Will attempt regeneration."
+                )
 
-        # No S3 PDF exists, generate a new one
-        logger.info(f"No PDF found, generating new one for resume: {resume_id}")
+        # No S3 PDF exists or URL failed, generate a new one
+        logger.info(
+            f"No PDF found or URL failed, generating new one for resume: {resume_id}"
+        )
 
         # Use asyncio.wait_for to implement timeout
         import asyncio
 
-        try:
-            # Generate LaTeX
-            logger.info(f"Generating LaTeX for resume: {resume_id}")
-            resume_latex = await asyncio.wait_for(
-                resume_generation_service.generate_latex(resume_id),
-                timeout=timeout
-                / 2,  # Split timeout between LaTeX generation and PDF compilation
-            )
-            logger.info(
-                f"LaTeX generated for resume: {resume_id}, length: {len(resume_latex)} bytes"
-            )
-        except asyncio.TimeoutError:
-            logger.error(
-                f"LaTeX generation timed out after {timeout/2} seconds for resume: {resume_id}"
-            )
-            raise HTTPException(
-                status_code=status.HTTP_408_REQUEST_TIMEOUT,
-                detail="PDF generation timed out while generating LaTeX. Please try again later.",
-            )
+        pdf_content = None
 
-        # Compile PDF
-        logger.info(f"Compiling PDF for resume: {resume_id}")
         try:
+            # Generate PDF content by calling compile_pdf with fetched objects
+            logger.info(f"Compiling PDF for resume: {resume_id}")
             pdf_content = await asyncio.wait_for(
-                resume_generation_service.compile_pdf(resume_id),
-                timeout=timeout / 2,  # Second half of the timeout
+                resume_generation_service.compile_pdf(resume, profile),
+                timeout=timeout,  # Use full timeout for compilation now
             )
         except asyncio.TimeoutError:
             logger.error(
-                f"PDF compilation timed out after {timeout/2} seconds for resume: {resume_id}"
+                f"PDF compilation timed out after {timeout} seconds for resume: {resume_id}"
             )
             raise HTTPException(
                 status_code=status.HTTP_408_REQUEST_TIMEOUT,
                 detail="PDF generation timed out during compilation. Please try again later.",
+            )
+        except ValueError as e:
+            logger.error(f"PDF compilation failed for resume {resume_id}: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to compile PDF: {e}",
             )
 
         # Check if PDF was generated
@@ -565,14 +614,15 @@ async def get_resume_pdf(
         try:
             storage_provider = get_storage_provider()
             pdf_key = await storage_provider.save_resume_pdf(
-                pdf_content, str(resume_id)
+                pdf_content, str(resume.id)
             )
 
-            # Update resume with the new PDF key
+            # Update resume with the new PDF key using ResumeService
+            update_data = ResumeUpdate(resume_pdf_key=pdf_key)
             await resume_service.update_resume(
                 resume_id=resume_id,
-                user_id=PydanticObjectId(current_user.id),
-                update_data={"resume_pdf_key": pdf_key},  # Only update the key
+                user_id=user_object_id,
+                update_data=update_data.model_dump(exclude_unset=True),
             )
 
             logger.info(f"PDF saved to S3: {pdf_key}")
@@ -708,334 +758,149 @@ async def debug_pdf_generation(
         )
 
 
-@router.post("/{resume_id}/advanced-debug")
-async def advanced_debug_pdf_generation(
+@router.post("/{resume_id}/regenerate", response_model=ResumeResponse)
+async def regenerate_resume(
     resume_id: Annotated[PydanticObjectId, Path(description="Resume ID")],
     current_user: CurrentUser,
+    generate_pdf: bool = Query(
+        True, description="Whether to regenerate the PDF as well"
+    ),
     resume_service: ResumeService = Depends(get_resume_service),
     resume_generation_service: ResumeGenerationService = Depends(
         get_resume_generation_service
     ),
-) -> dict:
+) -> ResumeResponse:
     """
-    Advanced DEBUG endpoint to trace through the entire PDF generation process.
+    Regenerate a resume.
 
     Args:
         resume_id: Resume ID
         current_user: Current authenticated user
+        generate_pdf: Whether to regenerate the PDF as well
         resume_service: Resume service
         resume_generation_service: Resume generation service
 
     Returns:
-        dict: Detailed debug information
+        ResumeResponse: Regenerated resume
+
+    Raises:
+        HTTPException: If resume regeneration fails
     """
-    import inspect
-    import json
-    import traceback
-
-    from pydantic import BaseModel
-
-    debug_info = {
-        "resume_id": str(resume_id),
-        "user_id": current_user.id,
-        "process_steps": [],
-        "errors": [],
-        "success": False,
-        "data_snapshots": {},
-    }
-
-    def add_step(name, status="started", details=None):
-        step = {"step": name, "status": status, "timestamp": datetime.now().isoformat()}
-        if details:
-            step["details"] = details
-        debug_info["process_steps"].append(step)
-        logger.info(f"DEBUG STEP: {name} - {status}")
-        if details:
-            logger.info(f"DETAILS: {json.dumps(details, default=str)}")
-
-    def add_error(step, error, traceback_info=None):
-        error_info = {
-            "step": step,
-            "error": str(error),
-            "error_type": type(error).__name__,
-            "traceback": traceback_info or traceback.format_exc(),
-        }
-        debug_info["errors"].append(error_info)
-        logger.error(f"DEBUG ERROR in {step}: {error}")
-        logger.error(traceback_info or traceback.format_exc())
-
-    def safe_object_to_dict(obj):
-        """Safely convert an object to a dictionary, handling PydanticObjectId instances."""
-        if isinstance(obj, BaseModel):
-            # Convert Pydantic model to dict
-            return {k: safe_object_to_dict(v) for k, v in obj.model_dump().items()}
-        elif hasattr(obj, "__dict__"):
-            # Handle regular objects
-            result = {}
-            for k, v in obj.__dict__.items():
-                if not k.startswith("_"):  # Skip private attributes
-                    result[k] = safe_object_to_dict(v)
-            return result
-        elif isinstance(obj, list):
-            return [safe_object_to_dict(item) for item in obj]
-        elif isinstance(obj, dict):
-            return {k: safe_object_to_dict(v) for k, v in obj.items()}
-        elif isinstance(obj, PydanticObjectId):
-            return str(obj)
-        else:
-            # For other types, try to serialize to string or return a placeholder
-            try:
-                return str(obj)
-            except:
-                return f"<{type(obj).__name__} - unserializable>"
-
     try:
-        add_step("Fetching resume")
+        logger.info(f"Regenerating resume: {resume_id}")
+        user_object_id = PydanticObjectId(current_user.id)
 
-        # Get the resume
+        # Get resume to ensure it exists and belongs to user
         resume = await resume_service.get_resume_by_id(
-            resume_id=resume_id, user_id=PydanticObjectId(current_user.id)
+            resume_id=resume_id,
+            user_id=user_object_id,
         )
-
         if not resume:
-            add_step("Fetching resume", "error", {"error": "Resume not found"})
-            debug_info["success"] = False
-            return debug_info
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found"
+            )
 
-        add_step(
-            "Fetching resume",
-            "success",
-            {
-                "title": resume.title,
-                "content_keys": list(resume.content.keys()) if resume.content else [],
-            },
+        # Generate content using the unified method
+        await resume_generation_service.generate_complete_resume(
+            resume_id=resume_id,
         )
 
-        # Add snapshot of resume data
-        debug_info["data_snapshots"]["resume"] = {
-            "id": str(resume.id),
-            "title": resume.title,
-            "user_id": str(resume.user_id),
-            "profile_id": str(resume.profile_id),
-            "portfolio_id": str(resume.portfolio_id),
-            "has_content": bool(resume.content),
-            "content_keys": list(resume.content.keys()) if resume.content else [],
-            "has_pdf_in_s3": bool(resume.resume_pdf_key),
-            "pdf_key": resume.resume_pdf_key,
-        }
-
-        # Get profile
-        add_step("Fetching profile")
-        try:
-            # Get profile using the resume_generation_service
-            _, profile, portfolio = await resume_generation_service.get_resume_data(
-                resume_id
-            )
-
-            if not profile:
-                add_step("Fetching profile", "error", {"error": "Profile not found"})
-                debug_info["success"] = False
-                return debug_info
-
-            # Get profile information
-            full_name = profile.personal_information.full_name
-            add_step("Fetching profile", "success", {"name": full_name})
-
-            # Add snapshot of profile data
-            debug_info["data_snapshots"]["profile"] = {
-                "id": str(profile.id),
-                "full_name": full_name,
-                "email": profile.personal_information.email,
-            }
-
-            # Portfolio is already fetched above
-            add_step(
-                "Fetching portfolio", "success", {"user_id": str(portfolio.user_id)}
-            )
-
-        except Exception as e:
-            add_step("Fetching profile/portfolio", "error", {"error": str(e)})
-            debug_info["success"] = False
-            add_error("Fetching profile/portfolio", e)
-            return debug_info
-
-        # Step-by-step debugging through the entire process
-        try:
-            # 1. Generate resume content if needed
-            if not resume.content or not resume.content.get("personal_information"):
-                add_step("Generating resume content", "started")
-
-                # Add inspection of the portfolio data collection process
-                add_step("Portfolio data collection", "started")
-                try:
-                    # Call the _collect_portfolio_data method directly to see what's happening
-                    portfolio_data = (
-                        await resume_generation_service._collect_portfolio_data(resume)
-                    )
-                    add_step(
-                        "Portfolio data collection",
-                        "success",
-                        {
-                            "sections": list(portfolio_data.keys()),
-                            "data_types": {
-                                k: type(v).__name__ for k, v in portfolio_data.items()
-                            },
-                        },
-                    )
-                except Exception as e:
-                    add_step("Portfolio data collection", "error", {"error": str(e)})
-                    add_error("Portfolio data collection", e)
-
-                try:
-                    # Using comprehensive resume generation with unified template
-                    content = await resume_generation_service.generate_resume_content(
-                        resume_id
-                    )
-                    add_step(
-                        "Generating resume content",
-                        "success",
-                        {"content_keys": list(content.keys())},
-                    )
-                except Exception as e:
-                    add_step("Generating resume content", "error", {"error": str(e)})
-                    add_error("Generating resume content", e)
-                    # Continue with other steps even if content generation fails
-            else:
-                add_step(
-                    "Generating resume content",
-                    "skipped",
-                    {"reason": "Content already exists"},
-                )
-
-            # 2. Get updated resume after content generation
-            add_step("Fetching updated resume")
-            updated_resume = await resume_service.get_resume_by_id(
-                resume_id=resume_id, user_id=PydanticObjectId(current_user.id)
-            )
-
-            debug_info["data_snapshots"]["updated_resume"] = {
-                "has_content": bool(updated_resume.content),
-                "content_keys": (
-                    list(updated_resume.content.keys())
-                    if updated_resume.content
-                    else []
-                ),
-            }
-
-            # 3. Generate LaTeX
-            add_step("Generating LaTeX", "started")
+        # If PDF regeneration is requested, generate PDF
+        if generate_pdf:
             try:
-                # Save a sample of the content data for debugging
-                if updated_resume.content:
-                    add_step(
-                        "Content overview",
-                        "info",
-                        {
-                            "content_type": type(updated_resume.content).__name__,
-                            "content_keys": list(updated_resume.content.keys()),
-                            "content_size": len(str(updated_resume.content)),
-                        },
+                logger.info(f"Regenerating PDF for resume: {resume_id}")
+
+                # Refetch resume to get the latest content for PDF generation
+                resume_after_content_gen = await resume_service.get_resume_by_id(
+                    resume_id=resume_id,
+                    user_id=user_object_id,
+                )
+                if not resume_after_content_gen:
+                    logger.error(
+                        f"Failed to refetch resume {resume_id} after content generation for PDF."
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Failed to retrieve updated resume data for PDF generation.",
                     )
 
-                    # Sample just a few key fields for debugging instead of full content dump
-                    sample_fields = [
-                        "personal_information",
-                        "skills",
-                        "work_experience",
-                    ]
-                    for field in sample_fields:
-                        if field in updated_resume.content:
-                            field_data = updated_resume.content[field]
-                            if not isinstance(field_data, str):
-                                field_data = safe_object_to_dict(field_data)
-                                add_step(
-                                    "Content sample",
-                                    "info",
-                                    {
-                                        "field": field,
-                                        "data_type": type(
-                                            updated_resume.content[field]
-                                        ).__name__,
-                                        "sample": (
-                                            str(field_data)[:300] + "..."
-                                            if len(str(field_data)) > 300
-                                            else str(field_data)
-                                        ),
-                                    },
-                                )
-
-                # Debug the _convert_to_serializable method
-                add_step("Testing serialization", "started")
-                try:
-                    # Test serialization with a sample that includes PydanticObjectId
-                    test_data = {
-                        "id": resume_id,
-                        "nested": {"id": resume_id},
-                        "list": [resume_id, {"id": resume_id}],
-                    }
-                    serialized = convert_to_serializable(test_data)
-                    add_step(
-                        "Testing serialization", "success", {"serialized": serialized}
+                # Refetch profile for PDF generation
+                profile = await resume_service.profile_service.get_profile_by_id(
+                    resume_after_content_gen.profile_id  # Use profile_id from the latest resume
+                )
+                if not profile:
+                    logger.error(
+                        f"Profile {resume_after_content_gen.profile_id} not found for resume {resume_id}"
                     )
-                except Exception as e:
-                    add_step("Testing serialization", "error", {"error": str(e)})
-                    add_error("Testing serialization", e)
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Profile not found",
+                    )
 
-                # Generate LaTeX
-                latex_content = await resume_generation_service.generate_latex(
-                    resume_id
-                )
-                latex_preview = (
-                    latex_content[:500] + "..."
-                    if len(latex_content) > 500
-                    else latex_content
-                )
-                add_step(
-                    "Generating LaTeX",
-                    "success",
-                    {"length": len(latex_content), "preview": latex_preview},
+                # Generate PDF content using the latest resume data
+                pdf_content = await resume_generation_service.compile_pdf(
+                    resume_after_content_gen, profile
                 )
 
-                # 4. Compile PDF
-                add_step("Compiling PDF", "started")
-                pdf_content = await resume_generation_service.compile_pdf(resume_id)
-                add_step(
-                    "Compiling PDF",
-                    "success",
-                    {"size": len(pdf_content) if pdf_content else 0},
+                if not pdf_content:
+                    logger.error(
+                        f"PDF generation returned empty content for resume: {resume_id}"
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="PDF generation failed: Empty content",
+                    )
+
+                # Save PDF to S3
+                storage_provider = get_storage_provider()
+                pdf_key = await storage_provider.save_resume_pdf(
+                    pdf_content, str(resume_id)
                 )
 
-                # 5. Check if PDF was saved in S3
-                add_step("Checking saved PDF in S3")
-                final_resume = await resume_service.get_resume_by_id(
-                    resume_id=resume_id, user_id=PydanticObjectId(current_user.id)
+                # Update resume with the new PDF key
+                update_data = ResumeUpdate(resume_pdf_key=pdf_key)
+                await resume_service.update_resume(  # No need to assign to 'resume' here, final fetch is done later
+                    resume_id=resume_id,  # Use resume_id consistently
+                    user_id=user_object_id,
+                    update_data=update_data.model_dump(exclude_unset=True),
                 )
 
-                pdf_saved = bool(final_resume.resume_pdf_key)
-                pdf_key = final_resume.resume_pdf_key
+                logger.info(f"PDF regenerated and saved for resume: {resume_id}")
 
-                add_step(
-                    "Checking saved PDF",
-                    "success" if pdf_saved else "warning",
-                    {"pdf_saved_in_s3": pdf_saved, "pdf_key": pdf_key},
+            except Exception as pdf_error:
+                logger.error(
+                    f"Error regenerating PDF for resume {resume_id}: {str(pdf_error)}"
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to regenerate PDF: {str(pdf_error)}",
                 )
 
-                debug_info["success"] = pdf_saved
+        # Get final updated resume to return the latest state
+        final_updated_resume = await resume_service.get_resume_by_id(
+            resume_id=resume_id,
+            user_id=user_object_id,
+        )
+        if not final_updated_resume:  # Check if the final fetch was successful
+            logger.error(
+                f"Failed to retrieve final resume state for {resume_id} after all operations."
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to retrieve final resume details.",
+            )
 
-            except Exception as step_error:
-                add_error("PDF generation process", step_error)
-                debug_info["success"] = False
+        logger.info(f"Resume regenerated: {resume_id}")
+        return convert_resume_to_response(final_updated_resume)
 
-        except Exception as process_error:
-            add_error("Overall process", process_error)
-            debug_info["success"] = False
-
-        return debug_info
-
+    except HTTPException:  # Re-raise HTTP exceptions
+        raise
     except Exception as e:
-        add_error("Initialization", e)
-        debug_info["success"] = False
-        return debug_info
+        logger.error(f"Error regenerating resume: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to regenerate resume: {str(e)}",
+        )
 
 
 @router.post("/{resume_id}/upload-pdf", response_model=ResumePDFResponse)
@@ -1294,75 +1159,4 @@ async def get_resume_llm_usage(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve resume LLM usage: {str(e)}",
-        )
-
-
-@router.post("/{resume_id}/generate-complete", response_model=ResumeResponse)
-async def generate_complete_resume(
-    resume_id: Annotated[PydanticObjectId, Path(description="Resume ID")],
-    current_user: CurrentUser,
-    resume_generation_service: ResumeGenerationService = Depends(
-        get_resume_generation_service
-    ),
-    resume_service: ResumeService = Depends(get_resume_service),
-) -> ResumeResponse:
-    """
-    Generate a complete resume with all sections in a single LLM call.
-
-    This endpoint generates all resume sections at once using a comprehensive
-    prompt instead of generating each section separately. This can result in
-    more consistent content across sections and reduces the number of LLM calls.
-
-    Args:
-        resume_id: Resume ID
-        current_user: Current authenticated user
-        resume_generation_service: Resume generation service
-        resume_service: Resume service
-
-    Returns:
-        ResumeResponse: Updated resume with generated content
-
-    Raises:
-        HTTPException: If generation fails or resume is not found
-    """
-    try:
-        # Get the resume
-        resume = await resume_service.get_resume_by_id(
-            resume_id=resume_id, user_id=PydanticObjectId(current_user.id)
-        )
-
-        if not resume:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found"
-            )
-
-        logger.info(f"Generating complete resume content for resume: {resume.id}")
-
-        # Generate complete resume content
-        try:
-            await resume_generation_service.generate_complete_resume(
-                resume_id=resume_id
-            )
-        except Exception as e:
-            logger.error(f"Error generating complete resume content: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to generate complete resume content: {str(e)}",
-            )
-
-        # Get the updated resume
-        updated_resume = await resume_service.get_resume_by_id(
-            resume_id=resume_id, user_id=PydanticObjectId(current_user.id)
-        )
-
-        return convert_resume_to_response(updated_resume)
-
-    except HTTPException:
-        # Re-raise HTTP exceptions
-        raise
-    except Exception as e:
-        logger.error(f"Error generating complete resume: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate complete resume: {str(e)}",
         )

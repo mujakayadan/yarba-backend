@@ -277,12 +277,12 @@ llm_service = LLMService(
 # Configure for a specific user
 await llm_service.configure_for_user("user_id")
 
-# Generate content for a section
-work_experience = await llm_service.generate_section(
-    section_name="work_experience",
-    context=work_experience_data,
-    job_description="Software Engineer position..."
+# Generate a completion
+response = await llm_service.get_completion(
+    prompt="Generate resume content for a software engineer",
+    system_prompt="You are a professional resume writer."
 )
+llm_output = response["llm_output"]
 
 # Generate a cover letter
 cover_letter = await llm_service.generate_cover_letter(

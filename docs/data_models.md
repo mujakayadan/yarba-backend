@@ -45,7 +45,6 @@ interface Profile {
     summary?: string;
   };
   preferences?: {
-    section_preferences?: Record<string, string>; // Maps section names to processing methods
     default_latex_templates?: {
       default_resume_template_id: string;
       default_cover_letter_template_id: string;

@@ -112,11 +112,3 @@ class ResumeSection(str, Enum):
     PROJECTS = "projects"
     AWARDS = "awards"
     PUBLICATIONS = "publications"
-
-
-# Processing mode constants
-class ProcessingMode(str, Enum):
-    """Processing mode enum."""
-
-    PROCESS = "Process"
-    HARDCODE = "Hardcode"

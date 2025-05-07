@@ -1,6 +1,6 @@
 """Portfolio service for user portfolio management."""
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from beanie import PydanticObjectId
 
@@ -649,6 +649,29 @@ class PortfolioService:
         self.logger.info(f"Career summary updated for user: {user_id}")
         return updated_portfolio
 
+    async def get_career_summary(
+        self, user_id: PydanticObjectId
+    ) -> Optional[CareerSummary]:
+        """
+        Get user's career summary from portfolio efficiently.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            CareerSummary or None if not found
+        """
+        self.logger.debug(f"Fetching career summary for user: {user_id}")
+        career_summary = await self.portfolio_repository.get_career_summary(user_id)
+        if not career_summary:
+            # Optionally raise NotFoundException or just return None
+            self.logger.warning(
+                f"Career summary not found for user {user_id} via repository."
+            )
+            # raise NotFoundException("Career summary not found")
+            return None
+        return career_summary
+
     async def get_skills(self, user_id: PydanticObjectId) -> List[Skill]:
         """
         Get user's skills from portfolio.
@@ -657,19 +680,18 @@ class PortfolioService:
             user_id: User ID
 
         Returns:
-            List of skills or None if not found
+            List of skills or an empty list if not found or error occurs.
         """
         try:
-            portfolio = await self.get_portfolio_by_user_id(user_id)
-            return portfolio.skills
-        except NotFoundException:
-            self.logger.warning(f"Portfolio not found for user: {user_id}")
-            return None
+            # Directly call the repository method to get skills
+            skills = await self.portfolio_repository.get_skills(user_id)
+            return skills  # Repository method already returns List[Skill] or []
         except Exception as e:
             self.logger.error(f"Error getting skills for user {user_id}: {e}")
-            return None
+            # Return empty list on error for consistency, as repo method would return [] if portfolio not found
+            return []
 
-    async def get_work_experiences(
+    async def get_work_experience(
         self, user_id: PydanticObjectId
     ) -> List[WorkExperience]:
         """
@@ -679,17 +701,18 @@ class PortfolioService:
             user_id: User ID
 
         Returns:
-            List of work experiences or None if not found
+            List of work experiences or an empty list if not found or error occurs.
         """
         try:
-            portfolio = await self.get_portfolio_by_user_id(user_id)
-            return portfolio.work_experience
-        except NotFoundException:
-            self.logger.warning(f"Portfolio not found for user: {user_id}")
-            return None
+            # Directly call the repository method to get work experience
+            work_experience = await self.portfolio_repository.get_work_experience(
+                user_id
+            )
+            return work_experience  # Repository method already returns List[WorkExperience] or []
         except Exception as e:
             self.logger.error(f"Error getting work experiences for user {user_id}: {e}")
-            return None
+            # Return empty list on error
+            return []
 
     async def get_education(self, user_id: PydanticObjectId) -> List[Education]:
         """
@@ -699,17 +722,16 @@ class PortfolioService:
             user_id: User ID
 
         Returns:
-            List of education or None if not found
+            List of education or an empty list if not found or error occurs.
         """
         try:
-            portfolio = await self.get_portfolio_by_user_id(user_id)
-            return portfolio.education
-        except NotFoundException:
-            self.logger.warning(f"Portfolio not found for user: {user_id}")
-            return None
+            # Directly call the repository method to get education
+            education = await self.portfolio_repository.get_education(user_id)
+            return education  # Repository method already returns List[Education] or []
         except Exception as e:
             self.logger.error(f"Error getting education for user {user_id}: {e}")
-            return None
+            # Return empty list on error
+            return []
 
     async def get_projects(self, user_id: PydanticObjectId) -> List[Project]:
         """
@@ -719,17 +741,16 @@ class PortfolioService:
             user_id: User ID
 
         Returns:
-            List of projects or None if not found
+            List of projects or an empty list if not found or error occurs.
         """
         try:
-            portfolio = await self.get_portfolio_by_user_id(user_id)
-            return portfolio.projects
-        except NotFoundException:
-            self.logger.warning(f"Portfolio not found for user: {user_id}")
-            return None
+            # Directly call the repository method to get projects
+            projects = await self.portfolio_repository.get_projects(user_id)
+            return projects  # Repository method already returns List[Project] or []
         except Exception as e:
             self.logger.error(f"Error getting projects for user {user_id}: {e}")
-            return None
+            # Return empty list on error
+            return []
 
     async def get_publications(self, user_id: PydanticObjectId) -> List[Publication]:
         """
@@ -739,17 +760,16 @@ class PortfolioService:
             user_id: User ID
 
         Returns:
-            List of publications or None if not found
+            List of publications or an empty list if not found or error occurs.
         """
         try:
-            portfolio = await self.get_portfolio_by_user_id(user_id)
-            return portfolio.publications
-        except NotFoundException:
-            self.logger.warning(f"Portfolio not found for user: {user_id}")
-            return None
+            # Directly call the repository method to get publications
+            publications = await self.portfolio_repository.get_publications(user_id)
+            return publications  # Repository method already returns List[Publication] or []
         except Exception as e:
             self.logger.error(f"Error getting publications for user {user_id}: {e}")
-            return None
+            # Return empty list on error
+            return []
 
     async def get_awards(self, user_id: PydanticObjectId) -> List[Award]:
         """
@@ -759,14 +779,13 @@ class PortfolioService:
             user_id: User ID
 
         Returns:
-            List of awards or None if not found
+            List of awards or an empty list if not found or error occurs.
         """
         try:
-            portfolio = await self.get_portfolio_by_user_id(user_id)
-            return portfolio.awards
-        except NotFoundException:
-            self.logger.warning(f"Portfolio not found for user: {user_id}")
-            return None
+            # Directly call the repository method to get awards
+            awards = await self.portfolio_repository.get_awards(user_id)
+            return awards  # Repository method already returns List[Award] or []
         except Exception as e:
             self.logger.error(f"Error getting awards for user {user_id}: {e}")
-            return None
+            # Return empty list on error
+            return []

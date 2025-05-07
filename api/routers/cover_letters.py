@@ -274,12 +274,8 @@ async def create_cover_letter(
 
         # Get default template from profile or use default
         template_id = "default"
-        if (
-            profile.preferences
-            and hasattr(profile.preferences, "default_latex_templates")
-            and profile.preferences.default_latex_templates
-        ):
-            template_id = profile.preferences.default_latex_templates.get(
+        if profile.system_preferences and profile.system_preferences.templates:
+            template_id = profile.system_preferences.templates.get(
                 "default_cover_letter_template_id", "default"
             )
 

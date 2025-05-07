@@ -33,7 +33,10 @@ Example:
   "job_title": "machine_learning_engineer"
 }
 
-DO NOT include any other text, explanations, or comments in your response - ONLY the JSON object."""
+DO NOT include any other text, explanations, or comments in your response - ONLY the JSON object.
+
+Job Description:
+{{ job_description }}"""
 
 
 class FolderNamePrompt(BasePrompt):

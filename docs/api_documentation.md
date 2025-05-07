@@ -280,7 +280,6 @@ PUT /api/v1/profiles/me/preferences
   "notifications": { /* optional object */ },
   "privacy": { /* optional object */ },
   "llm_preferences": { /* optional object */ },
-  "section_preferences": { /* optional object */ }
 }
 ```
 

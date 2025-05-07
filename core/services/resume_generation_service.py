@@ -1,11 +1,15 @@
 """Service for resume generation using LLM."""
 
+import copy
 import json
-from datetime import datetime, timezone
+import re
+from datetime import date, datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from beanie import PydanticObjectId
 from bson import json_util
+from pydantic import BaseModel
 
 from config.logging_config import get_logger
 from core.exceptions.base import NotFoundException
@@ -15,11 +19,14 @@ from core.models.resume import Resume
 from core.repositories.portfolio_repository import PortfolioRepository
 from core.repositories.profile_repository import ProfileRepository
 from core.repositories.resume_repository import ResumeRepository
+from core.schemas.resume_schemas import ResumeOutputSchema
 from core.services.latex_service import LatexService, get_latex_service
 from core.services.llm_service import LLMService
 from core.services.portfolio_service import PortfolioService
 from core.services.profile_service import ProfileService
 from core.services.prompt_service import PromptService
+from core.utils.json_helper import convert_to_serializable
+from core.utils.schema_mapping import map_resume_output_to_models
 
 logger = get_logger(__name__)
 
@@ -32,11 +39,11 @@ class ResumeGenerationService:
         resume_repository: ResumeRepository,
         portfolio_repository: PortfolioRepository,
         profile_repository: ProfileRepository,
-        profile_service: ProfileService = None,
-        portfolio_service: PortfolioService = None,
-        llm_service: Optional[LLMService] = None,
-        prompt_service: Optional[PromptService] = None,
-        latex_service: Optional[LatexService] = None,
+        prompt_service: PromptService,
+        profile_service: ProfileService,
+        portfolio_service: PortfolioService,
+        llm_service: LLMService,
+        latex_service: LatexService,
     ):
         """
         Initialize the resume generation service.
@@ -45,40 +52,20 @@ class ResumeGenerationService:
             resume_repository: Repository for accessing resume data
             portfolio_repository: Repository for accessing portfolio data
             profile_repository: Repository for accessing profile data
-            profile_service: Service for profile operations (optional)
-            portfolio_service: Service for portfolio operations (optional)
-            llm_service: Service for LLM operations
             prompt_service: Service for loading and formatting prompts
+            profile_service: Service for profile operations
+            portfolio_service: Service for portfolio operations
+            llm_service: Service for LLM operations
             latex_service: Service for LaTeX document generation
         """
         self.resume_repository = resume_repository
         self.portfolio_repository = portfolio_repository
         self.profile_repository = profile_repository
-
-        # Use provided services or create new ones
-        from core.repositories.user_repository import UserRepository
-
-        user_repository = UserRepository()
-
-        self.profile_service = profile_service or ProfileService(
-            profile_repository=profile_repository,
-            user_repository=user_repository,
-        )
-
-        self.portfolio_service = portfolio_service or PortfolioService(
-            portfolio_repository=portfolio_repository,
-            user_repository=user_repository,
-        )
-
-        # Create services if not provided
         self.prompt_service = prompt_service
-        self.llm_service = llm_service or LLMService(
-            profile_repository=profile_repository,
-            prompt_service=self.prompt_service,
-        )
-
-        # Initialize LaTeX service for document generation
-        self.latex_service = latex_service or get_latex_service()
+        self.profile_service = profile_service
+        self.portfolio_service = portfolio_service
+        self.llm_service = llm_service
+        self.latex_service = latex_service
 
         self.logger = get_logger(self.__class__.__name__)
 
@@ -123,7 +110,7 @@ class ResumeGenerationService:
         Args:
             user_id: User ID to configure for
         """
-        await self.llm_service.configure_for_user(str(user_id))
+        await self.llm_service.configure_for_user(user_id)
         self.logger.debug(f"Resume generation service configured for user {user_id}")
 
     async def get_resume_data(
@@ -165,373 +152,88 @@ class ResumeGenerationService:
 
         return resume, profile, portfolio
 
-    def _convert_to_serializable(self, data):
-        """
-        Convert data to a serializable format.
-
-        Args:
-            data: The data to convert
-
-        Returns:
-            The data in a serializable format
-        """
-        try:
-            # Import bson.json_util for handling MongoDB types
-            from bson import ObjectId, json_util
-
-            if data is None:
-                return None
-            elif isinstance(data, (PydanticObjectId, ObjectId)):
-                # Convert ObjectId to string
-                return str(data)
-            elif hasattr(data, "model_dump"):
-                # For Pydantic models, use model_dump()
-                return data.model_dump()
-            elif isinstance(data, (list, dict)):
-                # Use json_util for safe serialization and deserialization
-                serialized = json_util.loads(json_util.dumps(data))
-                return serialized
-            elif isinstance(data, (str, int, float, bool)):
-                # Primitive types can be returned as is
-                return data
-            else:
-                # For custom types, try string representation
-                return str(data)
-
-        except Exception as e:
-            # Log error and return string representation
-            self.logger.error(
-                f"Error converting {type(data).__name__} to serializable format: {e}"
-            )
-            return str(data)
-
-    async def _process_section(
-        self,
-        section_name: str,
-        section_data: Any,
-        resume: Resume,
-        profile: Profile,
-    ) -> Any:
-        """
-        Process a resume section based on profile preferences.
-
-        Args:
-            section_name: Name of the section to process
-            section_data: Section data from portfolio
-            resume: Resume object
-            profile: Profile object
-
-        Returns:
-            Processed section content - can be JSON object or string
-        """
-        # Check if section data exists
-        if section_data is None:
-            self.logger.warning(f"No data for section {section_name}")
-            return None
-
-        # Get processing preference for this section
-        section_preference = "Process"  # Default to processing
-        if profile.preferences and profile.preferences.section_preferences:
-            section_preference = profile.preferences.section_preferences.get(
-                section_name, "Process"
-            )
-
-        # Convert data to serializable form if needed
-        section_data = self._convert_to_serializable(section_data)
-        self.logger.debug(
-            f"Section data after serialization ({section_name}): {type(section_data).__name__}"
-        )
-
-        # If hardcode preference, use the data as is
-        if section_preference.lower() == "hardcode":
-            self.logger.info(f"Using hardcoded data for section: {section_name}")
-            return section_data
-
-        # Prepare context for LLM
-        context = {
-            "section_data": section_data,
-            "job_title": resume.job_title,
-            "company_name": resume.company_name,
-        }
-
-        self.logger.info(
-            f"Generating content for section: {section_name} using JSON schema"
-        )
-
-        # LLM will return content in JSON format
-        try:
-            result = await self.llm_service.generate_section(
-                section_name=section_name,
-                context=context,
-                job_description=resume.job_description or "",
-                use_json_schema=True,  # Enable JSON schema output
-            )
-            self.logger.debug(
-                f"LLM generated result for {section_name}: {result[:100]}..."
-            )
-            return result
-        except Exception as e:
-            self.logger.error(
-                f"Error generating content with LLM for section {section_name}: {e}"
-            )
-            # In case of error, return the original data
-            return section_data
-
-    async def _collect_section_data(self, resume: Resume) -> Dict[str, Any]:
-        """
-        Collect section data from portfolio for all standard resume sections.
-
-        Args:
-            resume: Resume object
-
-        Returns:
-            Dictionary of section data by section name
-        """
-        sections_data = {}
-        user_id = resume.user_id
-
-        # Get personal information
-        try:
-            sections_data["personal_information"] = (
-                await self.profile_service.get_personal_information(user_id)
-            )
-        except Exception as e:
-            self.logger.error(f"Error getting personal information: {e}")
-
-        # Get portfolio for all other sections
-        try:
-            portfolio = await self.portfolio_service.get_portfolio_by_user_id(user_id)
-
-            if portfolio:
-                # Standard sections from portfolio
-                section_mappings = {
-                    "career_summary": portfolio.career_summary,
-                    "skills": portfolio.skills,
-                    "work_experience": portfolio.work_experience,
-                    "education": portfolio.education,
-                    "projects": portfolio.projects,
-                    "awards": portfolio.awards,
-                    "publications": portfolio.publications,
-                    "certifications": portfolio.certifications,
-                }
-
-                # Add sections that have data
-                for section_name, section_data in section_mappings.items():
-                    if section_data:  # Skip empty sections
-                        sections_data[section_name] = section_data
-
-                # Add enabled custom sections
-                if portfolio.custom_sections and portfolio.custom_sections.enabled:
-                    for custom_section in portfolio.custom_sections.enabled:
-                        if custom_section not in sections_data:
-                            # Only add the section if it actually exists in the portfolio
-                            # Don't blindly add the entire custom_sections object
-                            # Check if the section exists as an attribute in the portfolio
-                            if hasattr(portfolio, custom_section):
-                                # Get the section data from the portfolio
-                                section_value = getattr(portfolio, custom_section)
-                                if section_value:  # Only add non-empty sections
-                                    sections_data[custom_section] = section_value
-                                    self.logger.debug(
-                                        f"Added custom section from portfolio: {custom_section}"
-                                    )
-                            else:
-                                self.logger.warning(
-                                    f"Custom section '{custom_section}' is enabled but does not exist in portfolio"
-                                )
-
-        except Exception as e:
-            self.logger.error(f"Error collecting portfolio sections: {e}")
-
-        return sections_data
-
-    async def generate_resume_content(
-        self,
-        resume_id: PydanticObjectId,
-        regenerate_sections: Optional[List[str]] = None,
-        llm_preferences: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        """
-        Generate or update content for a resume.
-
-        Args:
-            resume_id: Resume ID
-            regenerate_sections: Optional list of section names to regenerate
-            llm_preferences: Optional LLM preferences to override defaults
-
-        Returns:
-            Generated resume content
-
-        Raises:
-            ValueError: If resume or profile is not found or job_description is missing
-        """
-        # Get resume data
-        resume, profile, portfolio = await self.get_resume_data(resume_id)
-
-        # Verify job description is present
-        if not resume.job_description:
-            raise ValueError("A job description is required to generate resume content")
-
-        # Configure LLM for user
-        await self.configure_for_user(resume.user_id)
-
-        # Apply LLM preferences if provided
-        if llm_preferences:
-            self.logger.info(f"Applying custom LLM preferences: {llm_preferences}")
-            await self.llm_service.set_model_parameters(llm_preferences)
-
-        # Set resume_id for cost tracking in LLM service
-        self.llm_service.current_resume_id = resume_id
-
-        # Update resume title with properly formatted version
-        if resume.company_name or resume.job_title:
-            resume.title = self._generate_proper_title(
-                resume.company_name, resume.job_title
-            )
-            self.logger.debug(f"Updated resume title to: {resume.title}")
-
-        # If template_id is not set, get it from profile preferences
-        if (
-            not resume.template_id
-            and profile.preferences
-            and profile.preferences.default_latex_templates
-        ):
-            resume.template_id = profile.preferences.default_latex_templates.get(
-                "default_resume_template_id"
-            )
-            self.logger.debug(
-                f"Set template_id from profile preferences: {resume.template_id}"
-            )
-
-        # Initialize content dictionary if needed
-        if not resume.content or not isinstance(resume.content, dict):
-            resume.content = {}
-
-        # Collect all section data at once
-        sections_data = await self._collect_section_data(resume)
-        self.logger.info(f"Collected data for {len(sections_data)} sections")
-
-        # Determine which sections to process
-        if regenerate_sections:
-            # Process only specified sections
-            sections_to_process = [s for s in regenerate_sections if s in sections_data]
-        else:
-            # Process all available sections
-            sections_to_process = list(sections_data.keys())
-
-        # Keep track of processed sections
-        processed_sections = set()
-
-        # Process each section
-        for section_name in sections_to_process:
-            try:
-                section_data = sections_data.get(section_name)
-
-                # Skip if no data
-                if section_data is None:
-                    self.logger.warning(f"No data for section {section_name}")
-                    continue
-
-                # Process section
-                try:
-                    # Process the section to generate content
-                    processed_content = await self._process_section(
-                        section_name=section_name,
-                        section_data=section_data,
-                        resume=resume,
-                        profile=profile,
-                    )
-
-                    # Update resume content with the processed section
-                    resume.content[section_name] = processed_content
-                    processed_sections.add(section_name)
-                    self.logger.debug(f"Successfully processed section: {section_name}")
-                except Exception as section_error:
-                    self.logger.error(
-                        f"Error processing section {section_name}: {section_error}"
-                    )
-                    # Skip this section but continue with others
-                    continue
-
-            except Exception as e:
-                self.logger.error(
-                    f"Error generating content for section {section_name}: {e}"
-                )
-                # Continue with other sections even if one fails
-
-        # Log processed sections
-        self.logger.info(f"Processed sections: {processed_sections}")
-
-        # Update resume
-        resume.updated_at = datetime.now(timezone.utc)
-        await self.resume_repository.update(resume.id, resume)
-        self.logger.info(f"Updated resume content with {len(resume.content)} sections")
-
-        return resume.content
-
     async def generate_latex(
         self,
-        resume_id: PydanticObjectId,
+        resume: Resume,  # Accept Resume object
+        profile: Profile,  # Accept Profile object
     ) -> str:
         """
-        Generate LaTeX for a resume.
+        Generate LaTeX for a resume using the provided data.
 
         Args:
-            resume_id: Resume ID
+            resume: The Resume object
+            profile: The Profile object associated with the resume
 
         Returns:
             str: LaTeX content
 
         Raises:
-            ValueError: If resume, profile, or portfolio is not found
+            ValueError: If LaTeX generation fails or content is missing.
         """
-        # Get resume data
-        resume, profile, portfolio = await self.get_resume_data(resume_id)
-
         # Ensure content exists
         if not resume.content:
-            await self.generate_resume_content(resume_id)
-
-        # Generate LaTeX for resume using LaTeX service
-        try:
-            # Generate LaTeX for resume
-            resume_latex = await self.latex_service.generate_resume_latex(
-                resume=resume, profile=profile
+            # If content is missing, we need the resume_id to generate it.
+            # This indicates a potential issue in the calling logic - content should
+            # ideally be generated *before* calling generate_latex/compile_pdf.
+            # However, for now, we fetch the ID and generate.
+            if not resume.id:
+                # This case should not happen if resume object is passed correctly
+                raise ValueError("Resume object missing ID and content is empty.")
+            self.logger.warning(
+                f"Resume content missing for {resume.id}, generating it now."
             )
+            await self.generate_complete_resume(resume.id)
+            # We need to update the resume object in memory after generation
+            updated_resume = await self.resume_repository.get_by_id(resume.id)
+            if not updated_resume:
+                raise ValueError(
+                    f"Failed to fetch updated resume {resume.id} after content generation."
+                )
+            resume = updated_resume  # Use the updated resume object
 
+        # Generate LaTeX for resume using LaTeX service, passing objects directly
+        try:
+            resume_latex = await self.latex_service.generate_resume_latex(
+                resume=resume, profile=profile  # Pass objects
+            )
             return resume_latex
-
         except Exception as e:
-            self.logger.error(f"Error generating LaTeX: {e}")
+            self.logger.error(
+                f"Error generating LaTeX via LatexService for resume {resume.id}: {e}"
+            )
+            # Re-raise as ValueError to be consistent with previous behavior
             raise ValueError(f"Failed to generate LaTeX: {str(e)}")
 
     async def compile_pdf(
         self,
-        resume_id: PydanticObjectId,
+        resume: Resume,  # Accept Resume object
+        profile: Profile,  # Accept Profile object
     ) -> bytes:
         """
-        Compile LaTeX to PDF for a resume.
+        Compile LaTeX to PDF for a resume using provided data.
 
         Args:
-            resume_id: Resume ID
+            resume: The Resume object
+            profile: The Profile object
 
         Returns:
             bytes: PDF content
 
         Raises:
-            ValueError: If resume, profile, or portfolio is not found
+            ValueError: If compilation fails.
         """
-        # Get resume data
-        resume, profile, portfolio = await self.get_resume_data(resume_id)
-
-        # Ensure content exists
+        # Note: We assume content generation happened *before* calling this method
+        # if necessary. The generate_latex call might handle it, but it's cleaner
+        # if the caller ensures content exists.
         if not resume.content:
-            await self.generate_resume_content(resume_id)
+            self.logger.warning(
+                f"compile_pdf called for resume {resume.id} with empty content. Generation might fail or be triggered by generate_latex."
+            )
 
         # Generate and compile resume
         try:
-            # Generate resume LaTeX
-            resume_latex = await self.generate_latex(resume_id)
+            # Generate resume LaTeX using the objects
+            resume_latex = await self.generate_latex(resume, profile)
 
             # Compile to PDF
             pdf_bytes = await self.latex_service.compile_latex_to_pdf(
@@ -540,403 +242,294 @@ class ResumeGenerationService:
 
             # Verify PDF was generated successfully
             if not pdf_bytes or len(pdf_bytes) == 0:
-                self.logger.error("PDF compilation returned empty bytes")
+                self.logger.error(
+                    f"PDF compilation returned empty bytes for resume {resume.id}"
+                )
                 raise ValueError("PDF compilation failed - empty result")
 
             # Log success
-            self.logger.info(f"Successfully compiled PDF, size: {len(pdf_bytes)} bytes")
+            self.logger.info(
+                f"Successfully compiled PDF for resume {resume.id}, size: {len(pdf_bytes)} bytes"
+            )
 
-            # Save PDF to S3 and update resume with the key
-            try:
-                from utils.storage import get_storage_provider
-
-                storage_provider = get_storage_provider()
-                pdf_key = await storage_provider.save_resume_pdf(
-                    pdf_bytes, str(resume_id)
-                )
-
-                # Update resume with pdf key
-                resume.resume_pdf_key = pdf_key
-                resume.updated_at = datetime.now(timezone.utc)
-                await self.resume_repository.update(resume.id, resume)
-
-                self.logger.info(f"Saved PDF to storage: {pdf_key}")
-            except Exception as storage_error:
-                self.logger.error(f"Error saving PDF to storage: {storage_error}")
-                # Don't raise exception here, we'll still return the PDF bytes
-
+            # Return the PDF bytes directly
             return pdf_bytes
+
+        except (
+            ValueError
+        ) as ve:  # Catch specific ValueErrors from generate_latex or latex_service
+            self.logger.error(
+                f"ValueError during PDF compilation for {resume.id}: {ve}"
+            )
+            raise  # Re-raise the specific error
         except Exception as e:
-            self.logger.error(f"Error compiling PDF: {e}")
+            self.logger.error(f"Error compiling PDF for {resume.id}: {e}")
+            # Wrap other exceptions in a ValueError for consistency upstream
             raise ValueError(f"Failed to compile PDF: {str(e)}")
 
     async def generate_complete_resume(
         self,
         resume_id: PydanticObjectId,
-        llm_preferences: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
-        Generate complete resume content in a single LLM call.
-
-        This method uses a comprehensive prompt to generate all resume sections
-        at once, reducing the number of LLM calls needed.
+        Generate complete resume content using a structured LLM call.
 
         Args:
             resume_id: Resume ID
-            llm_preferences: Optional LLM preferences to override defaults
 
         Returns:
-            Generated resume content as a dictionary
+            Generated resume content as a dictionary (as stored in the Resume model)
 
         Raises:
-            ValueError: If resume or profile is not found or job_description is missing
+            ValueError: If resume, profile, job_description, or prompt is missing or generation fails.
         """
-        # Get resume data
-        resume, profile, portfolio = await self.get_resume_data(resume_id)
+        # Get resume data (includes resume, profile)
+        resume, profile, _ = await self.get_resume_data(resume_id)
 
-        # Verify job description is present
+        # Check job description
         if not resume.job_description:
-            raise ValueError("A job description is required to generate resume content")
+            self.logger.error(f"Job description missing for resume_id: {resume_id}")
+            raise ValueError("Job description is required for resume generation")
 
-        # Configure LLM for user
-        await self.configure_for_user(resume.user_id)
+        # Make sure the LLM service is configured for the current user
+        await self.llm_service.configure_for_user(resume.user_id)
 
-        # Apply LLM preferences if provided
-        if llm_preferences:
-            self.logger.info(f"Applying custom LLM preferences: {llm_preferences}")
-            await self.llm_service.set_model_parameters(llm_preferences)
+        # Ensure prompt service is configured for the user
+        self.prompt_service.set_user_id(resume.user_id)
 
-        # Set resume_id for cost tracking in LLM service
-        self.llm_service.current_resume_id = resume_id
+        # Prepare portfolio data for the prompt
+        portfolio_data_dict = await self._prepare_portfolio_data(resume.user_id)
+        if not portfolio_data_dict:
+            self.logger.warning(f"No portfolio data found for user {resume.user_id}")
+            # Continue, but generation quality might be affected
 
-        # Update resume title with properly formatted version
-        if resume.company_name or resume.job_title:
-            resume.title = self._generate_proper_title(
-                resume.company_name, resume.job_title
-            )
-            self.logger.debug(f"Updated resume title to: {resume.title}")
-
-        # If template_id is not set, get it from profile preferences
-        if (
-            not resume.template_id
-            and profile.preferences
-            and profile.preferences.default_latex_templates
-        ):
-            resume.template_id = profile.preferences.default_latex_templates.get(
-                "default_resume_template_id"
-            )
-            self.logger.debug(
-                f"Set template_id from profile preferences: {resume.template_id}"
-            )
-
-        # Initialize content dictionary if needed
-        if not resume.content or not isinstance(resume.content, dict):
-            resume.content = {}
-
-        # Prepare portfolio data
-        portfolio_data = await self._prepare_portfolio_data(resume.user_id)
-        if not portfolio_data:
-            self.logger.warning("No portfolio data found for resume generation")
-
-        # Get the comprehensive resume prompt
         try:
+            # --- 1. Prepare Prompt ---
+            self.logger.info("Preparing prompt for structured resume generation.")
             system_prompt = await self.prompt_service.get_system_prompt()
-            resume_prompt = await self.prompt_service.get_section_prompt("resume")
+            base_variables = await self.prompt_service._get_prompt_variables()
 
-            # Debug: Log a sample of the prompt template
-            prompt_sample = (
-                str(resume_prompt)[:500] + "..."
-                if len(str(resume_prompt)) > 500
-                else str(resume_prompt)
-            )
-            self.logger.debug(
-                f"Original resume prompt template sample: {prompt_sample}"
-            )
+            # Sanitize portfolio data before adding to variables
+            clean_portfolio_data = convert_to_serializable(portfolio_data_dict)
 
-            # Debug: Check for template variables in the prompt
-            import re
-
-            template_vars = re.findall(r"{{[^}]+}}", str(resume_prompt))
-            self.logger.debug(f"Template variables in prompt: {template_vars}")
-
-        except Exception as e:
-            self.logger.error(f"Error getting prompts: {e}")
-            raise ValueError(f"Failed to get prompts: {str(e)}")
-
-        # Create the context for the LLM call
-        context = {"job_description": resume.job_description, "data": portfolio_data}
-
-        # Get user preferences to customize the prompt
-        if profile.preferences:
-            # Create a preferences dictionary with required structure
-            preferences_dict = profile.preferences.model_dump()
-
-            # Map the preferences to the structure expected by the resume prompt
-            mapped_preferences = {
-                "career_summary": {
-                    "min_words": preferences_dict.get("career_summary_details", {}).get(
-                        "min_words", 75
-                    ),
-                    "max_words": preferences_dict.get("career_summary_details", {}).get(
-                        "max_words", 150
-                    ),
-                    "tone": "professional",
-                },
-                "skills": {
-                    "max_categories": preferences_dict.get("skills_details", {}).get(
-                        "max_categories", 4
-                    ),
-                    "min_skills_per_category": preferences_dict.get(
-                        "skills_details", {}
-                    ).get("min_skills_per_category", 3),
-                    "max_skills_per_category": preferences_dict.get(
-                        "skills_details", {}
-                    ).get("max_skills_per_category", 8),
-                },
-                "work_experience": {
-                    "max_jobs": preferences_dict.get("work_experience_details", {}).get(
-                        "max_jobs", 4
-                    ),
-                    "bullet_points_per_job": preferences_dict.get(
-                        "work_experience_details", {}
-                    ).get("bullet_points_per_job", 3),
-                    "focus": "achievements",
-                },
-                "education": {
-                    "max_courses": preferences_dict.get("education_details", {}).get(
-                        "max_courses", 4
-                    ),
-                    "max_entries": preferences_dict.get("education_details", {}).get(
-                        "max_entries", 3
-                    ),
-                },
-                "project": {
-                    "max_projects": preferences_dict.get("project_details", {}).get(
-                        "max_projects", 3
-                    ),
-                    "bullet_points_per_project": preferences_dict.get(
-                        "project_details", {}
-                    ).get("bullet_points_per_project", 2),
-                },
-                "publications": {
-                    "max_publications": preferences_dict.get(
-                        "publications_details", {}
-                    ).get("max_publications", 3)
-                },
-                "awards": {
-                    "max_awards": preferences_dict.get("awards_details", {}).get(
-                        "max_awards", 3
-                    )
-                },
+            variables = {
+                **base_variables,
+                "job_description": resume.job_description,
+                "portfolio_data": clean_portfolio_data,
             }
 
-            # Add mapped preferences to the context
-            context["preferences"] = mapped_preferences
-
-            # Debug logging to show what preferences are being passed
-            self.logger.debug(
-                f"Original preferences: {json.dumps(preferences_dict, default=str)[:500]}..."
+            # Format the main resume prompt
+            resume_prompt_text = await self.prompt_service.format_prompt(
+                "resume", variables
             )
-            self.logger.debug(
-                f"Mapped preferences for prompt: {json.dumps(mapped_preferences, default=str)}"
-            )
+            if not resume_prompt_text:
+                self.logger.error("Failed to format resume prompt.")
+                raise ValueError("Could not format the resume prompt.")
 
-            # Log specific important values
+            # --- 2. Call LLM for Structured Output ---
             self.logger.info(
-                f"Skills per category: min={mapped_preferences['skills']['min_skills_per_category']}, max={mapped_preferences['skills']['max_skills_per_category']}"
+                f"Calling LLM service for structured resume content for resume_id: {resume_id}"
             )
-            self.logger.info(
-                f"Career summary words: min={mapped_preferences['career_summary']['min_words']}, max={mapped_preferences['career_summary']['max_words']}"
-            )
-            self.logger.info(
-                f"Work experience: max_jobs={mapped_preferences['work_experience']['max_jobs']}, bullet_points={mapped_preferences['work_experience']['bullet_points_per_job']}"
-            )
-        else:
-            # Add default preferences if none exist
-            context["preferences"] = {
-                "career_summary": {
-                    "min_words": 75,
-                    "max_words": 150,
-                    "tone": "professional",
-                },
-                "skills": {
-                    "max_categories": 4,
-                    "min_skills_per_category": 3,
-                    "max_skills_per_category": 8,
-                },
-                "work_experience": {
-                    "max_jobs": 4,
-                    "bullet_points_per_job": 3,
-                    "focus": "achievements",
-                },
-                "education": {"max_courses": 4, "max_entries": 3},
-                "project": {"max_projects": 3, "bullet_points_per_project": 2},
-                "publications": {"max_publications": 3},
-                "awards": {"max_awards": 3},
-            }
+            tags = ["operation:generate_resume", f"resume_id:{str(resume_id)}"]
 
-        try:
-            self.logger.info("Generating complete resume content with single LLM call")
-            # Call the LLM with specific instructions to return valid JSON
-            system_prompt = f"{system_prompt}\nYou MUST return only valid JSON as your response. Do not include any explanatory text or markdown code blocks."
-
-            # Check if model supports JSON mode
-            if self.llm_service.model_supports_json_mode():
-                self.logger.info("Using JSON mode for LLM response")
-                self.logger.debug("Making LLM request with JSON mode...")
-                result = await self.llm_service.get_completion(
-                    prompt=resume_prompt,
+            # Call the generic structured completion method
+            resume_output: ResumeOutputSchema = (
+                await self.llm_service.get_structured_completion(
+                    prompt=resume_prompt_text,
+                    schema_model=ResumeOutputSchema,
                     system_prompt=system_prompt,
-                    variables=context,
                     user_id=str(resume.user_id),
-                    tags=["operation:generate_complete_resume"],
-                    json_response=True,  # Explicitly request JSON response
+                    tags=tags,
+                    fallback_to_text=False,  # Ensure we get the Pydantic model or an error
                 )
-                self.logger.debug("LLM request complete with JSON mode")
-            else:
-                self.logger.info(
-                    "Using text mode with JSON instructions for LLM response"
+            )
+            self.logger.info(
+                f"Successfully received structured resume content from LLM for resume_id: {resume_id}"
+            )
+
+            # --- 3. Post-process and Update Resume ---
+            # Add years_of_experience from portfolio to the generated summary
+            # (The schema mapping logic expects it later if converting back to model)
+            if resume_output.career_summary:
+                portfolio = await self.portfolio_repository.get_by_user_id(
+                    resume.user_id
                 )
-                self.logger.debug("Making LLM request with text mode...")
-                result = await self.llm_service.get_completion(
-                    prompt=f"{resume_prompt}\n\nIMPORTANT: You MUST ONLY return valid JSON without any additional text. Do not include code block markers or explanations.",
-                    system_prompt=system_prompt,
-                    variables=context,
-                    user_id=str(resume.user_id),
-                    tags=["operation:generate_complete_resume"],
-                )
-                self.logger.debug("LLM request complete with text mode")
-
-            # Parse the JSON response
-            try:
-                # Clean the response if needed
-                result = result.strip()
-
-                # Some models add code block markers - try to remove them
-                original_length = len(result)
-                if result.startswith("```json"):
-                    result = result[7:]
-                    self.logger.debug("Removed '```json' prefix from response")
-                elif result.startswith("```"):
-                    result = result[3:]
-                    self.logger.debug("Removed '```' prefix from response")
-                if result.endswith("```"):
-                    result = result[:-3]
-                    self.logger.debug("Removed '```' suffix from response")
-
-                result = result.strip()
-                if original_length != len(result):
+                if (
+                    portfolio
+                    and portfolio.career_summary
+                    and portfolio.career_summary.years_of_experience
+                ):
+                    # We don't add years_of_experience to the schema itself as per the prompt instructions
+                    # This value is primarily used during LaTeX generation or if mapping back to models
                     self.logger.info(
-                        f"Cleaned LLM response: removed {original_length - len(result)} characters of markdown formatting"
+                        f"Years of experience from portfolio: {portfolio.career_summary.years_of_experience}"
+                    )
+                else:
+                    self.logger.warning(
+                        f"Years_of_experience not found in portfolio for user {resume.user_id}"
                     )
 
-                self.logger.debug(
-                    f"Attempting to parse JSON response: {result[:200]}..."
-                )
+            # Convert the Pydantic model back to a dictionary for storage in resume.content
+            # This assumes resume.content stores a dictionary, not the Pydantic model itself.
+            generated_content_dict = resume_output.model_dump(
+                mode="json"
+            )  # Use mode='json' for BSON compatibility
 
-                try:
-                    content = json.loads(result)
-                    self.logger.info(
-                        f"Successfully parsed JSON with {len(content)} top-level keys"
-                    )
-                    for key in content.keys():
-                        self.logger.debug(f"Found section in response: {key}")
-                except json.JSONDecodeError as parse_error:
-                    self.logger.error(f"JSON parsing error: {parse_error}")
-                    self.logger.error(
-                        f"Error at position {parse_error.pos}: character '{result[parse_error.pos:parse_error.pos+1]}' in context '{result[max(0, parse_error.pos-20):min(len(result), parse_error.pos+20)]}'"
-                    )
-                    raise
+            # --- 4. Save Content ---
+            if not resume.content or not isinstance(resume.content, dict):
+                resume.content = {}
+            resume.content.update(generated_content_dict)
+            resume.updated_at = datetime.now(timezone.utc)
 
-                # Update resume content with all sections
-                resume.content = content
+            # Save updated resume
+            await self.resume_repository.update(resume.id, resume)
+            self.logger.info(f"Saved resume {resume.id} with generated content")
 
-                # Update resume
-                resume.updated_at = datetime.now(timezone.utc)
-                await self.resume_repository.update(resume.id, resume)
-                self.logger.info(f"Updated resume with complete content")
+            # --- 5. Debug Output (Optional) ---
+            from pathlib import Path
 
-                return content
+            debug_dir = Path("debug/output")
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            folder_name = f"{timestamp}_{resume.id}"
+            test_output_dir = debug_dir / folder_name
+            test_output_dir.mkdir(parents=True, exist_ok=True)
 
-            except json.JSONDecodeError as json_error:
-                self.logger.error(f"Failed to parse LLM response as JSON: {json_error}")
-                self.logger.debug(f"Raw response: {result[:500]}...")
-                raise ValueError(
-                    f"Failed to parse LLM response as JSON: {str(json_error)}"
-                )
+            # Save the generated content dict
+            with open(
+                test_output_dir / "generated_content.json", "w", encoding="utf-8"
+            ) as f:
+                json.dump(
+                    generated_content_dict, f, indent=2, default=str
+                )  # Use default=str for potential complex types
+
+            # Return the content dictionary as stored in the resume
+            return resume.content
 
         except Exception as e:
-            self.logger.error(f"Error generating complete resume content: {e}")
-            raise ValueError(f"Failed to generate complete resume content: {str(e)}")
+            self.logger.error(
+                f"Error in generate_complete_resume for resume_id {resume_id}: {e}"
+            )
+            # Log the type of exception
+            self.logger.exception("Detailed traceback:")
+            raise ValueError(f"Failed to generate resume content: {str(e)}")
 
     async def _prepare_portfolio_data(
         self, user_id: PydanticObjectId
     ) -> Dict[str, Any]:
         """
-        Prepare portfolio data for the comprehensive resume prompt.
+        Prepare portfolio data suitable for the resume generation prompt.
+
+        Fetches relevant sections from the user's profile and portfolio.
 
         Args:
             user_id: User ID
 
         Returns:
-            Dictionary with portfolio data
+            Dictionary with portfolio data structured for the prompt.
         """
         result = {}
+        portfolio = None  # Initialize portfolio
 
-        # Get personal information
+        # Get personal information from Profile
         try:
-            result["personal_information"] = (
-                await self.profile_service.get_personal_information(user_id)
+            profile = await self.profile_repository.get_by_user_id(user_id)
+            if profile and profile.personal_information:
+                # Use model_dump to get a dictionary representation
+                result["personal_information"] = (
+                    profile.personal_information.model_dump()
+                )
+            else:
+                self.logger.warning(
+                    f"Personal information not found for user {user_id}"
+                )
+        except Exception as e:
+            self.logger.error(
+                f"Error getting personal information for user {user_id}: {e}"
             )
-        except Exception as e:
-            self.logger.error(f"Error getting personal information: {e}")
 
-        # Get skills
+        # Get portfolio data
         try:
-            skills = await self.portfolio_service.get_skills(user_id)
-            if skills:
-                result["skills"] = skills
+            portfolio = await self.portfolio_repository.get_by_user_id(user_id)
         except Exception as e:
-            self.logger.error(f"Error getting skills: {e}")
+            self.logger.error(f"Error fetching portfolio for user {user_id}: {e}")
+            # Return whatever we have so far (potentially just personal info)
+            return result
 
-        # Get work experience
-        try:
-            work_experience = await self.portfolio_service.get_work_experiences(user_id)
-            if work_experience:
-                result["work_experience"] = work_experience
-        except Exception as e:
-            self.logger.error(f"Error getting work experience: {e}")
+        if not portfolio:
+            self.logger.warning(f"Portfolio not found for user {user_id}")
+            return result
 
-        # Get education
-        try:
-            education = await self.portfolio_service.get_education(user_id)
-            if education:
-                result["education"] = education
-        except Exception as e:
-            self.logger.error(f"Error getting education: {e}")
+        # Map portfolio fields to dictionary using model_dump for serialization consistency
+        portfolio_fields = [
+            "career_summary",
+            "skills",
+            "work_experience",
+            "education",
+            "projects",
+            "awards",
+            "publications",
+            "certifications",
+            "custom_sections",
+        ]
+        for field in portfolio_fields:
+            if hasattr(portfolio, field):
+                data = getattr(portfolio, field)
+                if data:  # Only include non-empty sections
+                    try:
+                        # Use model_dump if it's a Pydantic model or list of models
+                        if isinstance(data, BaseModel):
+                            result[field] = data.model_dump()
+                        elif (
+                            isinstance(data, list)
+                            and data
+                            and isinstance(data[0], BaseModel)
+                        ):
+                            result[field] = [item.model_dump() for item in data]
+                        else:
+                            # Otherwise, assume it's already serializable (like dict or basic list)
+                            result[field] = data
+                    except Exception as dump_error:
+                        self.logger.warning(
+                            f"Could not dump field {field}: {dump_error}. Storing raw."
+                        )
+                        result[field] = data  # Store raw data on error
 
-        # Get projects
-        try:
-            projects = await self.portfolio_service.get_projects(user_id)
-            if projects:
-                result["projects"] = projects
-        except Exception as e:
-            self.logger.error(f"Error getting projects: {e}")
+        # Handle enabled custom sections specifically if custom_sections wasn't directly mapped
+        if (
+            portfolio.custom_sections
+            and portfolio.custom_sections.enabled
+            and "custom_sections" not in result
+        ):
+            enabled_sections_data = {}
+            for section_name in portfolio.custom_sections.enabled:
+                if hasattr(portfolio, section_name):
+                    data = getattr(portfolio, section_name)
+                    if data:
+                        try:
+                            if isinstance(data, BaseModel):
+                                enabled_sections_data[section_name] = data.model_dump()
+                            elif (
+                                isinstance(data, list)
+                                and data
+                                and isinstance(data[0], BaseModel)
+                            ):
+                                enabled_sections_data[section_name] = [
+                                    item.model_dump() for item in data
+                                ]
+                            else:
+                                enabled_sections_data[section_name] = data
+                        except Exception as dump_error:
+                            self.logger.warning(
+                                f"Could not dump custom section {section_name}: {dump_error}. Storing raw."
+                            )
+                            enabled_sections_data[section_name] = data
+            if enabled_sections_data:
+                result["custom_sections"] = (
+                    enabled_sections_data  # Store under a 'custom_sections' key
+                )
 
-        # Get publications
-        try:
-            publications = await self.portfolio_service.get_publications(user_id)
-            if publications:
-                result["publications"] = publications
-        except Exception as e:
-            self.logger.error(f"Error getting publications: {e}")
-
-        # Get awards
-        try:
-            awards = await self.portfolio_service.get_awards(user_id)
-            if awards:
-                result["awards"] = awards
-        except Exception as e:
-            self.logger.error(f"Error getting awards: {e}")
+        # Final serialization check/cleanup might be needed depending on how models are structured
+        # Using convert_to_serializable one last time before sending to LLMService might be safest
+        # This is done within generate_complete_resume before formatting the prompt
 
         return result

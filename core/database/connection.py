@@ -11,6 +11,8 @@ import pymongo
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from config.logging_config import get_logger
+from config.settings import settings
+from utils.text import sanitize_mongodb_uri
 
 logger = get_logger(__name__)
 
@@ -27,13 +29,14 @@ def get_database_connection():
     """
     global _mongo_client
 
-    # Get connection parameters from environment variables
-    mongodb_uri = os.environ.get("MONGODB_URI", "mongodb://localhost:27017")
-    mongodb_db = os.environ.get("MONGODB_DATABASE", "rbt")
+    # Get connection parameters from settings (which handles environment variables)
+    mongodb_uri = settings.database.url
+    mongodb_db = settings.database.name
 
     # Create client if it doesn't exist
     if _mongo_client is None:
-        logger.info(f"Creating new MongoDB connection to {mongodb_uri}")
+        sanitized_uri = sanitize_mongodb_uri(mongodb_uri)
+        logger.info(f"Creating new MongoDB connection to {sanitized_uri}")
         _mongo_client = pymongo.MongoClient(mongodb_uri)
 
     return _mongo_client.get_database(mongodb_db)
@@ -47,13 +50,14 @@ async def get_async_database_connection():
     """
     global _async_mongo_client
 
-    # Get connection parameters from environment variables
-    mongodb_uri = os.environ.get("MONGODB_URI", "mongodb://localhost:27017")
-    mongodb_db = os.environ.get("MONGODB_DATABASE", "rbt")
+    # Get connection parameters from settings (which handles environment variables)
+    mongodb_uri = settings.database.url
+    mongodb_db = settings.database.name
 
     # Create client if it doesn't exist
     if _async_mongo_client is None:
-        logger.info(f"Creating new async MongoDB connection to {mongodb_uri}")
+        sanitized_uri = sanitize_mongodb_uri(mongodb_uri)
+        logger.info(f"Creating new async MongoDB connection to {sanitized_uri}")
         _async_mongo_client = AsyncIOMotorClient(mongodb_uri)
 
     return _async_mongo_client.get_database(mongodb_db)

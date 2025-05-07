@@ -7,6 +7,7 @@ from beanie import PydanticObjectId
 from pydantic import BaseModel
 
 from config.logging_config import get_logger
+from config.settings import settings
 
 from ..models.portfolio import Portfolio
 from ..models.profile import Profile
@@ -403,12 +404,9 @@ class ResumeRepository(BeanieRepository[Resume]):
             content={},
             custom_sections=[],
             llm_settings=LLMSettings(
-                model_type="Claude",
-                model_name="claude-3-5-sonnet-20240620",
-                temperature=0.1,
-                p_value=0.9,
-                max_tokens=4000,
-                system_prompt_version="v2.3",
+                model_name=settings.llm.default_model,
+                temperature=settings.llm.temperature,
+                max_tokens=settings.llm.max_tokens,
             ),
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),

@@ -7,7 +7,12 @@ from beanie import PydanticObjectId
 from config.logging_config import get_logger
 
 from ..exceptions.base import NotFoundException
-from ..models.profile import PersonalInformation, Preferences, Profile
+from ..models.profile import (
+    PersonalInformation,
+    Profile,
+    PromptPreferences,
+    SystemPreferences,
+)
 from ..models.user import User
 from ..repositories.profile_repository import ProfileRepository
 from ..repositories.user_repository import UserRepository
@@ -297,25 +302,27 @@ class ProfileService:
             self.logger.error(f"Error getting personal information: {e}")
             raise
 
-    async def get_preferences(self, user_id: PydanticObjectId) -> Any:
+    async def get_prompt_preferences(
+        self, user_id: PydanticObjectId
+    ) -> Optional[PromptPreferences]:
         """
-        Get user preferences.
+        Get user prompt preferences.
 
         Args:
             user_id: User ID
 
         Returns:
-            Preferences object if found, None otherwise
+            Optional[PromptPreferences]: Prompt preferences if found, None otherwise
 
         Raises:
             NotFoundException: If profile not found
             Exception: For other errors
         """
-        self.logger.debug(f"Getting preferences for user: {user_id}")
+        self.logger.debug(f"Getting prompt preferences for user: {user_id}")
 
         try:
             # Get preferences from the repository
-            preferences = await self.profile_repository.get_preferences(user_id)
+            preferences = await self.profile_repository.get_prompt_preferences(user_id)
 
             if preferences is None:
                 # Check if profile exists
@@ -324,101 +331,153 @@ class ProfileService:
                     raise NotFoundException(f"Profile not found for user: {user_id}")
 
                 # Profile exists but preferences are None
-                self.logger.warning(f"Profile exists but has no preferences: {user_id}")
+                self.logger.warning(
+                    f"Profile exists but has no prompt preferences: {user_id}"
+                )
 
             return preferences
 
         except NotFoundException:
             raise
         except Exception as e:
-            self.logger.error(f"Error getting preferences: {e}")
+            self.logger.error(f"Error getting prompt preferences: {e}")
             raise
 
-    async def get_section_preferences(
+    async def get_system_preferences(
         self, user_id: PydanticObjectId
-    ) -> Dict[str, str]:
+    ) -> Optional[SystemPreferences]:
         """
-        Get section preferences for content generation.
+        Get user system preferences.
 
         Args:
             user_id: User ID
 
         Returns:
-            Dict[str, str]: Dictionary of section preferences
+            Optional[SystemPreferences]: System preferences if found, None otherwise
 
         Raises:
             NotFoundException: If profile not found
             Exception: For other errors
         """
-        self.logger.debug(f"Getting section preferences for user: {user_id}")
+        self.logger.debug(f"Getting system preferences for user: {user_id}")
 
         try:
-            # Get section preferences from the repository
-            section_prefs = await self.profile_repository.get_section_preferences(
-                user_id
-            )
+            # Get preferences from the repository
+            preferences = await self.profile_repository.get_system_preferences(user_id)
 
-            if not section_prefs:
-                # Check if profile exists but has no section preferences
+            if preferences is None:
+                # Check if profile exists
                 profile = await self.profile_repository.get_by_user_id(user_id)
                 if not profile:
                     raise NotFoundException(f"Profile not found for user: {user_id}")
 
-                # Profile exists but has no section preferences (return empty dict)
-                self.logger.info(
-                    f"Profile exists but has no section preferences: {user_id}"
+                # Profile exists but preferences are None
+                self.logger.warning(
+                    f"Profile exists but has no system preferences: {user_id}"
                 )
 
-            return section_prefs
+            return preferences
 
         except NotFoundException:
             raise
         except Exception as e:
-            self.logger.error(f"Error getting section preferences: {e}")
+            self.logger.error(f"Error getting system preferences: {e}")
             raise
 
-    async def update_preferences(
-        self, profile_id: PydanticObjectId, preferences: Any
-    ) -> Any:
+    async def update_prompt_preferences(
+        self, user_id: PydanticObjectId, preferences: Dict[str, Any]
+    ) -> Optional[PromptPreferences]:
         """
-        Update user preferences.
+        Update user prompt preferences.
 
         Args:
-            profile_id: Profile ID
-            preferences: Preferences object
+            user_id: User ID
+            preferences: Dictionary of preference updates
 
         Returns:
-            Updated preferences if successful
+            Optional[PromptPreferences]: Updated preferences if successful, None otherwise
 
         Raises:
             NotFoundException: If profile not found
             Exception: For other errors
         """
-        self.logger.debug(f"Updating preferences for profile: {profile_id}")
+        self.logger.debug(f"Updating prompt preferences for user: {user_id}")
 
         try:
-            # Check if profile exists
-            existing_profile = await self.profile_repository.get_by_id(profile_id)
-            if not existing_profile:
-                raise NotFoundException(f"Profile not found with ID: {profile_id}")
+            # Get profile by user ID
+            profile = await self.profile_repository.get_by_user_id(user_id)
+            if not profile:
+                self.logger.error(f"Profile not found for user: {user_id}")
+                raise NotFoundException(f"Profile not found for user: {user_id}")
 
-            # Update the preferences
-            updated_prefs = await self.profile_repository.update_preferences(
-                profile_id=profile_id, preferences=preferences
+            # Update the prompt preferences
+            updated_preferences = (
+                await self.profile_repository.update_prompt_preferences(
+                    profile_id=profile.id, preferences=preferences
+                )
             )
 
-            if updated_prefs is None:
-                raise Exception(
-                    f"Failed to update preferences for profile: {profile_id}"
+            if updated_preferences:
+                self.logger.info(f"Prompt preferences updated for user: {user_id}")
+            else:
+                self.logger.warning(
+                    f"Failed to update prompt preferences for user: {user_id}"
                 )
 
-            self.logger.info(f"Updated preferences for profile: {profile_id}")
-            return updated_prefs
+            return updated_preferences
 
         except NotFoundException:
             raise
         except Exception as e:
-            self.logger.error(f"Error updating preferences: {e}")
+            self.logger.error(f"Error updating prompt preferences: {e}")
+            raise
+
+    async def update_system_preferences(
+        self, user_id: PydanticObjectId, preferences: Dict[str, Any]
+    ) -> Optional[SystemPreferences]:
+        """
+        Update user system preferences.
+
+        Args:
+            user_id: User ID
+            preferences: Dictionary of preference updates
+
+        Returns:
+            Optional[SystemPreferences]: Updated preferences if successful, None otherwise
+
+        Raises:
+            NotFoundException: If profile not found
+            Exception: For other errors
+        """
+        self.logger.debug(f"Updating system preferences for user: {user_id}")
+
+        try:
+            # Get profile by user ID
+            profile = await self.profile_repository.get_by_user_id(user_id)
+            if not profile:
+                self.logger.error(f"Profile not found for user: {user_id}")
+                raise NotFoundException(f"Profile not found for user: {user_id}")
+
+            # Update the system preferences
+            updated_preferences = (
+                await self.profile_repository.update_system_preferences(
+                    profile_id=profile.id, preferences=preferences
+                )
+            )
+
+            if updated_preferences:
+                self.logger.info(f"System preferences updated for user: {user_id}")
+            else:
+                self.logger.warning(
+                    f"Failed to update system preferences for user: {user_id}"
+                )
+
+            return updated_preferences
+
+        except NotFoundException:
+            raise
+        except Exception as e:
+            self.logger.error(f"Error updating system preferences: {e}")
             raise
 
     async def get_api_keys(self, user_id: PydanticObjectId) -> Dict[str, str]:

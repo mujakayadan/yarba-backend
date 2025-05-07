@@ -29,15 +29,33 @@ from core.services.resume_generation_service import ResumeGenerationService
 from core.services.resume_service import ResumeService
 
 
-async def get_latex_service() -> LatexService:
+def get_portfolio_service(
+    portfolio_repo: PortfolioRepository = Depends(get_portfolio_repository),
+    user_repo: UserRepository = Depends(get_user_repository),
+) -> PortfolioService:
+    """Get a portfolio service.
+
+    Returns:
+        PortfolioService: Portfolio service
+    """
+    return PortfolioService(
+        portfolio_repository=portfolio_repo,
+        user_repository=user_repo,
+    )
+
+
+async def get_latex_service(
+    portfolio_service: PortfolioService = Depends(get_portfolio_service),
+) -> LatexService:
     """Get a LaTeX service.
 
-    Args: None
+    Args:
+        portfolio_service: The portfolio service dependency.
 
     Returns:
         LatexService: LaTeX service
     """
-    return LatexService()
+    return LatexService(portfolio_service=portfolio_service)
 
 
 async def get_prompt_service() -> PromptService:
@@ -64,7 +82,6 @@ async def get_llm_service(
     """
     return LLMService(
         profile_repository=profile_repo,
-        prompt_service=prompt_service,
     )
 
 
@@ -105,8 +122,8 @@ async def get_resume_service(
 
 
 async def get_profile_service(
-    profile_repo=Depends(get_profile_repository),
-    user_repo=Depends(get_user_repository),
+    profile_repo: ProfileRepository = Depends(get_profile_repository),
+    user_repo: UserRepository = Depends(get_user_repository),
 ) -> ProfileService:
     """Get a profile service.
 
@@ -118,21 +135,6 @@ async def get_profile_service(
         ProfileService: Profile service instance
     """
     return ProfileService(profile_repo, user_repo)
-
-
-def get_portfolio_service(
-    portfolio_repo=Depends(get_portfolio_repository),
-    user_repo=Depends(get_user_repository),
-) -> PortfolioService:
-    """Get a portfolio service.
-
-    Returns:
-        PortfolioService: Portfolio service
-    """
-    return PortfolioService(
-        portfolio_repository=portfolio_repo,
-        user_repository=user_repo,
-    )
 
 
 def get_cover_letter_service(
@@ -159,24 +161,30 @@ def get_cover_letter_service(
 
 
 def get_resume_generation_service(
-    resume_repo=Depends(get_resume_repository),
-    portfolio_repo=Depends(get_portfolio_repository),
-    profile_repo=Depends(get_profile_repository),
-    llm_service=Depends(get_llm_service),
-    latex_service=Depends(get_latex_service),
+    resume_repo: ResumeRepository = Depends(get_resume_repository),
+    portfolio_repo: PortfolioRepository = Depends(get_portfolio_repository),
+    profile_repo: ProfileRepository = Depends(get_profile_repository),
+    # Inject all required dependencies explicitly
+    prompt_service: PromptService = Depends(get_prompt_service),
+    profile_service: ProfileService = Depends(get_profile_service),
+    portfolio_service: PortfolioService = Depends(get_portfolio_service),
+    llm_service: LLMService = Depends(get_llm_service),
+    latex_service: LatexService = Depends(get_latex_service),
 ) -> ResumeGenerationService:
     """Get a resume generation service.
 
     Returns:
-        ResumeGenerationService: Resume generation service
+        ResumeGenerationService: Resume generation service instance with all dependencies injected.
     """
-    prompt_service = PromptService(user_repository=profile_repo)
+    # No longer need to create PromptService here, it's injected
     return ResumeGenerationService(
         resume_repository=resume_repo,
         portfolio_repository=portfolio_repo,
         profile_repository=profile_repo,
-        llm_service=llm_service,
         prompt_service=prompt_service,
+        profile_service=profile_service,
+        portfolio_service=portfolio_service,
+        llm_service=llm_service,
         latex_service=latex_service,
     )
 
@@ -188,13 +196,13 @@ def get_cover_letter_generation_service(
     resume_repo=Depends(get_resume_repository),
     llm_service=Depends(get_llm_service),
     latex_service=Depends(get_latex_service),
+    prompt_service: PromptService = Depends(get_prompt_service),
 ) -> CoverLetterGenerationService:
     """Get a cover letter generation service.
 
     Returns:
         CoverLetterGenerationService: Cover letter generation service
     """
-    prompt_service = PromptService(user_repository=profile_repo)
     return CoverLetterGenerationService(
         cover_letter_repository=cover_letter_repo,
         portfolio_repository=portfolio_repo,

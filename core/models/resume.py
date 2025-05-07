@@ -25,12 +25,9 @@ class ResumeSection(BaseModel):
 class LLMSettings(BaseModel):
     """LLM settings for resume generation."""
 
-    model_type: Optional[str] = None
     model_name: Optional[str] = None
     temperature: Optional[float] = None
-    p_value: Optional[float] = None
     max_tokens: Optional[int] = None
-    system_prompt_version: Optional[str] = None
 
     model_config = {"validate_assignment": True}
 

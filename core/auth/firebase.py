@@ -464,9 +464,7 @@ class FirebaseAuth:
 
         try:
             # Get the API key from settings
-            api_key = (
-                os.environ.get("FIREBASE_API_KEY") or settings.auth.firebase_api_key
-            )
+            api_key = settings.auth.firebase_api_key
             if not api_key:
                 raise ValueError(
                     "Firebase API key not found in environment variables or settings"

@@ -99,3 +99,6 @@ resume_output/
 config/firebase_credentials.json
 
 core/easy_applier/
+
+docs/
+design/

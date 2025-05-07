@@ -6,6 +6,7 @@ import re
 from datetime import datetime
 from typing import Any, Dict, Optional, Type, Union
 
+import jsonschema
 from beanie import PydanticObjectId
 from bson import ObjectId, json_util
 from pydantic import BaseModel, ValidationError
@@ -225,3 +226,75 @@ def loads(json_str: str, **kwargs) -> Any:
         Python object representation of the JSON
     """
     return json.loads(json_str, **kwargs)
+
+
+def parse_json_strings_recursively(obj: Any) -> Any:
+    """
+    Recursively parse any string fields in a dict/list that look like JSON arrays/objects into real Python objects.
+
+    Args:
+        obj: Any Python object to process recursively
+
+    Returns:
+        Processed object with JSON strings converted to Python objects
+    """
+    if isinstance(obj, dict):
+        # Process each key-value pair in dictionary
+        return {k: parse_json_strings_recursively(v) for k, v in obj.items()}
+
+    elif isinstance(obj, list):
+        # Process each item in list
+        return [parse_json_strings_recursively(v) for v in obj]
+
+    elif isinstance(obj, str):
+        # Only process strings that look like JSON
+        s = obj.strip()
+
+        # Check if it starts/ends with JSON object or array markers
+        if (s.startswith("{") and s.endswith("}")) or (
+            s.startswith("[") and s.endswith("]")
+        ):
+            try:
+                # Try to parse as JSON
+                parsed = json.loads(s)
+
+                # If successful, recursively process the parsed result
+                parsed_result = parse_json_strings_recursively(parsed)
+                logger.debug(f"Successfully parsed JSON string: {s[:50]}...")
+                return parsed_result
+            except json.JSONDecodeError as e:
+                # If it's not valid JSON, try to repair it
+                try:
+                    repaired = repair_json(s)
+                    parsed = json.loads(repaired)
+                    parsed_result = parse_json_strings_recursively(parsed)
+                    logger.debug(
+                        f"Successfully parsed repaired JSON string: {s[:50]}..."
+                    )
+                    return parsed_result
+                except Exception as repair_err:
+                    # If repair failed, return the original string
+                    logger.debug(
+                        f"Failed to parse potential JSON string (len={len(s)}): {e}. Repair error: {repair_err}"
+                    )
+                    return obj
+            except Exception as e:
+                # Catch any other exceptions and return the original string
+                logger.debug(f"Unexpected error parsing potential JSON string: {e}")
+                return obj
+
+        return obj
+    else:
+        # Return non-string, non-container types as is
+        return obj
+
+
+def validate_json_schema(data: dict, schema: dict) -> None:
+    """
+    Validate data against a JSON schema. Raises jsonschema.ValidationError if invalid.
+    """
+    try:
+        jsonschema.validate(instance=data, schema=schema)
+    except jsonschema.ValidationError as e:
+        logger.error(f"JSON schema validation error: {e.message}")
+        raise

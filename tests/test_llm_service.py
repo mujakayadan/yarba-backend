@@ -60,7 +60,7 @@ def mock_prompt_service():
     service.get_portfolio_section_prompt = AsyncMock(
         return_value="Generate content for section"
     )
-    service.get_section_prompt = AsyncMock(return_value="Generate content for section")
+    service.get_resume_prompt = AsyncMock(return_value="Generate a complete resume")
     service.set_user_id = MagicMock()  # This is not async
 
     return service
@@ -146,42 +146,18 @@ async def test_get_completion():
 
 
 @pytest.mark.asyncio
-async def test_generate_section(mock_prompt_service):
-    """Test generating section content."""
-    with patch("core.services.llm_service.litellm"):
-        llm = LLMService(prompt_service=mock_prompt_service)
-
-        # Mock get_completion
-        llm.get_completion = AsyncMock(return_value="Generated section")
-
-        # Test generate section
-        result = await llm.generate_section(
-            section_name="work_experience",
-            context={"data": "test data"},
-            job_description="Test job",
-        )
-
-        # Check if get_portfolio_section_prompt is called
-        # We need to check this first as the LLM service tries this first
-        mock_prompt_service.get_portfolio_section_prompt.assert_called_once_with(
-            "work_experience"
-        )
-
-        # Verify system prompt was retrieved
-        mock_prompt_service.get_system_prompt.assert_called_once()
-
-        # Verify result
-        assert result == "Generated section"
-
-
-@pytest.mark.asyncio
 async def test_generate_cover_letter(mock_prompt_service):
     """Test generating cover letter."""
     with patch("core.services.llm_service.litellm"):
         llm = LLMService(prompt_service=mock_prompt_service)
 
         # Mock get_completion
-        llm.get_completion = AsyncMock(return_value="Generated cover letter")
+        llm.get_completion = AsyncMock(
+            return_value={
+                "substituted_prompt": "prompt",
+                "llm_output": "Generated cover letter",
+            }
+        )
 
         # Test generate cover letter
         result = await llm.generate_cover_letter(
@@ -199,3 +175,55 @@ async def test_generate_cover_letter(mock_prompt_service):
 
         # Verify result
         assert result == "Generated cover letter"
+
+
+@pytest.mark.asyncio
+async def test_generate_resume(mock_prompt_service):
+    """Test generating resume."""
+    with patch("core.services.llm_service.litellm"):
+        llm = LLMService(prompt_service=mock_prompt_service)
+
+        # Mock model_supports_json_mode
+        llm.model_supports_json_mode = MagicMock(return_value=True)
+
+        # Mock get_completion
+        llm.get_completion = AsyncMock(
+            return_value={
+                "substituted_prompt": "prompt",
+                "llm_output": '{"personal_information":{"name":"Test User"},"skills":["Python"]}',
+            }
+        )
+
+        # Prepare test data
+        job_description = "Software Engineer position"
+        portfolio_data = {
+            "personal_information": {"name": "Test User"},
+            "skills": ["Python", "JavaScript"],
+        }
+
+        # Test generate resume
+        result = await llm.generate_resume(
+            job_description=job_description,
+            portfolio_data=portfolio_data,
+            user_id="test_user",
+        )
+
+        # Verify resume prompt was retrieved
+        mock_prompt_service.get_resume_prompt.assert_called_once()
+
+        # Verify system prompt was retrieved
+        mock_prompt_service.get_system_prompt.assert_called_once()
+
+        # Verify get_completion was called with correct parameters
+        llm.get_completion.assert_called_once()
+        args, kwargs = llm.get_completion.call_args
+        assert kwargs["variables"]["job_description"] == job_description
+        assert kwargs["variables"]["portfolio_data"] == portfolio_data
+        assert kwargs["json_response"] is True
+
+        # Verify result is correct
+        assert isinstance(result, dict)
+        assert "personal_information" in result
+        assert result["personal_information"]["name"] == "Test User"
+        assert "skills" in result
+        assert result["skills"] == ["Python"]

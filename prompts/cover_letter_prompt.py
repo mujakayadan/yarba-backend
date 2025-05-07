@@ -5,8 +5,8 @@ from .base_prompt import BasePrompt
 TEMPLATE = """Task: Create a structured cover letter based on the provided resume content and job description.
 
 Instructions:
-- Create a cover letter with ${cover_letter_details_paragraphs} paragraphs
-- Write at a ${cover_letter_details_target_grade_level}-year-old reading level
+- Create a cover letter with {{ preferences.cover_letter.paragraphs }} paragraphs
+- Write at a {{ preferences.cover_letter.target_age }} year old reading level
 - Use casual, simple language with shorter sentences (avoid excessive conjunctions)
 - Draw from the candidate's personal journey and how it shaped their skills
 - Tailor the content specifically to the job requirements and company values
@@ -52,7 +52,15 @@ Example:
   "greeting": "Dear Hiring Manager,",
   "closing": "Sincerely,",
   "full_document": "Dear Hiring Manager,\n\nI am excited to apply for the Machine Learning Engineer position at TechCorp that I found on LinkedIn. As someone passionate about developing AI solutions that solve real-world problems, I'm thrilled about the opportunity to join your innovative team.\n\nThroughout my career, I've developed strong expertise in computer vision and machine learning, with a focus on industrial applications. At Orsan, I implemented a quality control system using OpenCV and TensorFlow that achieved 92% accuracy and reduced defects by 30%. My experience with real-time monitoring frameworks and U-Net algorithms directly aligns with the requirements mentioned in your job posting.\n\nWhat attracts me most to TechCorp is your commitment to advancing AI technology while maintaining a strong ethical framework. Your recent work on transparent AI systems particularly resonates with my belief that technology should be both powerful and accountable. I'm eager to contribute to a team that values innovation and responsible development.\n\nThank you for considering my application. I would welcome the opportunity to discuss how my background in machine learning and computer vision could contribute to TechCorp's ongoing success. I look forward to potentially joining your team and helping to develop the next generation of AI solutions.\n\nSincerely,"
-}"""
+}
+
+Job Title: {{ job_title }}
+Company Name: {{ company_name }}
+Job Description:
+{{ job_description }}
+
+Resume Content:
+{{ resume_content }}"""
 
 
 class CoverLetterPrompt(BasePrompt):

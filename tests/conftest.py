@@ -191,7 +191,6 @@ def mock_tex_service(mock_tex_header_repository, mock_preamble_repository):
 def mock_llm_service(mock_profile_repository):
     """Fixture for mocking LLM service."""
     service = AsyncMock(spec=LLMService)
-    service.generate_section = AsyncMock()
     service.generate_cover_letter = AsyncMock()
     service.get_completion = AsyncMock()
     service.configure_for_user = AsyncMock()

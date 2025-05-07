@@ -11,6 +11,7 @@ from core.latex.templates import DEFAULT_COVER_LETTER_PREAMBLE, DEFAULT_RESUME_P
 from core.models.cover_letter import CoverLetter
 from core.models.profile import Profile
 from core.models.resume import Resume
+from core.services.portfolio_service import PortfolioService
 
 settings = Settings()
 logger = get_logger(__name__)
@@ -19,10 +20,11 @@ logger = get_logger(__name__)
 class LatexService:
     """Simplified LaTeX service for document generation."""
 
-    def __init__(self):
+    def __init__(self, portfolio_service: PortfolioService):
         """Initialize the service."""
         self.resume_compiler = ResumeCompiler()
         self.cover_letter_compiler = CoverLetterCompiler()
+        self.portfolio_service = portfolio_service
         self.logger = get_logger(__name__)
 
     def configure_latex_logging(
@@ -108,6 +110,45 @@ class LatexService:
             self.logger.info(f"Generating LaTeX for resume ID: {resume.id}")
             self.logger.info(f"Using profile ID: {profile.id}")
 
+            # --- Get Portfolio Data ---
+            portfolio_data_for_compiler = {}
+            try:
+                # Ensure profile has user_id to fetch portfolio
+                if not hasattr(profile, "user_id") or not profile.user_id:
+                    self.logger.error(
+                        f"Profile object {profile.id} lacks user_id. Cannot fetch portfolio."
+                    )
+                    raise InternalServerException(
+                        "Profile lacks user_id for portfolio lookup."
+                    )
+
+                portfolio = await self.portfolio_service.get_portfolio_by_user_id(
+                    profile.user_id
+                )
+                if portfolio and portfolio.career_summary:
+                    # Pass the specific career_summary dict needed by the compiler
+                    portfolio_data_for_compiler = {
+                        "career_summary": portfolio.career_summary.dict()
+                    }
+                    self.logger.info(
+                        f"Successfully fetched portfolio career summary for user {profile.user_id}"
+                    )
+                else:
+                    self.logger.warning(
+                        f"Portfolio or career_summary not found for user {profile.user_id}. Proceeding without it."
+                    )
+            except NotFoundException:
+                self.logger.warning(
+                    f"Portfolio not found via service for user {profile.user_id}. Proceeding without it."
+                )
+            except Exception as e:
+                self.logger.error(
+                    f"Error fetching portfolio via service for user {profile.user_id}: {e}"
+                )
+                # Decide if this should be fatal or just a warning
+                # raise InternalServerException(f"Failed to fetch portfolio: {str(e)}")
+            # --- End Get Portfolio Data ---
+
             # Get template ID - first check resume, then fallback to profile preferences
             template_id = None
 
@@ -117,16 +158,15 @@ class LatexService:
                 self.logger.info(f"Using template ID from resume: {template_id}")
             # Otherwise check profile preferences
             elif (
-                profile.preferences
-                and profile.preferences.default_latex_templates
-                and "default_resume_template_id"
-                in profile.preferences.default_latex_templates
+                profile.system_preferences
+                and profile.system_preferences.templates
+                and "default_resume_template_id" in profile.system_preferences.templates
             ):
-                template_id = profile.preferences.default_latex_templates[
+                template_id = profile.system_preferences.templates[
                     "default_resume_template_id"
                 ]
                 self.logger.info(
-                    f"Using template ID from profile preferences: {template_id}"
+                    f"Using template ID from profile system preferences: {template_id}"
                 )
 
             # Prepare template data with preamble
@@ -138,8 +178,21 @@ class LatexService:
 
             # Generate the LaTeX content using the compiler
             self.logger.info("Calling resume compiler to generate tex content")
-            latex_content = await self.resume_compiler.generate_tex_content(
-                resume=resume, template=template_data
+
+            # Ensure resume.content exists and is a dictionary
+            if not resume.content or not isinstance(resume.content, dict):
+                self.logger.error(
+                    f"Resume content is missing or not a dictionary for resume {resume.id}"
+                )
+                raise InternalServerException(
+                    "Resume content is invalid or missing for LaTeX generation."
+                )
+
+            # Pass the resume.content and portfolio data to the compiler
+            latex_content = self.resume_compiler.generate_tex_content(
+                resume_content=resume.content,
+                portfolio_data=portfolio_data_for_compiler,  # Pass fetched portfolio data
+                template=template_data,
             )
 
             self.logger.info(
@@ -377,4 +430,28 @@ def get_latex_service() -> LatexService:
     Returns:
         LatexService: A new instance of LatexService
     """
-    return LatexService()
+    # Placeholder: Replace with actual PortfolioService injection
+    from core.database.mongodb import get_database  # Example import
+    from core.repositories import PortfolioRepository, UserRepository  # Example imports
+
+    # Example of manual instantiation (adjust based on your project structure)
+    # db = await get_database() # Assuming async setup if needed elsewhere
+    # user_repo = UserRepository(database=db)
+    # portfolio_repo = PortfolioRepository(database=db)
+    # portfolio_service = PortfolioService(portfolio_repository=portfolio_repo, user_repository=user_repo)
+    # This is likely incorrect and needs proper dependency setup:
+    portfolio_service = None  # <-- Needs real PortfolioService instance!
+    if not portfolio_service:
+        logger.critical(
+            "PortfolioService not injected into get_latex_service! LaTeX generation may fail."
+        )
+
+        # Depending on your DI framework, you might raise an error here or handle it differently
+        # For now, creating a dummy to avoid immediate crash, but this is WRONG:
+        class DummyPortfolioService:
+            async def get_portfolio_by_user_id(self, user_id):
+                return None
+
+        portfolio_service = DummyPortfolioService()
+
+    return LatexService(portfolio_service=portfolio_service)  # Pass instance

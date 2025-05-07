@@ -6,7 +6,23 @@ and setting up the database for the application.
 
 import os
 import re
+from pathlib import Path
 from typing import Optional
+
+# Load environment variables from .env files
+try:
+    from dotenv import load_dotenv
+
+    # Load environment variables from .env.local first, then fallback to others
+    env_loaded = False
+    for env_file in [".env.local", ".env.production", ".env"]:
+        if Path(env_file).exists():
+            load_dotenv(dotenv_path=env_file)
+            env_loaded = True
+            break
+except ImportError:
+    # dotenv is optional, so handle the case where it's not installed
+    pass
 
 from beanie import init_beanie
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -33,15 +49,21 @@ async def init_db() -> Optional[AsyncIOMotorClient]:
         Optional[AsyncIOMotorClient]: Database client if successful, None otherwise.
     """
     try:
-        # Debug database connection settings
-        mongodb_uri = os.environ.get("MONGODB_URI", settings.database.url)
-        mongodb_db = os.environ.get("MONGODB_DATABASE", settings.database.name)
+        # Use the database settings which already handle environment variables properly
+        mongodb_uri = settings.database.url
+        mongodb_db = settings.database.name
 
         # Log sanitized URI
         sanitized_uri = sanitize_mongodb_uri(mongodb_uri)
         logger.info(
             f"Connecting to MongoDB at: {sanitized_uri} (database: {mongodb_db})"
         )
+
+        if mongodb_uri.startswith("mongodb://localhost"):
+            logger.warning(
+                "Using a local MongoDB URI. If you intended to connect to a remote database, "
+                "make sure the MONGODB_URI environment variable is set in .env.local file."
+            )
 
         # Create motor client using settings
         client = AsyncIOMotorClient(

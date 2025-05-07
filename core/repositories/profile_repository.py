@@ -9,7 +9,12 @@ from bson import ObjectId
 from config.logging_config import get_logger
 from config.settings import settings
 
-from ..models.profile import PersonalInformation, Preferences, Profile
+from ..models.profile import (
+    PersonalInformation,
+    Profile,
+    PromptPreferences,
+    SystemPreferences,
+)
 from ..models.resume import Resume
 from ..models.user import User
 from .base_repository import BeanieRepository
@@ -284,33 +289,106 @@ class ProfileRepository(BeanieRepository[Profile]):
 
         return await Resume.find({"profile_id": object_id}).to_list()
 
-    async def update_preferences(
+    async def update_prompt_preferences(
         self,
         profile_id: Union[str, PydanticObjectId, ObjectId],
-        preferences: Preferences,
-    ) -> Optional[Preferences]:
-        """Update preferences for a profile.
+        preferences: Dict[str, Any],
+    ) -> Optional[PromptPreferences]:
+        """Update prompt preferences for a profile.
 
         Args:
             profile_id: Profile ID
-            preferences: Updated preferences object
+            preferences: Updated preferences dictionary
 
         Returns:
-            Optional[Preferences]: Updated preferences if successful, None otherwise
+            Optional[PromptPreferences]: Updated preferences if successful, None otherwise
         """
         try:
-            # Create an updates dictionary with the preferences
-            updates = {"preferences": preferences}
-
-            # Update the profile
-            updated_profile = await self.update(profile_id=profile_id, updates=updates)
-
-            if not updated_profile:
+            # Get the profile
+            profile = await self.get_by_id(profile_id)
+            if not profile:
+                self.logger.warning(f"Profile not found: {profile_id}")
                 return None
 
-            return updated_profile.preferences
+            # Update individual fields
+            for section_name, section_prefs in preferences.items():
+                if hasattr(profile.prompt_preferences, section_name):
+                    # Get the current section dictionary
+                    section_dict = getattr(profile.prompt_preferences, section_name, {})
+
+                    # Add or update fields
+                    if isinstance(section_dict, dict) and isinstance(
+                        section_prefs, dict
+                    ):
+                        section_dict.update(section_prefs)
+                        setattr(profile.prompt_preferences, section_name, section_dict)
+                    else:
+                        # Direct assignment if not a dict
+                        setattr(profile.prompt_preferences, section_name, section_prefs)
+                else:
+                    self.logger.warning(
+                        f"Unknown prompt preference section: {section_name}"
+                    )
+
+            # Update the profile
+            profile.updated_at = datetime.now(timezone.utc)
+            await profile.save()
+            self.logger.info(f"Updated prompt preferences for profile: {profile_id}")
+
+            return profile.prompt_preferences
         except Exception as e:
-            self.logger.error(f"Error updating preferences: {e}")
+            self.logger.error(f"Error updating prompt preferences: {e}")
+            return None
+
+    async def update_system_preferences(
+        self,
+        profile_id: Union[str, PydanticObjectId, ObjectId],
+        preferences: Dict[str, Any],
+    ) -> Optional[SystemPreferences]:
+        """Update system preferences for a profile.
+
+        Args:
+            profile_id: Profile ID
+            preferences: Updated preferences dictionary
+
+        Returns:
+            Optional[SystemPreferences]: Updated preferences if successful, None otherwise
+        """
+        try:
+            # Get the profile
+            profile = await self.get_by_id(profile_id)
+            if not profile:
+                self.logger.warning(f"Profile not found: {profile_id}")
+                return None
+
+            # Update individual fields
+            for section_name, section_prefs in preferences.items():
+                if hasattr(profile.system_preferences, section_name):
+                    # Get the current section dictionary
+                    section_dict = getattr(profile.system_preferences, section_name, {})
+
+                    # Add or update fields
+                    if isinstance(section_dict, dict) and isinstance(
+                        section_prefs, dict
+                    ):
+                        section_dict.update(section_prefs)
+                        setattr(profile.system_preferences, section_name, section_dict)
+                    else:
+                        # Direct assignment if not a dict
+                        setattr(profile.system_preferences, section_name, section_prefs)
+                else:
+                    self.logger.warning(
+                        f"Unknown system preference section: {section_name}"
+                    )
+
+            # Update the profile
+            profile.updated_at = datetime.now(timezone.utc)
+            await profile.save()
+            self.logger.info(f"Updated system preferences for profile: {profile_id}")
+
+            return profile.system_preferences
+        except Exception as e:
+            self.logger.error(f"Error updating system preferences: {e}")
             return None
 
     async def update_personal_info(
@@ -398,62 +476,70 @@ class ProfileRepository(BeanieRepository[Profile]):
                 email=email,
             )
 
-            # Create preferences with defaults from settings
-            preferences = Preferences()
+            # Create prompt preferences
+            prompt_preferences = PromptPreferences()
 
-            # Apply defaults from settings
-            preferences.section_preferences = dict(
-                settings.preferences.section_preferences
-            )
-            preferences.default_latex_templates = dict(
-                settings.preferences.default_latex_templates
-            )
-
-            # Apply other preference settings
-            preferences.project_details = {
+            # Setup default project preferences
+            prompt_preferences.project = {
                 "max_projects": settings.preferences.project_max_projects,
                 "bullet_points_per_project": settings.preferences.project_bullet_points_per_project,
             }
 
-            preferences.work_experience_details = {
+            # Setup default work experience preferences
+            prompt_preferences.work_experience = {
                 "max_jobs": settings.preferences.work_experience_max_jobs,
                 "bullet_points_per_job": settings.preferences.work_experience_bullet_points_per_job,
             }
 
-            preferences.skills_details = {
+            # Setup default skills preferences
+            prompt_preferences.skills = {
                 "max_categories": settings.preferences.skills_max_categories,
-                "min_skills_per_category": settings.preferences.skills_min_per_category,
-                "max_skills_per_category": settings.preferences.skills_max_per_category,
+                "min_per_category": settings.preferences.skills_min_per_category,
+                "max_per_category": settings.preferences.skills_max_per_category,
             }
 
-            preferences.career_summary_details = {
+            # Setup default career summary preferences
+            prompt_preferences.career_summary = {
                 "min_words": settings.preferences.career_summary_min_words,
                 "max_words": settings.preferences.career_summary_max_words,
             }
 
-            preferences.education_details = {
+            # Setup default education preferences
+            prompt_preferences.education = {
                 "max_entries": settings.preferences.education_max_entries,
                 "max_courses": settings.preferences.education_max_courses,
             }
 
-            preferences.awards_details = {
+            # Setup default awards preferences
+            prompt_preferences.awards = {
                 "max_awards": settings.preferences.awards_max_awards
             }
 
-            preferences.publications_details = {
+            # Setup default publications preferences
+            prompt_preferences.publications = {
                 "max_publications": settings.preferences.publications_max_publications
             }
 
-            preferences.cover_letter_details = {
+            # Setup default cover letter preferences
+            prompt_preferences.cover_letter = {
                 "paragraphs": settings.preferences.cover_letter_paragraphs,
-                "target_grade_level": settings.preferences.cover_letter_target_grade_level,
+                "target_age": settings.preferences.cover_letter_target_age,
             }
 
-            # Create profile with default preferences
+            # Create system preferences
+            system_preferences = SystemPreferences()
+
+            # Override default templates
+            system_preferences.templates = dict(
+                settings.preferences.default_latex_templates
+            )
+
+            # Create profile with the new preference structures
             profile = Profile(
                 user_id=user.id,
                 personal_information=personal_information,
-                preferences=preferences,
+                prompt_preferences=prompt_preferences,
+                system_preferences=system_preferences,
                 created_at=datetime.now(timezone.utc),
                 updated_at=datetime.now(timezone.utc),
             )
@@ -494,41 +580,35 @@ class ProfileRepository(BeanieRepository[Profile]):
             self.logger.error(f"Error getting personal information: {e}")
             return {}
 
-    async def get_preferences(self, user_id: PydanticObjectId) -> Optional[Preferences]:
-        """
-        Get user preferences.
-
-        Args:
-            user_id: User ID (string or ObjectId)
-
-        Returns:
-            Optional[Preferences]: User preferences if found, None otherwise
-        """
-        profile = await self.get_by_user_id(user_id)
-        return profile.preferences if profile else None
-
-    async def get_section_preferences(
+    async def get_prompt_preferences(
         self, user_id: PydanticObjectId
-    ) -> Dict[str, str]:
+    ) -> Optional[PromptPreferences]:
         """
-        Get section preferences.
+        Get user prompt preferences.
 
         Args:
-            user_id: User ID (string or ObjectId)
+            user_id: User ID
 
         Returns:
-            Dict[str, str]: Dictionary of section preferences
+            Optional[PromptPreferences]: User prompt preferences if found, None otherwise
         """
         profile = await self.get_by_user_id(user_id)
+        return profile.prompt_preferences if profile else None
 
-        if (
-            not profile
-            or not profile.preferences
-            or not hasattr(profile.preferences, "section_preferences")
-        ):
-            return {}
+    async def get_system_preferences(
+        self, user_id: PydanticObjectId
+    ) -> Optional[SystemPreferences]:
+        """
+        Get user system preferences.
 
-        return profile.preferences.section_preferences
+        Args:
+            user_id: User ID
+
+        Returns:
+            Optional[SystemPreferences]: User system preferences if found, None otherwise
+        """
+        profile = await self.get_by_user_id(user_id)
+        return profile.system_preferences if profile else None
 
     async def get_api_keys(self, user_id: PydanticObjectId) -> Dict[str, str]:
         """

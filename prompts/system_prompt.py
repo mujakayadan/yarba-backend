@@ -31,14 +31,7 @@ Content guidelines:
 - Use strong action verbs to begin bullet points and descriptions
 - Ensure all generated content aligns with the job description
 - Format all dates and contact information consistently throughout
-
-When generating specific sections:
-- Personal Information: Include only factual contact details provided by the user
-- Work Experience: Focus on relevant responsibilities and quantifiable achievements
-- Education: Highlight courses and achievements relevant to the target position
-- Skills: Organize by relevance to the job description, prioritizing technical skills
-- Projects: Emphasize technologies used and measurable outcomes
-- Publications: Include only verified publications with proper citations"""
+"""
 
 
 class SystemPrompt(BasePrompt):

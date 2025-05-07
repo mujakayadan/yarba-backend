@@ -4,6 +4,7 @@ from typing import Any, Dict, Optional
 
 from config.constants import APP_CONSTANTS, FEATURE_FLAGS
 from config.logging_config import get_logger
+from core.schemas.job_schemas import JobInfoSchema
 from core.services.llm_service import LLMService
 from core.services.prompt_service import PromptService
 
@@ -13,9 +14,7 @@ logger = get_logger(__name__)
 class JobService:
     """Service for extracting and handling job-related information."""
 
-    def __init__(
-        self, llm_service: LLMService, prompt_service: Optional[PromptService] = None
-    ):
+    def __init__(self, llm_service: LLMService, prompt_service: PromptService):
         """
         Initialize JobService.
 
@@ -23,69 +22,81 @@ class JobService:
             llm_service: LLM service for text generation
             prompt_service: Prompt service for loading prompts
         """
+        if not prompt_service:
+            raise ValueError("PromptService is required for JobService.")
         self.llm_service = llm_service
         self.prompt_service = prompt_service
         self.logger = logger
 
     async def extract_job_info(self, job_description: str) -> Dict[str, Any]:
         """
-        Extract basic information from a job description.
+        Extract basic information from a job description using LLM.
 
         Args:
             job_description: The job description text
 
         Returns:
             Dictionary containing extracted job information (company_name, job_title)
+            or default values if extraction fails.
         """
+        default_result = {
+            "company_name": "unknown_company",
+            "job_title": "unknown_position",
+        }
+
         if not job_description or not job_description.strip():
-            self.logger.warning("Empty job description provided")
-            return {
-                "company_name": "unknown_company",
-                "job_title": "unknown_position",
-                "job_description": job_description or "",
-                "requires_clearance": False,
-            }
+            self.logger.warning("Empty job description provided, returning defaults.")
+            return default_result
 
+        extracted_info = default_result  # Initialize with default
         try:
-            # Use LLM service to extract company name and job title
-            company_name, job_title = (
-                await self.llm_service.extract_job_title_and_company(job_description)
+            # 1. Format the folder_name prompt
+            self.logger.debug("Formatting folder_name prompt.")
+            variables = {"job_description": job_description}
+            folder_prompt = await self.prompt_service.format_prompt(
+                "folder_name", variables
             )
 
-            # Validate extracted values
-            if not company_name or company_name == "":
-                self.logger.warning("Empty company name extracted, using default")
-                company_name = "unknown_company"
+            # 2. Call LLM for structured output
+            self.logger.info("Calling LLM to extract company name and job title.")
+            tags = ["operation:extract_job_info"]
+            # Assuming LLMService is configured for the correct user elsewhere or is generic
+            structured_output: JobInfoSchema = (
+                await self.llm_service.get_structured_completion(
+                    prompt=folder_prompt,
+                    schema_model=JobInfoSchema,
+                    # system_prompt=None, # Optional: Add specific system prompt if needed
+                    tags=tags,
+                    fallback_to_text=False,  # We strictly need the JSON structure
+                )
+            )
 
-            if not job_title or job_title == "":
-                self.logger.warning("Empty job title extracted, using default")
-                job_title = "unknown_position"
+            if structured_output:  # If we got a valid schema object
+                extracted_info = (
+                    structured_output.model_dump()
+                )  # Overwrite default with successful extraction
+                # Optional: Add validation for default values if needed, though the prompt requests fallbacks
+                if not extracted_info.get("company_name"):
+                    extracted_info["company_name"] = default_result["company_name"]
+                if not extracted_info.get("job_title"):
+                    extracted_info["job_title"] = default_result["job_title"]
+            else:
+                self.logger.error(
+                    "LLM did not return structured output for job info extraction."
+                )
+                # Keep extracted_info as default_result
 
-            # Log the successful extraction
             self.logger.info(
-                f"Extracted job info - company: {company_name}, title: {job_title}"
+                f"Extracted job info - company: {extracted_info['company_name']}, title: {extracted_info['job_title']}"
             )
+            return extracted_info  # Return the result (either extracted or default)
 
-            # Check for security clearance if feature is enabled
-            requires_clearance = False
-            if FEATURE_FLAGS.get("check_clearance", False):
-                requires_clearance = self.check_security_clearance(job_description)
-
-            # Return the job info dictionary
-            return {
-                "company_name": company_name,
-                "job_title": job_title,
-                "job_description": job_description,
-                "requires_clearance": requires_clearance,
-            }
         except Exception as e:
-            self.logger.error(f"Error extracting job info: {str(e)}")
-            return {
-                "company_name": "unknown_company",
-                "job_title": "unknown_position",
-                "job_description": job_description,
-                "requires_clearance": False,
-            }
+            self.logger.error(f"Error extracting job info via LLM: {str(e)}")
+            import traceback
+
+            self.logger.debug(f"Traceback: {traceback.format_exc()}")
+            return default_result
 
     def check_security_clearance(self, job_description: str) -> bool:
         """
