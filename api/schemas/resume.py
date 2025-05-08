@@ -26,8 +26,9 @@ class ResumeCreate(BaseModel):
     job_description: str = Field(
         ..., description="Job description to tailor the resume for"
     )
-    generate_pdf: bool = Field(
-        False, description="Whether to generate PDF immediately after resume creation"
+    compile_pdf: bool = Field(
+        True,
+        description="Whether to compile PDF immediately after resume creation (requires content to be populated)",
     )
 
 
@@ -39,6 +40,7 @@ class ResumeUpdate(BaseModel):
     job_description: Optional[str] = Field(None, description="Job description")
     template_id: Optional[str] = Field(None, description="Template ID")
     content: Optional[Dict[str, Any]] = Field(None, description="Resume content")
+    resume_pdf_key: Optional[str] = Field(None, description="S3 key for the resume PDF")
 
 
 class SortOptions(str):

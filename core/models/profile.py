@@ -151,50 +151,6 @@ class SystemPreferences(BaseModel):
     model_config = {"validate_assignment": True}
 
 
-class Preferences(BaseModel):
-    """Legacy user preferences model, kept for backward compatibility."""
-
-    # Project preferences - LEGACY
-    project_details: Dict[str, Any] = Field(default_factory=dict)
-
-    # Work experience preferences - LEGACY
-    work_experience_details: Dict[str, Any] = Field(default_factory=dict)
-
-    # Skills preferences - LEGACY
-    skills_details: Dict[str, Any] = Field(default_factory=dict)
-
-    # Career summary preferences - LEGACY
-    career_summary_details: Dict[str, Any] = Field(default_factory=dict)
-
-    # Education preferences - LEGACY
-    education_details: Dict[str, Any] = Field(default_factory=dict)
-
-    # Other section preferences - LEGACY
-    cover_letter_details: Dict[str, Any] = Field(default_factory=dict)
-    awards_details: Dict[str, Any] = Field(default_factory=dict)
-    publications_details: Dict[str, Any] = Field(default_factory=dict)
-
-    # Feature preferences - LEGACY
-    feature_preferences: Dict[str, bool] = Field(default_factory=dict)
-
-    # Notification preferences - LEGACY
-    notifications: Dict[str, Any] = Field(default_factory=dict)
-
-    # Privacy preferences - LEGACY
-    privacy: Dict[str, Any] = Field(default_factory=dict)
-
-    # LLM preferences - LEGACY
-    llm_preferences: Dict[str, Any] = Field(default_factory=dict)
-
-    # LaTeX template preferences - LEGACY
-    default_latex_templates: Dict[str, str] = Field(
-        default_factory=dict,
-        description="LaTeX template IDs for resume and cover letter generation",
-    )
-
-    model_config = {"validate_assignment": True}
-
-
 class PersonalInformation(BaseModel):
     """Personal information model."""
 
@@ -229,8 +185,7 @@ class FlatPreference:
         Checks in the following order:
         1. prompt_preferences (new structure)
         2. system_preferences (new structure)
-        3. preferences (legacy structure)
-        4. Returns None if not found
+        3. Returns None if not found
         """
         # Map from flat_name to section/key
         parts = name.split("_", 1)
@@ -254,23 +209,23 @@ class FlatPreference:
             if section_dict and key in section_dict:
                 return section_dict.get(key)
 
-        # Try legacy structure
-        legacy_prefs = getattr(self._profile, "preferences", None)
-        if legacy_prefs:
-            # Check with _details suffix
-            section_details = f"{section}_details"
-            if hasattr(legacy_prefs, section_details):
-                section_dict = getattr(legacy_prefs, section_details, {})
-                if section_dict and key in section_dict:
-                    return section_dict.get(key)
+        # Try system_preferences.templates directly for default template IDs
+        # e.g., flat_prefs.default_resume_template_id
+        if section == "default" and system_prefs and hasattr(system_prefs, "templates"):
+            template_key = f"{section}_{key}"  # e.g., default_resume_template_id
+            templates_dict = getattr(system_prefs, "templates", {})
+            if templates_dict and template_key in templates_dict:
+                return templates_dict.get(template_key)
 
-            # Check without suffix
-            if hasattr(legacy_prefs, section):
-                section_dict = getattr(legacy_prefs, section, {})
-                if section_dict and key in section_dict:
-                    return section_dict.get(key)
+        # Try system_preferences.features directly for feature flags
+        # e.g., flat_prefs.check_clearance
+        if system_prefs and hasattr(system_prefs, "features"):
+            features_dict = getattr(system_prefs, "features", {})
+            if features_dict and name in features_dict:  # Check the original flat name
+                return features_dict.get(name)
 
-        # Nothing found
+        # If not found in new structures, return None or raise error?
+        # For now, returning None to avoid breaking existing code expecting None
         return None
 
     def get(self, name: str, default: Any = None) -> Any:
@@ -314,12 +269,6 @@ class Profile(Document):
     system_preferences: SystemPreferences = Field(
         default_factory=SystemPreferences,
         description="System-related preferences for UI, features, etc.",
-    )
-
-    # Legacy preferences (for backward compatibility)
-    preferences: Preferences = Field(
-        default_factory=Preferences,
-        description="Legacy preference structure (will be migrated)",
     )
 
     # LLM usage tracking

@@ -1,5 +1,6 @@
 """Resume service for resume management and generation."""
 
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 from beanie import PydanticObjectId
@@ -220,30 +221,72 @@ class ResumeService:
         resume = await self.get_resume_by_id(resume_id, user_id)
 
         # Remove title from update_data if present - title should never be directly set
+        # and is handled by company_name/job_title changes.
         if "title" in update_data:
             del update_data["title"]
 
-        # Check if company_name or job_title are being updated
-        if "company_name" in update_data or "job_title" in update_data:
-            # Get the new values or use existing ones
-            company_name = update_data.get("company_name", resume.company_name)
-            job_title = update_data.get("job_title", resume.job_title)
-            # Generate the new title
-            update_data["title"] = self._generate_proper_title(company_name, job_title)
-            self.logger.info(f"Updated title to: {update_data['title']}")
+        # Flag to check if any actual update happened that needs saving
+        updated_fields = False
 
-        # Update resume fields
+        # Check if company_name or job_title are being updated to regenerate title
+        new_company_name = update_data.get("company_name")
+        new_job_title = update_data.get("job_title")
+
+        current_company_name = resume.company_name
+        current_job_title = resume.job_title
+
+        title_needs_update = False
+        if new_company_name is not None and new_company_name != current_company_name:
+            setattr(resume, "company_name", new_company_name)
+            current_company_name = new_company_name  # update for title generation
+            updated_fields = True
+            title_needs_update = True
+        if new_job_title is not None and new_job_title != current_job_title:
+            setattr(resume, "job_title", new_job_title)
+            current_job_title = new_job_title  # update for title generation
+            updated_fields = True
+            title_needs_update = True
+
+        if title_needs_update:
+            new_title = self._generate_proper_title(
+                current_company_name, current_job_title
+            )
+            if resume.title != new_title:
+                setattr(resume, "title", new_title)
+                self.logger.info(f"Updated title to: {new_title}")
+                updated_fields = True
+
+        # Update other resume fields from update_data
         for key, value in update_data.items():
-            if hasattr(resume, key) and key != "id" and key != "user":
-                setattr(resume, key, value)
+            if key not in [
+                "company_name",
+                "job_title",
+                "id",
+                "user_id",
+                "profile_id",
+                "portfolio_id",
+                "created_at",
+                "updated_at",
+                "title",
+            ]:  # Avoid re-processing title/company/job or protected fields
+                if hasattr(resume, key):
+                    if getattr(resume, key) != value:
+                        setattr(resume, key, value)
+                        updated_fields = True
+                else:
+                    self.logger.warning(
+                        f"Attempted to update non-existent field {key} on resume {resume_id}"
+                    )
 
-        updated_resume = await self.resume_repository.update(resume_id, resume)
-        if not updated_resume:
-            self.logger.error(f"Failed to update resume: {resume_id}")
-            raise NotFoundException("Resume not found")
+        if updated_fields:
+            # Explicitly update updated_at timestamp
+            resume.updated_at = datetime.now(timezone.utc)
+            await resume.save_changes()
+            self.logger.info(f"Resume updated and changes saved: {resume_id}")
+        else:
+            self.logger.info(f"No actual changes to save for resume: {resume_id}")
 
-        self.logger.info(f"Resume updated: {resume_id}")
-        return updated_resume
+        return resume
 
     async def delete_resume(
         self, resume_id: PydanticObjectId, user_id: PydanticObjectId

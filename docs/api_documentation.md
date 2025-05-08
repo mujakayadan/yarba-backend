@@ -211,9 +211,6 @@ POST /api/v1/profiles
     "linkedin": "string (optional)",
     "github": "string (optional)",
     "website": "string (optional)"
-  },
-  "preferences": {
-    // Optional preferences object
   }
 }
 ```
@@ -453,11 +450,12 @@ POST /api/v1/resumes
 **Request Body:**
 ```json
 {
-  "job_description": "string"
+  "job_description": "string",
+  "compile_pdf": false
 }
 ```
 
-**Response:** Resume object with generated content
+**Response:** Resume object (potentially with generated content/PDF link)
 
 #### Get All Resumes
 
@@ -525,20 +523,28 @@ DELETE /api/v1/resumes/{resume_id}
 
 **Response:** HTTP 204 No Content
 
-#### Generate Resume Content
+#### Populate Resume Text Content
 
 ```
-POST /api/v1/resumes/{resume_id}/generate
+POST /api/v1/resumes/{resume_id}/populate-text-content
 ```
 
-**Request Body:**
-```json
-{
-  "selected_sections": ["personal_information", "career_summary", "skills", ...]
-}
+Generates or regenerates the full textual content (summary, experience, skills etc.) for an *existing* resume based on its stored job description. Does not handle PDF generation.
+
+**Response:** Resume object with updated textual content.
+
+#### Regenerate Resume (Content and PDF)
+
+```
+POST /api/v1/resumes/{resume_id}/regenerate
 ```
 
-**Response:** Resume object with generated content
+Regenerates the full textual content for an existing resume and optionally recompiles the PDF.
+
+**Query Parameters:**
+- `generate_pdf`: boolean (default: true) - Whether to regenerate the PDF as well.
+
+**Response:** Resume object with updated content and potentially updated PDF.
 
 #### Get Resume PDF
 
@@ -1269,3 +1275,48 @@ All endpoints may return the following error responses:
 - `404 Not Found`: The requested resource was not found
 - `429 Too Many Requests`: Rate limit exceeded
 - `500 Internal Server Error`: An unexpected error occurred
+
+#### Update Prompt Preferences
+
+```
+PUT /api/v1/profiles/me/preferences/prompt
+```
+
+Updates the user's preferences related to LLM prompt generation (e.g., constraints on generated text sections).
+
+**Request Body:** (`PromptPreferencesUpdate` - all fields optional)
+```json
+{
+  "project": { /* optional: e.g., {"max_projects": 5, "bullet_points_per_project": 4} */ },
+  "work_experience": { /* optional: e.g., {"max_jobs": 5, "bullet_points_per_job": 4} */ },
+  "skills": { /* optional: e.g., {"max_categories": 6} */ },
+  "career_summary": { /* optional: e.g., {"max_words": 30} */ },
+  "education": { /* optional: e.g., {"max_entries": 4} */ },
+  "cover_letter": { /* optional: e.g., {"paragraphs": 4} */ },
+  "awards": { /* optional: e.g., {"max_awards": 5} */ },
+  "publications": { /* optional: e.g., {"max_publications": 4} */ }
+}
+```
+
+**Response:** Profile object
+
+#### Update System Preferences
+
+```
+PUT /api/v1/profiles/me/preferences/system
+```
+
+Updates the user's system-level preferences (e.g., features, LLM settings, templates).
+
+**Request Body:** (`SystemPreferencesUpdate` - all fields optional)
+```json
+{
+  "features": { /* optional: e.g., {"dark_mode": true} */ },
+  "notifications": { /* optional: e.g., {"email_summary": false} */ },
+  "privacy": { /* optional: e.g., {"profile_visibility": "private"} */ },
+  "llm": { /* optional: e.g., {"model_name": "gpt-4", "temperature": 0.5} */ },
+  "templates": { /* optional: e.g., {"default_resume_template_id": "modern"} */ }
+}
+```
+
+**Response:** Profile object

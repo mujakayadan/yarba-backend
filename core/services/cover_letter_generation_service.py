@@ -412,7 +412,10 @@ Candidate Name: {candidate_name}
                 f"Compiling LaTeX to PDF for cover letter: {cover_letter_id}"
             )
             pdf_bytes = await self.latex_service.compile_latex_to_pdf(
-                latex, is_cover_letter=True
+                latex,
+                is_cover_letter=True,
+                company_name=resume.company_name,
+                job_title=resume.job_title,
             )
 
             if not pdf_bytes or len(pdf_bytes) == 0:

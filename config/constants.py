@@ -77,29 +77,6 @@ class LLMProvider(str, Enum):
     OLLAMA = "ollama"
 
 
-class LLMModel(str, Enum):
-    """LLM model enum."""
-
-    # OpenAI models
-    GPT_4O = "gpt-4o"
-    GPT_4_TURBO = "gpt-4-turbo"
-    GPT_3_5_TURBO = "gpt-3.5-turbo"
-
-    # Anthropic models
-    CLAUDE_3_5_SONNET = "claude-3-5-sonnet-20240620"
-    CLAUDE_3_OPUS = "claude-3-opus-20240229"
-    CLAUDE_3_SONNET = "claude-3-sonnet-20240229"
-    CLAUDE_3_HAIKU = "claude-3-haiku-20240307"
-
-    # Gemini models
-    GEMINI_1_5_PRO = "gemini-1.5-pro"
-    GEMINI_1_5_FLASH = "gemini-1.5-flash"
-
-    # Ollama models
-    LLAMA3 = "llama3"
-    MISTRAL = "mistral"
-
-
 # Resume section constants
 class ResumeSection(str, Enum):
     """Resume section enum."""

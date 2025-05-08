@@ -182,7 +182,7 @@ class ResumeGenerationService:
             self.logger.warning(
                 f"Resume content missing for {resume.id}, generating it now."
             )
-            await self.generate_complete_resume(resume.id)
+            await self.generate_resume_textual_content(resume.id)
             # We need to update the resume object in memory after generation
             updated_resume = await self.resume_repository.get_by_id(resume.id)
             if not updated_resume:
@@ -237,7 +237,10 @@ class ResumeGenerationService:
 
             # Compile to PDF
             pdf_bytes = await self.latex_service.compile_latex_to_pdf(
-                resume_latex, is_cover_letter=False
+                resume_latex,
+                is_cover_letter=False,
+                company_name=resume.company_name,
+                job_title=resume.job_title,
             )
 
             # Verify PDF was generated successfully
@@ -267,12 +270,12 @@ class ResumeGenerationService:
             # Wrap other exceptions in a ValueError for consistency upstream
             raise ValueError(f"Failed to compile PDF: {str(e)}")
 
-    async def generate_complete_resume(
+    async def generate_resume_textual_content(
         self,
         resume_id: PydanticObjectId,
     ) -> Dict[str, Any]:
         """
-        Generate complete resume content using a structured LLM call.
+        Generate complete resume textual content using a structured LLM call.
 
         Args:
             resume_id: Resume ID
@@ -407,7 +410,7 @@ class ResumeGenerationService:
 
         except Exception as e:
             self.logger.error(
-                f"Error in generate_complete_resume for resume_id {resume_id}: {e}"
+                f"Error in generate_resume_textual_content for resume_id {resume_id}: {e}"
             )
             # Log the type of exception
             self.logger.exception("Detailed traceback:")
@@ -530,6 +533,6 @@ class ResumeGenerationService:
 
         # Final serialization check/cleanup might be needed depending on how models are structured
         # Using convert_to_serializable one last time before sending to LLMService might be safest
-        # This is done within generate_complete_resume before formatting the prompt
+        # This is done within generate_resume_textual_content before formatting the prompt
 
         return result

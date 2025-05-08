@@ -12,7 +12,7 @@ from .portfolio import (
     WorkExperience,
 )
 from .preamble import Preamble
-from .profile import Preferences, Profile
+from .profile import Profile
 from .resume import Resume, ResumeSection
 from .tex_header import TexHeader
 from .user import User
@@ -25,7 +25,6 @@ __all__ = [
     "ResumeSection",
     # Profile models
     "Profile",
-    "Preferences",
     # Portfolio models
     "Portfolio",
     "CareerSummary",

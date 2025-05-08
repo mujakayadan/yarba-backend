@@ -1,11 +1,11 @@
 from typing import List, Optional
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
 
 class PersonalInformationSchema(BaseModel):
     full_name: str = Field(..., description="Full name of the person")
-    email: EmailStr = Field(..., description="Email address")
+    email: str = Field(..., description="Email address")
     phone: Optional[str] = Field(None, description="Phone number")
     address: Optional[str] = Field(None, description="Physical address")
     linkedin: Optional[str] = Field(None, description="LinkedIn profile URL")
@@ -13,7 +13,7 @@ class PersonalInformationSchema(BaseModel):
     website: Optional[str] = Field(None, description="Personal website URL")
 
     class Config:
-        extra = "allow"
+        extra = "forbid"
 
 
 class CareerSummarySchema(BaseModel):
@@ -26,7 +26,7 @@ class CareerSummarySchema(BaseModel):
     )
 
     class Config:
-        extra = "allow"
+        extra = "forbid"
 
 
 class SkillCategorySchema(BaseModel):
@@ -34,7 +34,7 @@ class SkillCategorySchema(BaseModel):
     skills: List[str] = Field(..., description="List of skills in this category")
 
     class Config:
-        extra = "allow"
+        extra = "forbid"
 
 
 class WorkExperienceSchema(BaseModel):
@@ -47,7 +47,7 @@ class WorkExperienceSchema(BaseModel):
     )
 
     class Config:
-        extra = "allow"
+        extra = "forbid"
 
 
 class EducationSchema(BaseModel):
@@ -64,7 +64,7 @@ class EducationSchema(BaseModel):
     )
 
     class Config:
-        extra = "allow"
+        extra = "forbid"
 
 
 class ProjectSchema(BaseModel):
@@ -76,7 +76,7 @@ class ProjectSchema(BaseModel):
     date: str = Field(..., description="Date or timeframe of the project")
 
     class Config:
-        extra = "allow"
+        extra = "forbid"
 
 
 class PublicationSchema(BaseModel):
@@ -86,7 +86,7 @@ class PublicationSchema(BaseModel):
     time: str = Field(..., description="Publication date or timeframe")
 
     class Config:
-        extra = "allow"
+        extra = "forbid"
 
 
 class AwardSchema(BaseModel):
@@ -97,7 +97,7 @@ class AwardSchema(BaseModel):
     )
 
     class Config:
-        extra = "allow"
+        extra = "forbid"
         # Keep example if desired, or remove if not needed here
         json_schema_extra = {
             "example": {
@@ -134,4 +134,4 @@ class ResumeOutputSchema(BaseModel):
     )
 
     class Config:
-        extra = "allow"
+        extra = "forbid"

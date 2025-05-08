@@ -852,6 +852,24 @@ class LLMService:
 
                     # Track usage in user profile
                     if user_id and settings.llm.enable_cost_tracking:
+                        # Attempt to extract resume_id from tags
+                        parsed_resume_id: Optional[PydanticObjectId] = None
+                        if tags:
+                            for tag in tags:
+                                if isinstance(tag, str) and tag.startswith(
+                                    "resume_id:"
+                                ):
+                                    try:
+                                        resume_id_str = tag.split(":", 1)[1]
+                                        parsed_resume_id = PydanticObjectId(
+                                            resume_id_str
+                                        )
+                                        break
+                                    except Exception as e_parse:
+                                        self.logger.warning(
+                                            f"Could not parse resume_id from tag '{tag}': {e_parse}"
+                                        )
+
                         await self._track_usage(
                             user_id=user_id,
                             model=model,
@@ -860,6 +878,7 @@ class LLMService:
                             total_tokens=total_tokens,
                             cost=float(cost),
                             operation_type=tags if tags else "structured_completion",
+                            resume_id=parsed_resume_id,  # Pass the extracted resume_id
                         )
                 else:
                     self.logger.info(

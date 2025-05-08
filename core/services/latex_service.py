@@ -1,7 +1,8 @@
 """LaTeX service for LaTeX document generation."""
 
+import re
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from config.logging_config import get_logger
 from config.settings import Settings
@@ -62,6 +63,29 @@ class LatexService:
             "compiler_options": self.resume_compiler.compiler_options,
             "cleanup_temp_files": self.resume_compiler.cleanup_temp_files,
         }
+
+    def _sanitize_for_path(
+        self, input_string: Optional[str], default_name: str = "unknown"
+    ) -> str:
+        """Sanitize a string to be used as a valid directory name component."""
+        if not input_string:
+            return default_name
+
+        s = str(input_string).lower()  # Ensure it's a string and lowercase
+        # Replace multiple underscores or hyphens with a single underscore
+        s = re.sub(r"[_\-]+", "_", s)
+        # Replace spaces and other common path-problematic characters with an underscore
+        s = re.sub(r"[\s\.\/\\:\*\?\"<>\|]+", "_", s)
+        # Remove any characters that are not alphanumeric or underscore
+        s = re.sub(r"[^\w_]", "", s)
+        # Remove leading/trailing underscores
+        s = s.strip("_")
+
+        # Truncate to a reasonable length (e.g., 50 characters)
+        s = s[:50]
+
+        # If the string becomes empty after sanitization, or was just underscores, return default
+        return s if s else default_name
 
     async def _prepare_template_data(
         self, document_type: str = "resume"
@@ -198,6 +222,19 @@ class LatexService:
             self.logger.info(
                 f"Successfully generated LaTeX content, length: {len(latex_content)} bytes"
             )
+
+            # NOTE: This method currently returns latex_content, not compiled PDF.
+            # If it were to call compile_latex_to_pdf, it would need company_name and job_title.
+            # For example:
+            # company_name = resume.company_name
+            # job_title = resume.job_title
+            # pdf_bytes = await self.compile_latex_to_pdf(
+            #     latex_content,
+            #     is_cover_letter=False,
+            #     company_name=company_name,
+            #     job_title=job_title
+            # )
+            # return pdf_bytes # Or handle as needed
 
             return latex_content
 
@@ -353,7 +390,11 @@ class LatexService:
             raise InternalServerException(f"Failed to generate LaTeX: {str(e)}")
 
     async def compile_latex_to_pdf(
-        self, latex_content: str, is_cover_letter: bool = False
+        self,
+        latex_content: str,
+        is_cover_letter: bool = False,
+        company_name: Optional[str] = None,
+        job_title: Optional[str] = None,
     ) -> bytes:
         """
         Compile LaTeX content to PDF.
@@ -361,6 +402,8 @@ class LatexService:
         Args:
             latex_content: LaTeX content
             is_cover_letter: Whether the content is for a cover letter
+            company_name: Optional company name for folder structure
+            job_title: Optional job title for folder structure
 
         Returns:
             bytes: PDF content
@@ -373,20 +416,29 @@ class LatexService:
             output_dir = settings.latex.output_dir
             output_dir.mkdir(parents=True, exist_ok=True)
 
-            # Create unique filename and temp directory
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            # Determine document type and create a unique timestamp (includes microseconds)
             document_type = "cover_letter" if is_cover_letter else "resume"
-            filename = f"{document_type}_{timestamp}"
+            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")
 
-            # Create temp directory
-            temp_dir = output_dir / "temp" / timestamp
+            # Sanitize company_name and job_title for path
+            s_company_name = self._sanitize_for_path(
+                company_name, default_name="company_unknown"
+            )
+            s_job_title = self._sanitize_for_path(job_title, default_name="job_unknown")
+
+            # Define the base directory for this specific company/job
+            specific_output_dir_base = (
+                output_dir / "temp" / s_company_name / s_job_title
+            )
+
+            # Create a unique subdirectory using the timestamp
+            temp_dir = specific_output_dir_base / timestamp
             temp_dir.mkdir(parents=True, exist_ok=True)
 
-            # Log configuration
-            self.logger.info(f"Compiling {document_type} in {temp_dir}")
+            self.logger.info(f"Compiling {document_type}. Output directory: {temp_dir}")
 
-            # Save LaTeX content to files
-            tex_path = temp_dir / "document.tex"
+            # Save LaTeX content to file (using document_type for .tex name)
+            tex_path = temp_dir / f"{document_type}.tex"
             tex_path.write_text(latex_content)
 
             # Use appropriate compiler

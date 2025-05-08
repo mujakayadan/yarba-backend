@@ -10,9 +10,23 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from api.dependencies.auth import get_current_active_user
 from api.dependencies.services import get_profile_service
+from api.schemas.profile import (
+    LifeStoryPatch,
+    LLMUsageResponse,
+    LLMUsageSummary,
+    PersonalInfoUpdate,
+    ProfileCreate,
+    ProfilePatch,
+    ProfilePictureUpdateResponse,
+    ProfileResponse,
+    ProfileUpdate,
+    PromptPreferencesUpdate,
+    SignatureResponse,
+    SystemPreferencesUpdate,
+)
 from config.logging_config import get_logger
 from core.exceptions.base import NotFoundException
-from core.models.profile import PersonalInformation, Preferences, Profile
+from core.models.profile import PersonalInformation, Profile
 from core.models.user import User
 from core.services.profile_service import ProfileService
 from utils.storage import get_storage_provider
@@ -63,30 +77,6 @@ class ProfilePatch(BaseModel):
 
     life_story: Optional[str] = None
     api_keys: Optional[dict] = None
-
-
-class LifeStoryPatch(BaseModel):
-    """Schema for patching just the life story field."""
-
-    life_story: str = Field(..., description="User's life story content")
-
-
-class PreferencesUpdate(BaseModel):
-    """Schema for updating preferences."""
-
-    project_details: Optional[dict] = None
-    work_experience_details: Optional[dict] = None
-    skills_details: Optional[dict] = None
-    career_summary_details: Optional[dict] = None
-    education_details: Optional[dict] = None
-    cover_letter_details: Optional[dict] = None
-    awards_details: Optional[dict] = None
-    publications_details: Optional[dict] = None
-    feature_preferences: Optional[dict] = None
-    notifications: Optional[dict] = None
-    privacy: Optional[dict] = None
-    llm_preferences: Optional[dict] = None
-    default_latex_templates: Optional[dict] = None
 
 
 class ObjectIdPath(BaseModel):
@@ -313,96 +303,6 @@ async def patch_my_profile(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_msg,
-        )
-
-
-@router.put("/me/preferences", response_model=Profile)
-async def update_my_preferences(
-    preferences_data: PreferencesUpdate,
-    current_user: User = Depends(get_current_active_user),
-    profile_service: ProfileService = Depends(get_profile_service),
-):
-    """
-    Update the current user's preferences.
-
-    Args:
-        preferences_data: Preferences data
-        current_user: Current authenticated user
-        profile_service: Profile service
-
-    Returns:
-        Updated profile
-    """
-    try:
-        # Get existing profile
-        profile = await profile_service.get_profile_by_user_id(current_user.id)
-
-        # Create preferences if not exists
-        if not profile.preferences:
-            profile.preferences = Preferences()
-
-        # Update preferences fields
-        for field, value in preferences_data.model_dump(exclude_unset=True).items():
-            if value is not None:
-                if not hasattr(profile.preferences, field):
-                    setattr(profile.preferences, field, {})
-
-                # Update nested dictionary
-                current_value = getattr(profile.preferences, field)
-                if isinstance(current_value, dict) and isinstance(value, dict):
-                    current_value.update(value)
-                else:
-                    setattr(profile.preferences, field, value)
-
-        # Save through service
-        updated_profile = await profile_service.update_profile(profile)
-        return updated_profile
-    except NotFoundException:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Profile not found",
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update preferences: {str(e)}",
-        )
-
-
-@router.patch("/me/preferences", response_model=Profile)
-async def patch_my_preferences(
-    preferences_data: PreferencesUpdate,
-    current_user: User = Depends(get_current_active_user),
-    profile_service: ProfileService = Depends(get_profile_service),
-):
-    """
-    Patch specific preferences fields of the current user's profile.
-
-    Args:
-        preferences_data: Preference fields to update
-        current_user: Current authenticated user
-        profile_service: Profile service
-
-    Returns:
-        Updated profile
-    """
-    try:
-        # This is exactly the same as PUT for preferences, since we're already
-        # doing partial updates intelligently
-        return await update_my_preferences(
-            preferences_data=preferences_data,
-            current_user=current_user,
-            profile_service=profile_service,
-        )
-    except NotFoundException:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Profile not found",
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to patch preferences: {str(e)}",
         )
 
 
@@ -1083,4 +983,162 @@ async def get_my_llm_usage_summary(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get LLM usage summary: {str(e)}",
+        )
+
+
+@router.post("/me/picture", response_model=ProfilePictureUpdateResponse)
+async def upload_my_profile_picture(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_active_user),
+    profile_service: ProfileService = Depends(get_profile_service),
+):
+    """
+    Upload a profile picture image.
+
+    Args:
+        file: Profile picture image file
+        current_user: Current authenticated user
+        profile_service: Profile service
+
+    Returns:
+        Profile picture storage key
+    """
+    try:
+        # Get current profile
+        profile = await profile_service.get_profile_by_user_id(current_user.id)
+
+        # Get storage provider
+        storage_provider = get_storage_provider()
+
+        # If user already has a profile picture, delete it
+        if profile.profile_picture_key:
+            await storage_provider.delete_file(profile.profile_picture_key)
+
+        # Read the file content
+        content = await file.read()
+
+        # Save the new profile picture
+        filename = await storage_provider.save_profile_picture(
+            content, str(current_user.id)
+        )
+
+        # Update profile with the new profile picture
+        profile.profile_picture_key = filename
+        updated_profile = await profile_service.update_profile(profile)
+
+        # Return the storage key
+        return {"profile_picture_key": filename}
+
+    except NotFoundException:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found",
+        )
+    except Exception as e:
+        logger.error(f"Error uploading profile picture: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload profile picture: {str(e)}",
+        )
+
+
+@router.put("/me/preferences/prompt", response_model=ProfileResponse)
+async def update_my_prompt_preferences(
+    preferences_data: PromptPreferencesUpdate,
+    current_user: User = Depends(get_current_active_user),
+    profile_service: ProfileService = Depends(get_profile_service),
+) -> ProfileResponse:
+    """
+    Update the current user's prompt preferences.
+
+    Args:
+        preferences_data: Prompt preferences data (partial updates allowed)
+        current_user: Current authenticated user
+        profile_service: Profile service
+
+    Returns:
+        Updated profile response
+    """
+    try:
+        # Use the service layer to handle the update logic
+        updated_prefs = await profile_service.update_prompt_preferences(
+            user_id=current_user.id,
+            update_data=preferences_data.model_dump(exclude_unset=True),
+        )
+        if updated_prefs is None:
+            # This might happen if the profile wasn't found or another error occurred
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update prompt preferences.",
+            )
+
+        # Return the full updated profile
+        updated_profile = await profile_service.get_profile_by_user_id(current_user.id)
+        if not updated_profile:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Profile not found after update.",
+            )  # Should not happen
+        return ProfileResponse.model_validate(updated_profile)
+
+    except NotFoundException:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found"
+        )
+    except Exception as e:
+        logger.error(f"Error updating prompt preferences: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update prompt preferences: {str(e)}",
+        )
+
+
+@router.put("/me/preferences/system", response_model=ProfileResponse)
+async def update_my_system_preferences(
+    preferences_data: SystemPreferencesUpdate,
+    current_user: User = Depends(get_current_active_user),
+    profile_service: ProfileService = Depends(get_profile_service),
+) -> ProfileResponse:
+    """
+    Update the current user's system preferences.
+
+    Args:
+        preferences_data: System preferences data (partial updates allowed)
+        current_user: Current authenticated user
+        profile_service: Profile service
+
+    Returns:
+        Updated profile response
+    """
+    try:
+        # Use the service layer to handle the update logic
+        updated_prefs = await profile_service.update_system_preferences(
+            user_id=current_user.id,
+            update_data=preferences_data.model_dump(exclude_unset=True),
+        )
+        if updated_prefs is None:
+            # This might happen if the profile wasn't found or another error occurred
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update system preferences.",
+            )
+
+        # Return the full updated profile
+        updated_profile = await profile_service.get_profile_by_user_id(current_user.id)
+        if not updated_profile:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Profile not found after update.",
+            )  # Should not happen
+        return ProfileResponse.model_validate(updated_profile)
+
+    except NotFoundException:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found"
+        )
+    except Exception as e:
+        logger.error(f"Error updating system preferences: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update system preferences: {str(e)}",
         )

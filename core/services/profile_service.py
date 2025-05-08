@@ -385,100 +385,90 @@ class ProfileService:
             raise
 
     async def update_prompt_preferences(
-        self, user_id: PydanticObjectId, preferences: Dict[str, Any]
+        self, user_id: PydanticObjectId, update_data: Dict[str, Any]
     ) -> Optional[PromptPreferences]:
         """
-        Update user prompt preferences.
+        Update prompt preferences for a user.
 
         Args:
             user_id: User ID
-            preferences: Dictionary of preference updates
+            update_data: Dictionary with prompt preference fields to update
 
         Returns:
-            Optional[PromptPreferences]: Updated preferences if successful, None otherwise
+            Updated PromptPreferences object or None if update failed
 
         Raises:
             NotFoundException: If profile not found
             Exception: For other errors
         """
         self.logger.debug(f"Updating prompt preferences for user: {user_id}")
-
         try:
-            # Get profile by user ID
+            # Ensure profile exists first
             profile = await self.profile_repository.get_by_user_id(user_id)
             if not profile:
-                self.logger.error(f"Profile not found for user: {user_id}")
                 raise NotFoundException(f"Profile not found for user: {user_id}")
 
-            # Update the prompt preferences
-            updated_preferences = (
-                await self.profile_repository.update_prompt_preferences(
-                    profile_id=profile.id, preferences=preferences
-                )
+            # Delegate update to repository
+            updated_prefs = await self.profile_repository.update_prompt_preferences(
+                profile.id, update_data
             )
-
-            if updated_preferences:
+            if updated_prefs:
                 self.logger.info(f"Prompt preferences updated for user: {user_id}")
             else:
                 self.logger.warning(
                     f"Failed to update prompt preferences for user: {user_id}"
                 )
+                # Consider raising an exception if update failure is critical
 
-            return updated_preferences
-
+            return updated_prefs
         except NotFoundException:
             raise
         except Exception as e:
             self.logger.error(f"Error updating prompt preferences: {e}")
-            raise
+            raise Exception(f"Failed to update prompt preferences: {str(e)}")
 
     async def update_system_preferences(
-        self, user_id: PydanticObjectId, preferences: Dict[str, Any]
+        self, user_id: PydanticObjectId, update_data: Dict[str, Any]
     ) -> Optional[SystemPreferences]:
         """
-        Update user system preferences.
+        Update system preferences for a user.
 
         Args:
             user_id: User ID
-            preferences: Dictionary of preference updates
+            update_data: Dictionary with system preference fields to update
 
         Returns:
-            Optional[SystemPreferences]: Updated preferences if successful, None otherwise
+            Updated SystemPreferences object or None if update failed
 
         Raises:
             NotFoundException: If profile not found
             Exception: For other errors
         """
         self.logger.debug(f"Updating system preferences for user: {user_id}")
-
         try:
-            # Get profile by user ID
+            # Ensure profile exists first
             profile = await self.profile_repository.get_by_user_id(user_id)
             if not profile:
-                self.logger.error(f"Profile not found for user: {user_id}")
                 raise NotFoundException(f"Profile not found for user: {user_id}")
 
-            # Update the system preferences
-            updated_preferences = (
-                await self.profile_repository.update_system_preferences(
-                    profile_id=profile.id, preferences=preferences
-                )
+            # Delegate update to repository
+            updated_prefs = await self.profile_repository.update_system_preferences(
+                profile.id, update_data
             )
-
-            if updated_preferences:
+            if updated_prefs:
                 self.logger.info(f"System preferences updated for user: {user_id}")
             else:
                 self.logger.warning(
                     f"Failed to update system preferences for user: {user_id}"
                 )
+                # Consider raising an exception if update failure is critical
 
-            return updated_preferences
-
+            return updated_prefs
         except NotFoundException:
             raise
         except Exception as e:
             self.logger.error(f"Error updating system preferences: {e}")
-            raise
+            raise Exception(f"Failed to update system preferences: {str(e)}")
 
     async def get_api_keys(self, user_id: PydanticObjectId) -> Dict[str, str]:
         """
