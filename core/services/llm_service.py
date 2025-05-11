@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
 import litellm
 from beanie.odm.fields import PydanticObjectId
@@ -710,7 +710,7 @@ class LLMService:
         fallback_to_text: bool = True,
         user_id: Optional[str] = None,
         tags: Optional[List[str]] = None,
-    ) -> Union[BaseModel, str]:
+    ) -> Tuple[Union[BaseModel, str], Optional[litellm.ModelResponse]]:
         """
         Get a structured completion from the LLM using JSON schema.
 
@@ -727,6 +727,7 @@ class LLMService:
 
         Returns:
             Instance of schema_model or raw text if fallback_to_text=True
+            The full litellm.ModelResponse object (or None if error before LLM call)
 
         Raises:
             ValueError: If model doesn't support JSON mode and fallback_to_text=False
@@ -887,27 +888,160 @@ class LLMService:
 
             # Process the response
             content = response.choices[0].message.content
+            tool_calls = (
+                response.choices[0].message.tool_calls
+                if hasattr(response.choices[0].message, "tool_calls")
+                else None
+            )
 
-            # If using JSON mode, content should already be structured
-            # If using text mode with fallback, try to parse if fallback enabled
+            # If response_format was set to a Pydantic schema, OpenAI often uses tool_calls for this.
+            if kwargs.get("response_format") == schema_model and tool_calls:
+                self.logger.debug(
+                    f"Model {model} used tool_calls for structured output."
+                )
+                tool_call_args_str = ""  # Initialize for logging in case of error
+                try:
+                    tool_call_args_str = tool_calls[0].function.arguments
+                    json_content_from_tool = json.loads(tool_call_args_str)
+                    parsed_model = schema_model.model_validate(json_content_from_tool)
+                    self.logger.info(
+                        f"Successfully parsed structured content from tool_call for model {model}."
+                    )
+                    return parsed_model, response
+                except (
+                    IndexError,
+                    AttributeError,
+                    json.JSONDecodeError,
+                    TypeError,
+                ) as e_tool_parse:
+                    self.logger.error(
+                        f"Error parsing tool_call arguments for {model}: {e_tool_parse}. Tool call arguments were: '{tool_call_args_str}'. Falling through to other parsing methods."
+                    )
+                    # Fall through to other parsing methods
+                except Exception as e_val:  # Pydantic validation error from tool_call
+                    self.logger.error(
+                        f"Tool_call JSON for {model} failed schema validation: {e_val}. Arguments: '{tool_call_args_str}'. Falling through."
+                    )
+                    # Fall through
+
+            # Original logic: If content is already a dict (some models might return this directly)
             if isinstance(content, dict):
-                # Content is already a dict, parse it into the model
-                return schema_model.model_validate(content)
+                self.logger.debug(
+                    f"Model {model} returned content as a dict. Validating with schema."
+                )
+                try:
+                    parsed_model = schema_model.model_validate(content)
+                    self.logger.info(
+                        f"Successfully validated dict content with schema for model {model}."
+                    )
+                    return parsed_model, response
+                except Exception as e_val:  # Pydantic validation error
+                    self.logger.error(
+                        f"Dict content from {model} failed schema validation: {e_val}. Content: {str(content)[:500]}..."
+                    )
+                    if fallback_to_text:
+                        # Even if it's a dict but fails validation, if fallback_to_text, we might just return the raw dict as a string
+                        # or some other representation, but the problem is it *was* structured, just not correctly.
+                        # For now, returning the original content (dict) as string, with the response.
+                        # This path indicates a schema mismatch that the LLM produced.
+                        return str(content), response
+                    else:
+                        raise ValueError(
+                            f"Model {model} returned dict that failed schema validation and fallback is disabled. Error: {e_val}"
+                        )
+
+            # If content is a string (most common case if not a direct dict or tool_call)
+            if isinstance(content, str):
+                self.logger.debug(
+                    f"Model {model} returned content as a string. Attempting to parse as JSON."
+                )
+                try:
+                    json_content_from_string = json.loads(content)
+                    # Now validate this parsed JSON against the schema
+                    parsed_model = schema_model.model_validate(json_content_from_string)
+                    self.logger.info(
+                        f"Successfully parsed and validated string content as JSON for model {model}."
+                    )
+                    return parsed_model, response
+                except (json.JSONDecodeError, TypeError) as e_str_parse:
+                    self.logger.warning(
+                        f"Could not parse string content as JSON for {model}: {e_str_parse}. Content snippet: {content[:500]}..."
+                    )
+                    if fallback_to_text:
+                        self.logger.info(
+                            f"Fallback enabled: returning raw string content for model {model}."
+                        )
+                        return content, response  # Return raw text
+                    else:
+                        # Log the full content if it's not too large, otherwise a larger snippet
+                        log_content = (
+                            content if len(content) < 2000 else content[:2000] + "..."
+                        )
+                        self.logger.error(
+                            f"Model {model} returned non-JSON string and fallback is disabled. Full text (or snippet): {log_content}"
+                        )
+                        raise ValueError(
+                            f"Model {model} returned non-JSON string and fallback is disabled. Parse error: {e_str_parse}"
+                        )
+                except (
+                    Exception
+                ) as e_val:  # Pydantic validation error from string parse
+                    self.logger.warning(
+                        f"String content parsed to JSON but failed schema validation for {model}: {e_val}. Content snippet: {content[:500]}..."
+                    )
+                    if fallback_to_text:
+                        self.logger.info(
+                            f"Fallback enabled: returning original string content (failed schema validation) for model {model}."
+                        )
+                        return (
+                            content,
+                            response,
+                        )  # Return raw text (as it's not valid per schema)
+                    else:
+                        log_content = (
+                            content if len(content) < 2000 else content[:2000] + "..."
+                        )
+                        self.logger.error(
+                            f"Model {model} returned JSON string that failed schema validation and fallback is disabled. Full text (or snippet): {log_content}"
+                        )
+                        raise ValueError(
+                            f"Model {model} returned JSON string that failed schema validation and fallback is disabled. Validation error: {e_val}"
+                        )
+
+            # If content is neither dict nor string, or some other unexpected case (e.g. None and not caught by tool_calls)
+            # This case implies that response.choices[0].message.content was None or some other type,
+            # and tool_calls was also not successfully used.
+            self.logger.error(
+                f"LLM for model {model} returned no usable content (content is {type(content)}) and tool_calls were not successfully processed. Fallback: {fallback_to_text}"
+            )
+            final_content_to_return = str(content) if content is not None else ""
+
+            if fallback_to_text:
+                self.logger.info(
+                    f"Fallback enabled: returning stringified content '{final_content_to_return[:200]}...' for model {model}."
+                )
+                return final_content_to_return, response
             else:
-                # Content is text, try to parse if fallback enabled
-                if fallback_to_text:
-                    # In fallback mode, return the raw text
-                    # This allows the caller to decide how to handle it
-                    return content
-                else:
-                    # Try to parse JSON from text, may raise exception
-                    import json
+                self.logger.error(
+                    f"No usable content and fallback disabled for model {model}. Content was: {str(content)[:500]}"
+                )
+                raise ValueError(
+                    f"Model {model} returned unexpected or empty content (type: {type(content)}) and fallback is disabled."
+                )
 
-                    parsed = json.loads(content)
-                    return schema_model.model_validate(parsed)
-
+        except (
+            ValueError
+        ) as ve:  # Catch specific ValueErrors like usage limits or parsing errors from above
+            self.logger.error(f"ValueError in get_structured_completion: {ve}")
+            raise  # Re-raise to be handled by caller, no ModelResponse to return
+        except litellm.exceptions.APIError as e_api:
+            self.logger.error(f"LiteLLM APIError in get_structured_completion: {e_api}")
+            # Potentially return (None, e_api.response) if the error object has it, or just raise
+            raise
         except Exception as e:
-            self.logger.error(f"Error getting structured completion: {e}")
+            self.logger.error(f"Unexpected error in get_structured_completion: {e}")
+            self.logger.exception("Detailed traceback for get_structured_completion:")
+            # For other errors, no ModelResponse is available
             raise
 
     def _get_provider_from_model(self, model: str) -> Optional[str]:

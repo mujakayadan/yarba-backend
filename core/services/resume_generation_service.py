@@ -297,6 +297,11 @@ class ResumeGenerationService:
         # Make sure the LLM service is configured for the current user
         await self.llm_service.configure_for_user(resume.user_id)
 
+        # Capture LLM settings used for this generation
+        resume.llm_settings.model_name = self.llm_service.model
+        resume.llm_settings.temperature = self.llm_service.temperature
+        resume.llm_settings.max_tokens = self.llm_service.max_tokens
+
         # Ensure prompt service is configured for the user
         self.prompt_service.set_user_id(resume.user_id)
 
@@ -335,20 +340,99 @@ class ResumeGenerationService:
             )
             tags = ["operation:generate_resume", f"resume_id:{str(resume_id)}"]
 
-            # Call the generic structured completion method
-            resume_output: ResumeOutputSchema = (
+            # The actual content that needs to be parsed into ResumeOutputSchema
+            # If LLMService's get_structured_completion already returns the parsed model, this needs adjustment.
+            # For now, assuming it returns the ModelResponse and we extract content.
+            # If using response_format with Pydantic model, LiteLLM might put the Pydantic model directly in a custom field,
+            # or the content would be a string needing parsing.
+            # Let's assume for now the `LLMService` has been updated to return the parsed `ResumeOutputSchema` as the first part of a tuple,
+            # and the full `ModelResponse` as the second.
+            # So, the call above should be:
+            # resume_output, llm_model_response = await self.llm_service.get_structured_completion(...)
+            # For this edit, I will assume get_structured_completion returns the parsed model directly for 'resume_output'
+            # and we separately handle how to get usage.
+            #
+            # REVISITING: The `get_structured_completion` in `LLMService` returns the parsed Pydantic model or string.
+            # It does NOT return the full ModelResponse object directly.
+            # So, LLMService itself needs modification to also return usage.
+            #
+            # For *this* edit, I will proceed AS IF `get_structured_completion` is ALREADY MODIFIED
+            # to return a tuple: `(parsed_schema_object, litellm_model_response_object)`
+            # This is a temporary assumption to make this edit focused.
+
+            parsed_schema_object, litellm_model_response = (
                 await self.llm_service.get_structured_completion(
                     prompt=resume_prompt_text,
                     schema_model=ResumeOutputSchema,
                     system_prompt=system_prompt,
                     user_id=str(resume.user_id),
                     tags=tags,
-                    fallback_to_text=False,  # Ensure we get the Pydantic model or an error
+                    fallback_to_text=False,
                 )
             )
+
+            if not isinstance(parsed_schema_object, ResumeOutputSchema):
+                self.logger.error(
+                    f"LLM did not return the expected ResumeOutputSchema. Got: {type(parsed_schema_object)}"
+                )
+                raise ValueError("LLM output schema mismatch.")
+
+            resume_output: ResumeOutputSchema = parsed_schema_object
+
             self.logger.info(
                 f"Successfully received structured resume content from LLM for resume_id: {resume_id}"
             )
+
+            # Update LLM usage stats on the resume
+            if litellm_model_response and hasattr(litellm_model_response, "usage"):
+                usage_data = litellm_model_response.usage
+                cost_data = (
+                    litellm_model_response._hidden_params.get("response_cost", 0.0)
+                    if hasattr(litellm_model_response, "_hidden_params")
+                    else 0.0
+                )
+
+                current_model_name = (
+                    resume.llm_settings.model_name
+                    or self.llm_service.model
+                    or "unknown_model"
+                )
+
+                resume.llm_usage.total_input_tokens += getattr(
+                    usage_data, "prompt_tokens", 0
+                )
+                resume.llm_usage.total_output_tokens += getattr(
+                    usage_data, "completion_tokens", 0
+                )
+                resume.llm_usage.total_tokens += getattr(usage_data, "total_tokens", 0)
+                resume.llm_usage.total_cost += cost_data
+                resume.llm_usage.last_used = datetime.now(timezone.utc)
+
+                operation_key = "generate_resume"
+
+                # Update usage_by_model
+                model_usage_stats = resume.llm_usage.usage_by_model.get(
+                    current_model_name, {"tokens": 0, "cost": 0.0}
+                )
+                model_usage_stats["tokens"] += getattr(usage_data, "total_tokens", 0)
+                model_usage_stats["cost"] += cost_data
+                resume.llm_usage.usage_by_model[current_model_name] = model_usage_stats
+
+                # Update usage_by_operation
+                operation_usage_stats = resume.llm_usage.usage_by_operation.get(
+                    operation_key, {"tokens": 0, "cost": 0.0}
+                )
+                operation_usage_stats["tokens"] += getattr(
+                    usage_data, "total_tokens", 0
+                )
+                operation_usage_stats["cost"] += cost_data
+                resume.llm_usage.usage_by_operation[operation_key] = (
+                    operation_usage_stats
+                )
+            else:
+                self.logger.warning(
+                    f"Could not retrieve usage data from LLM response for resume {resume_id}"
+                )
 
             # --- 3. Post-process and Update Resume ---
             # Add years_of_experience from portfolio to the generated summary

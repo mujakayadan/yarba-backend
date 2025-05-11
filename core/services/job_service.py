@@ -61,7 +61,10 @@ class JobService:
             self.logger.info("Calling LLM to extract company name and job title.")
             tags = ["operation:extract_job_info"]
             # Assuming LLMService is configured for the correct user elsewhere or is generic
-            structured_output: JobInfoSchema = (
+
+            # LLMService.get_structured_completion now returns a tuple:
+            # (parsed_schema_object, litellm_model_response_object)
+            parsed_job_info_schema, _ = (
                 await self.llm_service.get_structured_completion(
                     prompt=folder_prompt,
                     schema_model=JobInfoSchema,
@@ -71,10 +74,10 @@ class JobService:
                 )
             )
 
-            if structured_output:  # If we got a valid schema object
-                extracted_info = (
-                    structured_output.model_dump()
-                )  # Overwrite default with successful extraction
+            if parsed_job_info_schema and isinstance(
+                parsed_job_info_schema, JobInfoSchema
+            ):
+                extracted_info = parsed_job_info_schema.model_dump()
                 # Optional: Add validation for default values if needed, though the prompt requests fallbacks
                 if not extracted_info.get("company_name"):
                     extracted_info["company_name"] = default_result["company_name"]
@@ -82,7 +85,7 @@ class JobService:
                     extracted_info["job_title"] = default_result["job_title"]
             else:
                 self.logger.error(
-                    "LLM did not return structured output for job info extraction."
+                    "LLM did not return a valid JobInfoSchema object for job info extraction."
                 )
                 # Keep extracted_info as default_result
 
