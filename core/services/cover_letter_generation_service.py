@@ -189,7 +189,7 @@ class CoverLetterGenerationService:
             ValueError: If cover letter, resume, or profile is not found
         """
         # Get cover letter data
-        cover_letter, resume, profile, portfolio = await self.get_cover_letter_data(
+        cover_letter, profile, portfolio, resume = await self.get_cover_letter_data(
             cover_letter_id
         )
 
@@ -257,20 +257,45 @@ Candidate Name: {candidate_name}
 {prompt_text}
 """
             # Generate content using get_completion method
-            content = await self.llm_service.get_completion(
+            llm_response_dict = await self.llm_service.get_completion(
                 prompt=full_prompt,
                 system_prompt=system_prompt,
             )
+            self.logger.info(
+                f"LLM service response dictionary for cover letter {cover_letter_id}: {str(llm_response_dict)[:1000]}"
+            )
 
+            actual_cover_letter_json_str = None
+            if (
+                isinstance(llm_response_dict, dict)
+                and "llm_output" in llm_response_dict
+            ):
+                actual_cover_letter_json_str = llm_response_dict["llm_output"]
+                if not isinstance(actual_cover_letter_json_str, str):
+                    self.logger.error(
+                        f"LLM output's 'llm_output' field is not a string: {type(actual_cover_letter_json_str)}. Using string of full response dict as fallback."
+                    )
+                    actual_cover_letter_json_str = str(llm_response_dict)  # Fallback
+            else:
+                self.logger.warning(
+                    f"Could not find 'llm_output' in LLM response dict or response is not a dict. Using string representation of response. Response: {str(llm_response_dict)[:500]}"
+                )
+                actual_cover_letter_json_str = str(llm_response_dict)  # Fallback
+
+            self.logger.info(
+                f"Extracted cover letter JSON string for {cover_letter_id}: {str(actual_cover_letter_json_str)[:500]}"
+            )  # Ensure actual_cover_letter_json_str is treated as string for logging
             # Update the cover letter with the generated content
-            cover_letter.content = {"cover_letter_content": content}
+            cover_letter.content = {
+                "cover_letter_content": actual_cover_letter_json_str
+            }
             cover_letter.updated_at = datetime.now(timezone.utc)
             await cover_letter.save()
 
             self.logger.info(
-                f"Successfully generated cover letter content ({len(content)} chars)"
+                f"Successfully generated cover letter content ({len(actual_cover_letter_json_str)} chars)"
             )
-            return content
+            return actual_cover_letter_json_str
 
         except Exception as e:
             self.logger.error(f"Error generating cover letter: {e}")

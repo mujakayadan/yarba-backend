@@ -773,6 +773,7 @@ async def regenerate_resume(
     resume_generation_service: ResumeGenerationService = Depends(
         get_resume_generation_service
     ),
+    profile_service: ProfileService = Depends(get_profile_service),
 ) -> ResumeResponse:
     """
     Regenerate a resume.
@@ -783,6 +784,7 @@ async def regenerate_resume(
         generate_pdf: Whether to regenerate the PDF as well
         resume_service: Resume service
         resume_generation_service: Resume generation service
+        profile_service: Profile service
 
     Returns:
         ResumeResponse: Regenerated resume
@@ -829,7 +831,7 @@ async def regenerate_resume(
                     )
 
                 # Refetch profile for PDF generation
-                profile = await resume_service.profile_service.get_profile_by_id(
+                profile = await profile_service.get_profile_by_id(
                     resume_after_content_gen.profile_id  # Use profile_id from the latest resume
                 )
                 if not profile:

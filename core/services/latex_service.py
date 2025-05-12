@@ -371,10 +371,10 @@ class LatexService:
                     self.logger.error(f"Error downloading signature: {e}")
                     # Continue without signature if download fails
 
-            # Generate the LaTeX content using the compiler
+            # Generate LaTeX content using the compiler
             self.logger.info("Calling cover letter compiler to generate tex content")
             latex_content = await self.cover_letter_compiler.generate_tex_content(
-                cover_letter, template_data
+                cover_letter=cover_letter, template=template_data
             )
 
             self.logger.info(

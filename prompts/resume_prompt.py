@@ -75,12 +75,13 @@ Select the most relevant work experiences from the portfolio:
 
 # EDUCATION SECTION
 Select relevant education from the portfolio:
+- CRITICAL: You MUST select EXACTLY {{ preferences.education.max_entries }} education entries most relevant to the target job. If the portfolio contains FEWER than {{ preferences.education.max_entries }} entries, you MUST include ALL available entries. If the portfolio contains MORE than {{ preferences.education.max_entries }} entries, select the {{ preferences.education.max_entries }} most relevant ones.
 - Choose formal education and certifications relevant to the target position.
 - Include degree name, institution, location, and graduation date EXACTLY as provided in the portfolio.
 - Select EXACTLY {{ preferences.education.max_courses }} relevant courses or achievements if applicable.
 - If fewer than {{ preferences.education.max_courses }} courses/achievements are listed for an entry in the portfolio, include ALL available ones for that entry.
 - CRITICAL: DO NOT summarize, rephrase, or modify education details. Copy them VERBATIM from the portfolio data.
-- List education entries in reverse chronological order.
+- CRITICAL: List education entries in REVERSE CHRONOLOGICAL order (most recent first).
 - Do not assume degrees or certifications not explicitly mentioned.
 
 # PROJECTS SECTION (if applicable)
