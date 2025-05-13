@@ -25,19 +25,20 @@ WORKDIR /app
 # Copy TeX Live distribution from the latex_env stage
 COPY --from=latex_env /usr/local/texlive/ /usr/local/texlive/
 
-# Copy essential TeX Live binaries from their actual location in the latex_env stage
+# Create /usr/local/bin if it doesn't exist and ensure it's in PATH
+RUN mkdir -p /usr/local/bin
+ENV PATH=/usr/local/bin:$PATH
+
+# Copy essential TeX Live binaries
 COPY --from=latex_env /usr/local/texlive/2025/bin/x86_64-linuxmusl/pdflatex /usr/local/bin/
+# COPY --from=latex_env /usr/local/texlive/2025/bin/x86_64-linuxmusl/xelatex /usr/local/bin/ # Not needed if only using pdflatex
+# COPY --from=latex_env /usr/local/texlive/2025/bin/x86_64-linuxmusl/lualatex /usr/local/bin/ # Not needed if only using pdflatex
 COPY --from=latex_env /usr/local/texlive/2025/bin/x86_64-linuxmusl/mktexlsr /usr/local/bin/
 COPY --from=latex_env /usr/local/texlive/2025/bin/x86_64-linuxmusl/fmtutil /usr/local/bin/
 COPY --from=latex_env /usr/local/texlive/2025/bin/x86_64-linuxmusl/updmap /usr/local/bin/
 COPY --from=latex_env /usr/local/texlive/2025/bin/x86_64-linuxmusl/kpsewhich /usr/local/bin/
-
-# Also copy the fmtutil-sys, updmap-sys, etc. scripts if they exist as separate files
 COPY --from=latex_env /usr/local/texlive/2025/bin/x86_64-linuxmusl/fmtutil-sys /usr/local/bin/
 COPY --from=latex_env /usr/local/texlive/2025/bin/x86_64-linuxmusl/updmap-sys /usr/local/bin/
-
-# Ensure /usr/local/bin is in PATH (it usually is by default)
-# ENV PATH=/usr/local/bin:$PATH # This line might be redundant if /usr/local/bin is standard
 
 # Install system dependencies for building Python packages (git, build-essential)
 RUN apt-get update && \
@@ -47,6 +48,10 @@ RUN apt-get update && \
     ca-certificates \
     && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+# Verify contents of /usr/local/bin and ensure TeX Live directory exists
+RUN ls -la /usr/local/bin && \
+    ls -ld /usr/local/texlive
 
 # After copying TeX Live files, rebuild the TeX Live file database
 RUN /usr/local/bin/mktexlsr /usr/local/texlive
