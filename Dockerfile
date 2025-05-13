@@ -49,7 +49,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # After copying TeX Live files, rebuild the TeX Live file database
-RUN mktexlsr /usr/local/texlive || mktexlsr
+RUN /usr/local/bin/mktexlsr /usr/local/texlive
 
 # Install Poetry and required Python dependencies
 RUN pip install --no-cache-dir poetry==2.0.1 setuptools wheel
