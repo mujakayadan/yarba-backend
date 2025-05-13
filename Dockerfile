@@ -22,23 +22,16 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Copy TeX Live distribution from the latex_env stage
+# Copy the entire TeX Live distribution from the latex_env stage
 COPY --from=latex_env /usr/local/texlive/ /usr/local/texlive/
 
-# Create /usr/local/bin if it doesn't exist and ensure it's in PATH
-RUN mkdir -p /usr/local/bin
-ENV PATH=/usr/local/bin:$PATH
-
-# Copy essential TeX Live binaries
-COPY --from=latex_env /usr/local/texlive/2025/bin/x86_64-linuxmusl/pdflatex /usr/local/bin/
-# COPY --from=latex_env /usr/local/texlive/2025/bin/x86_64-linuxmusl/xelatex /usr/local/bin/ # Not needed if only using pdflatex
-# COPY --from=latex_env /usr/local/texlive/2025/bin/x86_64-linuxmusl/lualatex /usr/local/bin/ # Not needed if only using pdflatex
-COPY --from=latex_env /usr/local/texlive/2025/bin/x86_64-linuxmusl/mktexlsr /usr/local/bin/
-COPY --from=latex_env /usr/local/texlive/2025/bin/x86_64-linuxmusl/fmtutil /usr/local/bin/
-COPY --from=latex_env /usr/local/texlive/2025/bin/x86_64-linuxmusl/updmap /usr/local/bin/
-COPY --from=latex_env /usr/local/texlive/2025/bin/x86_64-linuxmusl/kpsewhich /usr/local/bin/
-COPY --from=latex_env /usr/local/texlive/2025/bin/x86_64-linuxmusl/fmtutil-sys /usr/local/bin/
-COPY --from=latex_env /usr/local/texlive/2025/bin/x86_64-linuxmusl/updmap-sys /usr/local/bin/
+# Set the PATH to include the TeX Live binaries from our copied distribution
+# Note: The year (2025) and architecture (x86_64-linuxmusl) are based on previous logs.
+# This might need adjustment if the reitzig/texlive-minimal image changes its internal structure.
+ENV TEXLIVE_YEAR=2025
+ENV TEXLIVE_ARCH=x86_64-linuxmusl
+ENV TEXLIVE_BIN_DIR=/usr/local/texlive/${TEXLIVE_YEAR}/bin/${TEXLIVE_ARCH}
+ENV PATH=${TEXLIVE_BIN_DIR}:$PATH
 
 # Install system dependencies for building Python packages (git, build-essential)
 RUN apt-get update && \
@@ -49,12 +42,9 @@ RUN apt-get update && \
     && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Verify contents of /usr/local/bin and ensure TeX Live directory exists
-RUN ls -la /usr/local/bin && \
-    ls -ld /usr/local/texlive
-
-# After copying TeX Live files, rebuild the TeX Live file database
-RUN /usr/local/bin/mktexlsr /usr/local/texlive
+# Verify that mktexlsr is found in the new PATH and that the TeX Live directory exists
+RUN which mktexlsr && ls -ld /usr/local/texlive && mktexlsr
+# RUN updmap-sys # If needed later for fonts
 
 # Install Poetry and required Python dependencies
 RUN pip install --no-cache-dir poetry==2.0.1 setuptools wheel
