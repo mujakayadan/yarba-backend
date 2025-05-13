@@ -1,4 +1,4 @@
-FROM texlive/texlive:small AS latex_env
+FROM texlive/texlive:scheme-small AS latex_env
 
 # Install required LaTeX packages using tlmgr
 # 'scheme-small' is already the base of texlive/texlive:small
