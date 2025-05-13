@@ -1,19 +1,68 @@
+FROM reitzig/texlive-minimal:latest AS latex_env
+
+# Install required LaTeX packages using tlmgr
+RUN tlmgr update --self && \
+    tlmgr install \
+    scheme-small \
+    # Specific packages based on core/latex/templates.py analysis
+    latexsym \
+    fullpage \
+    titlesec \
+    marvosym \
+    xcolor \
+    verbatim \
+    enumitem \
+    hyperref \
+    fancyhdr \
+    babel-english \
+    tabularx \
+    hyphenat \
+    fontawesome5 \
+    seqsplit \
+    lmodern \
+    textcomp \
+    bookmark \
+    geometry \
+    graphicx \
+    # Collections for broader support without being full scheme
+    collection-fontsrecommended \
+    collection-latexrecommended
+
 FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install system dependencies for building Python packages
+# Copy TeX Live distribution from the latex_env stage
+# reitzig/texlive-minimal usually installs into /usr/local/texlive/ or similar
+COPY --from=latex_env /usr/local/texlive/ /usr/local/texlive/
+
+# Copy essential TeX Live binaries from the minimal image's TeX Live bin directory
+# The exact path might be /usr/local/texlive/YYYY/bin/ARCH, but tlmgr often creates symlinks or updates PATH
+# We'll assume binaries are accessible in a common path within the texlive structure or standard /usr/local/bin after tlmgr use.
+# If not, these explicit copies might need adjustment after inspecting the latex_env stage.
+COPY --from=latex_env /usr/local/bin/pdflatex /usr/local/bin/
+COPY --from=latex_env /usr/local/bin/xelatex /usr/local/bin/
+COPY --from=latex_env /usr/local/bin/lualatex /usr/local/bin/
+COPY --from=latex_env /usr/local/bin/mktexlsr /usr/local/bin/
+COPY --from=latex_env /usr/local/bin/fmtutil* /usr/local/bin/
+COPY --from=latex_env /usr/local/bin/updmap* /usr/local/bin/
+COPY --from=latex_env /usr/local/bin/kpsewhich /usr/local/bin/
+
+# Ensure the directory for TeX Live binaries is in PATH
+# This path might need adjustment based on reitzig/texlive-minimal's structure
+ENV PATH=/usr/local/texlive/bin/x86_64-linux:$PATH:/usr/local/bin
+
+# Install system dependencies for building Python packages (git, build-essential)
 RUN apt-get update && \
-    apt-get install -y \
+    apt-get install -y --no-install-recommends \
     build-essential \
     git \
-    texlive-latex-base \
-    texlive-latex-recommended \
-    texlive-fonts-recommended \
-    texlive-fonts-extra \
-    texlive-lang-english && \
-    apt-get clean && \
+    ca-certificates \
+    && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+# After copying TeX Live files, rebuild the TeX Live file database
+RUN mktexlsr /usr/local/texlive || mktexlsr
 
 # Install Poetry and required Python dependencies
 RUN pip install --no-cache-dir poetry==2.0.1 setuptools wheel
