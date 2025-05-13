@@ -4,7 +4,7 @@ FROM reitzig/texlive-minimal:latest AS latex_env
 RUN tlmgr update --self && \
     tlmgr install \
     scheme-small \
-    # Collections should cover many common packages like graphicx, geometry, hyperref, common fonts, etc.
+    # Collections should cover many common packages like graphicx, geometry, hyperref, common fonts (incl. lmodern), etc.
     collection-latexrecommended \
     collection-fontsrecommended \
     # Specific packages that might not be in the above or are critical
@@ -15,15 +15,8 @@ RUN tlmgr update --self && \
     babel-english \
     hyphenat \
     fontawesome5 \
-    seqsplit \
-    # bookmark is often part of hyperref, latexsym is very basic (likely in scheme-small or latexrecommended)
-    # fullpage should be in latexrecommended
-    # verbatim should be in latexrecommended
-    # tabularx should be in latexrecommended
-    # fancyhdr should be in latexrecommended
-    # lmodern and textcomp should be in fontsrecommended
-    # Explicitly add if errors occur for them
-    lmodern
+    seqsplit
+    # lmodern should be covered by collection-fontsrecommended
 
 FROM python:3.12-slim
 
