@@ -23,24 +23,21 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # Copy TeX Live distribution from the latex_env stage
-# reitzig/texlive-minimal usually installs into /usr/local/texlive/ or similar
 COPY --from=latex_env /usr/local/texlive/ /usr/local/texlive/
 
-# Copy essential TeX Live binaries from the minimal image's TeX Live bin directory
-# The exact path might be /usr/local/texlive/YYYY/bin/ARCH, but tlmgr often creates symlinks or updates PATH
-# We'll assume binaries are accessible in a common path within the texlive structure or standard /usr/local/bin after tlmgr use.
-# If not, these explicit copies might need adjustment after inspecting the latex_env stage.
-COPY --from=latex_env /usr/local/bin/pdflatex /usr/local/bin/
-COPY --from=latex_env /usr/local/bin/xelatex /usr/local/bin/
-COPY --from=latex_env /usr/local/bin/lualatex /usr/local/bin/
-COPY --from=latex_env /usr/local/bin/mktexlsr /usr/local/bin/
-COPY --from=latex_env /usr/local/bin/fmtutil* /usr/local/bin/
-COPY --from=latex_env /usr/local/bin/updmap* /usr/local/bin/
-COPY --from=latex_env /usr/local/bin/kpsewhich /usr/local/bin/
+# Copy essential TeX Live binaries from their actual location in the latex_env stage
+COPY --from=latex_env /usr/local/texlive/2025/bin/x86_64-linuxmusl/pdflatex /usr/local/bin/
+COPY --from=latex_env /usr/local/texlive/2025/bin/x86_64-linuxmusl/mktexlsr /usr/local/bin/
+COPY --from=latex_env /usr/local/texlive/2025/bin/x86_64-linuxmusl/fmtutil /usr/local/bin/
+COPY --from=latex_env /usr/local/texlive/2025/bin/x86_64-linuxmusl/updmap /usr/local/bin/
+COPY --from=latex_env /usr/local/texlive/2025/bin/x86_64-linuxmusl/kpsewhich /usr/local/bin/
 
-# Ensure the directory for TeX Live binaries is in PATH
-# This path might need adjustment based on reitzig/texlive-minimal's structure
-ENV PATH=/usr/local/texlive/bin/x86_64-linux:$PATH:/usr/local/bin
+# Also copy the fmtutil-sys, updmap-sys, etc. scripts if they exist as separate files
+COPY --from=latex_env /usr/local/texlive/2025/bin/x86_64-linuxmusl/fmtutil-sys /usr/local/bin/
+COPY --from=latex_env /usr/local/texlive/2025/bin/x86_64-linuxmusl/updmap-sys /usr/local/bin/
+
+# Ensure /usr/local/bin is in PATH (it usually is by default)
+# ENV PATH=/usr/local/bin:$PATH # This line might be redundant if /usr/local/bin is standard
 
 # Install system dependencies for building Python packages (git, build-essential)
 RUN apt-get update && \
