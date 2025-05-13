@@ -4,29 +4,26 @@ FROM reitzig/texlive-minimal:latest AS latex_env
 RUN tlmgr update --self && \
     tlmgr install \
     scheme-small \
-    # Specific packages based on core/latex/templates.py analysis
-    latexsym \
-    fullpage \
+    # Collections should cover many common packages like graphicx, geometry, hyperref, common fonts, etc.
+    collection-latexrecommended \
+    collection-fontsrecommended \
+    # Specific packages that might not be in the above or are critical
     titlesec \
     marvosym \
     xcolor \
-    verbatim \
     enumitem \
-    hyperref \
-    fancyhdr \
     babel-english \
-    tabularx \
     hyphenat \
     fontawesome5 \
     seqsplit \
-    lmodern \
-    textcomp \
-    bookmark \
-    geometry \
-    graphicx \
-    # Collections for broader support without being full scheme
-    collection-fontsrecommended \
-    collection-latexrecommended
+    # bookmark is often part of hyperref, latexsym is very basic (likely in scheme-small or latexrecommended)
+    # fullpage should be in latexrecommended
+    # verbatim should be in latexrecommended
+    # tabularx should be in latexrecommended
+    # fancyhdr should be in latexrecommended
+    # lmodern and textcomp should be in fontsrecommended
+    # Explicitly add if errors occur for them
+    lmodern
 
 FROM python:3.12-slim
 
