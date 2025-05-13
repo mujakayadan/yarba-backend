@@ -352,6 +352,48 @@ async def patch_my_personal_info(
         )
 
 
+@router.get("/me/personal-information", response_model=PersonalInformation)
+async def get_my_personal_info(
+    current_user: User = Depends(get_current_active_user),
+    profile_service: ProfileService = Depends(get_profile_service),
+):
+    """
+    Get the personal information of the current user's profile.
+
+    Args:
+        current_user: Current authenticated user
+        profile_service: Profile service
+
+    Returns:
+        Personal information
+    """
+    try:
+        # Get existing profile
+        profile = await profile_service.get_profile_by_user_id(current_user.id)
+
+        # Return personal information
+        if profile.personal_information:
+            return profile.personal_information
+        else:
+            # Handle case where personal_information might be None
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Personal information not found for this profile.",
+            )
+
+    except NotFoundException:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found",
+        )
+    except Exception as e:
+        logger.error(f"Failed to get personal information: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get personal information: {str(e)}",
+        )
+
+
 @router.get("/{profile_id}", response_model=Profile)
 async def get_profile(
     profile_id: str = Path(..., description="Profile ID"),

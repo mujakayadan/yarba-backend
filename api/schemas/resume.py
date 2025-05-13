@@ -137,3 +137,24 @@ class PaginatedResumeResponse(BaseModel):
     total: int = Field(
         ..., description="Total number of resumes matching the filter criteria"
     )
+
+
+class ResumeSelectionItem(BaseModel):
+    """Schema for a single resume item in a selection list."""
+
+    id: PydanticObjectId = Field(..., description="Resume ID")
+    resume_name: str = Field(..., description="Formatted resume name for display")
+
+    class Config:
+        """Pydantic config."""
+
+        from_attributes = True
+        json_encoders = {PydanticObjectId: str}
+
+
+class ResumeSelectionList(BaseModel):
+    """Schema for a list of resumes for selection."""
+
+    resumes: List[ResumeSelectionItem] = Field(
+        ..., description="List of resumes (ID and name)"
+    )

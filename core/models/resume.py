@@ -67,6 +67,26 @@ class LLMUsageStats(BaseModel):
     model_config = {"validate_assignment": True}
 
 
+class ResumeSelectionProjection(BaseModel):
+    """Projection model for fetching minimal resume data for selection lists."""
+
+    id: PydanticObjectId = Field(..., alias="_id")
+    # company_name: Optional[str] = None # No longer needed for display name if using title
+    # job_title: Optional[str] = None # No longer needed for display name if using title
+    title: Optional[str] = "My Resume"  # Added for display name and sorting
+    created_at: Optional[datetime] = None  # Added for sorting
+    updated_at: Optional[datetime] = None  # Added for sorting
+
+    class Settings:
+        projection = {
+            # "company_name": 1, # No longer needed
+            # "job_title": 1, # No longer needed
+            "title": 1,
+            "created_at": 1,
+            "updated_at": 1,
+        }
+
+
 class Resume(Document):
     """Resume model for MongoDB using Beanie ODM."""
 

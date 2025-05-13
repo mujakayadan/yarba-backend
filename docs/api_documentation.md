@@ -313,6 +313,25 @@ PATCH /api/v1/profiles/me/personal-information
 
 **Response:** Profile object
 
+#### Get Personal Information
+
+```
+GET /api/v1/profiles/me/personal-information
+```
+
+**Response:**
+```json
+{
+  "full_name": "string",
+  "email": "string",
+  "phone": "string (optional)",
+  "address": "string (optional)",
+  "linkedin": "string (optional)",
+  "github": "string (optional)",
+  "website": "string (optional)"
+}
+```
+
 #### Get Profile by ID
 
 ```
@@ -474,6 +493,33 @@ Query parameters:
 {
   "items": [Resume objects],
   "total": integer
+}
+```
+
+#### Get Resumes for Selection
+
+```
+GET /api/v1/resumes/list-for-selection
+```
+
+Returns a lightweight list of resumes for the current user, containing only the resume ID and a formatted display name (derived from company and job title). This is useful for populating selection interfaces (e.g., dropdowns) without fetching full resume details.
+
+**Query Parameters:**
+- `sort_by`: string (optional, default: "updated_desc") - Sort field and direction. Available options: "updated_desc", "updated_asc", "created_desc", "created_asc", "title_asc", "title_desc".
+
+**Response:**
+```json
+{
+  "resumes": [
+    {
+      "id": "string",
+      "resume_name": "string (e.g., Example Corp Software Engineer)"
+    },
+    {
+      "id": "string",
+      "resume_name": "string (e.g., Another Org Data Scientist)"
+    }
+  ]
 }
 ```
 

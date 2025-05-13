@@ -27,7 +27,7 @@ class LLMService:
     def __init__(
         self,
         profile_repository: ProfileRepository,
-        model: str = "claude-3-5-haiku-20241022",
+        model: str = "gpt-4.1",
         temperature: float = 0.1,
         enable_json_validation: bool = True,
     ):

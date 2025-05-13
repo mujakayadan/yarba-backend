@@ -13,7 +13,10 @@ from .resume import (
     ResumeCreate,
     ResumeFilter,
     ResumeResponse,
+    ResumeSelectionItem,
+    ResumeSelectionList,
     ResumeUpdate,
+    SortOptions,
 )
 
 __all__ = [
@@ -28,6 +31,9 @@ __all__ = [
     "ResumeFilter",
     "ResumeResponse",
     "PaginatedResumeResponse",
+    "ResumeSelectionItem",
+    "ResumeSelectionList",
+    "SortOptions",
     # Cover letter schemas
     "CoverLetterCreate",
     "CoverLetterUpdate",

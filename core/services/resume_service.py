@@ -5,10 +5,11 @@ from typing import Dict, List, Optional
 
 from beanie import PydanticObjectId
 
+from api.schemas.resume import ResumeSelectionItem, SortOptions
 from config.logging_config import get_logger
 
 from ..exceptions.base import NotFoundException
-from ..models.resume import Resume
+from ..models.resume import Resume, ResumeSelectionProjection
 from ..repositories.resume_repository import ResumeFilter, ResumeRepository
 from ..repositories.user_repository import UserRepository
 from ..services.job_service import JobService
@@ -396,3 +397,59 @@ class ResumeService:
         # Reuse the filter_resumes method to get all matching resumes
         resumes = await self.filter_resumes(user_id, filter_params)
         return len(resumes)
+
+    async def list_resumes_for_selection(
+        self, user_id: PydanticObjectId, sort_by: str = SortOptions.UPDATED_DESC
+    ) -> List[ResumeSelectionItem]:
+        """
+        List resumes for a user, returning only ID and title, with sorting.
+
+        Args:
+            user_id: User ID
+            sort_by: Sorting option (e.g., 'updated_desc', 'title_asc')
+
+        Returns:
+            List[ResumeSelectionItem]: List of resume IDs and titles.
+        """
+        self.logger.info(
+            f"Listing resumes for selection for user {user_id}, sort_by: {sort_by}"
+        )
+
+        sort_criteria = []
+        if sort_by == SortOptions.UPDATED_DESC:
+            sort_criteria = [("updated_at", -1)]
+        elif sort_by == SortOptions.UPDATED_ASC:
+            sort_criteria = [("updated_at", 1)]
+        elif sort_by == SortOptions.CREATED_DESC:
+            sort_criteria = [("created_at", -1)]
+        elif sort_by == SortOptions.CREATED_ASC:
+            sort_criteria = [("created_at", 1)]
+        elif sort_by == SortOptions.TITLE_ASC:
+            sort_criteria = [("title", 1)]
+        elif sort_by == SortOptions.TITLE_DESC:
+            sort_criteria = [("title", -1)]
+        else:  # Default sort if an invalid option is somehow passed
+            sort_criteria = [("updated_at", -1)]
+
+        resumes_data = (
+            await Resume.find(
+                Resume.user_id == user_id, projection_model=ResumeSelectionProjection
+            )
+            .sort(*sort_criteria)
+            .to_list()
+        )
+
+        selection_list = []
+        for resume_proj in resumes_data:
+            selection_list.append(
+                ResumeSelectionItem(
+                    id=resume_proj.id,
+                    resume_name=resume_proj.title
+                    or "Untitled Resume",  # Use title directly
+                )
+            )
+
+        self.logger.info(
+            f"Found {len(selection_list)} resumes for selection for user {user_id}"
+        )
+        return selection_list

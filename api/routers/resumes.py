@@ -33,9 +33,10 @@ from api.schemas import (
     ResumeCreate,
     ResumeFilter,
     ResumeResponse,
+    ResumeSelectionList,
     ResumeUpdate,
 )
-from api.schemas.cover_letter import CoverLetterFilter
+from api.schemas.resume import SortOptions
 from config import get_logger
 from config.logging_config import get_logger
 from config.settings import settings
@@ -89,6 +90,32 @@ def convert_resume_to_response(resume: Resume) -> ResumeResponse:
     # Explicitly set has_pdf based on resume_pdf_key
     response.has_pdf = bool(resume.resume_pdf_key)
     return response
+
+
+@router.get("/list-for-selection", response_model=ResumeSelectionList)
+async def list_resumes_for_selection(
+    current_user: CurrentUser,
+    resume_service: ResumeService = Depends(get_resume_service),
+    sort_by: str = Query(
+        SortOptions.UPDATED_DESC,
+        description="Sort field and direction (e.g., updated_desc, title_asc)",
+    ),
+) -> ResumeSelectionList:
+    """
+    Get a list of resumes for selection, containing only ID and formatted name.
+    """
+    try:
+        user_id = PydanticObjectId(current_user.id)
+        selection_items = await resume_service.list_resumes_for_selection(
+            user_id, sort_by=sort_by
+        )
+        return ResumeSelectionList(resumes=selection_items)
+    except Exception as e:
+        logger.error(f"Error listing resumes for selection: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to list resumes for selection",
+        )
 
 
 @router.post("", response_model=ResumeResponse, status_code=status.HTTP_201_CREATED)
