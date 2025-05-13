@@ -36,7 +36,7 @@ class CoverLetterCreate(BaseModel):
 class CoverLetterUpdate(CoverLetterBase):
     """Schema for updating a cover letter."""
 
-    content: Optional[Dict[str, Any]] = None
+    content: Optional[str] = None
 
 
 class CoverLetterResponse(CoverLetterBase):
@@ -44,7 +44,7 @@ class CoverLetterResponse(CoverLetterBase):
 
     id: PydanticObjectId = Field(..., description="Cover letter ID")
     user_id: PydanticObjectId = Field(..., description="User ID")
-    content: Dict[str, Any] = Field(default_factory=dict, description="Content data")
+    content: Optional[str] = Field(default=None, description="Content data")
     has_pdf: bool = Field(default=False, description="Whether PDF is available")
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")

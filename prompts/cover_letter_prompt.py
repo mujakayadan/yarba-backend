@@ -14,6 +14,7 @@ Instructions:
 - Use the candidate's actual experiences - do not invent or assume details
 - Structure the cover letter with a clear introduction, body, and conclusion
 - If a life story is provided, integrate it thoughtfully to create a personal connection, showing how the candidate's background has shaped their career path and makes them uniquely qualified for this role
+- The "full_document" should contain the greeting (e.g., "Dear Hiring Manager,") and all body paragraphs. It should NOT include the final closing (e.g., "Sincerely," or the candidate's name).
 
 Paragraph Structure:
 1. Introduction: State the position, where you found it, and express enthusiasm
@@ -26,32 +27,13 @@ Your response should be structured as a valid JSON object matching the CoverLett
 The structure should be:
 ```json
 {
-  "paragraphs": [
-    "Introduction paragraph text...",
-    "Qualifications paragraph text...",
-    "Company alignment paragraph text...",
-    "Conclusion paragraph text..."
-  ],
-  "greeting": "Dear Hiring Manager,",
-  "closing": "Sincerely,",
-  "full_document": "Full formatted cover letter with all paragraphs, greeting and closing"
+  "full_document": "Full formatted cover letter text including greeting and all body paragraphs, but EXCLUDING the final closing (like \'Sincerely,\')."
 }
 ```
 
 Example:
 {
-  "paragraphs": [
-    "I am excited to apply for the Machine Learning Engineer position at TechCorp that I found on LinkedIn. As someone passionate about developing AI solutions that solve real-world problems, I'm thrilled about the opportunity to join your innovative team.",
-
-    "Throughout my career, I've developed strong expertise in computer vision and machine learning, with a focus on industrial applications. At Orsan, I implemented a quality control system using OpenCV and TensorFlow that achieved 92% accuracy and reduced defects by 30%. My experience with real-time monitoring frameworks and U-Net algorithms directly aligns with the requirements mentioned in your job posting.",
-
-    "What attracts me most to TechCorp is your commitment to advancing AI technology while maintaining a strong ethical framework. Your recent work on transparent AI systems particularly resonates with my belief that technology should be both powerful and accountable. I'm eager to contribute to a team that values innovation and responsible development.",
-
-    "Thank you for considering my application. I would welcome the opportunity to discuss how my background in machine learning and computer vision could contribute to TechCorp's ongoing success. I look forward to potentially joining your team and helping to develop the next generation of AI solutions."
-  ],
-  "greeting": "Dear Hiring Manager,",
-  "closing": "Sincerely,",
-  "full_document": "Dear Hiring Manager,\n\nI am excited to apply for the Machine Learning Engineer position at TechCorp that I found on LinkedIn. As someone passionate about developing AI solutions that solve real-world problems, I'm thrilled about the opportunity to join your innovative team.\n\nThroughout my career, I've developed strong expertise in computer vision and machine learning, with a focus on industrial applications. At Orsan, I implemented a quality control system using OpenCV and TensorFlow that achieved 92% accuracy and reduced defects by 30%. My experience with real-time monitoring frameworks and U-Net algorithms directly aligns with the requirements mentioned in your job posting.\n\nWhat attracts me most to TechCorp is your commitment to advancing AI technology while maintaining a strong ethical framework. Your recent work on transparent AI systems particularly resonates with my belief that technology should be both powerful and accountable. I'm eager to contribute to a team that values innovation and responsible development.\n\nThank you for considering my application. I would welcome the opportunity to discuss how my background in machine learning and computer vision could contribute to TechCorp's ongoing success. I look forward to potentially joining your team and helping to develop the next generation of AI solutions.\n\nSincerely,"
+  "full_document": "Dear Hiring Manager,\n\nI am excited to apply for the Machine Learning Engineer position at TechCorp that I found on LinkedIn. As someone passionate about developing AI solutions that solve real-world problems, I'm thrilled about the opportunity to join your innovative team.\n\nThroughout my career, I've developed strong expertise in computer vision and machine learning, with a focus on industrial applications. At Orsan, I implemented a quality control system using OpenCV and TensorFlow that achieved 92% accuracy and reduced defects by 30%. My experience with real-time monitoring frameworks and U-Net algorithms directly aligns with the requirements mentioned in your job posting.\n\nWhat attracts me most to TechCorp is your commitment to advancing AI technology while maintaining a strong ethical framework. Your recent work on transparent AI systems particularly resonates with my belief that technology should be both powerful and accountable. I'm eager to contribute to a team that values innovation and responsible development.\n\nThank you for considering my application. I would welcome the opportunity to discuss how my background in machine learning and computer vision could contribute to TechCorp's ongoing success. I look forward to potentially joining your team and helping to develop the next generation of AI solutions."
 }
 
 Job Title: {{ job_title }}

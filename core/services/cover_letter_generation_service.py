@@ -1,5 +1,6 @@
 """Service for cover letter generation using LLM."""
 
+import json
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple
 
@@ -283,19 +284,37 @@ Candidate Name: {candidate_name}
                 actual_cover_letter_json_str = str(llm_response_dict)  # Fallback
 
             self.logger.info(
-                f"Extracted cover letter JSON string for {cover_letter_id}: {str(actual_cover_letter_json_str)[:500]}"
-            )  # Ensure actual_cover_letter_json_str is treated as string for logging
+                f"Extracted cover_letter JSON string for {cover_letter_id}: {str(actual_cover_letter_json_str)[:500]}"
+            )
+
+            # Parse the JSON string from LLM and extract the full document text
+            try:
+                parsed_content = json.loads(actual_cover_letter_json_str)
+                full_document_text = parsed_content.get("full_document", "")
+                if not full_document_text:
+                    self.logger.warning(
+                        f"'full_document' key missing or empty in parsed LLM response for {cover_letter_id}. Response: {actual_cover_letter_json_str}"
+                    )
+                    # Fallback: use the raw string if parsing/extraction fails
+                    full_document_text = actual_cover_letter_json_str
+            except json.JSONDecodeError:
+                self.logger.error(
+                    f"Failed to decode JSON from LLM response for {cover_letter_id}. Response: {actual_cover_letter_json_str}"
+                )
+                # Fallback: use the raw string if JSON is invalid
+                full_document_text = actual_cover_letter_json_str
+
             # Update the cover letter with the generated content
-            cover_letter.content = {
-                "cover_letter_content": actual_cover_letter_json_str
-            }
+            cover_letter.content = (
+                full_document_text  # Store the extracted text directly
+            )
             cover_letter.updated_at = datetime.now(timezone.utc)
             await cover_letter.save()
 
             self.logger.info(
-                f"Successfully generated cover letter content ({len(actual_cover_letter_json_str)} chars)"
+                f"Successfully generated cover letter content ({len(full_document_text)} chars)"
             )
-            return actual_cover_letter_json_str
+            return full_document_text  # Return the extracted text string
 
         except Exception as e:
             self.logger.error(f"Error generating cover letter: {e}")
@@ -330,12 +349,11 @@ Candidate Name: {candidate_name}
                 )
 
             # Ensure cover letter content exists
-            content = (
-                cover_letter.content.get("cover_letter_content")
-                if cover_letter.content
-                else None
-            )
-            if not content:
+            content_exists = bool(
+                cover_letter.content
+            )  # Check if string is not None or empty
+
+            if not content_exists:
                 self.logger.info(
                     f"No content found, generating content for cover letter: {cover_letter_id}"
                 )
@@ -344,13 +362,9 @@ Candidate Name: {candidate_name}
                 cover_letter = await self.cover_letter_repository.get_by_id(
                     cover_letter_id
                 )
-                content = (
-                    cover_letter.content.get("cover_letter_content")
-                    if cover_letter.content
-                    else None
-                )
+                content_exists = bool(cover_letter.content)  # Re-check
 
-                if not content:
+                if not content_exists:
                     raise ValueError(
                         "Failed to generate cover letter content after attempt"
                     )
@@ -402,12 +416,11 @@ Candidate Name: {candidate_name}
                 )
 
             # Ensure cover letter content exists
-            content = (
-                cover_letter.content.get("cover_letter_content")
-                if cover_letter.content
-                else None
-            )
-            if not content:
+            content_exists = bool(
+                cover_letter.content
+            )  # Check if string is not None or empty
+
+            if not content_exists:
                 self.logger.info(
                     f"No content found, generating content for cover letter: {cover_letter_id}"
                 )
@@ -416,13 +429,9 @@ Candidate Name: {candidate_name}
                 cover_letter = await self.cover_letter_repository.get_by_id(
                     cover_letter_id
                 )
-                content = (
-                    cover_letter.content.get("cover_letter_content")
-                    if cover_letter.content
-                    else None
-                )
+                content_exists = bool(cover_letter.content)  # Re-check
 
-                if not content:
+                if not content_exists:
                     raise ValueError(
                         "Failed to generate cover letter content after attempt"
                     )

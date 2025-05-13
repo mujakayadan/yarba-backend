@@ -306,10 +306,7 @@ async def create_cover_letter(
             )
 
             # Verify content was generated successfully
-            if (
-                not cover_letter.content
-                or "cover_letter_content" not in cover_letter.content
-            ):
+            if not cover_letter.content:
                 logger.error(
                     f"Content generation failed for cover letter: {cover_letter.id}"
                 )

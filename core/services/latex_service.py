@@ -273,8 +273,10 @@ class LatexService:
 
             # Get cover letter content
             cover_letter_content = ""
-            if cover_letter.content and "cover_letter_content" in cover_letter.content:
-                cover_letter_content = cover_letter.content["cover_letter_content"]
+            if cover_letter.content:  # Check if content exists
+                cover_letter_content = (
+                    cover_letter.content
+                )  # Assign the string directly
 
             # Get personal information from profile
             personal_info = {

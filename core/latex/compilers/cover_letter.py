@@ -144,85 +144,22 @@ class CoverLetterCompiler(LatexCompiler):
             self.logger.error(f"Error generating LaTeX content: {e}")
             raise
 
-    def _process_cover_letter_content(self, content: str) -> str:
-        """Process cover letter content from JSON format to LaTeX format.
+    def _process_cover_letter_content(self, content: str) -> Dict[str, str]:
+        """Process cover letter content (expected to be plain text now).
 
         Args:
-            content: Cover letter content, potentially in JSON format
+            content: Cover letter content (greeting + body paragraphs)
 
         Returns:
-            str: Processed content suitable for LaTeX
+            dict: Dictionary containing sanitized content and a standard closing
         """
         try:
-            # Try to parse as JSON
-            if not content:
-                return ""
-
-            # Dictionary to store extracted parts
-            content_parts = {"content": "", "closing": "Sincerely,"}
-
-            # Check if it looks like a JSON object
-            if content.strip().startswith("{") and "paragraphs" in content:
-                try:
-                    # First try to parse as a proper JSON object
-                    data = json.loads(content)
-                except json.JSONDecodeError:
-                    # If normal parsing fails, it might be a string representation of a Python dict
-                    # This is a fallback but not ideal - normalize quotes first
-                    content = content.replace('\\"', '"').replace("\\'", "'")
-                    # Replace Python-style quotes with JSON-style quotes
-                    content = content.replace("'", '"')
-                    try:
-                        data = json.loads(content)
-                    except json.JSONDecodeError:
-                        # If still fails, use the content as is
-                        content_parts["content"] = sanitize_latex(content)
-                        return content_parts
-
-                # Process JSON data
-                if isinstance(data, dict):
-                    # Get the closing
-                    if "closing" in data and data["closing"]:
-                        content_parts["closing"] = sanitize_latex(data["closing"])
-
-                    # If we have a full_document field, use that
-                    if "full_document" in data and data["full_document"]:
-                        # Extract just the main content without the closing
-                        full_text = data["full_document"]
-                        # This will usually already include the closing text, let's separate it
-
-                        # The content will be everything up to the last paragraph
-                        parts = full_text.split("\n\n")
-                        if len(parts) > 1:
-                            # Keep all but the last paragraph, as it usually contains the closing
-                            content_parts["content"] = sanitize_latex(
-                                "\n\n".join(parts[:-1])
-                            )
-                        else:
-                            content_parts["content"] = sanitize_latex(full_text)
-
-                        return content_parts
-
-                    # Otherwise, build from paragraphs
-                    if "paragraphs" in data and isinstance(data["paragraphs"], list):
-                        greeting = sanitize_latex(
-                            data.get("greeting", "Dear Hiring Manager,")
-                        )
-                        paragraphs = [sanitize_latex(p) for p in data["paragraphs"]]
-
-                        # Build the content with proper paragraph spacing
-                        content_parts["content"] = f"{greeting}\n\n" + "\n\n".join(
-                            paragraphs
-                        )
-                        return content_parts
-
-            # Return sanitized content if it's not JSON or if parsing failed
-            content_parts["content"] = sanitize_latex(content)
-            return content_parts
+            sanitized_text = sanitize_latex(content or "")
+            return {"content": sanitized_text, "closing": "Sincerely,"}
         except Exception as e:
             self.logger.error(f"Error processing cover letter content: {e}")
-            # Return sanitized original content on error
-            return {"content": sanitize_latex(content), "closing": "Sincerely,"}
+            # Return sanitized original content and default closing on error
+            return {"content": sanitize_latex(content or ""), "closing": "Sincerely,"}
 
     async def generate_pdf(
         self, cover_letter: CoverLetter, template: Dict[str, Any]
