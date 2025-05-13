@@ -1,22 +1,17 @@
-FROM reitzig/texlive-minimal:latest AS latex_env
+FROM texlive/texlive:small AS latex_env
 
 # Install required LaTeX packages using tlmgr
+# 'scheme-small' is already the base of texlive/texlive:small
 RUN tlmgr update --self && \
     tlmgr install \
-    scheme-small \
-    # Collections should cover many common packages like graphicx, geometry, hyperref, common fonts (incl. lmodern), etc.
     collection-latexrecommended \
     collection-fontsrecommended \
-    # Specific packages that might not be in the above or are critical
     titlesec \
     marvosym \
-    xcolor \
     enumitem \
-    babel-english \
     hyphenat \
     fontawesome5 \
     seqsplit
-    # lmodern should be covered by collection-fontsrecommended
 
 FROM python:3.12-slim
 
@@ -26,24 +21,39 @@ WORKDIR /app
 COPY --from=latex_env /usr/local/texlive/ /usr/local/texlive/
 
 # Set the PATH to include the TeX Live binaries from our copied distribution
-# Note: The year (2025) and architecture (x86_64-linuxmusl) are based on previous logs.
-# This might need adjustment if the reitzig/texlive-minimal image changes its internal structure.
-ENV TEXLIVE_YEAR=2025
-ENV TEXLIVE_ARCH=x86_64-linuxmusl
+# For texlive/texlive:small (Ubuntu based, TeX Live 2024 usually)
+# Adjust year and arch if the base image changes its internal structure.
+ENV TEXLIVE_YEAR=2024
+ENV TEXLIVE_ARCH=x86_64-linux
 ENV TEXLIVE_BIN_DIR=/usr/local/texlive/${TEXLIVE_YEAR}/bin/${TEXLIVE_ARCH}
-ENV PATH=${TEXLIVE_BIN_DIR}:$PATH
+ENV PATH=${TEXLIVE_BIN_DIR}:${PATH}
 
 # Install system dependencies for building Python packages (git, build-essential)
+# and tools for debugging (file, elfutils for readelf)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     build-essential \
     git \
     ca-certificates \
+    file \
+    elfutils \
     && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Verify that mktexlsr is found in the new PATH and that the TeX Live directory exists
-RUN which mktexlsr && ls -ld /usr/local/texlive && mktexlsr
+# Verify TeX Live executables and run mktexlsr
+RUN echo "PATH is $PATH" && \
+    echo "--- Checking TeX Live executables in ${TEXLIVE_BIN_DIR} ---" && \
+    ls -la "${TEXLIVE_BIN_DIR}/mktexlsr" "${TEXLIVE_BIN_DIR}/kpsewhich" && \
+    echo "--- file info for mktexlsr ---" && \
+    file "${TEXLIVE_BIN_DIR}/mktexlsr" && \
+    echo "--- file info for kpsewhich ---" && \
+    file "${TEXLIVE_BIN_DIR}/kpsewhich" && \
+    echo "--- readelf -d for kpsewhich (shows dynamic dependencies) ---" && \
+    (readelf -d "${TEXLIVE_BIN_DIR}/kpsewhich" || echo "readelf failed for kpsewhich, or not an ELF file. Exit code: $?") && \
+    echo "--- Trying to run kpsewhich --version directly ---" && \
+    ("${TEXLIVE_BIN_DIR}/kpsewhich" --version || echo "kpsewhich --version call failed. Exit code: $?") && \
+    echo "--- Trying to run mktexlsr ---" && \
+    (mktexlsr || echo "mktexlsr call failed. Exit code: $?")
 # RUN updmap-sys # If needed later for fonts
 
 # Install Poetry and required Python dependencies
