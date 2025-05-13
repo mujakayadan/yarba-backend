@@ -23,7 +23,7 @@ COPY --from=latex_env /usr/local/texlive/ /usr/local/texlive/
 # Set the PATH to include the TeX Live binaries from our copied distribution
 # For texlive/texlive:small (Ubuntu based, TeX Live 2024 usually)
 # Adjust year and arch if the base image changes its internal structure.
-ENV TEXLIVE_YEAR=2024
+ENV TEXLIVE_YEAR=2025
 ENV TEXLIVE_ARCH=x86_64-linux
 ENV TEXLIVE_BIN_DIR=/usr/local/texlive/${TEXLIVE_YEAR}/bin/${TEXLIVE_ARCH}
 ENV PATH=${TEXLIVE_BIN_DIR}:${PATH}
