@@ -3,13 +3,20 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # Install system dependencies for building Python packages
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     git \
     texlive-latex-base \
+    texlive-latex-recommended \
     texlive-fonts-recommended \
-    texlive-latex-extra \
     texlive-fonts-extra \
+    texlive-lang-english \
+    texlive-xcolor \
+    texlive-titlesec \
+    texlive-enumitem \
+    texlive-hyphenat \
+    texlive-lmodern \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Poetry and required Python dependencies
