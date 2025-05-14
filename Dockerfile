@@ -12,7 +12,7 @@ RUN tlmgr update --self && \
     hyphenat \
     fontawesome5 \
     seqsplit \
-    fullpage
+    collection-latexextra
 
 FROM python:3.12-slim
 
