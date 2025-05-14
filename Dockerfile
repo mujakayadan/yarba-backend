@@ -11,7 +11,8 @@ RUN tlmgr update --self && \
     enumitem \
     hyphenat \
     fontawesome5 \
-    seqsplit
+    seqsplit \
+    fullpage
 
 FROM python:3.12-slim
 
