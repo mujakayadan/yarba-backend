@@ -63,19 +63,26 @@ RUN pip install --no-cache-dir poetry==2.0.1 setuptools wheel
 # Create log directory with correct permissions
 RUN mkdir -p logs && chmod 755 logs
 
-# Copy the entire project first
+# Copy project definition and lock file
+COPY pyproject.toml poetry.lock* ./
+
+# Install dependencies using the lock file
+# Ensure poetry.lock is committed to your repository and is up-to-date.
+RUN poetry config virtualenvs.create false && \
+    poetry install --only main --no-interaction --no-root --no-dev
+    # Removed 'poetry lock', added '--no-dev' for clarity
+
+# Copy the rest of the application code
+# A comprehensive .dockerignore file (updated in the previous step) is CRITICAL here.
 COPY . .
 
 # List directories to ensure they exist
-RUN echo "Directory structure before installation:" && \
+# This command was failing. With a proper .dockerignore, it should be fine.
+# If it still causes OOM, consider removing or simplifying it.
+RUN echo "Directory structure after full copy and install:" && \
     ls -la && \
     echo "API directory contents:" && \
     ls -la api/
-
-# Generate fresh lock file and install dependencies
-RUN poetry config virtualenvs.create false && \
-    poetry lock && \
-    poetry install --only main --no-interaction --no-root
 
 # Verify all dependencies are installed
 RUN pip list
