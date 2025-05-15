@@ -389,6 +389,12 @@ poetry run python scripts/examples/generate_resume.py
 - LLM should return list of items instead of Latex embeddings to reduce token usage.
 - LLM parameters are hard coded for now
 
+## Road Map
+
+- Add Resume Parser
+- Add Link parser
+- Add auto applier
+
 # YARBA Backend
 
 Yarba (Yet Another Resume Builder App) is a backend service for generating resumes and cover letters using advanced language models.

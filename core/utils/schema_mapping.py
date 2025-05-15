@@ -113,6 +113,7 @@ def _map_projects(schemas: List[ProjectSchema]) -> List[Project]:
             name=project.name,
             bullet_points=project.bullet_points,
             date=project.date,
+            link=project.link,
         )
         for project in schemas
         if project  # Basic validation

@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, HttpUrl
 
 
 class PersonalInformationSchema(BaseModel):
@@ -74,6 +74,9 @@ class ProjectSchema(BaseModel):
         description="Key achievements, technologies used, or impact points from the project",
     )
     date: str = Field(..., description="Date or timeframe of the project")
+    link: Optional[str] = Field(
+        default=None, description="Optional link to the project (URL as string)"
+    )
 
     class Config:
         extra = "forbid"

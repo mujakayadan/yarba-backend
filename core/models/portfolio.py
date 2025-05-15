@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Union
 
 from beanie import Document, Link, PydanticObjectId
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, HttpUrl, model_validator
 
 from core.models.profile import Profile
 from core.models.user import User
@@ -71,6 +71,9 @@ class Project(BaseModel):
     name: str = Field(default="")
     bullet_points: List[str] = Field(default=[])
     date: str = Field(default="")
+    link: Optional[HttpUrl] = Field(
+        default=None, description="Optional link to the project."
+    )
 
     model_config = {"validate_assignment": True}
 

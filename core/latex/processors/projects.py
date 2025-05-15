@@ -40,15 +40,28 @@ class ProjectsProcessor(SectionProcessor):
                 name = sanitize_latex(project.get("name", ""))
                 tech = sanitize_latex(project.get("technologies", ""))
                 date = sanitize_latex(project.get("date", ""))
+                link = project.get("link")  # Get the link
 
                 # Use default values if missing
                 name = name or "Project"
                 date = date or "01/2023 - Present"
 
                 # Combine name and technology if both are present
-                name_and_tech = name
+                name_display = name
                 if tech:
-                    name_and_tech = f"{name} \\textit{{{tech}}}"
+                    name_display = f"{name} \\textit{{{tech}}}"
+
+                # Add hyperlink if link is present
+                if link:
+                    # Sanitize the link URL itself for LaTeX
+                    safe_link = sanitize_latex(str(link))
+                    # Make the [link] text small, italic, and underlined
+                    link_indicator = "\\textit{\\small \\underline{[link]}}"
+                    name_heading = (
+                        f"\\href{{{safe_link}}}{{{name_display} {link_indicator}}}"
+                    )
+                else:
+                    name_heading = name_display
 
                 # Extract and process bullet points
                 bullet_points = project.get("bullet_points", [])
@@ -65,7 +78,7 @@ class ProjectsProcessor(SectionProcessor):
 
                 # Format the project using the project_item template format
                 bullet_points_text = "\n".join(points)
-                project_content = f"\\resumeProjectHeading\n{{{name_and_tech}}}\n{{{date}}}\n\\resumeItemListStart\n{bullet_points_text}\n\\resumeItemListEnd"
+                project_content = f"\\resumeProjectHeading\n{{{name_heading}}}\n{{{date}}}\n\\resumeItemListStart\n{bullet_points_text}\n\\resumeItemListEnd"
                 result.append(project_content)
 
         # Handle dictionary format (single project or nested)
@@ -79,15 +92,26 @@ class ProjectsProcessor(SectionProcessor):
                     name = sanitize_latex(project.get("name", ""))
                     tech = sanitize_latex(project.get("technologies", ""))
                     date = sanitize_latex(project.get("date", ""))
+                    link = project.get("link")  # Get the link
 
                     # Use default values if missing
                     name = name or "Project"
                     date = date or "01/2023 - Present"
 
                     # Combine name and technology if both are present
-                    name_and_tech = name
+                    name_display = name
                     if tech:
-                        name_and_tech = f"{name} \\textit{{{tech}}}"
+                        name_display = f"{name} \\textit{{{tech}}}"
+
+                    # Add hyperlink if link is present
+                    if link:
+                        safe_link = sanitize_latex(str(link))
+                        link_indicator = "\\textit{\\small \\underline{[link]}}"
+                        name_heading = (
+                            f"\\href{{{safe_link}}}{{{name_display} {link_indicator}}}"
+                        )
+                    else:
+                        name_heading = name_display
 
                     # Extract and process bullet points
                     bullet_points = project.get("bullet_points", [])
@@ -105,22 +129,33 @@ class ProjectsProcessor(SectionProcessor):
                         points.append("\\resumeItem{Project description}")
 
                     bullet_points_text = "\n".join(points)
-                    project_content = f"\\resumeProjectHeading\n{{{name_and_tech}}}\n{{{date}}}\n\\resumeItemListStart\n{bullet_points_text}\n\\resumeItemListEnd"
+                    project_content = f"\\resumeProjectHeading\n{{{name_heading}}}\n{{{date}}}\n\\resumeItemListStart\n{bullet_points_text}\n\\resumeItemListEnd"
                     result.append(project_content)
             else:
                 # It's a single project
                 name = sanitize_latex(data.get("name", ""))
                 tech = sanitize_latex(data.get("technologies", ""))
                 date = sanitize_latex(data.get("date", ""))
+                link = data.get("link")  # Get the link
 
                 # Use default values if missing
                 name = name or "Project"
                 date = date or "01/2023 - Present"
 
                 # Combine name and technology if both are present
-                name_and_tech = name
+                name_display = name
                 if tech:
-                    name_and_tech = f"{name} \\textit{{{tech}}}"
+                    name_display = f"{name} \\textit{{{tech}}}"
+
+                # Add hyperlink if link is present
+                if link:
+                    safe_link = sanitize_latex(str(link))
+                    link_indicator = "\\textit{\\small \\underline{[link]}}"
+                    name_heading = (
+                        f"\\href{{{safe_link}}}{{{name_display} {link_indicator}}}"
+                    )
+                else:
+                    name_heading = name_display
 
                 # Extract and process bullet points
                 bullet_points = data.get("bullet_points", [])
@@ -136,7 +171,7 @@ class ProjectsProcessor(SectionProcessor):
                     points.append("\\resumeItem{Project description}")
 
                 bullet_points_text = "\n".join(points)
-                project_content = f"\\resumeProjectHeading\n{{{name_and_tech}}}\n{{{date}}}\n\\resumeItemListStart\n{bullet_points_text}\n\\resumeItemListEnd"
+                project_content = f"\\resumeProjectHeading\n{{{name_heading}}}\n{{{date}}}\n\\resumeItemListStart\n{bullet_points_text}\n\\resumeItemListEnd"
                 result.append(project_content)
 
         # Return projects content
