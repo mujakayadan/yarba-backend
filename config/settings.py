@@ -652,91 +652,91 @@ class PreferenceSettings(BaseSettings):
 
     # Career summary preferences
     career_summary_min_words: int = Field(
-        default=1,
+        default=15,
         description="Minimum words in career summary",
         env="PREF_CAREER_SUMMARY_MIN_WORDS",
     )
     career_summary_max_words: int = Field(
-        default=1,
+        default=25,
         description="Maximum words in career summary",
         env="PREF_CAREER_SUMMARY_MAX_WORDS",
     )
 
     # Work experience preferences
     work_experience_max_jobs: int = Field(
-        default=1,
+        default=4,
         description="Maximum number of jobs to include",
         env="PREF_WORK_EXPERIENCE_MAX_JOBS",
     )
     work_experience_bullet_points_per_job: int = Field(
-        default=1,
+        default=3,
         description="Number of bullet points per job",
         env="PREF_WORK_EXPERIENCE_BULLET_POINTS",
     )
 
     # Project preferences
     project_max_projects: int = Field(
-        default=1,
+        default=4,
         description="Maximum number of projects to include",
         env="PREF_PROJECT_MAX_PROJECTS",
     )
     project_bullet_points_per_project: int = Field(
-        default=1,
+        default=3,
         description="Number of bullet points per project",
         env="PREF_PROJECT_BULLET_POINTS",
     )
 
     # Cover letter preferences
     cover_letter_paragraphs: int = Field(
-        default=1,
+        default=5,
         description="Number of paragraphs in cover letter",
         env="PREF_COVER_LETTER_PARAGRAPHS",
     )
     cover_letter_target_age: int = Field(
-        default=1,
+        default=25,
         description="Target age level for cover letter readability",
         env="PREF_COVER_LETTER_AGE_LEVEL",
     )
 
     # Skills preferences
     skills_max_categories: int = Field(
-        default=1,
+        default=5,
         description="Maximum number of skill categories",
         env="PREF_SKILLS_MAX_CATEGORIES",
     )
     skills_min_per_category: int = Field(
-        default=1,
+        default=8,
         description="Minimum skills per category",
         env="PREF_SKILLS_MIN_PER_CATEGORY",
     )
     skills_max_per_category: int = Field(
-        default=1,
+        default=10,
         description="Maximum skills per category",
         env="PREF_SKILLS_MAX_PER_CATEGORY",
     )
 
     # Education preferences
     education_max_entries: int = Field(
-        default=1,
+        default=3,
         description="Maximum number of education entries",
         env="PREF_EDUCATION_MAX_ENTRIES",
     )
     education_max_courses: int = Field(
-        default=1,
+        default=6,
         description="Maximum number of courses per education entry",
         env="PREF_EDUCATION_MAX_COURSES",
     )
 
     # Awards preferences
     awards_max_awards: int = Field(
-        default=1,
+        default=4,
         description="Maximum number of awards to include",
         env="PREF_AWARDS_MAX_AWARDS",
     )
 
     # Publications preferences
     publications_max_publications: int = Field(
-        default=1,
+        default=3,
         description="Maximum number of publications to include",
         env="PREF_PUBLICATIONS_MAX_PUBLICATIONS",
     )
