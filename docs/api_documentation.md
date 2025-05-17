@@ -1053,6 +1053,88 @@ PATCH /api/v1/portfolios/{portfolio_id}
 
 **Response:** Updated Portfolio object
 
+#### Parse Portfolio Document
+
+```
+POST /api/v1/portfolios/parse-document
+```
+
+Parses an uploaded document (PDF, DOCX) and extracts its content into a structured portfolio data format. This endpoint returns the parsed data, which can then be used to create or update a portfolio. It does not modify any existing portfolio directly.
+
+**Request:** Multipart form-data with a file upload.
+- `file`: The document file to be parsed (e.g., a resume in PDF or DOCX format).
+
+**Response:** Parsed portfolio data. The structure matches `PortfolioLLMSchema` but typically excludes database-generated fields like `user_id`, `id`, `created_at`, `updated_at`.
+
+```json
+{
+  "career_summary": {
+    "job_titles": ["string"],
+    "default_job_title": "string",
+    "years_of_experience": "string",
+    "default_summary": "string"
+  },
+  "skills": [
+    {
+      "category": "string",
+      "skills": ["string"]
+    }
+  ],
+  "work_experience": [
+    {
+      "job_title": "string",
+      "company": "string",
+      "location": "string (optional)",
+      "time": "string (optional)",
+      "responsibilities": ["string"]
+    }
+  ],
+  "education": [
+    {
+      "degree_type": "string (optional)",
+      "degree": "string",
+      "university_name": "string",
+      "time": "string (optional)",
+      "location": "string (optional)",
+      "GPA": "string (optional)",
+      "transcript": ["string"]
+    }
+  ],
+  "projects": [
+    {
+      "name": "string",
+      "bullet_points": ["string"],
+      "date": "string (optional)",
+      "link": "string (optional)"
+    }
+  ],
+  "awards": [
+    {
+      "name": "string",
+      "explanation": "string (optional)"
+    }
+  ],
+  "publications": [
+    {
+      "name": "string",
+      "publisher": "string (optional)",
+      "link": "string (optional)",
+      "time": "string (optional)"
+    }
+  ],
+  "certifications": ["string"],
+  "custom_sections": {
+    "sections": [
+      {
+        "title": "string",
+        "content": "Union[string, List[str], str (JSON string for complex objects)]"
+      }
+    ]
+  }
+  // Note: professional_title might also be part of the top-level response
+}
+```
+
 #### Section-Specific Portfolio Updates
 
 These endpoints allow updating specific sections of a portfolio independently:

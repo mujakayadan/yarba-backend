@@ -3,9 +3,20 @@
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from beanie import PydanticObjectId
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Path,
+    Query,
+    UploadFile,
+    status,
+)
 from pydantic import BaseModel
 
+from config.logging_config import get_logger
 from core.database import get_portfolio_repository, get_unit_of_work
 from core.database.unit_of_work import AsyncMongoUnitOfWork
 from core.models.portfolio import (
@@ -21,10 +32,37 @@ from core.models.portfolio import (
 )
 from core.models.user import User
 from core.repositories.portfolio_repository import PortfolioRepository
+from core.repositories.profile_repository import ProfileRepository
+from core.services.document_parser_service import DocumentParserService
+from core.services.llm_service import LLMService
 
 from ..dependencies.auth import get_current_active_user
 
 router = APIRouter()
+logger = get_logger(__name__)
+
+
+# Dependency for ProfileRepository (assuming you have a standard way to get this)
+# If not, you might need to create one or adjust based on your DI pattern.
+def get_profile_repository() -> ProfileRepository:
+    # This is a placeholder. Replace with your actual ProfileRepository instantiation/retrieval.
+    # For example, if it's a simple class:
+    return ProfileRepository()
+
+
+# Dependency for LLMService
+def get_llm_service(
+    profile_repo: ProfileRepository = Depends(get_profile_repository),
+) -> LLMService:
+    # LLMService might have default model/temp, or you can configure from settings
+    return LLMService(profile_repository=profile_repo)
+
+
+# Updated Dependency for DocumentParserService
+def get_document_parser_service(
+    llm_service: LLMService = Depends(get_llm_service),
+) -> DocumentParserService:
+    return DocumentParserService(llm_service=llm_service)
 
 
 class PortfolioCreate(BaseModel):
@@ -696,3 +734,80 @@ async def get_portfolio_by_profile(
         )
 
     return portfolio
+
+
+@router.post(
+    "/parse-document", response_model=Portfolio, status_code=status.HTTP_200_OK
+)
+async def parse_portfolio_document(
+    file: UploadFile = File(
+        ..., description="Portfolio document (PDF or DOCX) to upload and parse."
+    ),
+    current_user: User = Depends(get_current_active_user),
+    parser_service: DocumentParserService = Depends(get_document_parser_service),
+):
+    """
+    Uploads a portfolio document (PDF, DOCX), parses its content,
+    and returns a Portfolio data structure based on the parsed information.
+    This endpoint DOES NOT save the portfolio to the database.
+    The returned data can be used to subsequently create or update a portfolio.
+    """
+    if not file.content_type in [
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid file type. Only PDF and DOCX files are accepted.",
+        )
+
+    try:
+        parsed_data_dict = await parser_service.parse_to_portfolio_data(
+            file, user_id=str(current_user.id)
+        )
+
+        # Construct a Portfolio Pydantic model instance from the parsed data.
+        # This instance is not saved to the database here.
+        # It won't have a database ID, created_at, or updated_at yet.
+        # The Portfolio model should handle default values for fields not in parsed_data_dict.
+
+        # Ensure user_id is of the correct type if Portfolio model expects PydanticObjectId
+        # The parsed_data_dict from the service already excludes user_id, id, created_at, updated_at
+        portfolio_to_return = Portfolio(
+            user_id=current_user.id,  # This should be PydanticObjectId from current_user
+            **(parsed_data_dict or {}),
+        )
+
+        # Set default timestamps if needed for the response model, though typically these are DB-generated.
+        # For a non-persisted object, they might be None or set to now.
+        # The Portfolio model's default_factory for created_at/updated_at will handle this if they are defined with it.
+        # If not, and they are required in the response, we might need to set them.
+        # However, for a non-saved entity, these fields having values could be misleading.
+        # Let's assume the Portfolio model handles their defaults (e.g. to None or a default time if appropriate).
+
+        logger.info(
+            f"Successfully parsed document for user {current_user.id}. Returning structured data."
+        )
+        return portfolio_to_return
+
+    except ValueError as ve:
+        logger.error(
+            f"Value error during portfolio document parsing for user {current_user.id}: {ve}",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to process document: {ve}",
+        )
+    except Exception as e:
+        logger.error(
+            f"Unexpected error in parse_portfolio_document for user {current_user.id}: {e}",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An unexpected error occurred processing the document: {str(e)}",
+        )
+    finally:
+        if file:  # Ensure file is closed if it was opened
+            await file.close()
