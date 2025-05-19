@@ -15,6 +15,14 @@ class User(Document):
     is_active: bool = True
     is_superuser: bool = False
     email_verified: bool = False
+    is_new_user: bool = Field(
+        default=True,
+        description="Flag to indicate if the user is new and needs to complete the setup flow.",
+    )
+    current_setup_step: int = Field(
+        default=1,
+        description="Tracks the current step the user is on in the setup process (1-indexed).",
+    )
 
     # Firebase auth fields (required for authentication)
     firebase_uid: str = Field(index=True)

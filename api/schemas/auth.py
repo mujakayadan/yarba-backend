@@ -20,6 +20,8 @@ class FirebaseAuthResponse(BaseModel):
     user: Dict[str, Any]
     access_token: str
     token_type: str = "bearer"
+    is_new_user: Optional[bool] = None
+    current_setup_step: Optional[int] = None
 
 
 class LoginRequest(BaseModel):
@@ -35,15 +37,30 @@ class FirebaseLoginRequest(BaseModel):
     id_token: str = Field(..., description="Firebase ID token")
 
 
+class UpdateSetupProgressRequest(BaseModel):
+    """Request schema for updating user setup progress."""
+
+    current_setup_step: Optional[int] = Field(
+        None, ge=1, description="The setup step number the user has reached."
+    )
+    setup_completed: Optional[bool] = Field(
+        None, description="Set to true if the entire setup process is completed."
+    )
+
+
+class UserSetupProgressResponse(BaseModel):
+    """Response schema for user setup progress update."""
+
+    id: str  # Assuming PydanticObjectId will be converted to str
+    email: EmailStr
+    is_new_user: bool
+    current_setup_step: int
+    message: Optional[str] = None
+
+
 class RegisterRequest(BaseModel):
     """Register request schema."""
 
-    username: Optional[str] = Field(
-        None,
-        min_length=3,
-        max_length=50,
-        description="Username must be between 3 and 50 characters, containing only letters, numbers, dots, underscores and hyphens. Optional when using Firebase auth - will be auto-generated from email or full name.",
-    )
     email: EmailStr = Field(..., description="User's email address")
     password: str = Field(
         ...,
@@ -51,31 +68,6 @@ class RegisterRequest(BaseModel):
         max_length=64,
         description="Password must be between 8 and 64 characters and contain at least one uppercase letter, one lowercase letter, and one number",
     )
-    full_name: str = Field(
-        ..., min_length=2, max_length=100, description="User's full name"
-    )
-
-    @field_validator("username")
-    def validate_username(cls, v: Optional[str]) -> Optional[str]:
-        """Validate username format.
-
-        Args:
-            v: Username to validate
-
-        Returns:
-            str: Validated username
-
-        Raises:
-            ValueError: If username contains invalid characters
-        """
-        if v is None:
-            return v
-
-        if not re.match(r"^[a-zA-Z0-9._-]+$", v):
-            raise ValueError(
-                "Username can only contain letters, numbers, dots, underscores, and hyphens"
-            )
-        return v.lower()  # Convert to lowercase for consistency
 
     @field_validator("password")
     def validate_password(cls, v: str) -> str:
@@ -96,25 +88,6 @@ class RegisterRequest(BaseModel):
                 "one lowercase letter, and one number"
             )
         return v
-
-    @field_validator("full_name")
-    def validate_full_name(cls, v: str) -> str:
-        """Validate full name format.
-
-        Args:
-            v: Full name to validate
-
-        Returns:
-            str: Validated and stripped full name
-
-        Raises:
-            ValueError: If full name contains invalid characters
-        """
-        if not re.match(r"^[a-zA-Z\s\'-]+$", v):
-            raise ValueError(
-                "Full name can only contain letters, spaces, hyphens, and apostrophes"
-            )
-        return v.strip()
 
 
 class PasswordResetRequest(BaseModel):

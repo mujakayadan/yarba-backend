@@ -41,24 +41,26 @@ class AuthService:
         self,
         email: EmailStr,
         password: str,
-        full_name: str,
-        username: Optional[str] = None,
-    ) -> User:
+    ) -> Dict[str, Any]:
         """
-        Register a new user with Firebase Authentication.
+        Register a new user with Firebase Authentication and return data for login.
+        Username will be auto-generated from email.
+        Firebase display_name will be auto-generated from email prefix.
 
         Args:
             email: User email
             password: User password
-            full_name: User full name
-            username: Optional username, will use full_name or generate from email if not provided
 
         Returns:
-            User: Created user
+            Dict: User data and access token
 
         Raises:
             BadRequestException: If user already exists or Firebase registration fails
         """
+        self.logger.info(
+            f"[AuthService.register] Attempting to register user. Email: {email}"
+        )
+
         # Check if user already exists in our database
         existing_user = await self.user_repository.get_by_email(email)
         if existing_user:
@@ -69,31 +71,65 @@ class AuthService:
 
         try:
             # Create user in Firebase
-            firebase_user = await FirebaseAuth.create_user(
-                email=email,
-                password=password,
-                display_name=full_name,
+            self.logger.info(
+                f"[AuthService.register] About to call FirebaseAuth.create_user for email: {email}"
+            )
+            # Determine Firebase display_name: derive from email prefix
+            firebase_display_name = email.split("@")[0]
+            self.logger.info(
+                f"[AuthService.register] Using display_name for Firebase: {firebase_display_name}"
             )
 
-            # Use provided username or generate one
-            if not username:
-                username = full_name.lower().replace(" ", "_")
+            firebase_user_data = await FirebaseAuth.create_user(
+                email=email,
+                password=password,
+                display_name=firebase_display_name,
+            )
+            firebase_user_uid = firebase_user_data.get("uid")
 
-                # Check if username exists and add suffix if needed
-                existing_username = await self.user_repository.get_by_username(username)
-                if existing_username:
-                    from datetime import datetime
+            # Generate internal username based on email prefix
+            generated_internal_username = (
+                email.split("@")[0].lower().replace(" ", "_")
+            )  # base username from email
+            self.logger.info(
+                f"[AuthService.register] Generated base internal username: {generated_internal_username} for email: {email}"
+            )
 
-                    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-                    username = f"{username}_{timestamp}"
+            # Check if username exists and add suffix if needed
+            existing_username_obj = await self.user_repository.get_by_username(
+                generated_internal_username
+            )
+            if existing_username_obj:  # Check if an object was returned
+                from datetime import datetime
+
+                timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+                final_username_for_db = f"{generated_internal_username}_{timestamp}"
+                self.logger.info(
+                    f"[AuthService.register] Generated internal username conflicted, new unique username: {final_username_for_db} for email: {email}"
+                )
+            else:
+                final_username_for_db = generated_internal_username
+
+            # Ensure username is not None before creating User model instance (should not happen)
+            if final_username_for_db is None:
+                self.logger.error(
+                    f"[AuthService.register] Critical error: final_username_for_db is None before User model creation for email: {email}"
+                )
+                raise BadRequestException(
+                    "Internal server error during username assignment."
+                )
+
+            self.logger.info(
+                f"[AuthService.register] Preparing to create local DB user. Email: {email}, Final Username: {final_username_for_db}, Firebase UID: {firebase_user_uid}"
+            )
 
             # Create user in our database
             user = User(
                 email=email,
-                username=username,
+                username=final_username_for_db,
                 is_active=True,
                 email_verified=False,
-                firebase_uid=firebase_user["uid"],
+                firebase_uid=firebase_user_uid,
                 auth_provider="firebase.password",
             )
 
@@ -101,12 +137,43 @@ class AuthService:
             self.logger.info(f"User registered with Firebase: {email}")
 
             # Generate and send verification email
+            self.logger.info(
+                f"[AuthService.register] Attempting to send verification email for: {email}"
+            )
             await self.send_verification_email(email)
+            self.logger.info(
+                f"[AuthService.register] Verification email process completed for: {email}"
+            )
 
-            return created_user
+            # User successfully created in Firebase and local DB
+            # Now, generate an access token for this new user
+            access_token = self.create_access_token(data={"sub": created_user.email})
+            self.logger.info(
+                f"[AuthService.register] Access token generated for new user: {email}"
+            )
+
+            # Return data similar to login_with_firebase response
+            return {
+                "user": {
+                    "id": str(created_user.id),
+                    "email": created_user.email,
+                    "username": created_user.username,
+                    "email_verified": created_user.email_verified,  # Will be False initially
+                    "is_active": created_user.is_active,
+                    "is_superuser": created_user.is_superuser,
+                    "auth_provider": created_user.auth_provider,
+                    # Add other fields if they are part of your User model and needed by FirebaseAuthResponse
+                },
+                "access_token": access_token,
+                "token_type": "bearer",
+                "is_new_user": created_user.is_new_user,
+                "current_setup_step": created_user.current_setup_step,
+            }
 
         except Exception as e:
-            self.logger.error(f"Firebase registration error: {str(e)}")
+            self.logger.error(
+                f"Registration process error for email {email}: {str(e)}", exc_info=True
+            )
             raise BadRequestException(f"Firebase registration failed: {str(e)}")
 
     async def login_with_firebase(self, id_token: str) -> Dict[str, Any]:
@@ -225,9 +292,15 @@ class AuthService:
                     "is_active": user.is_active,
                     "is_superuser": user.is_superuser,
                     "auth_provider": user.auth_provider,
+                    # Expose all User model fields that are safe and useful for the frontend
+                    "last_login": user.last_login,
+                    "created_at": user.created_at,
+                    "subscription_status": user.subscription_status,
                 },
                 "access_token": access_token,
                 "token_type": "bearer",
+                "is_new_user": user.is_new_user,
+                "current_setup_step": user.current_setup_step,
             }
 
         except Exception as e:
@@ -427,44 +500,121 @@ class AuthService:
         self, user_id: str, update_data: Dict[str, Any]
     ) -> User:
         """
-        Update a user in both Firebase and our database.
+        Update user data in both Firebase and local database.
 
         Args:
-            user_id: User ID in our database
-            update_data: Data to update
+            user_id: User ID in the local database
+            update_data: Dictionary of fields to update (e.g., {"display_name": "New Name"})
 
         Returns:
-            User: Updated user
+            User: Updated user object from the local database
 
         Raises:
-            Exception: If update fails
+            NotFoundException: If user not found in local database
+            HTTPException: If Firebase update fails
         """
-        try:
-            # Get user from our database
-            user = await self.user_repository.get_by_id(user_id)
-            if not user:
-                raise BadRequestException("User not found")
+        # Fetch the user from the local database
+        user = await self.user_repository.get_by_id(user_id)
+        if not user:
+            self.logger.warning(
+                f"User not found with ID: {user_id} for Firebase update"
+            )
+            raise NotFoundException("User not found")
 
-            # If this is a Firebase user, update in Firebase
-            if user.firebase_uid:
-                firebase_update = {}
+        # Update Firebase user details
+        firebase_update_payload = {}
+        if "email" in update_data:
+            firebase_update_payload["email"] = update_data["email"]
+        if "password" in update_data:
+            firebase_update_payload["password"] = update_data["password"]
+        if "display_name" in update_data:
+            firebase_update_payload["display_name"] = update_data["display_name"]
+        if "email_verified" in update_data:
+            firebase_update_payload["email_verified"] = update_data["email_verified"]
 
-                if "email" in update_data:
-                    firebase_update["email"] = update_data["email"]
+        if firebase_update_payload:
+            try:
+                await FirebaseAuth.update_user(
+                    user.firebase_uid, **firebase_update_payload
+                )
+                self.logger.info(f"Successfully updated user {user.email} in Firebase.")
+            except Exception as e:
+                self.logger.error(
+                    f"Failed to update user {user.email} in Firebase: {str(e)}",
+                    exc_info=True,
+                )
+                # Depending on policy, you might want to raise an exception or just log
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Firebase update failed: {str(e)}",
+                )
 
-                if "username" in update_data:
-                    firebase_update["display_name"] = update_data["username"]
+        # Update local user details
+        # Only update fields that are part of the User model
+        allowed_local_fields = User.model_fields.keys()
+        local_update_data = {
+            k: v for k, v in update_data.items() if k in allowed_local_fields
+        }
 
-                if firebase_update:
-                    await FirebaseAuth.update_user(user.firebase_uid, **firebase_update)
-
-            # Update in our database
-            updated_user = await self.user_repository.update_by_id(user_id, update_data)
+        if local_update_data:
+            updated_user = await self.user_repository.update(user.id, local_update_data)  # type: ignore
+            self.logger.info(f"Successfully updated user {user.email} in local DB.")
             return updated_user
 
-        except Exception as e:
-            self.logger.error(f"User update error: {str(e)}")
-            raise
+        return user  # Return original user if no local updates were made but Firebase might have been
+
+    async def update_user_setup_progress(
+        self,
+        user_id: PydanticObjectId,
+        current_setup_step: Optional[int],
+        setup_completed: Optional[bool],
+    ) -> User:
+        """
+        Update the user's setup progress.
+
+        Args:
+            user_id: The ID of the user to update.
+            current_setup_step: The current setup step number.
+            setup_completed: Boolean indicating if the setup is fully completed.
+
+        Returns:
+            The updated User object.
+
+        Raises:
+            NotFoundException: If the user is not found.
+        """
+        user = await self.user_repository.get_by_id(user_id)
+        if not user:
+            self.logger.warning(
+                f"User not found with ID: {user_id} for setup progress update"
+            )
+            raise NotFoundException("User not found")
+
+        update_data = {}
+        if current_setup_step is not None:
+            user.current_setup_step = current_setup_step
+            update_data["current_setup_step"] = current_setup_step
+
+        if setup_completed is not None:
+            user.is_new_user = (
+                not setup_completed
+            )  # if setup_completed is True, is_new_user becomes False
+            update_data["is_new_user"] = user.is_new_user
+            if setup_completed:
+                # Optionally, if setup is completed, we can set step to a final/non-relevant value like 0 or max_step + 1
+                user.current_setup_step = 0  # Or some other indicator of completion
+                update_data["current_setup_step"] = 0
+
+        if not update_data:
+            # No actual changes to make
+            return user
+
+        # Instead of passing the dictionary directly, save the updated user object
+        await user.save()
+        self.logger.info(
+            f"Updated setup progress for user {user_id}: step {user.current_setup_step}, new_user {user.is_new_user}"
+        )
+        return user
 
     async def verify_token(self, token: str) -> Tuple[Dict, User]:
         """

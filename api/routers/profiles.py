@@ -26,7 +26,12 @@ from api.schemas.profile import (
 )
 from config.logging_config import get_logger
 from core.exceptions.base import NotFoundException
-from core.models.profile import PersonalInformation, Profile
+from core.models.profile import (
+    PersonalInformation,
+    Profile,
+    PromptPreferences,
+    SystemPreferences,
+)
 from core.models.user import User
 from core.services.profile_service import ProfileService
 from utils.storage import get_storage_provider
@@ -123,8 +128,8 @@ async def get_my_profile(
         # Create profile with defaults from application settings
         new_profile = await profile_repo.create_for_user(
             user=current_user,
-            full_name=current_user.username,  # Use username as fallback
             email=current_user.email,
+            full_name=None,
         )
 
         if not new_profile:
@@ -169,11 +174,14 @@ async def create_profile(
             pass
 
         # Create preferences if provided
-        preferences = None
+        prompt_prefs = PromptPreferences()
+        system_prefs = SystemPreferences()
+
         if profile_data.preferences:
-            preferences = Preferences(**profile_data.preferences)
-        else:
-            preferences = Preferences()
+            if "prompt" in profile_data.preferences:
+                prompt_prefs = PromptPreferences(**profile_data.preferences["prompt"])
+            if "system" in profile_data.preferences:
+                system_prefs = SystemPreferences(**profile_data.preferences["system"])
 
         # Create personal information
         personal_information = PersonalInformation(
@@ -184,7 +192,8 @@ async def create_profile(
         profile = Profile(
             user_id=current_user.id,
             personal_information=personal_information,
-            preferences=preferences,
+            prompt_preferences=prompt_prefs,
+            system_preferences=system_prefs,
         )
 
         # Save through service

@@ -13,6 +13,7 @@ from core.auth.firebase import FirebaseAuth
 from core.database import get_unit_of_work
 from core.database.factory import get_auth_service
 from core.database.unit_of_work import AsyncMongoUnitOfWork
+from core.exceptions.base import NotFoundException
 from core.models.user import User
 from core.services.auth_service import AuthService
 
@@ -25,7 +26,6 @@ from ..schemas.auth import (
     FirebaseLoginRequest,
     PasswordResetRequest,
     RegisterRequest,
-    TokenResponse,
 )
 
 router = APIRouter()
@@ -34,60 +34,55 @@ logger = get_logger(__name__)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.api.api_prefix}/auth/login")
 
 
-@router.post("/register", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register",
+    status_code=status.HTTP_201_CREATED,
+    response_model=FirebaseAuthResponse,
+)
 async def register(
     request: RegisterRequest,
     uow: AsyncMongoUnitOfWork = Depends(get_unit_of_work),
     auth_service: AuthService = Depends(get_auth_service),
-) -> dict:
-    """Register a new user using Firebase authentication.
+) -> FirebaseAuthResponse:
+    """Register a new user and return user info and access token.
 
     Args:
-        request: Registration request
+        request: Registration request (containing email and password)
         uow: Unit of work
         auth_service: Authentication service
 
     Returns:
-        dict: Success message
+        FirebaseAuthResponse: User data and access token
 
     Raises:
         HTTPException: If registration fails
     """
-    # Handle optional username for Firebase authentication
-    if request.username is None:
-        # Generate username from email or full name if not provided
-        username = request.full_name.lower().replace(" ", "_")
-        # Ensure username is unique by adding a timestamp if needed
-        existing_user = None
-        try:
-            async with uow:
-                existing_user = await uow.user_repository.get_by_username(username)
-        except Exception:
-            pass
+    logger.info(
+        f"[/register] Received registration request for email: {request.email}"
+    )  # Only email and password in request now
 
-        if existing_user:
-            from datetime import datetime
+    # No username or full_name handling in the router anymore
 
-            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-            username = f"{username}_{timestamp}"
-
-        # Update the request with the generated username
-        request.username = username
-
-    # Use Firebase for registration
+    logger.info(
+        f"[/register] Calling auth_service.register_with_firebase with email: {request.email}"
+    )
     try:
-        await auth_service.register_with_firebase(
+        registration_result = await auth_service.register_with_firebase(
             email=request.email,
             password=request.password,
-            full_name=request.full_name,
-            username=request.username,
+            # full_name and username are no longer passed from here
         )
-        return {"message": "User registered successfully with Firebase"}
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Registration failed: {str(e)}",
+        logger.info(
+            f"[/register] auth_service.register_with_firebase call successful for email: {request.email}"
         )
+        # Construct FirebaseAuthResponse from the dictionary returned by the service
+        return FirebaseAuthResponse(**registration_result)
+    except HTTPException as e:  # Catch FastAPI/Starlette HTTPExceptions directly
+        logger.error(
+            f"[/register] HTTPException during registration for {request.email}: {e.detail}",
+            exc_info=True,
+        )
+        raise
 
 
 @router.post("/login", response_model=FirebaseAuthResponse)
@@ -243,7 +238,51 @@ async def get_current_user_info(current_user: CurrentActiveUser) -> Dict[str, An
         "auth_provider": current_user.auth_provider,
         "last_login": current_user.last_login,
         "last_active": current_user.last_active,
+        "is_new_user": current_user.is_new_user,
+        "current_setup_step": current_user.current_setup_step,
     }
+
+
+@router.put(
+    "/users/me/setup-progress", response_model=schemas.UserSetupProgressResponse
+)
+async def update_setup_progress(
+    request: schemas.UpdateSetupProgressRequest,
+    current_user: CurrentActiveUser,
+    auth_service: AuthService = Depends(get_auth_service),
+) -> schemas.UserSetupProgressResponse:
+    """Update the current user's setup progress."""
+    logger.info(
+        f"Updating setup progress for user {current_user.email}: "
+        f"Step: {request.current_setup_step}, Completed: {request.setup_completed}"
+    )
+    try:
+        updated_user = await auth_service.update_user_setup_progress(
+            user_id=current_user.id,  # type: ignore
+            current_setup_step=request.current_setup_step,
+            setup_completed=request.setup_completed,
+        )
+        return schemas.UserSetupProgressResponse(
+            id=str(updated_user.id),
+            email=updated_user.email,
+            is_new_user=updated_user.is_new_user,
+            current_setup_step=updated_user.current_setup_step,
+            message="User setup progress updated successfully.",
+        )
+    except NotFoundException as e:
+        logger.error(
+            f"Error updating setup progress for user {current_user.email}: {e.detail}"
+        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e.detail))
+    except Exception as e:
+        logger.error(
+            f"Unexpected error updating setup progress for {current_user.email}: {str(e)}",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred while updating setup progress.",
+        )
 
 
 @router.post("/verify-token", status_code=status.HTTP_200_OK)

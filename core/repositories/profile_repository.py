@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from beanie import PydanticObjectId
 from bson import ObjectId
+from pydantic import EmailStr
 
 from config.logging_config import get_logger
 from config.settings import settings
@@ -447,36 +448,44 @@ class ProfileRepository(BeanieRepository[Profile]):
             raise
 
     async def create_for_user(
-        self, user: User, full_name: str, email: str
+        self, user: User, email: EmailStr, full_name: Optional[str] = None
     ) -> Optional[Profile]:
-        """Create a new profile for a user.
+        """Create a new profile for a user with minimal information.
 
         Args:
             user: User object
-            full_name: User's full name
             email: User's email address
+            full_name: User's full name (optional)
 
         Returns:
             Optional[Profile]: Created profile if successful, None otherwise
         """
         try:
-            if not user or not user.id:
-                self.logger.warning("Invalid user object provided")
-                return None
+            self.logger.info(
+                f"Attempting to create profile for user {user.id} with email {email}"
+            )
+            # Ensure user_id is valid ObjectId
+            user_id = self._ensure_object_id(user.id)
+            if not user_id:
+                self.logger.error(f"Invalid user ID provided: {user.id}")
+                raise ValueError(f"Invalid user_id: {user.id}")
 
             # Check if profile already exists
-            existing_profile = await self.get_by_user(user)
+            existing_profile = await self.get_by_user_id(user_id)
             if existing_profile:
-                self.logger.info(f"Profile already exists for user: {user.id}")
+                self.logger.warning(
+                    f"Profile already exists for user {user_id}, returning existing."
+                )
                 return existing_profile
 
-            # Create personal information
-            personal_information = PersonalInformation(
-                full_name=full_name,
+            # Create PersonalInformation
+            personal_info = PersonalInformation(
+                full_name=full_name,  # Will be None if not provided
                 email=email,
+                # Other fields will use their default None/empty values from the model
             )
 
-            # Create prompt preferences
+            # Create default preferences
             prompt_preferences = PromptPreferences()
 
             # Setup default project preferences
@@ -537,7 +546,7 @@ class ProfileRepository(BeanieRepository[Profile]):
             # Create profile with the new preference structures
             profile = Profile(
                 user_id=user.id,
-                personal_information=personal_information,
+                personal_information=personal_info,
                 prompt_preferences=prompt_preferences,
                 system_preferences=system_preferences,
                 created_at=datetime.now(timezone.utc),

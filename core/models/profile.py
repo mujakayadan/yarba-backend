@@ -154,7 +154,7 @@ class SystemPreferences(BaseModel):
 class PersonalInformation(BaseModel):
     """Personal information model."""
 
-    full_name: str
+    full_name: Optional[str] = None
     email: EmailStr
     phone: Optional[str] = None
     address: Optional[str] = None

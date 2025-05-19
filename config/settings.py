@@ -290,7 +290,7 @@ class LLMSettings(BaseSettings):
         default=None, description="Google Gemini API key", env="GEMINI_API_KEY"
     )
     default_model: str = Field(
-        default="gpt-4.1-mini-2025-04-14", description="Default LLM model to use"
+        default="gpt-4.1", description="Default LLM model to use"
     )
     temperature: float = Field(
         default=0.1, description="Default temperature for LLM responses"
