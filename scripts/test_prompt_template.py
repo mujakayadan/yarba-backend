@@ -39,7 +39,7 @@ def test_template_substitution():
 
     Skills:
     Choose exactly ${skills_details_max_categories} skill categories.
-    Include ${skills_details_min_skills_per_category} to ${skills_details_max_skills_per_category} skills per category.
+    Include ${skills_details_min_per_category} to ${skills_details_max_per_category} skills per category.
 
     Projects:
     Choose ${project_details_max_projects} projects most relevant to the target position.
@@ -59,8 +59,8 @@ def test_template_substitution():
         "work_experience_details_max_jobs": 4,
         "work_experience_details_bullet_points_per_job": 3,
         "skills_details_max_categories": 5,
-        "skills_details_min_skills_per_category": 8,
-        "skills_details_max_skills_per_category": 10,
+        "skills_details_min_per_category": 8,
+        "skills_details_max_per_category": 10,
         "project_details_max_projects": 5,
         "project_details_bullet_points_per_project": 3,
         "education_details_max_entries": 3,
@@ -99,8 +99,8 @@ def test_nested_to_flat_conversion():
         "work_experience_details": {"max_jobs": 4, "bullet_points_per_job": 3},
         "skills_details": {
             "max_categories": 5,
-            "min_skills_per_category": 8,
-            "max_skills_per_category": 10,
+            "min_per_category": 8,
+            "max_per_category": 10,
         },
         "career_summary_details": {"min_words": 10, "max_words": 15},
         "education_details": {"max_entries": 3, "max_courses": 4},

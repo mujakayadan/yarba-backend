@@ -100,12 +100,8 @@ class UpdateModelsMigration(Migration):
                                         "bsonType": "object",
                                         "properties": {
                                             "max_categories": {"bsonType": "int"},
-                                            "min_skills_per_category": {
-                                                "bsonType": "int"
-                                            },
-                                            "max_skills_per_category": {
-                                                "bsonType": "int"
-                                            },
+                                            "min_per_category": {"bsonType": "int"},
+                                            "max_per_category": {"bsonType": "int"},
                                         },
                                     },
                                     "career_summary_details": {

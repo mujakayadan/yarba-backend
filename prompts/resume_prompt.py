@@ -51,15 +51,15 @@ CRITICAL CONSTRAINTS FOR SKILLS (MUST BE FOLLOWED):
 - You MUST select EXACTLY {{ preferences.skills.max_categories }} skill categories from the portfolio data below.
 - Choose the categories most relevant to the Job Description.
 - For EACH of the {{ preferences.skills.max_categories }} selected categories, you MUST include:
-    - AT LEAST {{ preferences.skills.min_skills_per_category }} skills.
-    - NO MORE THAN {{ preferences.skills.max_skills_per_category }} skills.
+    - AT LEAST {{ preferences.skills.min_per_category }} skills.
+    - NO MORE THAN {{ preferences.skills.max_per_category }} skills.
 - Skills MUST be copied VERBATIM from the portfolio data. DO NOT ALTER THEM.
 
 Detailed Instructions for Skills:
 - First, identify the {{ preferences.skills.max_categories }} skill categories from the portfolio that are most relevant to the Job Description.
 - From the chosen {{ preferences.skills.max_categories }} categories, select the most relevant skills within each category.
-- Ensure you select enough skills to meet the minimum requirement of {{ preferences.skills.min_skills_per_category }} per category. If a category has fewer than {{ preferences.skills.min_skills_per_category }} skills listed in the portfolio, include ALL of them for that category.
-- Do NOT exceed the maximum limit of {{ preferences.skills.max_skills_per_category }} skills per category.
+- Ensure you select enough skills to meet the minimum requirement of {{ preferences.skills.min_per_category }} per category. If a category has fewer than {{ preferences.skills.min_per_category }} skills listed in the portfolio, include ALL of them for that category.
+- Do NOT exceed the maximum limit of {{ preferences.skills.max_per_category }} skills per category.
 - Preserve the EXACT category names from the portfolio.
 - Order the skills within each selected category by relevance to the Job Description.
 - Do not split skills into different categories than they appear in the portfolio.

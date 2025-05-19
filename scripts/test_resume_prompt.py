@@ -132,8 +132,8 @@ async def show_substitution_sample(prompt):
 IMPORTANT INSTRUCTIONS FOR SKILLS:
 - PRESERVE the EXACT category names from the portfolio. Never rename, combine, or create new categories.
 - Choose exactly the ${skills_details_max_categories} most relevant categories from the portfolio
-- For EACH selected category, include EXACTLY ${skills_details_min_skills_per_category} to ${skills_details_max_skills_per_category} skills
-- The minimum of ${skills_details_min_skills_per_category} skills per category is REQUIRED
+- For EACH selected category, include EXACTLY ${skills_details_min_per_category} to ${skills_details_max_per_category} skills
+- The minimum of ${skills_details_min_per_category} skills per category is REQUIRED
 """
 
     # Extract the actual skills section from the prompt
@@ -147,8 +147,8 @@ IMPORTANT INSTRUCTIONS FOR SKILLS:
 
         logger.info(f"Original skills section template contained variables for:")
         logger.info("- skills_details_max_categories")
-        logger.info("- skills_details_min_skills_per_category")
-        logger.info("- skills_details_max_skills_per_category")
+        logger.info("- skills_details_min_per_category")
+        logger.info("- skills_details_max_per_category")
 
         logger.info(f"\nActual skills section after substitution:\n{actual_skills}")
 

@@ -756,8 +756,8 @@ class PreferenceSettings(BaseSettings):
             },
             "skills": {
                 "max_categories": self.skills_max_categories,
-                "min_skills_per_category": self.skills_min_per_category,
-                "max_skills_per_category": self.skills_max_per_category,
+                "min_per_category": self.skills_min_per_category,
+                "max_per_category": self.skills_max_per_category,
             },
             "work_experience": {
                 "max_jobs": self.work_experience_max_jobs,

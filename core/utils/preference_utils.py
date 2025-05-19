@@ -21,8 +21,8 @@ PREFERENCE_STRUCTURE = {
     },
     "skills": {
         "max_categories": int,
-        "min_skills_per_category": int,
-        "max_skills_per_category": int,
+        "min_per_category": int,
+        "max_per_category": int,
     },
     "career_summary": {
         "min_words": int,
