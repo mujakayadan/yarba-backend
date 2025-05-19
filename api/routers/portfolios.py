@@ -1,7 +1,7 @@
 """Portfolio router for the API."""
 
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from beanie import PydanticObjectId
 from fastapi import (
@@ -69,6 +69,15 @@ class PortfolioCreate(BaseModel):
     """Portfolio creation model."""
 
     profile_id: Optional[str] = None
+    career_summary: Optional[CareerSummary] = None
+    skills: Optional[List[Skill]] = None
+    work_experience: Optional[List[WorkExperience]] = None
+    education: Optional[List[Education]] = None
+    projects: Optional[List[Project]] = None
+    awards: Optional[List[Award]] = None
+    publications: Optional[List[Publication]] = None
+    certifications: Optional[List[Any]] = None
+    custom_sections: Optional[CustomSections] = None
 
 
 class PortfolioUpdate(BaseModel):
@@ -176,28 +185,47 @@ async def create_portfolio(
     Args:
         portfolio_data: Portfolio data
         current_user: Current authenticated user
-        portfolio_repository: Portfolio repository
+        portfolio_repository: Portfolio repository (available for use if needed)
 
     Returns:
         Created portfolio
     """
-    # Create career summary if provided
-    career_summary = None
-    if portfolio_data.career_summary:
-        career_summary = CareerSummary(**portfolio_data.career_summary)
+    db_profile_id: Optional[PydanticObjectId] = None
+    if portfolio_data.profile_id:
+        try:
+            db_profile_id = PydanticObjectId(portfolio_data.profile_id)
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid profile_id format: {portfolio_data.profile_id}",
+            )
 
-    # Create portfolio
-    portfolio = Portfolio(
-        user_id=current_user.id,
-        title=portfolio_data.title,
-        description=portfolio_data.description,
-        professional_title=portfolio_data.professional_title,
-        career_summary=career_summary,
-        theme=portfolio_data.theme,
-        layout=portfolio_data.layout,
-        items_per_page=portfolio_data.items_per_page,
-        is_public=portfolio_data.is_public,
-    )
+    # Prepare creation data from portfolio_data, excluding profile_id as it's handled separately
+    # and ensuring only fields explicitly set by the client (and not None) are passed.
+    # Beanie's default_factory will handle fields not provided or explicitly set to None if Pydantic doesn't set them.
+    create_kwargs = portfolio_data.model_dump(
+        exclude_unset=True, exclude_none=False
+    )  # Pass None to allow explicit nulling if model supports it
+
+    # Remove profile_id from create_kwargs as it's passed directly to the Portfolio constructor
+    if "profile_id" in create_kwargs:
+        del create_kwargs["profile_id"]
+
+    # Create the Portfolio document instance
+    # Beanie models can typically accept Pydantic model instances for nested fields
+    # or dictionaries. model_dump(exclude_unset=True) helps pass only provided data.
+    try:
+        portfolio = Portfolio(
+            user_id=current_user.id,
+            profile_id=db_profile_id,
+            **create_kwargs,  # Pass all other valid fields from PortfolioCreate
+        )
+    except Exception as e:
+        logger.error(f"Error instantiating Portfolio model: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error creating portfolio data.",
+        )
 
     await portfolio.create()
     return portfolio
