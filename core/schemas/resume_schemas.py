@@ -1,9 +1,11 @@
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field
 
 
 class PersonalInformationSchema(BaseModel):
+    """Schema for personal information section of a resume."""
+
     full_name: str = Field(..., description="Full name of the person")
     email: str = Field(..., description="Email address")
     phone: Optional[str] = Field(None, description="Phone number")
@@ -13,10 +15,14 @@ class PersonalInformationSchema(BaseModel):
     website: Optional[str] = Field(None, description="Personal website URL")
 
     class Config:
+        """Pydantic model configuration."""
+
         extra = "forbid"
 
 
 class CareerSummarySchema(BaseModel):
+    """Schema for career summary section of a resume."""
+
     job_title: str = Field(
         ..., description="Selected job title that best matches the target position"
     )
@@ -26,18 +32,26 @@ class CareerSummarySchema(BaseModel):
     )
 
     class Config:
+        """Pydantic model configuration."""
+
         extra = "forbid"
 
 
 class SkillCategorySchema(BaseModel):
+    """Schema for a category of skills."""
+
     category: str = Field(..., description="Skill category name")
     skills: List[str] = Field(..., description="List of skills in this category")
 
     class Config:
+        """Pydantic model configuration."""
+
         extra = "forbid"
 
 
 class WorkExperienceSchema(BaseModel):
+    """Schema for work experience section of a resume."""
+
     job_title: str = Field(..., description="Job title/position")
     company: str = Field(..., description="Company/organization name")
     location: str = Field(..., description="Location of the job")
@@ -47,10 +61,14 @@ class WorkExperienceSchema(BaseModel):
     )
 
     class Config:
+        """Pydantic model configuration."""
+
         extra = "forbid"
 
 
 class EducationSchema(BaseModel):
+    """Schema for education section of a resume."""
+
     degree_type: str = Field(
         ..., description="Type of degree (e.g., Bachelor's, Master's)"
     )
@@ -64,10 +82,14 @@ class EducationSchema(BaseModel):
     )
 
     class Config:
+        """Pydantic model configuration."""
+
         extra = "forbid"
 
 
 class ProjectSchema(BaseModel):
+    """Schema for project section of a resume."""
+
     name: str = Field(..., description="Project name/title")
     bullet_points: List[str] = Field(
         ...,
@@ -79,20 +101,28 @@ class ProjectSchema(BaseModel):
     )
 
     class Config:
+        """Pydantic model configuration."""
+
         extra = "forbid"
 
 
 class PublicationSchema(BaseModel):
+    """Schema for publication section of a resume."""
+
     name: str = Field(..., description="Publication title/name")
     publisher: str = Field(..., description="Publisher or journal name")
     link: Optional[str] = Field(None, description="Link to the publication")
     time: str = Field(..., description="Publication date or timeframe")
 
     class Config:
+        """Pydantic model configuration."""
+
         extra = "forbid"
 
 
 class AwardSchema(BaseModel):
+    """Schema for award section of a resume."""
+
     name: str = Field(..., description="Award title/name")
     explanation: str = Field(
         ...,
@@ -100,6 +130,8 @@ class AwardSchema(BaseModel):
     )
 
     class Config:
+        """Pydantic model configuration."""
+
         extra = "forbid"
         # Keep example if desired, or remove if not needed here
         json_schema_extra = {
@@ -137,4 +169,6 @@ class ResumeOutputSchema(BaseModel):
     )
 
     class Config:
+        """Pydantic model configuration."""
+
         extra = "forbid"

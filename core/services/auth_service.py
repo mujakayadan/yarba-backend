@@ -1,5 +1,6 @@
 """Authentication service for user management using Firebase."""
 
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional, Tuple
 
@@ -13,7 +14,6 @@ from config.settings import Settings
 from core.auth.firebase import FirebaseAuth
 from core.exceptions.base import (
     BadRequestException,
-    ForbiddenException,
     NotFoundException,
     UnauthorizedException,
 )
@@ -21,7 +21,6 @@ from core.models.user import User
 from core.repositories.user_repository import UserRepository
 
 settings = Settings()
-logger = get_logger(__name__)
 
 
 class AuthService:
@@ -61,7 +60,6 @@ class AuthService:
             f"[AuthService.register] Attempting to register user. Email: {email}"
         )
 
-        # Check if user already exists in our database
         existing_user = await self.user_repository.get_by_email(email)
         if existing_user:
             self.logger.warning(
@@ -70,11 +68,9 @@ class AuthService:
             raise BadRequestException("Email already registered")
 
         try:
-            # Create user in Firebase
             self.logger.info(
                 f"[AuthService.register] About to call FirebaseAuth.create_user for email: {email}"
             )
-            # Determine Firebase display_name: derive from email prefix
             firebase_display_name = email.split("@")[0]
             self.logger.info(
                 f"[AuthService.register] Using display_name for Firebase: {firebase_display_name}"
@@ -87,21 +83,15 @@ class AuthService:
             )
             firebase_user_uid = firebase_user_data.get("uid")
 
-            # Generate internal username based on email prefix
-            generated_internal_username = (
-                email.split("@")[0].lower().replace(" ", "_")
-            )  # base username from email
+            generated_internal_username = email.split("@")[0].lower().replace(" ", "_")
             self.logger.info(
                 f"[AuthService.register] Generated base internal username: {generated_internal_username} for email: {email}"
             )
 
-            # Check if username exists and add suffix if needed
             existing_username_obj = await self.user_repository.get_by_username(
                 generated_internal_username
             )
-            if existing_username_obj:  # Check if an object was returned
-                from datetime import datetime
-
+            if existing_username_obj:
                 timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
                 final_username_for_db = f"{generated_internal_username}_{timestamp}"
                 self.logger.info(
@@ -123,7 +113,6 @@ class AuthService:
                 f"[AuthService.register] Preparing to create local DB user. Email: {email}, Final Username: {final_username_for_db}, Firebase UID: {firebase_user_uid}"
             )
 
-            # Create user in our database
             user = User(
                 email=email,
                 username=final_username_for_db,
@@ -136,7 +125,6 @@ class AuthService:
             created_user = await self.user_repository.create(user)
             self.logger.info(f"User registered with Firebase: {email}")
 
-            # Generate and send verification email
             self.logger.info(
                 f"[AuthService.register] Attempting to send verification email for: {email}"
             )
@@ -145,8 +133,6 @@ class AuthService:
                 f"[AuthService.register] Verification email process completed for: {email}"
             )
 
-            # User successfully created in Firebase and local DB
-            # Now, generate an access token for this new user
             access_token = self.create_access_token(data={"sub": created_user.email})
             self.logger.info(
                 f"[AuthService.register] Access token generated for new user: {email}"
@@ -194,16 +180,12 @@ class AuthService:
                 f"Processing Firebase login with token length: {len(id_token)}"
             )
 
-            # Check if the token looks like a valid JWT
-            import re
-
             if not re.match(
                 r"^[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*$", id_token
             ):
                 self.logger.warning(f"Token format does not match expected JWT pattern")
                 raise UnauthorizedException("Invalid token format")
 
-            # Verify Firebase token
             token_data = await FirebaseAuth.verify_token(id_token)
             uid = token_data.get("uid")
             email = token_data.get("email")
@@ -216,33 +198,24 @@ class AuthService:
                     "Invalid Firebase token: missing required claims"
                 )
 
-            # Check if user exists in our database
             user = await self.user_repository.get_by_email(email)
 
             if not user:
-                # Create a new user record if this is their first login
                 self.logger.info(
                     f"First-time Firebase login for {email}, creating user record"
                 )
                 try:
                     firebase_user = await FirebaseAuth.get_user(uid)
-                    # Generate a valid username from display name or email
                     username = firebase_user.get("display_name") or email.split("@")[0]
-                    # Convert username to valid format (lowercase, no spaces)
                     username = username.lower().replace(" ", "_")
 
-                    # Ensure username is unique by checking database
                     existing_user_with_username = (
                         await self.user_repository.get_by_username(username)
                     )
                     if existing_user_with_username:
-                        # Add a timestamp to make username unique
-                        from datetime import datetime
-
                         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
                         username = f"{username}_{timestamp}"
 
-                    # Determine the authentication provider from the token data
                     provider_data = token_data.get("firebase", {}).get(
                         "sign_in_provider", ""
                     )
@@ -270,15 +243,11 @@ class AuthService:
                         f"User creation failed: {str(user_create_error)}"
                     )
             elif user.firebase_uid != uid:
-                # Update Firebase UID if it's different
                 self.logger.info(f"Updating Firebase UID for user: {email}")
                 user.firebase_uid = uid
                 user = await self.user_repository.update(user.id, user)
 
-            # Update last login timestamp
             await self.user_repository.update_last_login(user.id)
-
-            # Generate JWT token for our API
             access_token = self.create_access_token(data={"sub": user.email})
 
             self.logger.info(f"Firebase login successful for {email}")
@@ -308,7 +277,7 @@ class AuthService:
             raise UnauthorizedException(f"Firebase authentication failed: {str(e)}")
 
     def create_access_token(
-        self, data: Dict, expires_delta: Optional[timedelta] = None
+        self, data: Dict[str, Any], expires_delta: Optional[timedelta] = None
     ) -> str:
         """
         Create a JWT access token.
@@ -411,13 +380,11 @@ class AuthService:
             # This is a Firebase requirement for security
             await FirebaseAuth.sign_in_with_email_password(email, current_password)
 
-            # If successful, update the password
             user = await self.user_repository.get_by_email(email)
             if not user or not user.firebase_uid:
                 self.logger.error(f"User not found or missing Firebase UID: {email}")
                 raise Exception("User not found or not a Firebase user")
 
-            # Update the password in Firebase
             await FirebaseAuth.update_user(user.firebase_uid, password=new_password)
 
             self.logger.info(f"Password changed successfully for user: {email}")
@@ -467,7 +434,9 @@ class AuthService:
 
         return user
 
-    async def update_user(self, user_id: PydanticObjectId, update_data: Dict) -> User:
+    async def update_user(
+        self, user_id: PydanticObjectId, update_data: Dict[str, Any]
+    ) -> User:
         """
         Update a user.
 
@@ -497,13 +466,13 @@ class AuthService:
             raise NotFoundException("User not found")
 
     async def update_user_with_firebase(
-        self, user_id: str, update_data: Dict[str, Any]
+        self, user_id: PydanticObjectId, update_data: Dict[str, Any]
     ) -> User:
         """
         Update user data in both Firebase and local database.
 
         Args:
-            user_id: User ID in the local database
+            user_id: User ID in the local database (PydanticObjectId)
             update_data: Dictionary of fields to update (e.g., {"display_name": "New Name"})
 
         Returns:
@@ -513,7 +482,6 @@ class AuthService:
             NotFoundException: If user not found in local database
             HTTPException: If Firebase update fails
         """
-        # Fetch the user from the local database
         user = await self.user_repository.get_by_id(user_id)
         if not user:
             self.logger.warning(
@@ -521,7 +489,6 @@ class AuthService:
             )
             raise NotFoundException("User not found")
 
-        # Update Firebase user details
         firebase_update_payload = {}
         if "email" in update_data:
             firebase_update_payload["email"] = update_data["email"]
@@ -549,7 +516,6 @@ class AuthService:
                     detail=f"Firebase update failed: {str(e)}",
                 )
 
-        # Update local user details
         # Only update fields that are part of the User model
         allowed_local_fields = User.model_fields.keys()
         local_update_data = {
@@ -561,7 +527,8 @@ class AuthService:
             self.logger.info(f"Successfully updated user {user.email} in local DB.")
             return updated_user
 
-        return user  # Return original user if no local updates were made but Firebase might have been
+        # Return original user if no local updates were made but Firebase might have been
+        return user
 
     async def update_user_setup_progress(
         self,
@@ -606,7 +573,6 @@ class AuthService:
                 update_data["current_setup_step"] = 0
 
         if not update_data:
-            # No actual changes to make
             return user
 
         # Instead of passing the dictionary directly, save the updated user object
@@ -616,7 +582,7 @@ class AuthService:
         )
         return user
 
-    async def verify_token(self, token: str) -> Tuple[Dict, User]:
+    async def verify_token(self, token: str) -> Tuple[Dict[str, Any], User]:
         """
         Verify a JWT token and get the user.
 
@@ -667,9 +633,13 @@ class AuthService:
         user.updated_at = datetime.now(timezone.utc)
 
         updated_user = await self.user_repository.update(user_id, user)
-        if not updated_user:
+        if (
+            not updated_user
+        ):  # Should not happen if get_by_id succeeded and update is on Pydantic model
             self.logger.error(f"Failed to deactivate user: {user_id}")
-            raise NotFoundException("User not found")
+            # This path might indicate an issue with the .update method or transactionality
+            # For now, keeping NotFoundException as per original logic if update returns None
+            raise NotFoundException("User not found or failed to update")
 
         self.logger.info(f"User deactivated: {user_id}")
         return updated_user
