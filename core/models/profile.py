@@ -1,9 +1,9 @@
 """Profile model for MongoDB using Beanie ODM."""
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional
 
-from beanie import Document, Indexed, Link, PydanticObjectId
+from beanie import Document, Link, PydanticObjectId
 from pydantic import BaseModel, EmailStr, Field
 
 from config.settings import settings

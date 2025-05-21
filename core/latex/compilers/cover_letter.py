@@ -1,6 +1,5 @@
 """Cover letter compiler implementation."""
 
-import json
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -189,7 +188,6 @@ class CoverLetterCompiler(LatexCompiler):
             if signature_path:
                 try:
                     import shutil
-                    from pathlib import Path
 
                     # Get the directory of the temp file
                     temp_dir = temp_path.parent

@@ -1,7 +1,5 @@
 """Comprehensive prompt template for all resume sections."""
 
-from typing import Dict, List
-
 from .base_prompt import BasePrompt
 
 TEMPLATE = """Task: Create a comprehensive resume by selecting and organizing the most relevant information from the candidate's portfolio to match the target job description.

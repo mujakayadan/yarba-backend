@@ -1,8 +1,8 @@
 """Service for handling job-related operations."""
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
-from config.constants import APP_CONSTANTS, FEATURE_FLAGS
+from config.constants import APP_CONSTANTS
 from config.logging_config import get_logger
 from core.schemas.job_schemas import JobInfoSchema
 from core.services.llm_service import LLMService

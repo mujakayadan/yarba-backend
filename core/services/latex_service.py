@@ -485,8 +485,6 @@ def get_latex_service() -> LatexService:
         LatexService: A new instance of LatexService
     """
     # Placeholder: Replace with actual PortfolioService injection
-    from core.database.mongodb import get_database  # Example import
-    from core.repositories import PortfolioRepository, UserRepository  # Example imports
 
     # Example of manual instantiation (adjust based on your project structure)
     # db = await get_database() # Assuming async setup if needed elsewhere

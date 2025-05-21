@@ -1,9 +1,8 @@
 """TexHeader model for storing reusable LaTeX headers or snippets."""
 
 from datetime import datetime, timezone
-from typing import Optional
 
-from beanie import Document, PydanticObjectId
+from beanie import Document
 from pydantic import Field
 
 

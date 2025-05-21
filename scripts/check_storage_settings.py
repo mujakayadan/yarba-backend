@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 """Script to check if AWS S3 and CloudFront settings are properly loaded."""
 
-import os
 import sys
 from pathlib import Path
 

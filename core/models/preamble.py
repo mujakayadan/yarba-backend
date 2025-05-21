@@ -1,9 +1,8 @@
 """Preamble model for storing LaTeX preamble content."""
 
 from datetime import datetime, timezone
-from typing import Optional
 
-from beanie import Document, PydanticObjectId
+from beanie import Document
 from pydantic import Field
 
 

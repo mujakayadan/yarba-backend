@@ -1,6 +1,6 @@
 """Work experience section processor."""
 
-from typing import Any, Dict, List
+from typing import Any
 
 from ..utils.safety import sanitize_latex
 from .base import SectionProcessor

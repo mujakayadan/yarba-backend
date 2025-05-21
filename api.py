@@ -10,6 +10,10 @@ project_root = str(Path(__file__).parent.absolute())
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
+import uvicorn
+
+from api.healthcheck import API_PRESENT, check_api_exists
+from api.main import app
 from config.logging_config import configure_logging, get_logger
 
 # Import logging configuration from config
@@ -28,7 +32,7 @@ logger.info(
 logger.info(f"MONGODB_DATABASE: {os.environ.get('MONGODB_DATABASE', 'Not set')}")
 logger.info(f"Settings database.url: {settings.database.url}")
 logger.info(f"Settings database.name: {settings.database.name}")
-logger.info(f"==== End Environment Variables ====")
+logger.info("==== End Environment Variables ====")
 
 logger.info(f"Project root: {project_root}")
 logger.info(f"Python path: {sys.path}")
@@ -42,8 +46,6 @@ if api_dir.exists():
     # Check for the healthcheck file
     try:
         logger.info("Checking for healthcheck file...")
-        from api.healthcheck import API_PRESENT, check_api_exists
-
         logger.info(f"API_PRESENT: {API_PRESENT}")
         logger.info(f"API exists: {check_api_exists()}")
     except ImportError:
@@ -53,14 +55,10 @@ else:
     sys.exit(1)
 
 try:
-    import uvicorn
-
     logger.info("Successfully imported uvicorn")
 
     # Try to import the FastAPI app
     logger.info("Attempting to import FastAPI app...")
-    from api.main import app
-
     logger.info("Successfully imported FastAPI app")
 
     def main():

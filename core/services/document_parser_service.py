@@ -1,8 +1,6 @@
 """Service for parsing documents (PDF, DOCX) into Portfolio objects."""
 
 import io
-import json
-from pathlib import Path
 from typing import Any, Dict
 
 from docx import Document as DocxDocument

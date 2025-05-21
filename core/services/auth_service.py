@@ -183,7 +183,7 @@ class AuthService:
             if not re.match(
                 r"^[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*$", id_token
             ):
-                self.logger.warning(f"Token format does not match expected JWT pattern")
+                self.logger.warning("Token format does not match expected JWT pattern")
                 raise UnauthorizedException("Invalid token format")
 
             token_data = await FirebaseAuth.verify_token(id_token)
@@ -192,7 +192,7 @@ class AuthService:
 
             if not uid or not email:
                 self.logger.warning(
-                    f"Firebase token missing required claims (uid or email)"
+                    "Firebase token missing required claims (uid or email)"
                 )
                 raise UnauthorizedException(
                     "Invalid Firebase token: missing required claims"

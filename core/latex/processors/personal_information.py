@@ -1,9 +1,6 @@
 """Personal information section processor."""
 
-from typing import Any, Dict
-from urllib.parse import urlparse
-
-from config.settings import settings
+from typing import Any
 
 from ..utils.safety import sanitize_latex
 from .base import SectionProcessor

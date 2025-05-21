@@ -8,7 +8,13 @@ from typing import AsyncGenerator
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from config.settings import Settings
-from core.repositories import *
+from core.repositories import (
+    CoverLetterRepository,
+    PortfolioRepository,
+    ProfileRepository,
+    ResumeRepository,
+    UserRepository,
+)
 
 from ..services.auth_service import AuthService
 from .connection import get_async_database_connection

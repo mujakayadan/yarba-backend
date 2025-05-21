@@ -1,18 +1,13 @@
 """Service for resume generation using LLM."""
 
-import copy
 import json
-import re
-from datetime import date, datetime, timezone
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import datetime, timezone
+from typing import Any, Dict, Tuple
 
 from beanie import PydanticObjectId
-from bson import json_util
 from pydantic import BaseModel
 
 from config.logging_config import get_logger
-from core.exceptions.base import NotFoundException
 from core.models.portfolio import Portfolio
 from core.models.profile import Profile
 from core.models.resume import Resume
@@ -20,13 +15,12 @@ from core.repositories.portfolio_repository import PortfolioRepository
 from core.repositories.profile_repository import ProfileRepository
 from core.repositories.resume_repository import ResumeRepository
 from core.schemas.resume_schemas import ResumeOutputSchema
-from core.services.latex_service import LatexService, get_latex_service
+from core.services.latex_service import LatexService
 from core.services.llm_service import LLMService
 from core.services.portfolio_service import PortfolioService
 from core.services.profile_service import ProfileService
 from core.services.prompt_service import PromptService
 from core.utils.json_helper import convert_to_serializable
-from core.utils.schema_mapping import map_resume_output_to_models
 
 logger = get_logger(__name__)
 

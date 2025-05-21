@@ -3,7 +3,6 @@
 from typing import Optional
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
-from pymongo import MongoClient
 
 from config.logging_config import get_logger
 

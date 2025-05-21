@@ -1,6 +1,5 @@
 """File handling utilities for the Resume Builder application."""
 
-import os
 import pathlib
 from typing import Optional, Union
 

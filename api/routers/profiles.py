@@ -486,12 +486,12 @@ async def patch_my_life_story(
 
         # Update life story
         profile.life_story = life_story_data.life_story
-        logger.debug(f"Set life_story field, preparing to save")
+        logger.debug("Set life_story field, preparing to save")
 
         # Save through service
         try:
             updated_profile = await profile_service.update_profile(profile)
-            logger.debug(f"Profile updated successfully with new life story")
+            logger.debug("Profile updated successfully with new life story")
             return updated_profile
         except Exception as inner_e:
             logger.error(
@@ -597,7 +597,7 @@ async def upload_profile_picture(
 
         # Update profile with the new profile picture
         profile.profile_picture_key = filename
-        updated_profile = await profile_service.update_profile(profile)
+        await profile_service.update_profile(profile)
 
         # Return the storage key
         return {"profile_picture_key": filename}
@@ -743,7 +743,7 @@ async def upload_signature(
 
         # Update profile with the new signature key
         profile.signature_key = signature_key
-        updated_profile = await profile_service.update_profile(profile)
+        await profile_service.update_profile(profile)
 
         # Get URL for the signature
         signature_url = storage_provider.get_url(signature_key)
@@ -1075,7 +1075,7 @@ async def upload_my_profile_picture(
 
         # Update profile with the new profile picture
         profile.profile_picture_key = filename
-        updated_profile = await profile_service.update_profile(profile)
+        await profile_service.update_profile(profile)
 
         # Return the storage key
         return {"profile_picture_key": filename}

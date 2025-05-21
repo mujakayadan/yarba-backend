@@ -42,7 +42,6 @@ async def test_api_imports():
         logger.info(f"Total API endpoints: {total_routes}")
 
         # Test profile service dependency
-        from api.dependencies.services import get_profile_service
 
         logger.info("Successfully imported profile service dependency")
 

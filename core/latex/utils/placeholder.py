@@ -1,7 +1,7 @@
 """LaTeX placeholder management utilities."""
 
 import re
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from config.logging_config import get_logger
 

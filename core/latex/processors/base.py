@@ -1,8 +1,7 @@
 """Base section processor for LaTeX document generation."""
 
 import json
-import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List
 
 from config.logging_config import get_logger
 

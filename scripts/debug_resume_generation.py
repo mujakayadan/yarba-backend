@@ -12,35 +12,14 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
 
-from dotenv import load_dotenv
-
-# Load environment variables from .env files
-load_dotenv(Path(__file__).parent.parent / ".env.local")
-load_dotenv(Path(__file__).parent.parent / ".env")
-
-# Check if ANTHROPIC_API_KEY is loaded
-if not os.environ.get("ANTHROPIC_API_KEY"):
-    print("WARNING: ANTHROPIC_API_KEY environment variable is not set!")
-
-from beanie import PydanticObjectId
-
-# Set up logging
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
-)
-
-logger = logging.getLogger("resume_debug")
-
-# Add parent directory to path so imports work
+# Add parent directory to path so imports work BEFORE other project imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from config.logging_config import configure_logging, get_logger
+from beanie import PydanticObjectId
+from dotenv import load_dotenv
 
-# Import necessary components
+from config.logging_config import configure_logging
 from config.settings import settings
 from core.database.init import init_db
 from core.repositories.portfolio_repository import PortfolioRepository
@@ -51,8 +30,29 @@ from core.services.llm_service import LLMService
 from core.services.portfolio_service import PortfolioService
 from core.services.profile_service import ProfileService
 from core.services.prompt_service import PromptService
-from core.services.resume_generation_service import ResumeGenerationService
-from core.utils.json_helper import convert_to_serializable, dumps, loads
+from core.utils.json_helper import dumps
+
+# Load environment variables from .env files
+load_dotenv(Path(__file__).parent.parent / ".env.local")
+load_dotenv(Path(__file__).parent.parent / ".env")
+
+# Check if ANTHROPIC_API_KEY is loaded
+if not os.environ.get("ANTHROPIC_API_KEY"):
+    print("WARNING: ANTHROPIC_API_KEY environment variable is not set!")
+
+# Set up logging (basicConfig should be called early)
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+)
+
+logger = logging.getLogger("resume_debug")
+
+# Configure project-specific logging (if it adds handlers or changes levels)
+# If configure_logging also calls basicConfig, the above basicConfig might be redundant
+# or could conflict. Assuming configure_logging is additive or idempotent here.
+configure_logging()
 
 # Sample job description to use if none is provided in resume
 SAMPLE_JOB_DESCRIPTION = """
@@ -314,7 +314,7 @@ class DebugProfileService(ProfileService):
 
         try:
             # Get the profile to check if it has API keys
-            profile = await self.get_profile_by_user_id(user_id)
+            await self.get_profile_by_user_id(user_id)
 
             # Get API keys from environment
             api_keys = {}
@@ -380,7 +380,7 @@ async def test_direct_llm_call(resume_service, resume_id, llm_service=None):
 
         # Parse the response using the same method as the service
         resume_content = resume_service._parse_llm_response(response, str(resume_id))
-        logger.info(f"Parsed LLM response into structured content")
+        logger.info("Parsed LLM response into structured content")
 
         return resume_content
     except Exception as e:
@@ -462,16 +462,14 @@ async def main():
 
         # Initialize repositories
         logger.info("Initializing repositories")
-        resume_repo = ResumeRepository()
+        ResumeRepository()
         portfolio_repo = PortfolioRepository()
         profile_repo = ProfileRepository()
         user_repo = UserRepository()
 
         # Initialize services
         logger.info("Initializing services")
-        portfolio_service = PortfolioService(
-            user_repository=user_repo, portfolio_repository=portfolio_repo
-        )
+        PortfolioService(user_repository=user_repo, portfolio_repository=portfolio_repo)
         profile_service = DebugProfileService(
             user_repository=user_repo, profile_repository=profile_repo
         )

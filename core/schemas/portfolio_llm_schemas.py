@@ -1,8 +1,8 @@
 """Pydantic schemas for LLM interactions related to Portfolios."""
 
-from typing import Any, Dict, List, Optional, Union
+from typing import List, Optional, Union
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field
 
 # These schemas mirror core/models/portfolio.py but are simplified for LLM interaction,
 # especially avoiding Field(default=...) where it causes issues with OpenAI's JSON mode.

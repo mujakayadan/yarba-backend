@@ -8,10 +8,7 @@ from config.logging_config import get_logger
 
 from ..exceptions.base import NotFoundException
 from ..models.cover_letter import CoverLetter
-from ..repositories.cover_letter_repository import (
-    CoverLetterFilter,
-    CoverLetterRepository,
-)
+from ..repositories.cover_letter_repository import CoverLetterRepository
 from ..repositories.portfolio_repository import PortfolioRepository
 from ..repositories.profile_repository import ProfileRepository
 from ..repositories.resume_repository import ResumeRepository
@@ -208,7 +205,7 @@ class CoverLetterService:
             NotFoundException: If cover letter not found or doesn't belong to user
         """
         # Verify cover letter exists and belongs to user
-        cover_letter = await self.get_cover_letter_by_id(cover_letter_id, user_id)
+        await self.get_cover_letter_by_id(cover_letter_id, user_id)
 
         # Update fields
         updated_cover_letter = await self.cover_letter_repository.update_metadata(

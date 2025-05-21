@@ -1,10 +1,9 @@
 """Base service for application services."""
 
-from typing import Any, Dict, Generic, List, Optional, Type, TypeVar
+from typing import Generic, List, Optional, TypeVar
 
 from config.logging_config import get_logger
 
-from ..models import User
 from ..repositories.base_repository import BaseRepository
 
 T = TypeVar("T")

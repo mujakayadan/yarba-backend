@@ -1,6 +1,5 @@
 """Utility for robust, DRY user preference handling for prompt injection."""
 
-import copy
 import logging
 from typing import Any, Dict, Optional
 

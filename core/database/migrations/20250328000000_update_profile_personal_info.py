@@ -1,17 +1,13 @@
 """Migration to update profile model with new personal_information structure."""
 
-import asyncio
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
 
-from beanie import PydanticObjectId
 from pydantic import ValidationError
 from pymongo.errors import PyMongoError
 
 from config.logging_config import get_logger
 from core.database.migrations.migration_manager import MigrationBase
-from core.models.profile import PersonalInformation, Profile
-from core.repositories.profile_repository import ProfileRepository
+from core.models.profile import PersonalInformation
 
 logger = get_logger(__name__)
 

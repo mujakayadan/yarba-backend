@@ -1,9 +1,8 @@
 """File upload utilities for the Resume Builder application."""
 
 import os
-import pathlib
 import uuid
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 
 from fastapi import HTTPException, UploadFile, status
 from PIL import Image

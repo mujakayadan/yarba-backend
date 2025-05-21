@@ -1,6 +1,5 @@
 """Tests for LLM service."""
 
-import asyncio
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -11,7 +10,6 @@ from beanie import PydanticObjectId
 # Make sure tests can import from the project root
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from config.settings import Settings
 from core.models.profile import Preferences, Profile
 from core.services.llm_service import LLMService
 from core.services.profile_service import ProfileService

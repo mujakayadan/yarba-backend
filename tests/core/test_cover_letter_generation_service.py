@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from beanie import PydanticObjectId
 
-from core.models.cover_letter import CoverLetter
 from core.services.cover_letter_generation_service import CoverLetterGenerationService
 
 

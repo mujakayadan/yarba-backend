@@ -44,7 +44,6 @@ class LatexCompiler(ABC):
         Returns:
             str: Generated LaTeX content
         """
-        pass
 
     async def compile_pdf(
         self, tex_path: Path, latex_content: str = None

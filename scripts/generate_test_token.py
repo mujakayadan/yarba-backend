@@ -12,7 +12,6 @@ Never use this in production environments!
 import argparse
 import datetime
 import json
-import os
 import sys
 import time
 from typing import Any, Dict

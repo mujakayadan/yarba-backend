@@ -1,17 +1,17 @@
-"""Script to run flake8 linting."""
+"""Script to run Ruff linting."""
 
 import subprocess
 import sys
 from pathlib import Path
 
 
-def run_flake8() -> None:
-    """Run flake8 on the project."""
+def run_ruff_check() -> None:
+    """Run ruff check on the project."""
     project_root = Path(__file__).parent.parent
 
-    # Run flake8
+    # Run ruff check
     result = subprocess.run(
-        ["flake8", "."],
+        ["ruff", "check", "."],
         cwd=project_root,
         capture_output=True,
         text=True,
@@ -23,9 +23,9 @@ def run_flake8() -> None:
     if result.stderr:
         print(result.stderr, file=sys.stderr)
 
-    # Exit with flake8's status code
+    # Exit with ruff's status code
     sys.exit(result.returncode)
 
 
 if __name__ == "__main__":
-    run_flake8()
+    run_ruff_check()

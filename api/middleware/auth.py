@@ -1,7 +1,6 @@
 """Authentication middleware for FastAPI."""
 
-import re
-from typing import Annotated, Dict, Optional, Union
+from typing import Annotated, Dict, Optional
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -81,7 +80,7 @@ async def verify_token(
             )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=f"Invalid authentication token",
+                detail="Invalid authentication token",
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
@@ -110,7 +109,7 @@ async def get_current_user(
         and payload.get("token_type") == "firebase"
     ):
         # Check if this is a development test token
-        if payload.get("test_mode") == True:
+        if payload.get("test_mode") is True:
             test_email = payload.get("email", "test@example.com")
             logger.warning(
                 f"DEVELOPMENT MODE: Using test Firebase authentication for {test_email}"

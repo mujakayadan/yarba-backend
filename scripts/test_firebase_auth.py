@@ -12,9 +12,7 @@ For development testing only.
 
 import argparse
 import json
-import os
 import sys
-import time
 from typing import Any, Dict, Optional
 
 try:
@@ -64,7 +62,7 @@ def test_token_verification(
 
         if response.status_code == 200:
             result = response.json()
-            print(f"✅ Token verification successful!")
+            print("✅ Token verification successful!")
 
             if verbose:
                 print("\nToken details:")
@@ -124,7 +122,7 @@ def test_firebase_login(
 
         if response.status_code == 200:
             result = response.json()
-            print(f"✅ Firebase login successful!")
+            print("✅ Firebase login successful!")
 
             if verbose:
                 print("\nLogin response:")
@@ -176,7 +174,7 @@ def test_authenticated_endpoint(
 
         if response.status_code == 200:
             result = response.json()
-            print(f"✅ Authenticated request successful!")
+            print("✅ Authenticated request successful!")
 
             if verbose:
                 print("\nUser data:")
@@ -250,11 +248,10 @@ def main():
         print(f"Using provided token: {token[:20]}...\n")
 
     # Run the tests
-    verification_result = None
     login_result = None
 
     if not args.skip_verification:
-        verification_result = test_token_verification(args.api_url, token, args.verbose)
+        test_token_verification(args.api_url, token, args.verbose)
 
     if not args.skip_login:
         login_result = test_firebase_login(args.api_url, token, args.verbose)

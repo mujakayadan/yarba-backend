@@ -5,11 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from beanie import PydanticObjectId
-from bson import ObjectId
 
 from core.exceptions.base import NotFoundException
-from core.models import User
-from core.models.resume import Resume
 from core.repositories.resume_repository import ResumeRepository
 from core.repositories.user_repository import UserRepository
 

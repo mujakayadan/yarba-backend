@@ -1,7 +1,5 @@
 """Tests for exceptions."""
 
-import pytest
-
 from ...core.exceptions.base import (
     AppException,
     BadRequestException,

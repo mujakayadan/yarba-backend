@@ -105,7 +105,7 @@ def update_bucket_policy(s3_client, bucket_name: str, oai_id: str) -> None:
                 "Resource": f"arn:aws:s3:::{bucket_name}/*",
                 "Condition": {
                     "StringEquals": {
-                        "AWS:SourceArn": f"arn:aws:cloudfront::*:distribution/*"
+                        "AWS:SourceArn": "arn:aws:cloudfront::*:distribution/*"
                     }
                 },
             }

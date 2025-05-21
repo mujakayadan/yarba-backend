@@ -1,7 +1,7 @@
 """Utility for converting JSON schema data to LaTeX format."""
 
 import json
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict
 
 from config.logging_config import get_logger
 
@@ -45,7 +45,7 @@ def parse_json_content(content: Any) -> Any:
     if hasattr(content, "model_dump"):
         # Pydantic v2
         return content.model_dump()
-    elif hasattr(content, "dict") and callable(getattr(content, "dict")):
+    elif hasattr(content, "dict") and callable(content.dict):
         # Pydantic v1 or similar
         return content.model_dump()
 

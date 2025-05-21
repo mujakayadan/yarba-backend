@@ -4,7 +4,7 @@ This module provides a registry for template preambles, allowing different
 visual styles to be registered, retrieved, and managed by name.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 # Template registry - stores available preamble templates
 RESUME_TEMPLATES: Dict[str, Dict[str, str]] = {

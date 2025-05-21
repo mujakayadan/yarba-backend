@@ -1,3 +1,5 @@
+"""Pydantic schemas for resume data structures."""
+
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
@@ -93,7 +95,9 @@ class ProjectSchema(BaseModel):
     name: str = Field(..., description="Project name/title")
     bullet_points: List[str] = Field(
         ...,
-        description="Key achievements, technologies used, or impact points from the project",
+        description=(
+            "Key achievements, technologies used, or impact points from the project"
+        ),
     )
     date: str = Field(..., description="Date or timeframe of the project")
     link: Optional[str] = Field(
@@ -126,7 +130,10 @@ class AwardSchema(BaseModel):
     name: str = Field(..., description="Award title/name")
     explanation: str = Field(
         ...,
-        description="Explanation of the award including issuing organization, date, and significance",
+        description=(
+            "Explanation of the award including issuing organization, date, "
+            "and significance"
+        ),
     )
 
     class Config:
@@ -137,7 +144,10 @@ class AwardSchema(BaseModel):
         json_schema_extra = {
             "example": {
                 "name": "68th Iowa Reserve Chess Championship Winner",
-                "explanation": "Issued by Iowa State Chess Association, Aug 2023. 4 Rounds G/60 d5, won with a perfect score of 4/4",
+                "explanation": (
+                    "Issued by Iowa State Chess Association, Aug 2023. "
+                    "4 Rounds G/60 d5, won with a perfect score of 4/4"
+                ),
             }
         }
 

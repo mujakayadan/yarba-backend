@@ -12,7 +12,6 @@ from core.database.factory import (
     get_resume_repository,
     get_user_repository,
 )
-from core.repositories.cover_letter_repository import CoverLetterRepository
 from core.repositories.portfolio_repository import PortfolioRepository
 from core.repositories.profile_repository import ProfileRepository
 from core.repositories.resume_repository import ResumeRepository

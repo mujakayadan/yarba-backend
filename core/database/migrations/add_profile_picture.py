@@ -1,7 +1,6 @@
 """Migration script to add profile_picture field to profiles."""
 
 import asyncio
-import os
 
 # Add parent directory to path so we can import project modules
 import sys
@@ -12,7 +11,6 @@ if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 
 from config.logging_config import configure_logging, get_logger
-from config.settings import settings
 from core.database.init import init_db
 from core.models.profile import Profile
 

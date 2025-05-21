@@ -8,8 +8,8 @@ from typing import Any, Dict, Optional, Type, Union
 
 import jsonschema
 from beanie import PydanticObjectId
-from bson import ObjectId, json_util
-from pydantic import BaseModel, ValidationError
+from bson import ObjectId
+from pydantic import BaseModel
 
 # Configure logging
 logger = logging.getLogger(__name__)

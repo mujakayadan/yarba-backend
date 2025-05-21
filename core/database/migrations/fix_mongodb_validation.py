@@ -4,8 +4,6 @@ Fix MongoDB validation to handle NULL values
 Migration created at: 2025-03-22T02:00:00
 """
 
-from pymongo.database import Database
-
 from core.database.migrations.migration_manager import Migration
 
 
@@ -83,4 +81,3 @@ class FixMongoDBValidationMigration(Migration):
     def downgrade(self) -> None:
         """Revert the migration."""
         # This migration doesn't need to be reverted
-        pass

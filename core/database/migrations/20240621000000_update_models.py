@@ -4,8 +4,6 @@ Update User, Profile, and Portfolio models
 Migration created at: 2024-06-21T00:00:00
 """
 
-from pymongo.database import Database
-
 from core.database.migrations.migration_manager import Migration
 
 
@@ -371,4 +369,3 @@ class UpdateModelsMigration(Migration):
         # This is a complex migration that modifies multiple collections
         # For safety, we don't provide an automatic downgrade path
         # To revert, restore from a backup or manually modify the collections
-        pass

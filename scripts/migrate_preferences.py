@@ -181,7 +181,6 @@ async def migrate_profile_preferences(profile_id, dry_run=True, remove_legacy=Fa
             # Remove legacy preferences if requested
             if remove_legacy:
                 # Use the MongoDB $unset operator to remove the preferences field
-                from beanie.odm.operators.update.general import Unset
 
                 await profile.update({"$unset": {"preferences": ""}})
                 logger.info(f"Removed legacy preferences from profile {profile_id}")

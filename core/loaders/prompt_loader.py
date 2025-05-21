@@ -4,13 +4,16 @@ This module provides functionality to load prompt templates from files.
 It focuses on retrieval operations, not on format or transformation logic.
 """
 
-import sys
-from pathlib import Path
 from typing import List
 
 from config.logging_config import configure_logging, get_logger
 from config.settings import Settings
-from prompts import *
+from prompts import (
+    COVER_LETTER_PROMPT,
+    FOLDER_NAME_PROMPT,
+    RESUME_PROMPT,
+    SYSTEM_PROMPT,
+)
 
 # Initialize global settings and logging
 settings = Settings()

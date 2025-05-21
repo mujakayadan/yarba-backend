@@ -1,7 +1,7 @@
 """User model for MongoDB using Beanie ODM."""
 
 from datetime import datetime, timezone
-from typing import Literal, Optional
+from typing import Optional
 
 from beanie import Document
 from pydantic import EmailStr, Field

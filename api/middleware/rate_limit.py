@@ -2,15 +2,12 @@
 
 import time
 from collections import defaultdict
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Callable, Dict, Optional, Tuple
 
-from fastapi import FastAPI, HTTPException, Request, Response, status
+from fastapi import FastAPI, Request, Response, status
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-from starlette.requests import Request
-from starlette.responses import Response
 
 from config.logging_config import get_logger
-from config.settings import settings
 
 logger = get_logger(__name__)
 

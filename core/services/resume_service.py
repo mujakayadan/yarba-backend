@@ -283,12 +283,12 @@ class ResumeService:
 
         title_needs_update = False
         if new_company_name is not None and new_company_name != current_company_name:
-            setattr(resume, "company_name", new_company_name)
+            resume.company_name = new_company_name
             current_company_name = new_company_name  # update for title generation
             updated_fields = True
             title_needs_update = True
         if new_job_title is not None and new_job_title != current_job_title:
-            setattr(resume, "job_title", new_job_title)
+            resume.job_title = new_job_title
             current_job_title = new_job_title  # update for title generation
             updated_fields = True
             title_needs_update = True
@@ -298,7 +298,7 @@ class ResumeService:
                 current_company_name, current_job_title
             )
             if resume.title != new_title:
-                setattr(resume, "title", new_title)
+                resume.title = new_title
                 self.logger.info(f"Updated title to: {new_title}")
                 updated_fields = True
 
@@ -350,7 +350,7 @@ class ResumeService:
         Raises:
             NotFoundException: If resume not found or doesn't belong to user
         """
-        resume = await self.get_resume_by_id(resume_id, user_id)
+        await self.get_resume_by_id(resume_id, user_id)
 
         result = await self.resume_repository.delete(resume_id)
         if result:

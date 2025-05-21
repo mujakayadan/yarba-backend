@@ -6,7 +6,6 @@ This script demonstrates how variable substitution should work with underscore n
 which is compatible with Python's string.Template class.
 """
 
-import asyncio
 import re
 import sys
 from pathlib import Path

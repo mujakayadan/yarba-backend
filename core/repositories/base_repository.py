@@ -28,7 +28,6 @@ class BaseRepository(ABC, Generic[T]):
         Returns:
             Optional[T]: Document if found, None otherwise
         """
-        pass
 
     @abstractmethod
     async def get_all(self) -> List[T]:
@@ -38,7 +37,6 @@ class BaseRepository(ABC, Generic[T]):
         Returns:
             List[T]: List of documents
         """
-        pass
 
     @abstractmethod
     async def create(self, entity: T) -> T:
@@ -51,7 +49,6 @@ class BaseRepository(ABC, Generic[T]):
         Returns:
             T: Created document
         """
-        pass
 
     @abstractmethod
     async def update(self, id: PydanticObjectId, entity: T) -> Optional[T]:
@@ -65,7 +62,6 @@ class BaseRepository(ABC, Generic[T]):
         Returns:
             Optional[T]: Updated document if successful, None otherwise
         """
-        pass
 
     @abstractmethod
     async def delete(self, id: PydanticObjectId) -> bool:
@@ -78,7 +74,6 @@ class BaseRepository(ABC, Generic[T]):
         Returns:
             bool: True if successful, False otherwise
         """
-        pass
 
 
 class BeanieRepository(BaseRepository[T]):

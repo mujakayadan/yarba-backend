@@ -1,12 +1,9 @@
 """Request logging middleware for FastAPI."""
 
 import time
-from typing import Callable
 
 from fastapi import FastAPI, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-from starlette.requests import Request
-from starlette.responses import Response
 
 from config.logging_config import get_logger
 

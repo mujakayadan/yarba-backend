@@ -4,16 +4,7 @@ from datetime import datetime, timezone
 from typing import Any, List, Optional
 
 from beanie import PydanticObjectId
-from fastapi import (
-    APIRouter,
-    Depends,
-    File,
-    HTTPException,
-    Path,
-    Query,
-    UploadFile,
-    status,
-)
+from fastapi import APIRouter, Depends, File, HTTPException, Path, UploadFile, status
 from pydantic import BaseModel
 
 from config.logging_config import get_logger
@@ -780,7 +771,7 @@ async def parse_portfolio_document(
     This endpoint DOES NOT save the portfolio to the database.
     The returned data can be used to subsequently create or update a portfolio.
     """
-    if not file.content_type in [
+    if file.content_type not in [
         "application/pdf",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ]:

@@ -4,10 +4,9 @@ import os
 import time
 import uuid
 from io import BytesIO
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple
 
 import boto3
-import rsa
 from botocore.exceptions import ClientError
 from botocore.signers import CloudFrontSigner
 from cryptography.hazmat.backends import default_backend
@@ -323,9 +322,7 @@ class LocalStorageProvider(StorageProvider):
         if len(path_parts) < 2:
             return None
 
-        asset_type = path_parts[
-            0
-        ]  # First part should be the asset type (e.g., profile-pictures)
+        path_parts[0]  # First part should be the asset type (e.g., profile-pictures)
 
         # Return a URL path that will be served by the static file handler
         return f"{settings.api.api_base_url}/static/{object_key}"

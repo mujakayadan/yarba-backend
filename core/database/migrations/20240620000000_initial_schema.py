@@ -4,8 +4,6 @@ Initial schema setup for RBT database
 Migration created at: 2024-06-20T00:00:00
 """
 
-from pymongo.database import Database
-
 from core.database.migrations.migration_manager import Migration
 
 

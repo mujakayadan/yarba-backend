@@ -1,7 +1,6 @@
 """URL helper functions."""
 
 from typing import Optional
-from urllib.parse import urljoin
 
 from config.logging_config import get_logger
 from config.settings import settings

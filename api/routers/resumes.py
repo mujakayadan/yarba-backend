@@ -1,6 +1,6 @@
 """Resumes router."""
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Annotated, List, Optional
 
 from beanie import PydanticObjectId
@@ -11,7 +11,6 @@ from fastapi import (
     HTTPException,
     Path,
     Query,
-    Response,
     UploadFile,
     status,
 )
@@ -20,7 +19,6 @@ from pydantic import BaseModel, Field
 from api.dependencies.auth import get_current_active_user
 from api.dependencies.services import (
     get_cover_letter_service,
-    get_job_service,
     get_portfolio_service,
     get_profile_service,
     get_resume_generation_service,
@@ -38,20 +36,14 @@ from api.schemas import (
 )
 from api.schemas.resume import SortOptions
 from config import get_logger
-from config.logging_config import get_logger
-from config.settings import settings
 from core.exceptions.base import InternalServerException, NotFoundException
-from core.models.portfolio import Portfolio
-from core.models.profile import PersonalInformation
 from core.models.resume import LLMUsageStats, Resume
 from core.models.user import User
 from core.services.cover_letter_service import CoverLetterService
-from core.services.job_service import JobService
 from core.services.portfolio_service import PortfolioService
 from core.services.profile_service import ProfileService
 from core.services.resume_generation_service import ResumeGenerationService
 from core.services.resume_service import ResumeService
-from core.utils.json_helper import convert_to_serializable
 from utils.storage import get_storage_provider
 
 router = APIRouter()
@@ -1111,7 +1103,7 @@ async def get_resume_cover_letters(
     """
     try:
         # Verify resume exists and belongs to user
-        resume = await resume_service.get_resume_by_id(
+        await resume_service.get_resume_by_id(
             resume_id=resume_id,
             user_id=PydanticObjectId(current_user.id),
         )

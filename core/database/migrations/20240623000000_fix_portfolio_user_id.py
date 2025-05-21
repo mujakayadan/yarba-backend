@@ -5,7 +5,6 @@ Migration created at: 2024-06-23T00:00:00
 """
 
 from bson import ObjectId
-from pymongo.database import Database
 
 from config import logging_config
 from core.database.migrations.migration_manager import Migration

@@ -7,7 +7,6 @@ that variable substitution works correctly with the resume prompt template.
 """
 
 import asyncio
-import json
 import re
 import sys
 from pathlib import Path
@@ -70,12 +69,6 @@ async def test_prompt_loader():
     logger.info(f"Raw prompt contains {count_variables(raw_prompt)} variables")
 
     # Mock job description and portfolio variables
-    variables = {
-        "job_description": "Software Engineering position requiring Python and LaTeX experience.",
-        "portfolio": {
-            "personal_info": {"name": "Test User", "email": "test@example.com"}
-        },
-    }
 
     # Note: PromptLoader is now only responsible for loading raw prompts, not formatting
     logger.info("PromptLoader test passed!")
@@ -127,14 +120,6 @@ async def show_substitution_sample(prompt):
     """Show a sample of the template substitution in the prompt."""
 
     # Find the skills section to analyze
-    skills_section = """
-# SKILLS SECTION
-IMPORTANT INSTRUCTIONS FOR SKILLS:
-- PRESERVE the EXACT category names from the portfolio. Never rename, combine, or create new categories.
-- Choose exactly the ${skills_details_max_categories} most relevant categories from the portfolio
-- For EACH selected category, include EXACTLY ${skills_details_min_per_category} to ${skills_details_max_per_category} skills
-- The minimum of ${skills_details_min_per_category} skills per category is REQUIRED
-"""
 
     # Extract the actual skills section from the prompt
     skills_start = prompt.find("SKILLS SECTION")
@@ -145,7 +130,7 @@ IMPORTANT INSTRUCTIONS FOR SKILLS:
 
         actual_skills = prompt[skills_start:skills_end]
 
-        logger.info(f"Original skills section template contained variables for:")
+        logger.info("Original skills section template contained variables for:")
         logger.info("- skills_details_max_categories")
         logger.info("- skills_details_min_per_category")
         logger.info("- skills_details_max_per_category")
@@ -158,7 +143,7 @@ async def main():
     logger.info("Starting resume prompt substitution tests")
 
     # Test PromptLoader
-    loader_prompt = await test_prompt_loader()
+    await test_prompt_loader()
 
     # Test PromptService
     service_prompt = await test_prompt_service()

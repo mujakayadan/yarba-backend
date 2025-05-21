@@ -4,8 +4,6 @@ This module provides functions for initializing the database connection
 and setting up the database for the application.
 """
 
-import os
-import re
 from pathlib import Path
 from typing import Optional
 

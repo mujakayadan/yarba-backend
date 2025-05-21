@@ -1,6 +1,5 @@
 """Prompt templates for LLM interactions."""
 
-from .base_prompt import BasePrompt
 from .cover_letter_prompt import COVER_LETTER_PROMPT
 from .folder_name_prompt import FOLDER_NAME_PROMPT
 from .resume_prompt import RESUME_PROMPT

@@ -210,7 +210,7 @@ def main():
     if success:
         logger.info("S3 bucket setup complete!")
         logger.info("Update your .env.local file with the following settings:")
-        logger.info(f"STORAGE_PROVIDER=aws_s3")
+        logger.info("STORAGE_PROVIDER=aws_s3")
         logger.info(f"STORAGE_AWS_BUCKET={bucket_name}")
         logger.info(f"STORAGE_AWS_REGION={region}")
 

@@ -106,9 +106,7 @@ class ResumeResponse(BaseModel):
         data = super().model_dump(**kwargs)
 
         # With Pydantic v2, we need a different approach to access the original data
-        original_obj = getattr(self, "__dict__", {}).get(
-            "__pydantic_fields_set__", None
-        )
+        getattr(self, "__dict__", {}).get("__pydantic_fields_set__", None)
 
         # Try different methods to get resume_pdf_key
         if hasattr(self, "resume_pdf_key"):

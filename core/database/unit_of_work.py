@@ -68,4 +68,3 @@ class AsyncMongoUnitOfWork:
             exc_tb: Exception traceback
         """
         # Clean up resources if needed
-        pass

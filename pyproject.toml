@@ -49,7 +49,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 app = "main:main"
-lint = "scripts.lint:run_flake8"
+lint = "scripts.lint:run_ruff_check"
 format = "scripts.format:run_formatters"
 
 [tool.poetry.group.dev.dependencies]
@@ -95,5 +95,7 @@ asyncio_mode = "auto"
 [tool.ruff]
 line-length = 88
 target-version = "py312"
+
+[tool.ruff.lint]
 select = ["E", "F", "B", "I"]
 ignore = []

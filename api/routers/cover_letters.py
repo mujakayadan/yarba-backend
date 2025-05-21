@@ -1,7 +1,7 @@
 """API router for cover letter endpoints."""
 
 from datetime import datetime
-from typing import Annotated, List, Optional
+from typing import Annotated, Optional
 
 from beanie import PydanticObjectId
 from fastapi import (
@@ -12,7 +12,6 @@ from fastapi import (
     HTTPException,
     Path,
     Query,
-    Response,
     UploadFile,
     status,
 )
@@ -20,12 +19,10 @@ from pydantic import BaseModel, Field
 
 from config.logging_config import get_logger
 from core.exceptions.base import NotFoundException
-from core.models.cover_letter import CoverLetter
 from core.models.resume import LLMUsageStats
 from core.models.user import User
 from core.services.cover_letter_generation_service import CoverLetterGenerationService
 from core.services.cover_letter_service import CoverLetterService
-from core.services.job_service import JobService
 from core.services.portfolio_service import PortfolioService
 from core.services.profile_service import ProfileService
 from core.services.resume_service import ResumeService
@@ -35,7 +32,6 @@ from ..dependencies.auth import CurrentUser, get_current_active_user
 from ..dependencies.services import (
     get_cover_letter_generation_service,
     get_cover_letter_service,
-    get_job_service,
     get_portfolio_service,
     get_profile_service,
     get_resume_service,
@@ -448,7 +444,7 @@ async def generate_cover_letter(
     """
     try:
         # Verify cover letter exists and belongs to user
-        cover_letter = await cover_letter_service.get_cover_letter_by_id(
+        await cover_letter_service.get_cover_letter_by_id(
             cover_letter_id=cover_letter_id,
             user_id=current_user.id,
         )
@@ -517,7 +513,7 @@ async def generate_cover_letter_pdf(
     """
     try:
         # Verify cover letter exists and belongs to user
-        cover_letter = await cover_letter_service.get_cover_letter_by_id(
+        await cover_letter_service.get_cover_letter_by_id(
             cover_letter_id=cover_letter_id,
             user_id=current_user.id,
         )

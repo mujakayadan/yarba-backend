@@ -1,11 +1,9 @@
 """Authentication router."""
 
-from datetime import datetime, timedelta, timezone
-from typing import Annotated, Any, Dict
+from typing import Any, Dict
 
-from fastapi import APIRouter, Body, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from jose import JWTError, jwt
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, EmailStr, Field
 
 from config import get_logger, settings
@@ -14,10 +12,9 @@ from core.database import get_unit_of_work
 from core.database.factory import get_auth_service
 from core.database.unit_of_work import AsyncMongoUnitOfWork
 from core.exceptions.base import NotFoundException
-from core.models.user import User
 from core.services.auth_service import AuthService
 
-from ..middleware.auth import CurrentActiveUser, CurrentSuperuser
+from ..middleware.auth import CurrentActiveUser
 from ..schemas import auth as schemas
 from ..schemas.auth import (
     ChangePasswordRequest,

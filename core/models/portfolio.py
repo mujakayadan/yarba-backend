@@ -1,7 +1,7 @@
 """Portfolio models for the RBT database."""
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, List, Optional
 
 from beanie import Document, Link, PydanticObjectId
 from pydantic import BaseModel, Field, HttpUrl, model_validator

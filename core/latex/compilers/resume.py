@@ -1,15 +1,10 @@
 """Resume compiler implementation."""
 
-import json
-import tempfile
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
-from ...models.resume import Resume
 from ..base import LatexCompiler
 from ..processors import get_processor_for_section
 from ..templates import DEFAULT_RESUME_PREAMBLE
-from ..utils.safety import sanitize_latex
 
 
 class ResumeCompiler(LatexCompiler):

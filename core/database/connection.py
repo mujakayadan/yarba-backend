@@ -4,7 +4,6 @@ This module provides functions for managing database connections.
 It supports both synchronous and asynchronous connections to MongoDB.
 """
 
-import os
 from typing import Optional
 
 import pymongo

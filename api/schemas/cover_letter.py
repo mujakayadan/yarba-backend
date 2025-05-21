@@ -1,7 +1,7 @@
 """API schemas for cover letter endpoints."""
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from beanie import PydanticObjectId
 from pydantic import BaseModel, Field

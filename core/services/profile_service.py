@@ -13,7 +13,6 @@ from ..models.profile import (
     PromptPreferences,
     SystemPreferences,
 )
-from ..models.user import User
 from ..repositories.profile_repository import ProfileRepository
 from ..repositories.user_repository import UserRepository
 

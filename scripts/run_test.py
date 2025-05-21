@@ -54,7 +54,7 @@ def main():
     if "@" in display_uri:
         display_uri = display_uri.split("@")[-1]
 
-    print(f"Running test with:")
+    print("Running test with:")
     print(f"  - Database: {args.mongodb_db}")
     print(f"  - MongoDB Server: {display_uri}")
     if args.user_id:

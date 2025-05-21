@@ -1,8 +1,6 @@
 """Test script for the simplified LaTeX generation system."""
 
 import asyncio
-import json
-import os
 from pathlib import Path
 
 from core.models.profile import PersonalInformation, Preferences, Profile
@@ -174,7 +172,6 @@ async def test_cover_letter_generation():
     """Test generating a cover letter PDF with the simplified LaTeX system."""
     # This function would be implemented similarly to test_resume_generation
     # but for cover letters
-    pass
 
 
 if __name__ == "__main__":

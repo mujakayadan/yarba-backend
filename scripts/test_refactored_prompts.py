@@ -39,7 +39,7 @@ from core.repositories.user_repository import UserRepository
 from core.services.portfolio_service import PortfolioService
 from core.services.profile_service import ProfileService
 from core.services.prompt_service import PromptService
-from core.utils.json_helper import convert_to_serializable, dumps, loads
+from core.utils.json_helper import convert_to_serializable
 
 # Set up logging
 configure_logging()
@@ -296,7 +296,7 @@ async def test_prompt_service():
                     )
                 else:
                     logger.warning(
-                        f"Preference career_summary.max_words may not be correctly applied"
+                        "Preference career_summary.max_words may not be correctly applied"
                     )
     elif "career_summary_details_max_words" in preferences_dict:
         max_words = preferences_dict["career_summary_details_max_words"]
@@ -313,7 +313,7 @@ async def test_prompt_service():
                 )
             else:
                 logger.warning(
-                    f"Preference career_summary_details_max_words may not be correctly applied"
+                    "Preference career_summary_details_max_words may not be correctly applied"
                 )
 
     # Validate the prompt using the service's validation method
@@ -533,7 +533,7 @@ async def test_llm_response_parsing():
             with open(
                 debug_dir / f"llm_error_{trace_id}.txt", "w", encoding="utf-8"
             ) as f:
-                f.write(f"Error: Invalid JSON structure in LLM response\n\n")
+                f.write("Error: Invalid JSON structure in LLM response\n\n")
                 f.write(f"Response:\n{response}")
 
             # Try to fix the response by prepending the missing part
@@ -623,7 +623,7 @@ async def main():
         formatted_prompt = await test_prompt_service()
 
         # Test LLM response parsing
-        llm_content = await test_llm_response_parsing()
+        await test_llm_response_parsing()
 
         # Check for metadata fields
         await check_for_metadata_fields(formatted_prompt)
