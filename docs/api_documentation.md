@@ -556,6 +556,7 @@ Query parameters:
 - `skip`: Number of resumes to skip (default: 0)
 - `limit`: Number of resumes to return (default: 10, max: 100)
 - `sort_by`: Sort field and direction (default: "updated_desc")
+- `search_term`: Optional. Search across the resume's top-level title, company name, job title, and job description.
 
 **Response:** Paginated list of Resume objects
 

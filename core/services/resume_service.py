@@ -5,12 +5,13 @@ from typing import Dict, List, Optional
 
 from beanie import PydanticObjectId
 
+from api.schemas.resume import ResumeFilter as ApiResumeFilter
 from api.schemas.resume import ResumeSelectionItem, SortOptions
 from config.logging_config import get_logger
 
 from ..exceptions.base import NotFoundException
 from ..models.resume import Resume, ResumeSelectionProjection
-from ..repositories.resume_repository import ResumeFilter, ResumeRepository
+from ..repositories.resume_repository import ResumeRepository
 from ..repositories.user_repository import UserRepository
 from ..services.job_service import JobService
 
@@ -38,6 +39,50 @@ class ResumeService:
         self.user_repository = user_repository
         self.job_service = job_service
         self.logger = get_logger(self.__class__.__name__)
+
+    def _parse_sort_option(self, sort_by: str) -> tuple[str, int]:
+        """
+        Parse the sort_by string into a field name and direction.
+
+        Args:
+            sort_by: String like "updated_desc" or "title_asc".
+
+        Returns:
+            Tuple of (field_name, direction) e.g., ("updated_at", -1).
+
+        Raises:
+            ValueError: If the sort_by string is invalid.
+        """
+        if not sort_by or not isinstance(sort_by, str):
+            # Default sort option if none provided or invalid type
+            return "updated_at", -1
+
+        parts = sort_by.lower().split("_")
+        if len(parts) != 2:
+            raise ValueError(f"Invalid sort_by format: {sort_by}")
+
+        field_part, direction_part = parts
+
+        field_mapping = {
+            "updated": "updated_at",
+            "created": "created_at",
+            "title": "title",
+            # Add other mappings if needed
+        }
+
+        if field_part not in field_mapping:
+            raise ValueError(f"Invalid sort field: {field_part} in {sort_by}")
+
+        db_field = field_mapping[field_part]
+
+        if direction_part == "asc":
+            direction = 1
+        elif direction_part == "desc":
+            direction = -1
+        else:
+            raise ValueError(f"Invalid sort direction: {direction_part} in {sort_by}")
+
+        return db_field, direction
 
     def _generate_proper_title(self, company_name: str, job_title: str) -> str:
         """
@@ -317,86 +362,84 @@ class ResumeService:
         return result
 
     async def filter_resumes(
-        self, user_id: PydanticObjectId, filter_params: ResumeFilter
+        self, user_id: PydanticObjectId, filter_params: ApiResumeFilter
     ) -> List[Resume]:
         """
-        Filter resumes by parameters.
+        Filter resumes based on provided criteria.
 
         Args:
             user_id: User ID
-            filter_params: Filter parameters (from API schema)
+            filter_params: ApiResumeFilter object containing filter criteria such as:
+                - title (Optional[str]): Filter by title.
+                - template_id (Optional[str]): Filter by template ID.
+                - is_cover_letter (Optional[bool]): Filter by document type (True for cover letters).
+                - sort_by (Optional[str]): Sort field and direction.
+                - skip (int): Number of resumes to skip.
+                - limit (int): Number of resumes to return.
+                - search_term (Optional[str]): Search term for text search.
 
         Returns:
-            List[Resume]: List of filtered resumes
+            List[Resume]: List of resumes matching the filter criteria.
 
         Raises:
-            NotFoundException: If user not found
+            ValueError: If sort_by is invalid.
         """
-        user = await self.user_repository.get_by_id(user_id)
-        if not user:
-            self.logger.warning(f"User not found: {user_id}")
-            raise NotFoundException("User not found")
+        # Convert API filter to repository filter
+        repo_filter = {"user_id": user_id}
+        if filter_params.title:
+            repo_filter["title"] = filter_params.title
+        if filter_params.template_id:
+            repo_filter["template_id"] = filter_params.template_id
+        if filter_params.is_cover_letter is not None:  # Handle boolean False case
+            # Assuming 'type' field distinguishes resumes from cover letters
+            # This might need adjustment based on your actual model
+            repo_filter["type"] = (
+                "cover_letter" if filter_params.is_cover_letter else "resume"
+            )
+        if filter_params.search_term:  # Add this block
+            repo_filter["search_term"] = filter_params.search_term
 
-        # Convert API schema filter to repository filter
-        from core.repositories.resume_repository import ResumeFilter as RepositoryFilter
+        # Handle sorting
+        sort_field, sort_direction = self._parse_sort_option(filter_params.sort_by)
 
-        # Create an empty repository filter
-        repo_filter = RepositoryFilter()
-
-        # Map API filter fields to repository filter fields when they exist
-        if (
-            hasattr(filter_params, "template_id")
-            and filter_params.template_id is not None
-        ):
-            repo_filter.template_id = filter_params.template_id
-
-        if hasattr(filter_params, "title") and filter_params.title:
-            repo_filter.title_contains = filter_params.title
-
-        # Get all resumes with the repository filter
-        resumes = await self.resume_repository.get_by_filter(user, repo_filter)
-
-        # Apply sorting based on sort_by parameter
-        if hasattr(filter_params, "sort_by") and filter_params.sort_by:
-            sort_option = filter_params.sort_by
-
-            if sort_option == "updated_desc":
-                resumes.sort(key=lambda x: x.updated_at, reverse=True)
-            elif sort_option == "updated_asc":
-                resumes.sort(key=lambda x: x.updated_at)
-            elif sort_option == "created_desc":
-                resumes.sort(key=lambda x: x.created_at, reverse=True)
-            elif sort_option == "created_asc":
-                resumes.sort(key=lambda x: x.created_at)
-            elif sort_option == "title_asc":
-                resumes.sort(key=lambda x: x.title)
-            elif sort_option == "title_desc":
-                resumes.sort(key=lambda x: x.title, reverse=True)
-        else:
-            # Default to sort by updated_at in descending order (newest first)
-            resumes.sort(key=lambda x: x.updated_at, reverse=True)
-
-        return resumes
+        return await self.resume_repository.filter_resumes(
+            filter_conditions=repo_filter,
+            sort_field=sort_field,
+            sort_direction=sort_direction,
+            skip=filter_params.skip,
+            limit=filter_params.limit,
+        )
 
     async def count_resumes(
-        self, user_id: PydanticObjectId, filter_params: ResumeFilter
+        self, user_id: PydanticObjectId, filter_params: ApiResumeFilter
     ) -> int:
         """
-        Count the total number of resumes matching filter criteria.
+        Count resumes matching the filter criteria.
 
         Args:
             user_id: User ID
-            filter_params: Filter parameters (from API schema)
+            filter_params: ApiResumeFilter object containing filter criteria.
+                           Includes an optional 'search_term' for text search.
 
         Returns:
-            int: Total count of matching resumes
-
-        Raises:
-            NotFoundException: If user not found
+            int: Total number of resumes matching the filter.
         """
-        # Reuse the filter_resumes method to get all matching resumes
-        resumes = await self.filter_resumes(user_id, filter_params)
-        return len(resumes)
+        # Convert API filter to repository filter
+        repo_filter = {"user_id": user_id}
+        if filter_params.title:
+            repo_filter["title"] = filter_params.title
+        if filter_params.template_id:
+            repo_filter["template_id"] = filter_params.template_id
+        if filter_params.is_cover_letter is not None:
+            repo_filter["type"] = (
+                "cover_letter" if filter_params.is_cover_letter else "resume"
+            )
+        if filter_params.search_term:  # Add this block
+            repo_filter["search_term"] = filter_params.search_term
+
+        return await self.resume_repository.count_documents(
+            filter_conditions=repo_filter
+        )
 
     async def list_resumes_for_selection(
         self, user_id: PydanticObjectId, sort_by: str = SortOptions.UPDATED_DESC

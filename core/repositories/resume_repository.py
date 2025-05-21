@@ -4,7 +4,6 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from beanie import PydanticObjectId
-from pydantic import BaseModel
 
 from config.logging_config import get_logger
 from config.settings import settings
@@ -14,21 +13,6 @@ from ..models.profile import Profile
 from ..models.resume import LLMSettings, Resume
 from ..models.user import User
 from .base_repository import BeanieRepository
-
-
-class ResumeFilter(BaseModel):
-    """Repository filter model for database queries.
-
-    This class is used internally by the repository to filter resumes
-    in the database. It is different from the API-level ResumeFilter
-    which is used for API request validation.
-    """
-
-    title_contains: Optional[str] = None
-    profile_id: Optional[str] = None
-    portfolio_id: Optional[str] = None
-    title: Optional[str] = None
-    template_id: Optional[str] = None
 
 
 class ResumeRepository(BeanieRepository[Resume]):
@@ -257,34 +241,173 @@ class ResumeRepository(BeanieRepository[Resume]):
         """
         return await Resume.find({"template_id": template_id}).to_list()
 
-    async def get_by_filter(
-        self, user: User, filter_params: ResumeFilter
+    def _build_filter_query(self, filter_conditions: Dict[str, Any]) -> Dict[str, Any]:
+        query = {}
+        search_term = filter_conditions.pop(
+            "search_term", None
+        )  # Remove search_term to handle separately
+
+        for key, value in filter_conditions.items():
+            if value is not None:
+                if key == "user_id" and isinstance(value, str):
+                    query[key] = PydanticObjectId(value)
+                elif (
+                    key == "title"
+                ):  # Assuming exact match for title if not using search_term
+                    query[key] = value
+                # Add other specific field handling if needed
+                else:
+                    query[key] = value
+
+        if search_term:
+            # MongoDB text search. Ensure a text index exists on these fields.
+            # Example: db.resume.createIndex({ "title": "text", "company_name": "text", "job_title": "text", "job_description": "text" })
+            # Alternatively, use $or with $regex for more control if text index is not preferred or for partial matching.
+            query["$or"] = [
+                {"title": {"$regex": search_term, "$options": "i"}},
+                {"company_name": {"$regex": search_term, "$options": "i"}},
+                {"job_title": {"$regex": search_term, "$options": "i"}},
+                {
+                    "job_description": {"$regex": search_term, "$options": "i"}
+                },  # Ensure top-level job_description is searched
+            ]
+            # If a text index is set up and preferred:
+            # query["$text"] = {"$search": search_term}
+
+        self.logger.debug(f"Constructed filter query: {query}")
+        return query
+
+    async def filter_resumes(
+        self,
+        filter_conditions: Dict[str, Any],
+        sort_field: str,
+        sort_direction: int,
+        skip: int,
+        limit: int,
     ) -> List[Resume]:
         """
-        Get resumes by filter parameters.
-
-        Args:
-            user: User
-            filter_params: Filter parameters
-
-        Returns:
-            List[Resume]: List of resumes
+        Filter resumes based on a dictionary of conditions, with sorting and pagination.
+        If a search_term is provided, results are prioritized by field match.
         """
-        query = {"user_id": user.id}
+        search_term = filter_conditions.get(
+            "search_term"
+        )  # Check if search_term is present
 
-        if filter_params.profile_id:
-            query["profile_id"] = filter_params.profile_id
+        if search_term:
+            # Build the initial match query (excluding search_term itself for the $match stage,
+            # as $or with $regex will handle the search part)
+            base_match_query = {}
+            for key, value in filter_conditions.items():
+                if key != "search_term" and value is not None:
+                    if key == "user_id" and isinstance(value, str):
+                        base_match_query[key] = PydanticObjectId(value)
+                    else:
+                        base_match_query[key] = value
 
-        if filter_params.portfolio_id:
-            query["portfolio_id"] = filter_params.portfolio_id
+            # Add the $or condition for the search term to the base match query
+            base_match_query["$or"] = [
+                {"title": {"$regex": search_term, "$options": "i"}},
+                {"company_name": {"$regex": search_term, "$options": "i"}},
+                {"job_title": {"$regex": search_term, "$options": "i"}},
+                {"job_description": {"$regex": search_term, "$options": "i"}},
+            ]
 
-        if filter_params.title_contains:
-            query["title"] = {"$regex": filter_params.title_contains, "$options": "i"}
+            self.logger.info(
+                f"Filtering resumes with search_term '{search_term}' using aggregation. Base match: {base_match_query}"
+            )
 
-        if filter_params.template_id:
-            query["template_id"] = filter_params.template_id
+            # Ensure search_term is treated as a string for the regex in aggregation
+            # and escape any special regex characters from the user input to be safe
+            import re
 
-        return await Resume.find(query).to_list()
+            safe_search_term_for_regex = re.escape(search_term)
+
+            pipeline = [
+                {"$match": base_match_query},
+                {
+                    "$addFields": {
+                        "match_priority": {
+                            "$switch": {
+                                "branches": [
+                                    {
+                                        "case": {
+                                            "$regexMatch": {
+                                                "input": "$company_name",
+                                                "regex": safe_search_term_for_regex,
+                                                "options": "i",
+                                            }
+                                        },
+                                        "then": 1,
+                                    },
+                                    {
+                                        "case": {
+                                            "$regexMatch": {
+                                                "input": "$job_title",
+                                                "regex": safe_search_term_for_regex,
+                                                "options": "i",
+                                            }
+                                        },
+                                        "then": 2,
+                                    },
+                                    {
+                                        "case": {
+                                            "$regexMatch": {
+                                                "input": "$job_description",
+                                                "regex": safe_search_term_for_regex,
+                                                "options": "i",
+                                            }
+                                        },
+                                        "then": 3,
+                                    },
+                                    {
+                                        "case": {
+                                            "$regexMatch": {
+                                                "input": "$title",
+                                                "regex": safe_search_term_for_regex,
+                                                "options": "i",
+                                            }
+                                        },
+                                        "then": 4,
+                                    },
+                                ],
+                                "default": 5,  # Should not be hit if $match is correct
+                            }
+                        }
+                    }
+                },
+                {"$sort": {"match_priority": 1, sort_field: sort_direction}},
+                {"$skip": skip},
+                {"$limit": limit},
+                # Optionally, remove the match_priority field from the output
+                # {"$project": {"match_priority": 0}}
+            ]
+            self.logger.debug(f"Resume aggregation pipeline: {pipeline}")
+            # Let Beanie parse the aggregation results into Resume model instances
+            resumes = await Resume.aggregate(pipeline, projection_model=Resume).to_list(
+                length=limit
+            )
+        else:
+            # No search_term, use the simpler find query
+            query = self._build_filter_query(filter_conditions)
+            self.logger.info(
+                f"Filtering resumes (no search_term) with query: {query}, sort: {sort_field} {sort_direction}, skip: {skip}, limit: {limit}"
+            )
+            resumes = (
+                await Resume.find(query)
+                .sort([(sort_field, sort_direction)])
+                .skip(skip)
+                .limit(limit)
+                .to_list()
+            )
+        return resumes
+
+    async def count_documents(self, filter_conditions: Dict[str, Any]) -> int:
+        """
+        Count documents matching the filter conditions.
+        """
+        query = self._build_filter_query(filter_conditions)
+        self.logger.info(f"Counting resumes with query: {query}")
+        return await Resume.find(query).count()
 
     async def update_content(
         self, resume_id: PydanticObjectId, content: Dict[str, Any]

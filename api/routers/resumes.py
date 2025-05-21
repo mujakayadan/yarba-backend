@@ -272,6 +272,10 @@ async def get_resumes(
     skip: int = Query(0, ge=0, description="Number of resumes to skip"),
     limit: int = Query(10, ge=1, le=100, description="Number of resumes to return"),
     sort_by: str = Query("updated_desc", description="Sort field and direction"),
+    search_term: Optional[str] = Query(
+        None,
+        description="Search term for title, company_name, job_title, and job_description",
+    ),
     resume_service: ResumeService = Depends(get_resume_service),
 ) -> PaginatedResumeResponse:
     """
@@ -282,6 +286,7 @@ async def get_resumes(
         skip: Number of resumes to skip
         limit: Number of resumes to return
         sort_by: Sort field and direction
+        search_term: Optional search term
         resume_service: Resume service
 
     Returns:
@@ -293,6 +298,7 @@ async def get_resumes(
             skip=skip,
             limit=limit,
             sort_by=sort_by,
+            search_term=search_term,
         )
 
         # Get resumes matching filter

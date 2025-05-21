@@ -45,3 +45,5 @@ tests/
 *.log
 *.swp
 *.swo
+
+docs/
