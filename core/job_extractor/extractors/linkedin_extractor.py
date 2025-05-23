@@ -324,7 +324,13 @@ class LinkedInExtractor(BaseExtractor):
             playwright = await self.init_playwright()
 
             # Launch browser
-            browser = await playwright.chromium.launch(headless=self.headless)
+            browser_launch_args = []
+            if settings.run_in_docker:  # Assuming you have a setting for this
+                browser_launch_args.extend(["--no-sandbox", "--disable-dev-shm-usage"])
+
+            browser = await playwright.chromium.launch(
+                headless=self.headless, args=browser_launch_args
+            )
             context = await browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
                 java_script_enabled=True,
@@ -396,14 +402,21 @@ class LinkedInExtractor(BaseExtractor):
                 extracted_content_html = await self.get_full_job_content(page)
 
             except Exception as e:
-                logger.error(f"Major error during LinkedIn scraping for {job_url}: {e}")
+                logger.error(
+                    f"Major error during LinkedIn scraping for {job_url}: {e}",
+                    exc_info=True,
+                )
                 return None
             finally:
                 logger.info("Closing browser for LinkedIn extractor...")
-                await browser.close()
-                await playwright.stop()
+                if "browser" in locals() and browser:
+                    await browser.close()
+                if "playwright" in locals() and playwright:
+                    await playwright.stop()
         except Exception as e:
-            logger.error(f"Failed to initialize Playwright for {job_url}: {e}")
+            logger.error(
+                f"Critical error in LinkedInExtractor for {job_url}: {e}", exc_info=True
+            )
             return None
 
         if not extracted_content_html or len(extracted_content_html.strip()) < 150:

@@ -22,6 +22,9 @@ class ExtractorSettings(BaseSettings):
     )
     modal_dismiss_timeout_ms: int = 2000  # Timeout for clicking a dismiss button
 
+    # Docker environment flag
+    run_in_docker: bool = True  # Default to True, can be overridden by .env
+
     # Cookie consent selectors (can be expanded)
     cookie_consent_selectors: List[str] = [
         "button[data-tracking-control-name='ga-cookie.consent.accept.v3']",
