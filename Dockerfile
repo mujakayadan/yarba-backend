@@ -71,6 +71,9 @@ COPY pyproject.toml poetry.lock* ./
 RUN poetry config virtualenvs.create false && \
     poetry install --only main --no-interaction --no-root
 
+# Install Playwright browsers
+RUN playwright install --with-deps
+
 # Copy the rest of the application code
 # A comprehensive .dockerignore file (updated in the previous step) is CRITICAL here.
 COPY . .
