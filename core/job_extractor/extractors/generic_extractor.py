@@ -42,6 +42,8 @@ class GenericExtractor(BaseExtractor):
             "div.content-wrapper.posting-page > div.content",  # Lever: main content area including header and all sections
             "div[data-qa='job-description']",  # Lever: job description section
             "section[data-qa='job-description']",  # Lever: job description section (as section)
+            # Greenhouse job board selector
+            "div.job__description.body",
             # Common specific IDs for job descriptions
             "#job-description",
             "#jobDescription",  # Common variation
