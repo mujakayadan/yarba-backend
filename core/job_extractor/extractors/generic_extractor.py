@@ -38,25 +38,52 @@ class GenericExtractor(BaseExtractor):
         """Extracts all relevant job posting content from a generic page."""
         # Using existing description selectors as they are quite broad
         content_selectors = [
-            "div[name='cwsJobDescription']",  # Specific to Taleo's main content
-            "[data-automation='jobDescription']",  # Common specific selector for job descriptions
-            "div._8muv._ar_h",  # Existing specific selector from a previous issue
-            ".jobDescriptionContent",  # Often specific class name
-            "article.job-description",  # Tag specific class
-            "section.job-description",  # Tag specific class
-            "#job-description",  # ID (usually specific)
-            ".job-details",  # Often a container for the main content
-            ".details-content",  # Similar to job-details
-            ".job-description",  # Class (can be broad, but try before class*=)
-            ".description",  # Class (can be broad, but try before class*=)
+            # Added for Lever.co and similar structures (prioritized)
+            "div.content-wrapper.posting-page > div.content",  # Lever: main content area including header and all sections
+            "div[data-qa='job-description']",  # Lever: job description section
+            "section[data-qa='job-description']",  # Lever: job description section (as section)
+            # Common specific IDs for job descriptions
+            "#job-description",
+            "#jobDescription",  # Common variation
+            # Specific attribute selectors
+            "div[name='cwsJobDescription']",  # Taleo specific
+            "[data-automation='jobDescription']",  # Common automation hook
+            "div[data-automation-id='jobDescription']",  # Another common data-automation variant
+            # Specific class names (exact match)
+            ".jobDescriptionContent",
+            ".job-description-content",  # Common variation
+            ".job-posting-content",
+            ".job-details-content",
+            # Tag with specific class combinations
+            "article.job-description",
+            "section.job-description",
+            "div.job-description",
+            "article.job-details",
+            "section.job-details",
+            "div.job-details",
+            "article.description",
             "section.description",
-            "article[class*='job-description']",  # Contains 'job-description'
-            "div[class*='job-description']",  # Contains 'job-description' (this one matched incorrectly before for Taleo)
-            "div[class*='description']",  # Contains 'description'
-            "div[class*='content']",  # Contains 'content'
-            "#content",  # Common ID for main content area
-            "article",  # Broad fallback
-            "main",  # Even broader fallback
+            "div.description",  # More specific than just .description
+            # Attribute "class" contains value (more general, so after exact matches)
+            "article[class*='job-description']",
+            "section[class*='job-description']",
+            "div[class*='job-description']",
+            "article[class*='jobDetails']",  # Camel case variation for details
+            "section[class*='jobDetails']",
+            "div[class*='jobDetails']",
+            "div[class*='description']",  # Use cautiously, can be broad
+            # Common main content container IDs and classes
+            "#content",
+            "#main-content",
+            "div.content",  # Exact class 'content'
+            "div.main-content",  # Exact class 'main-content'
+            "div.job-content",
+            "div[class*='content']",  # Fallback for class containing 'content', moved lower
+            # Very specific selector from a previous issue (lower priority as it's very specific)
+            "div._8muv._ar_h",
+            # Broad HTML5 semantic tags as last resort for text content
+            "article",  # Fallback to article tag
+            "main",  # Fallback to main tag
         ]
 
         for selector in content_selectors:

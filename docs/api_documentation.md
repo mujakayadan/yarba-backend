@@ -540,6 +540,7 @@ POST /api/v1/resumes
 ```json
 {
   "job_description": "string",
+  "job_description_url": "string (optional)",
   "compile_pdf": false
 }
 ```
@@ -601,6 +602,7 @@ GET /api/v1/resumes/{resume_id}
 ```
 
 **Response:** Resume object
+The resume object will contain fields like `id`, `user_id`, `profile_id`, `portfolio_id`, `title`, `template_id`, `job_title`, `company_name`, `job_description`, `job_description_url`, `content`, `has_pdf`, `created_at`, `updated_at`.
 
 #### Update Resume
 
@@ -616,6 +618,7 @@ PUT /api/v1/resumes/{resume_id}
   "job_title": "string (optional)",
   "company_name": "string (optional)",
   "job_description": "string (optional)",
+  "job_description_url": "string (optional)",
   "content": {
     "personal_information": {...},
     "career_summary": {...},

@@ -182,6 +182,7 @@ class ResumeService:
         company_name: Optional[str] = None,
         job_title: Optional[str] = None,
         job_description: Optional[str] = None,
+        job_description_url: Optional[str] = None,
         template_id: Optional[str] = None,
     ) -> Resume:
         """
@@ -194,6 +195,7 @@ class ResumeService:
             company_name: Company name (optional)
             job_title: Job title (optional)
             job_description: Job description (optional)
+            job_description_url: Job description URL (optional)
             template_id: Template ID (optional)
 
         Returns:
@@ -237,6 +239,7 @@ class ResumeService:
             company_name=company_name or "",
             job_title=job_title or "",
             job_description=job_description or "",
+            job_description_url=job_description_url,
             content={},
             custom_sections=[],
         )
@@ -251,12 +254,12 @@ class ResumeService:
         self, resume_id: PydanticObjectId, user_id: PydanticObjectId, update_data: Dict
     ) -> Resume:
         """
-        Update a resume.
+        Update an existing resume.
 
         Args:
             resume_id: Resume ID
             user_id: User ID
-            update_data: Resume data to update
+            update_data: Dictionary of fields to update
 
         Returns:
             Resume: Updated resume
@@ -278,8 +281,9 @@ class ResumeService:
         new_company_name = update_data.get("company_name")
         new_job_title = update_data.get("job_title")
 
-        current_company_name = resume.company_name
-        current_job_title = resume.job_title
+        # Ensure current_company_name and current_job_title have defaults if None
+        current_company_name = resume.company_name or ""
+        current_job_title = resume.job_title or ""
 
         title_needs_update = False
         if new_company_name is not None and new_company_name != current_company_name:
@@ -304,30 +308,32 @@ class ResumeService:
 
         # Update other resume fields from update_data
         for key, value in update_data.items():
-            if key not in [
-                "company_name",
-                "job_title",
+            # Fields that are handled separately or are protected
+            protected_or_handled_fields = [
+                "company_name",  # Handled above for title generation
+                "job_title",  # Handled above for title generation
                 "id",
                 "user_id",
                 "profile_id",
                 "portfolio_id",
                 "created_at",
-                "updated_at",
-                "title",
-            ]:  # Avoid re-processing title/company/job or protected fields
+                "updated_at",  # This will be set explicitly if updated_fields is true
+                "title",  # Regenerated, not set directly
+            ]
+            if key not in protected_or_handled_fields:
                 if hasattr(resume, key):
                     if getattr(resume, key) != value:
                         setattr(resume, key, value)
                         updated_fields = True
                 else:
                     self.logger.warning(
-                        f"Attempted to update non-existent field {key} on resume {resume_id}"
+                        f"Attempted to update non-existent field '{key}' on resume {resume_id}"
                     )
 
         if updated_fields:
             # Explicitly update updated_at timestamp
             resume.updated_at = datetime.now(timezone.utc)
-            await resume.save_changes()
+            await resume.save_changes()  # Use Beanie's save_changes for instance updates
             self.logger.info(f"Resume updated and changes saved: {resume_id}")
         else:
             self.logger.info(f"No actual changes to save for resume: {resume_id}")

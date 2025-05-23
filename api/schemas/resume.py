@@ -26,6 +26,9 @@ class ResumeCreate(BaseModel):
     job_description: str = Field(
         ..., description="Job description to tailor the resume for"
     )
+    job_description_url: Optional[str] = Field(
+        None, description="URL of the job description"
+    )
     compile_pdf: bool = Field(
         True,
         description="Whether to compile PDF immediately after resume creation (requires content to be populated)",
@@ -38,6 +41,9 @@ class ResumeUpdate(BaseModel):
     job_title: Optional[str] = Field(None, description="Job title")
     company_name: Optional[str] = Field(None, description="Company name")
     job_description: Optional[str] = Field(None, description="Job description")
+    job_description_url: Optional[str] = Field(
+        None, description="URL of the job description"
+    )
     template_id: Optional[str] = Field(None, description="Template ID")
     content: Optional[Dict[str, Any]] = Field(None, description="Resume content")
     resume_pdf_key: Optional[str] = Field(None, description="S3 key for the resume PDF")
@@ -89,6 +95,9 @@ class ResumeResponse(BaseModel):
     job_title: Optional[str] = Field(None, description="Job title")
     company_name: Optional[str] = Field(None, description="Company name")
     job_description: Optional[str] = Field(None, description="Job description")
+    job_description_url: Optional[str] = Field(
+        None, description="URL of the job description"
+    )
     content: Optional[Dict[str, Any]] = Field(None, description="Resume content")
     has_pdf: bool = Field(False, description="Whether the resume has a PDF")
     created_at: datetime = Field(..., description="Creation timestamp")

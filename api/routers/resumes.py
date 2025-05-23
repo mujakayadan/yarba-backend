@@ -163,6 +163,7 @@ async def create_resume(
             profile_id=profile.id,
             portfolio_id=portfolio.id,
             job_description=request.job_description,
+            job_description_url=request.job_description_url,
         )
         logger.info(f"Resume record created: {resume.id}")
 
@@ -380,18 +381,20 @@ async def update_resume(
         HTTPException: If resume not found or update fails
     """
     try:
-        # Convert request to dict
-        update_data = request.model_dump(exclude_unset=True)
-
-        # Update resume
-        resume = await resume_service.update_resume(
-            resume_id=resume_id,
-            user_id=PydanticObjectId(current_user.id),
-            update_data=update_data,
+        user_id = PydanticObjectId(current_user.id)
+        update_data_dict = request.model_dump(exclude_unset=True)
+        # The job_description_url will be in update_data_dict if provided in the request
+        updated_resume = await resume_service.update_resume(
+            resume_id=resume_id, user_id=user_id, update_data=update_data_dict
         )
+        if not updated_resume:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Resume not found or update failed",
+            )
 
         logger.info(f"Resume updated: {resume_id}")
-        return convert_resume_to_response(resume)
+        return convert_resume_to_response(updated_resume)
 
     except Exception as e:
         logger.error(f"Error updating resume {resume_id}: {str(e)}")

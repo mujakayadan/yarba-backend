@@ -105,6 +105,7 @@ class Resume(Document):
     company_name: Optional[str] = None
     job_title: Optional[str] = None
     job_description: str = Field(default="")
+    job_description_url: Optional[str] = None
 
     # Content can be either structured data or LaTeX string
     content: Dict[str, Any] = Field(default_factory=dict)
