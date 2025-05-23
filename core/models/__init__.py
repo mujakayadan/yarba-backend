@@ -1,5 +1,6 @@
 """Core models package for the resume builder application."""
 
+from .job_extractor import JobDetails
 from .portfolio import (
     Award,
     CareerSummary,
@@ -38,4 +39,6 @@ __all__ = [
     # LaTeX models
     "TexHeader",
     "Preamble",
+    # Job Extractor models
+    "JobDetails",
 ]

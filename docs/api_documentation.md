@@ -1371,6 +1371,84 @@ GET /api/v1/
 }
 ```
 
+## Job Utilities
+
+This section covers utility endpoints related to job postings, such as extracting information from job URLs.
+
+### Job Endpoints
+
+#### Extract Job Details from URL
+
+```
+POST /api/v1/jobs/extract/
+```
+
+Extracts job title, description, and other relevant details from a given job posting URL.
+The system will attempt to use a site-specific extractor if available (e.g., for LinkedIn) or fall back to a generic extractor.
+
+**Query Parameters:**
+
+- `url` (string, required, format: HttpUrl): The URL of the job posting to extract details from.
+  Example: `?url=https://www.example.com/jobs/software-engineer`
+
+**Response (200 OK):**
+Returns the extracted job details.
+
+```json
+{
+  "title": "string (optional, e.g., Software Engineer)",
+  "description": "string (optional, HTML content of the job description)",
+  "extraction_time": "string (optional, e.g., '5.23 seconds')",
+  "extraction_metadata": {
+    "source_type": "string (e.g., 'GenericExtractor', 'LinkedInExtractor')"
+    // Other metadata might be present
+  }
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request:** If the `url` parameter is missing or invalid.
+  ```json
+  {
+    "detail": "URL parameter is required."
+  }
+  ```
+- **404 Not Found:** If job details could not be extracted from the provided URL (e.g., page not found, content not parsable, or no meaningful job content identified).
+  ```json
+  {
+    "detail": "Could not extract job details from the provided URL: {url}"
+  }
+  ```
+- **422 Unprocessable Entity:** If the provided URL is not a valid HTTP/HTTPS URL.
+  ```json
+  {
+    "detail": [
+      {
+        "type": "url_scheme",
+        "loc": [
+          "query",
+          "url"
+        ],
+        "msg": "URL scheme not permitted",
+        "input": "invalid-url-scheme://example.com",
+        "ctx": {
+          "allowed_schemes": [
+            "http",
+            "https"
+          ]
+        }
+      }
+    ]
+  }
+  ```
+- **500 Internal Server Error:** If an unexpected error occurs during the extraction process (e.g., Playwright fails to initialize, or an unhandled exception in the extractor).
+  ```json
+  {
+    "detail": "An unexpected error occurred while processing the job extraction for URL {url}. {error_message}"
+  }
+  ```
+
 ## LinkedIn Integration
 
 > **Note:** LinkedIn integration endpoints are currently commented out in the API implementation and are not available for use. The documentation below is for reference only and will be updated when these endpoints are enabled.

@@ -12,6 +12,7 @@ from core.database.factory import (
     get_resume_repository,
     get_user_repository,
 )
+from core.job_extractor.extract_job import JobExtractor
 from core.repositories.portfolio_repository import PortfolioRepository
 from core.repositories.profile_repository import ProfileRepository
 from core.repositories.resume_repository import ResumeRepository
@@ -19,7 +20,7 @@ from core.repositories.user_repository import UserRepository
 from core.services.cover_letter_generation_service import CoverLetterGenerationService
 from core.services.cover_letter_service import CoverLetterService
 from core.services.job_service import JobService
-from core.services.latex_service import LatexService, get_latex_service
+from core.services.latex_service import LatexService
 from core.services.llm_service import LLMService
 from core.services.portfolio_service import PortfolioService
 from core.services.profile_service import ProfileService
@@ -84,15 +85,26 @@ async def get_llm_service(
     )
 
 
+async def get_job_extractor() -> JobExtractor:
+    """Get a JobExtractor instance.
+
+    Returns:
+        JobExtractor: An instance of the job extractor.
+    """
+    return JobExtractor()
+
+
 async def get_job_service(
     llm_service: LLMService = Depends(get_llm_service),
     prompt_service: PromptService = Depends(get_prompt_service),
+    job_extractor: JobExtractor = Depends(get_job_extractor),
 ) -> JobService:
     """Get a job service.
 
     Args:
         llm_service: LLM service
         prompt_service: Prompt service
+        job_extractor: JobExtractor instance
 
     Returns:
         JobService: Job service
@@ -100,6 +112,7 @@ async def get_job_service(
     return JobService(
         llm_service=llm_service,
         prompt_service=prompt_service,
+        job_extractor=job_extractor,
     )
 
 

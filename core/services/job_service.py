@@ -1,9 +1,11 @@
 """Service for handling job-related operations."""
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from config.constants import APP_CONSTANTS
 from config.logging_config import get_logger
+from core.job_extractor.extract_job import JobExtractor
+from core.models.job_extractor import JobDetails
 from core.schemas.job_schemas import JobInfoSchema
 from core.services.llm_service import LLMService
 from core.services.prompt_service import PromptService
@@ -14,18 +16,25 @@ logger = get_logger(__name__)
 class JobService:
     """Service for extracting and handling job-related information."""
 
-    def __init__(self, llm_service: LLMService, prompt_service: PromptService):
+    def __init__(
+        self,
+        llm_service: LLMService,
+        prompt_service: PromptService,
+        job_extractor: Optional[JobExtractor] = None,
+    ):
         """
         Initialize JobService.
 
         Args:
             llm_service: LLM service for text generation
             prompt_service: Prompt service for loading prompts
+            job_extractor: Optional JobExtractor instance. If None, a default one is created.
         """
         if not prompt_service:
             raise ValueError("PromptService is required for JobService.")
         self.llm_service = llm_service
         self.prompt_service = prompt_service
+        self.job_extractor = job_extractor or JobExtractor()
         self.logger = logger
 
     async def extract_job_info(self, job_description: str) -> Dict[str, Any]:
@@ -100,6 +109,33 @@ class JobService:
 
             self.logger.debug(f"Traceback: {traceback.format_exc()}")
             return default_result
+
+    async def extract_job_details_from_url(self, url: str) -> Optional[JobDetails]:
+        """
+        Extract complete job details from a job posting URL.
+
+        Args:
+            url: The URL of the job posting.
+
+        Returns:
+            JobDetails object if extraction is successful, None otherwise.
+        """
+        self.logger.info(f"Attempting to extract job details from URL: {url}")
+        try:
+            job_details = await self.job_extractor.extract_from_url(url)
+            if job_details:
+                self.logger.info(f"Successfully extracted job details from {url}.")
+            else:
+                self.logger.warning(
+                    f"Failed to extract job details or no details found for URL: {url}"
+                )
+            return job_details
+        except Exception as e:
+            self.logger.error(f"Error extracting job details from URL {url}: {str(e)}")
+            import traceback
+
+            self.logger.debug(f"Traceback: {traceback.format_exc()}")
+            return None
 
     def check_security_clearance(self, job_description: str) -> bool:
         """
