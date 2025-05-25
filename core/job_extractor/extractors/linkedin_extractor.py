@@ -1,5 +1,6 @@
 import logging
 from typing import Optional
+from urllib.parse import parse_qs, urlparse
 
 from playwright.async_api import Page
 
@@ -25,6 +26,59 @@ class LinkedInExtractor(BaseExtractor):
             headless: Whether to run the browser in headless mode
         """
         super().__init__(headless=headless)
+
+    @staticmethod
+    def _standardize_job_url(job_url: str) -> str:
+        """
+        Standardizes a LinkedIn job URL by extracting the currentJobId if present.
+
+        Args:
+            job_url: The potentially non-standard LinkedIn job URL.
+
+        Returns:
+            A standardized LinkedIn job URL in the format https://www.linkedin.com/jobs/view/JOB_ID/
+            or the original URL if currentJobId is not found or the URL is already standard.
+        """
+        try:
+            parsed_url = urlparse(job_url)
+            query_params = parse_qs(parsed_url.query)
+            job_id = query_params.get("currentJobId", [None])[0]
+
+            if job_id:
+                # Check if it's already in the standard format with a job ID in path
+                path_parts = parsed_url.path.strip("/").split("/")
+                if (
+                    len(path_parts) >= 2
+                    and path_parts[0] == "jobs"
+                    and path_parts[1] == "view"
+                    and path_parts[2] == job_id
+                ):
+                    logger.debug(
+                        f"URL {job_url} is already standard for job ID {job_id}."
+                    )
+                    return job_url
+
+                standard_url = f"https://www.linkedin.com/jobs/view/{job_id}/"
+                logger.info(
+                    f"Standardized URL {job_url} to {standard_url} using currentJobId."
+                )
+                return standard_url
+            elif parsed_url.path.startswith("/jobs/view/"):
+                # Already in a standard-like format, or a direct view link without query params
+                logger.debug(
+                    f"URL {job_url} appears to be standard or direct view link."
+                )
+                return job_url
+
+            logger.debug(
+                f"currentJobId not found in {job_url}, or URL is already standard. Returning original."
+            )
+            return job_url
+        except Exception as e:
+            logger.warning(
+                f"Error standardizing URL {job_url}: {e}. Returning original."
+            )
+            return job_url
 
     async def get_full_job_content(self, page: Page) -> Optional[str]:
         """Extracts the full job content from a LinkedIn job page."""
@@ -313,14 +367,17 @@ class LinkedInExtractor(BaseExtractor):
 
     async def scrape_job_posting(self, job_url: str) -> Optional[JobDetails]:
         """Scrapes a LinkedIn job posting page for its content."""
-        logger.info(f"LinkedInExtractor: Fetching job details from: {job_url}")
+        standardized_job_url = self._standardize_job_url(job_url)
+        logger.info(
+            f"LinkedInExtractor: Fetching job details from: {standardized_job_url} (original: {job_url})"
+        )
         extracted_content_html = None
         job_title = None
         company_name = None
 
         try:
             # Initialize Playwright
-            logger.info(f"Initializing Playwright for {job_url}")
+            logger.info(f"Initializing Playwright for {standardized_job_url}")
             playwright = await self.init_playwright()
 
             # Launch browser
@@ -340,8 +397,8 @@ class LinkedInExtractor(BaseExtractor):
             page.set_default_navigation_timeout(settings.navigation_timeout_ms)
 
             try:
-                logger.info(f"Navigating to {job_url}...")
-                await page.goto(job_url, wait_until="domcontentloaded")
+                logger.info(f"Navigating to {standardized_job_url}...")
+                await page.goto(standardized_job_url, wait_until="domcontentloaded")
 
                 logger.info("Page loaded. Waiting for network idle...")
                 try:
@@ -350,7 +407,7 @@ class LinkedInExtractor(BaseExtractor):
                     )
                 except Exception as e_ni:
                     logger.warning(
-                        f"Network idle timeout for {job_url}: {e_ni}. Proceeding."
+                        f"Network idle timeout for {standardized_job_url}: {e_ni}. Proceeding."
                     )
 
                 await self.handle_cookie_consent(page)
@@ -403,7 +460,7 @@ class LinkedInExtractor(BaseExtractor):
 
             except Exception as e:
                 logger.error(
-                    f"Major error during LinkedIn scraping for {job_url}: {e}",
+                    f"Major error during LinkedIn scraping for {standardized_job_url}: {e}",
                     exc_info=True,
                 )
                 return None
@@ -415,13 +472,14 @@ class LinkedInExtractor(BaseExtractor):
                     await playwright.stop()
         except Exception as e:
             logger.error(
-                f"Critical error in LinkedInExtractor for {job_url}: {e}", exc_info=True
+                f"Critical error in LinkedInExtractor for {standardized_job_url}: {e}",
+                exc_info=True,
             )
             return None
 
         if not extracted_content_html or len(extracted_content_html.strip()) < 150:
             logger.warning(
-                f"LinkedInExtractor: Failed to extract sufficient content from {job_url}. Aborting."
+                f"LinkedInExtractor: Failed to extract sufficient content from {standardized_job_url}. Aborting."
             )
             return None
 
@@ -443,7 +501,7 @@ class LinkedInExtractor(BaseExtractor):
             not final_description or len(final_description.strip()) < 100
         ):  # Check length of the combined string
             logger.warning(
-                f"Final description for {job_url} is too short. Original HTML length: {len(extracted_content_html)}, Markdown body length: {len(cleaned_description_body) if cleaned_description_body else 0}"
+                f"Final description for {standardized_job_url} is too short. Original HTML length: {len(extracted_content_html)}, Markdown body length: {len(cleaned_description_body) if cleaned_description_body else 0}"
             )
             return None
 
