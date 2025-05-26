@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, HttpUrl
 
 from api.dependencies.services import get_job_service
+from config.logging_config import get_logger
 from core.models.job_extractor import JobDetails
 from core.services.job_service import JobService
 
@@ -13,6 +14,9 @@ router = APIRouter(
     tags=["jobs"],
     responses={404: {"description": "Not found"}},
 )
+
+# Initialize logger for this module
+logger = get_logger(__name__)
 
 
 class JobExtractionRequest(BaseModel):
@@ -47,7 +51,9 @@ async def extract_job_details(
         raise http_exc
     except Exception as e:
         # Log the exception details for debugging
-        # logger.error(f"Unexpected error during job extraction from URL {url}: {e}", exc_info=True)
+        logger.error(
+            f"Unexpected error during job extraction from URL {url}: {e}", exc_info=True
+        )
         raise HTTPException(
             status_code=500,
             detail=f"An unexpected error occurred while processing the job extraction for URL {url}. {e}",
