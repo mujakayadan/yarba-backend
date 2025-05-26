@@ -46,6 +46,7 @@ def configure_logging() -> None:
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     logging.getLogger("motor").setLevel(logging.WARNING)
     logging.getLogger("pymongo").setLevel(logging.WARNING)
+    logging.getLogger("pymongo.topology").setLevel(logging.WARNING)
 
     # Set DEBUG level for LaTeX-related operations
     logging.getLogger("core.latex").setLevel(logging.DEBUG)
