@@ -27,12 +27,12 @@ class GenericExtractor(BaseExtractor):
         # Configure timeouts based on mode
         if getattr(self, "fast_mode", False):
             self.navigation_timeout = 30000  # 30 seconds for navigation
-            self.element_timeout = 5000  # 5 seconds for elements
-            self.network_idle_timeout = 5000  # 5 seconds for network idle
+            self.element_timeout = 3000  # 3 seconds for elements (was 5)
+            self.network_idle_timeout = 3000  # 3 seconds for network idle (was 5)
         else:
             self.navigation_timeout = 60000  # 60 seconds for navigation
-            self.element_timeout = 10000  # 10 seconds for elements
-            self.network_idle_timeout = 15000  # 15 seconds for network idle
+            self.element_timeout = 7000  # 7 seconds for elements (was 10)
+            self.network_idle_timeout = 7000  # 7 seconds for network idle (was 15)
 
     async def extract_full_job_content(self, page: Page) -> str:
         """Extracts all relevant job posting content from a generic page."""
