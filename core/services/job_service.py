@@ -2,8 +2,8 @@
 
 from typing import Any, Dict, Optional
 
-from config.constants import APP_CONSTANTS
 from config.logging_config import get_logger
+from config.settings import settings
 from core.job_extractor.extract_job import JobExtractor
 from core.models.job_extractor import JobDetails
 from core.schemas.job_schemas import JobInfoSchema
@@ -137,28 +137,66 @@ class JobService:
             self.logger.debug(f"Traceback: {traceback.format_exc()}")
             return None
 
-    def check_security_clearance(self, job_description: str) -> bool:
+    def check_security_clearance(
+        self,
+        job_description: str,
+        user_has_clearance_check_enabled: Optional[bool] = None,
+    ) -> bool:
         """
-        Check if the job description requires security clearance.
+        Check if the job description requires security clearance or US citizenship.
+        The check is performed if enabled globally or by user preference.
 
         Args:
-            job_description: The job description text
+            job_description: The job description text.
+            user_has_clearance_check_enabled: User's preference to override global setting.
 
         Returns:
-            bool: True if the job requires security clearance, False otherwise
+            bool: True if the job requires clearance/citizenship and check is active, False otherwise.
         """
-        try:
-            # Convert job description to lowercase for case-insensitive matching
-            job_desc_lower = job_description.lower()
+        perform_check: bool
+        if user_has_clearance_check_enabled is not None:
+            perform_check = user_has_clearance_check_enabled
+            self.logger.debug(
+                f"Clearance check overridden by user preference: {perform_check}"
+            )
+        else:
+            perform_check = settings.features.enable_clearance_check
+            self.logger.debug(f"Clearance check using global setting: {perform_check}")
 
-            # Check for any security clearance keywords
-            for keyword in APP_CONSTANTS.get("clearance_keywords", []):
+        if not perform_check:
+            self.logger.info(
+                "Security clearance check is disabled. Skipping keyword search."
+            )
+            return False
+
+        if not job_description or not job_description.strip():
+            self.logger.warning(
+                "Empty job description provided to check_security_clearance."
+            )
+            return False
+
+        try:
+            job_desc_lower = job_description.lower()
+            all_keywords = (
+                settings.features.clearance_keywords
+                + settings.features.citizenship_keywords
+            )
+
+            for keyword in all_keywords:
                 if keyword.lower() in job_desc_lower:
-                    self.logger.info(f"Found security clearance requirement: {keyword}")
+                    self.logger.info(
+                        f"Found restricted keyword in job description: '{keyword}'"
+                    )
                     return True
 
+            self.logger.info(
+                "No security clearance or citizenship keywords found in job description."
+            )
             return False
 
         except Exception as e:
             self.logger.error(f"Error checking security clearance: {str(e)}")
+            # In case of an unexpected error during the check, assume no clearance is required
+            # to avoid falsely blocking users. Alternatively, could raise or return True
+            # depending on desired strictness.
             return False

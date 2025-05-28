@@ -15,6 +15,7 @@ from core.repositories.portfolio_repository import PortfolioRepository
 from core.repositories.profile_repository import ProfileRepository
 from core.repositories.resume_repository import ResumeRepository
 from core.schemas.resume_schemas import ResumeOutputSchema
+from core.services.job_service import JobService
 from core.services.latex_service import LatexService
 from core.services.llm_service import LLMService
 from core.services.portfolio_service import PortfolioService
@@ -23,6 +24,17 @@ from core.services.prompt_service import PromptService
 from core.utils.json_helper import convert_to_serializable
 
 logger = get_logger(__name__)
+
+
+class ClearanceRequiredException(Exception):
+    """Exception raised when a job requires clearance and user has clearance checking enabled."""
+
+    def __init__(
+        self,
+        message: str = "This job requires security clearance or US citizenship. Resume generation has been blocked based on your preferences.",
+    ):
+        self.message = message
+        super().__init__(self.message)
 
 
 class ResumeGenerationService:
@@ -38,6 +50,7 @@ class ResumeGenerationService:
         portfolio_service: PortfolioService,
         llm_service: LLMService,
         latex_service: LatexService,
+        job_service: JobService,
     ):
         """
         Initialize the resume generation service.
@@ -51,6 +64,7 @@ class ResumeGenerationService:
             portfolio_service: Service for portfolio operations
             llm_service: Service for LLM operations
             latex_service: Service for LaTeX document generation
+            job_service: Service for job-related operations including clearance checks
         """
         self.resume_repository = resume_repository
         self.portfolio_repository = portfolio_repository
@@ -60,6 +74,7 @@ class ResumeGenerationService:
         self.portfolio_service = portfolio_service
         self.llm_service = llm_service
         self.latex_service = latex_service
+        self.job_service = job_service
 
         self.logger = get_logger(self.__class__.__name__)
 
@@ -145,6 +160,56 @@ class ResumeGenerationService:
             )
 
         return resume, profile, portfolio
+
+    async def _check_clearance_requirements(
+        self, job_description: str, user_id: PydanticObjectId
+    ) -> None:
+        """
+        Check if the job requires clearance and if the user has clearance checking enabled.
+
+        Args:
+            job_description: The job description text
+            user_id: User ID
+
+        Raises:
+            ClearanceRequiredException: If clearance is required and user has checking enabled
+        """
+        try:
+            # Get user's clearance check preference from their profile
+            system_preferences = await self.profile_service.get_system_preferences(
+                user_id
+            )
+            user_has_clearance_check_enabled = None
+
+            if system_preferences and system_preferences.features:
+                user_has_clearance_check_enabled = system_preferences.features.get(
+                    "check_clearance"
+                )
+                self.logger.debug(
+                    f"User {user_id} clearance check setting: {user_has_clearance_check_enabled}"
+                )
+
+            # Check if the job requires clearance using JobService
+            requires_clearance = self.job_service.check_security_clearance(
+                job_description=job_description,
+                user_has_clearance_check_enabled=user_has_clearance_check_enabled,
+            )
+
+            if requires_clearance:
+                self.logger.warning(
+                    f"Clearance requirement detected for user {user_id}, blocking resume generation"
+                )
+                raise ClearanceRequiredException()
+
+        except ClearanceRequiredException:
+            # Re-raise clearance exceptions
+            raise
+        except Exception as e:
+            self.logger.error(f"Error checking clearance requirements: {e}")
+            # Continue with generation if clearance check fails (fail-open approach)
+            self.logger.warning(
+                "Clearance check failed, proceeding with resume generation"
+            )
 
     async def generate_latex(
         self,
@@ -279,6 +344,7 @@ class ResumeGenerationService:
 
         Raises:
             ValueError: If resume, profile, job_description, or prompt is missing or generation fails.
+            ClearanceRequiredException: If job requires clearance and user has clearance checking enabled.
         """
         # Get resume data (includes resume, profile)
         resume, profile, _ = await self.get_resume_data(resume_id)
@@ -287,6 +353,13 @@ class ResumeGenerationService:
         if not resume.job_description:
             self.logger.error(f"Job description missing for resume_id: {resume_id}")
             raise ValueError("Job description is required for resume generation")
+
+        # CLEARANCE CHECK: Check if job requires clearance before proceeding with LLM generation
+        self.logger.info(f"Checking clearance requirements for resume {resume_id}")
+        await self._check_clearance_requirements(resume.job_description, resume.user_id)
+        self.logger.info(
+            f"Clearance check passed for resume {resume_id}, proceeding with generation"
+        )
 
         # Make sure the LLM service is configured for the current user
         await self.llm_service.configure_for_user(resume.user_id)
@@ -486,6 +559,9 @@ class ResumeGenerationService:
             # Return the content dictionary as stored in the resume
             return resume.content
 
+        except ClearanceRequiredException:
+            # Re-raise clearance exceptions without wrapping them
+            raise
         except Exception as e:
             self.logger.error(
                 f"Error in generate_resume_textual_content for resume_id {resume_id}: {e}"

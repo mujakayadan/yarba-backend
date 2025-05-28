@@ -797,7 +797,7 @@ class APISettings(BaseSettings):
 
     # CORS settings
     cors_origins: List[str] = Field(
-        default=["http://localhost:3000"],
+        default=["http://localhost:3000", "https://www.yarba.app"],
         description="List of allowed CORS origins",
         env="CORS_ORIGINS",
     )
@@ -883,6 +883,67 @@ class APISettings(BaseSettings):
         default=120,
         description="Time window in seconds for PDF generation rate limiting",
     )
+
+
+class FeatureSettings(BaseSettings):
+    """Settings for application features and toggles."""
+
+    model_config = SettingsConfigDict(
+        env_file=[".env.local", ".env"],
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+        env_prefix="FEATURE_",
+    )
+
+    enable_clearance_check: bool = Field(
+        default=True,
+        description="Enable check for clearance requirements in job descriptions.",
+        env="ENABLE_CLEARANCE_CHECK",
+    )
+    clearance_keywords: List[str] = Field(
+        default=[
+            "security clearance",
+            "clearance required",
+            "classified",
+            "top secret",
+            "secret",
+            "confidential",
+            "public trust",
+            "ts/sci",
+            "sci",
+            "q clearance",
+            "l clearance",
+        ],
+        description="Keywords indicating a security clearance requirement.",
+        env="CLEARANCE_KEYWORDS",
+    )
+    citizenship_keywords: List[str] = Field(
+        default=[
+            "us citizen",
+            "u.s. citizen",
+            "us citizenship",
+            "u.s. citizenship",
+            "citizen of the united states",
+            "must be a us citizen",
+            "must be a u.s. citizen",
+        ],
+        description="Keywords indicating a US citizenship requirement.",
+        env="CITIZENSHIP_KEYWORDS",
+    )
+
+    @field_validator("clearance_keywords", "citizenship_keywords", mode="before")
+    @classmethod
+    def parse_keyword_lists(cls, v):
+        """Parse keyword lists from a string or list."""
+        import json
+
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                return [kw.strip() for kw in v.split(",")]
+        return v
 
 
 class StorageSettings(BaseSettings):
@@ -1126,6 +1187,9 @@ class Settings(BaseSettings):
     )
     storage: StorageSettings = Field(
         default_factory=StorageSettings, description="Storage settings"
+    )
+    features: FeatureSettings = Field(
+        default_factory=FeatureSettings, description="Feature toggle settings"
     )
 
     # Convenience properties
