@@ -7,6 +7,12 @@ from core.job_extractor.utils.html_parser import html_to_markdown
 from core.models.job_extractor import JobDetails
 
 from .base_extractor import BaseExtractor
+from .domain_selectors import (
+    get_domain_config,
+    get_selectors_for_url,
+    get_timeout_for_url,
+    should_wait_for_network_idle,
+)
 
 logger = logging_config.get_logger(__name__)
 
@@ -24,74 +30,39 @@ class GenericExtractor(BaseExtractor):
         """
         super().__init__(headless=headless, fast_mode=fast_mode)
 
-        # Configure timeouts based on mode
+        # Configure base timeouts - these will be overridden by domain-specific configs
         if getattr(self, "fast_mode", False):
-            self.navigation_timeout = 30000  # 30 seconds for navigation
-            self.element_timeout = 3000  # 3 seconds for elements (was 5)
-            self.network_idle_timeout = 3000  # 3 seconds for network idle (was 5)
+            self.default_navigation_timeout = 15000  # 15 seconds for navigation
+            self.default_element_timeout = 3000  # 3 seconds for elements
+            self.default_network_idle_timeout = 3000  # 3 seconds for network idle
         else:
-            self.navigation_timeout = 60000  # 60 seconds for navigation
-            self.element_timeout = 7000  # 7 seconds for elements (was 10)
-            self.network_idle_timeout = 7000  # 7 seconds for network idle (was 15)
+            self.default_navigation_timeout = 20000  # 20 seconds for navigation
+            self.default_element_timeout = 5000  # 5 seconds for elements
+            self.default_network_idle_timeout = 5000  # 5 seconds for network idle
 
-    async def extract_full_job_content(self, page: Page) -> str:
-        """Extracts all relevant job posting content from a generic page."""
-        # Using existing description selectors as they are quite broad
-        content_selectors = [
-            # Added for Lever.co and similar structures (prioritized)
-            "div.content-wrapper.posting-page > div.content",  # Lever: main content area including header and all sections
-            "div[data-qa='job-description']",  # Lever: job description section
-            "section[data-qa='job-description']",  # Lever: job description section (as section)
-            # Greenhouse job board selector
-            "div.job__description.body",
-            # Common specific IDs for job descriptions
-            "#job-description",
-            "#jobDescription",  # Common variation
-            # Specific attribute selectors
-            "div[name='cwsJobDescription']",  # Taleo specific
-            "[data-automation='jobDescription']",  # Common automation hook
-            "div[data-automation-id='jobDescription']",  # Another common data-automation variant
-            # Specific class names (exact match)
-            ".jobDescriptionContent",
-            ".job-description-content",  # Common variation
-            ".job-posting-content",
-            ".job-details-content",
-            # Tag with specific class combinations
-            "article.job-description",
-            "section.job-description",
-            "div.job-description",
-            "article.job-details",
-            "section.job-details",
-            "div.job-details",
-            "article.description",
-            "section.description",
-            "div.description",  # More specific than just .description
-            # Attribute "class" contains value (more general, so after exact matches)
-            "article[class*='job-description']",
-            "section[class*='job-description']",
-            "div[class*='job-description']",
-            "article[class*='jobDetails']",  # Camel case variation for details
-            "section[class*='jobDetails']",
-            "div[class*='jobDetails']",
-            "div[class*='description']",  # Use cautiously, can be broad
-            # Common main content container IDs and classes
-            "#content",
-            "#main-content",
-            "div.content",  # Exact class 'content'
-            "div.main-content",  # Exact class 'main-content'
-            "div.job-content",
-            "div[class*='content']",  # Fallback for class containing 'content', moved lower
-            # Very specific selector from a previous issue (lower priority as it's very specific)
-            "div._8muv._ar_h",
-            # Broad HTML5 semantic tags as last resort for text content
-            "article",  # Fallback to article tag
-            "main",  # Fallback to main tag
-        ]
+    async def extract_full_job_content(self, page: Page, job_url: str) -> str:
+        """Extracts all relevant job posting content from a generic page using domain-specific selectors."""
+
+        # Get domain-specific selectors for this URL
+        content_selectors = get_selectors_for_url(job_url)
+
+        # Get domain-specific timeout
+        domain_timeout = get_timeout_for_url(job_url) * 1000  # Convert to milliseconds
+        element_timeout = min(
+            domain_timeout // 3, self.default_element_timeout
+        )  # Use 1/3 of domain timeout or default, whichever is smaller
+
+        # Log which domain configuration we're using
+        domain_config = get_domain_config(job_url)
+        if domain_config:
+            logger.info(f"Using domain-specific selectors for {job_url}")
+        else:
+            logger.info(f"Using generic selectors for {job_url}")
 
         for selector in content_selectors:
             try:
                 await page.wait_for_selector(
-                    selector, timeout=self.element_timeout, state="visible"
+                    selector, timeout=element_timeout, state="visible"
                 )
                 element = await page.query_selector(selector)
                 if element:
@@ -162,6 +133,20 @@ class GenericExtractor(BaseExtractor):
         logger.info(
             f"GenericExtractor: Extracting full job content from URL: {job_url}"
         )
+
+        # Get domain-specific configuration
+        domain_timeout_seconds = get_timeout_for_url(job_url)
+        navigation_timeout = domain_timeout_seconds * 1000  # Convert to milliseconds
+        should_wait_network_idle = should_wait_for_network_idle(job_url)
+        network_idle_timeout = min(
+            navigation_timeout // 2, self.default_network_idle_timeout
+        )
+
+        logger.info(
+            f"Using domain-specific config: timeout={domain_timeout_seconds}s, "
+            f"network_idle={should_wait_network_idle}, navigation_timeout={navigation_timeout}ms"
+        )
+
         extracted_content_html = ""
         playwright = None
         browser = None
@@ -179,25 +164,29 @@ class GenericExtractor(BaseExtractor):
             )
 
             page = await context.new_page()
-            page.set_default_timeout(self.navigation_timeout)
+            page.set_default_timeout(navigation_timeout)
 
             logger.info(f"Navigating to {job_url}...")
             await page.goto(
-                job_url, wait_until="domcontentloaded", timeout=self.navigation_timeout
+                job_url, wait_until="domcontentloaded", timeout=navigation_timeout
             )
 
-            try:
-                await page.wait_for_load_state(
-                    "networkidle", timeout=self.network_idle_timeout
-                )
-            except Exception as e:
-                logger.warning(
-                    f"Network idle wait timeout for {job_url}: {e}. Proceeding anyway."
-                )
+            # Only wait for network idle if the domain configuration says to
+            if should_wait_network_idle:
+                try:
+                    await page.wait_for_load_state(
+                        "networkidle", timeout=network_idle_timeout
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"Network idle wait timeout for {job_url}: {e}. Proceeding anyway."
+                    )
+            else:
+                logger.info(f"Skipping network idle wait for {job_url} (domain config)")
 
             await self.handle_cookie_consent(page)
 
-            extracted_content_html = await self.extract_full_job_content(page)
+            extracted_content_html = await self.extract_full_job_content(page, job_url)
 
         except Exception as e:
             logger.error(

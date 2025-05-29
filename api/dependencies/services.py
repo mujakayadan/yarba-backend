@@ -182,6 +182,7 @@ def get_resume_generation_service(
     portfolio_service: PortfolioService = Depends(get_portfolio_service),
     llm_service: LLMService = Depends(get_llm_service),
     latex_service: LatexService = Depends(get_latex_service),
+    job_service: JobService = Depends(get_job_service),
 ) -> ResumeGenerationService:
     """Get a resume generation service.
 
@@ -198,6 +199,7 @@ def get_resume_generation_service(
         portfolio_service=portfolio_service,
         llm_service=llm_service,
         latex_service=latex_service,
+        job_service=job_service,
     )
 
 

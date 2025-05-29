@@ -137,13 +137,13 @@ class JobService:
             self.logger.debug(f"Traceback: {traceback.format_exc()}")
             return None
 
-    def check_security_clearance(
+    def check_job_restrictions(
         self,
         job_description: str,
         user_has_clearance_check_enabled: Optional[bool] = None,
     ) -> bool:
         """
-        Check if the job description requires security clearance or US citizenship.
+        Check if the job description requires security clearance, US citizenship, or other restrictions.
         The check is performed if enabled globally or by user preference.
 
         Args:
@@ -151,7 +151,7 @@ class JobService:
             user_has_clearance_check_enabled: User's preference to override global setting.
 
         Returns:
-            bool: True if the job requires clearance/citizenship and check is active, False otherwise.
+            bool: True if the job has restrictions (clearance/citizenship) and check is active, False otherwise.
         """
         perform_check: bool
         if user_has_clearance_check_enabled is not None:
@@ -176,16 +176,34 @@ class JobService:
             return False
 
         try:
-            job_desc_lower = job_description.lower()
-            all_keywords = (
-                settings.features.clearance_keywords
-                + settings.features.citizenship_keywords
-            )
+            import re
 
-            for keyword in all_keywords:
-                if keyword.lower() in job_desc_lower:
+            # Use the consolidated restriction_keywords
+            keywords = settings.features.restriction_keywords
+
+            if not keywords:
+                self.logger.warning("No restriction keywords configured.")
+                return False
+
+            # Normalize job description for matching
+            job_desc_lower = job_description.lower()
+
+            # Use word boundary matching to avoid false positives
+            for keyword in keywords:
+                keyword_lower = keyword.lower()
+
+                # Create a regex pattern with word boundaries for multi-word phrases
+                # This prevents matching "sci" in "Computer Science" but allows "ts/sci clearance"
+                if " " in keyword_lower or "/" in keyword_lower or "-" in keyword_lower:
+                    # For multi-word phrases, use phrase boundary matching
+                    pattern = r"\b" + re.escape(keyword_lower) + r"\b"
+                else:
+                    # For single words, be more strict with word boundaries
+                    pattern = r"\b" + re.escape(keyword_lower) + r"\b"
+
+                if re.search(pattern, job_desc_lower):
                     self.logger.info(
-                        f"Found restricted keyword in job description: '{keyword}'"
+                        f"Found restriction keyword in job description: '{keyword}'"
                     )
                     return True
 

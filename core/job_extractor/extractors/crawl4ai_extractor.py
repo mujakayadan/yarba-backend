@@ -8,6 +8,12 @@ import config.logging_config as logging_config
 from core.models.job_extractor import JobDetails
 
 from .base_extractor import BaseExtractor
+from .domain_selectors import (
+    get_selectors_for_url,
+    get_timeout_for_url,
+    requires_iframe_handling,
+    should_wait_for_network_idle,
+)
 
 logger = logging_config.get_logger(__name__)
 
@@ -31,118 +37,34 @@ class Crawl4AIExtractor(BaseExtractor):
         """
         super().__init__(headless=headless, fast_mode=fast_mode)
 
-        # Configure timeouts based on mode
+        # Base timeouts - will be overridden by domain-specific configs
         if getattr(self, "fast_mode", False):
-            self.page_timeout = 30000  # 30 seconds for page load
-            self.extraction_timeout = 15000  # 15 seconds for extraction
+            self.base_page_timeout = 15000  # 15 seconds for page load
+            self.base_extraction_timeout = 10000  # 10 seconds for extraction
         else:
-            self.page_timeout = 60000  # 60 seconds for page load
-            self.extraction_timeout = 30000  # 30 seconds for extraction
+            self.base_page_timeout = 20000  # 20 seconds for page load
+            self.base_extraction_timeout = 15000  # 15 seconds for extraction
 
-    def _get_job_description_schema(self) -> dict:
+    def _get_job_description_schema(self, url: str) -> dict:
         """
-        Get the JSON schema for job description extraction.
+        Get the JSON schema for job description extraction using domain-specific selectors.
 
-        This schema focuses exclusively on extracting job description content
-        using comprehensive CSS selectors that work across various job boards,
-        company career pages, and job posting platforms.
+        Args:
+            url: The job posting URL to get selectors for
 
         Returns:
             Dictionary containing the extraction schema for Crawl4AI.
         """
+        # Get domain-specific selectors for this URL
+        selectors = get_selectors_for_url(url)
+
         return {
             "name": "Job Description Content",
             "baseSelector": "body",
             "fields": [
                 {
                     "name": "job_description",
-                    "selector": ", ".join(
-                        [
-                            # Common job description containers
-                            ".job-description",
-                            ".jobDescription",
-                            ".job-desc",
-                            ".description",
-                            ".job-details",
-                            ".jobDetails",
-                            ".job-detail",
-                            ".position-description",
-                            ".job-content",
-                            ".jobContent",
-                            ".job-posting-description",
-                            ".role-description",
-                            ".vacancy-description",
-                            ".job-summary",
-                            # Data attributes and IDs
-                            "[data-testid='job-description']",
-                            "[data-testid='jobDescription']",
-                            "[data-testid='job-details']",
-                            "[data-testid='description']",
-                            "[data-automation='job-description']",
-                            "[data-cy='job-description']",
-                            "#job-description",
-                            "#jobDescription",
-                            "#job-details",
-                            "#description",
-                            # Common job board specific selectors
-                            ".jobsearch-jobDescriptionText",  # Indeed
-                            ".jobs-description__content",  # LinkedIn
-                            ".jobDescriptionContent",  # Monster
-                            ".jobDetailText",  # Glassdoor
-                            ".show-more-less-html__markup",  # LinkedIn expanded
-                            ".jobs-box__html-content",  # LinkedIn alternative
-                            ".jobDescriptionWrapper",  # CareerBuilder
-                            ".job-description-container",  # ZipRecruiter
-                            ".jobDescText",  # Dice
-                            ".gtmJobDescription",  # Stack Overflow Jobs
-                            # Generic content containers that might contain job descriptions
-                            "main .content",
-                            "article .content",
-                            ".main-content",
-                            ".primary-content",
-                            ".page-content",
-                            ".body-content",
-                            # Semantic HTML elements
-                            "main",
-                            "article",
-                            "section[role='main']",
-                            # Common wrapper classes
-                            ".wrapper .description",
-                            ".container .description",
-                            ".content-wrapper .description",
-                            ".page-wrapper .description",
-                            # Alternative description class patterns
-                            ".job-posting-content",
-                            ".position-content",
-                            ".role-content",
-                            ".vacancy-content",
-                            ".opening-description",
-                            ".listing-description",
-                            ".posting-description",
-                            ".career-description",
-                            ".opportunity-description",
-                            # Company career page patterns
-                            ".career-description",
-                            ".careers-content",
-                            ".job-opportunity",
-                            ".position-details",
-                            ".role-details",
-                            ".job-info",
-                            # Additional common patterns
-                            ".job-posting-details",
-                            ".position-posting",
-                            ".role-posting",
-                            ".job-listing-description",
-                            ".career-listing",
-                            ".opportunity-listing",
-                            # Fallback to broader content areas
-                            ".job-posting",
-                            ".job-listing",
-                            ".position-listing",
-                            ".career-posting",
-                            ".opportunity-posting",
-                        ]
-                    ),
+                    "selector": ", ".join(selectors),
                     "type": "html",
                     "default": "",
                 }
@@ -151,7 +73,7 @@ class Crawl4AIExtractor(BaseExtractor):
 
     async def _extract_job_description(self, url: str) -> Optional[str]:
         """
-        Extract job description content using Crawl4AI with comprehensive selectors.
+        Extract job description content using Crawl4AI with domain-specific selectors.
 
         Args:
             url: The job posting URL to extract from.
@@ -159,6 +81,17 @@ class Crawl4AIExtractor(BaseExtractor):
         Returns:
             Extracted job description as HTML string, or None if extraction fails.
         """
+        # Get domain-specific configuration
+        domain_timeout_seconds = get_timeout_for_url(url)
+        page_timeout = domain_timeout_seconds * 1000  # Convert to milliseconds
+        should_wait_network_idle = should_wait_for_network_idle(url)
+        needs_iframe_handling = requires_iframe_handling(url)
+
+        logger.info(
+            f"Crawl4AI domain config for {url}: timeout={domain_timeout_seconds}s, "
+            f"network_idle={should_wait_network_idle}, iframe_handling={needs_iframe_handling}"
+        )
+
         # Configure browser for Crawl4AI
         browser_config = BrowserConfig(
             headless=self.headless,
@@ -168,70 +101,52 @@ class Crawl4AIExtractor(BaseExtractor):
         )
 
         # Get the extraction schema
-        schema = self._get_job_description_schema()
+        schema = self._get_job_description_schema(url)
         extraction_strategy = JsonCssExtractionStrategy(schema, verbose=True)
+
+        # Configure wait condition based on domain
+        wait_for_condition = (
+            "networkidle" if should_wait_network_idle else "domcontentloaded"
+        )
+
+        # Configure delay based on whether iframe handling is needed
+        delay_ms = 3000 if needs_iframe_handling else 1000
 
         # Configure crawler run settings
         run_config = CrawlerRunConfig(
             cache_mode=CacheMode.BYPASS,
             extraction_strategy=extraction_strategy,
-            page_timeout=self.page_timeout,
-            # Enhanced JavaScript to handle various page interactions
+            page_timeout=page_timeout,
+            wait_for=wait_for_condition,
+            delay_before_return_html=delay_ms,
+            # Minimal JavaScript for basic functionality
             js_code=[
-                # Handle cookie consent and privacy banners
+                # Handle cookie consent
                 """
                 (function() {
                     const acceptButtons = document.querySelectorAll(
                         'button[id*="accept"], button[class*="accept"], ' +
                         'button[id*="consent"], button[class*="consent"], ' +
-                        'button[id*="agree"], button[class*="agree"], ' +
-                        '[data-cookiebanner="accept"], #onetrust-accept-btn-handler, ' +
-                        '.cookie-accept, .privacy-accept, .gdpr-accept'
+                        '[data-cookiebanner="accept"], #onetrust-accept-btn-handler'
                     );
                     acceptButtons.forEach(btn => {
                         if (btn.offsetParent !== null) btn.click();
                     });
                 })();
                 """,
-                # Handle "Show more" or "Read more" buttons for job descriptions
+                # Handle "Show more" buttons
                 """
                 (function() {
                     const showMoreButtons = document.querySelectorAll(
                         'button[class*="show-more"], button[class*="read-more"], ' +
-                        'button[class*="expand"], a[class*="show-more"], ' +
-                        'a[class*="read-more"], .show-more-button, .expand-button, ' +
-                        '[data-testid="show-more"], [data-automation="show-more"]'
+                        '[data-testid="show-more"]'
                     );
                     showMoreButtons.forEach(btn => {
                         if (btn.offsetParent !== null) btn.click();
                     });
                 })();
                 """,
-                # Scroll to trigger lazy loading and reveal hidden content
-                """
-                (function() {
-                    window.scrollTo(0, document.body.scrollHeight / 3);
-                    setTimeout(() => {
-                        window.scrollTo(0, document.body.scrollHeight * 2 / 3);
-                        setTimeout(() => window.scrollTo(0, 0), 1000);
-                    }, 1000);
-                })();
-                """,
-                # Close any modal dialogs that might obstruct content
-                """
-                (function() {
-                    const closeButtons = document.querySelectorAll(
-                        '.modal-close, .dialog-close, .popup-close, ' +
-                        'button[aria-label*="close"], button[aria-label*="Close"], ' +
-                        '[data-dismiss="modal"], .close-button'
-                    );
-                    closeButtons.forEach(btn => {
-                        if (btn.offsetParent !== null) btn.click();
-                    });
-                })();
-                """,
             ],
-            wait_for="networkidle",
         )
 
         try:

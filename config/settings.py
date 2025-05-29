@@ -901,38 +901,45 @@ class FeatureSettings(BaseSettings):
         description="Enable check for clearance requirements in job descriptions.",
         env="ENABLE_CLEARANCE_CHECK",
     )
-    clearance_keywords: List[str] = Field(
+
+    # Optimized restriction keywords (consolidated clearance and citizenship requirements)
+    restriction_keywords: List[str] = Field(
         default=[
+            # Security clearance keywords (specific phrases to avoid false positives)
             "security clearance",
             "clearance required",
-            "classified",
-            "top secret",
-            "secret",
-            "confidential",
-            "public trust",
-            "ts/sci",
-            "sci",
+            "active clearance",
+            "maintain clearance",
+            "obtain clearance",
+            "clearance eligible",
+            "top secret clearance",
+            "secret clearance",
+            "confidential clearance",
+            "public trust clearance",
+            "ts/sci clearance",
+            "polygraph required",
+            "background investigation",
             "q clearance",
             "l clearance",
-        ],
-        description="Keywords indicating a security clearance requirement.",
-        env="CLEARANCE_KEYWORDS",
-    )
-    citizenship_keywords: List[str] = Field(
-        default=[
-            "us citizen",
-            "u.s. citizen",
-            "us citizenship",
-            "u.s. citizenship",
+            "nato secret",
+            "cosmic top secret",
+            # US citizenship requirements
+            "us citizen required",
+            "u.s. citizen required",
+            "us citizenship required",
+            "u.s. citizenship required",
+            "must be us citizen",
+            "must be u.s. citizen",
             "citizen of the united states",
-            "must be a us citizen",
-            "must be a u.s. citizen",
+            "american citizen required",
+            "born in the usa",
+            "naturalized citizen",
         ],
-        description="Keywords indicating a US citizenship requirement.",
-        env="CITIZENSHIP_KEYWORDS",
+        description="Keywords indicating security clearance or citizenship requirements.",
+        env="RESTRICTION_KEYWORDS",
     )
 
-    @field_validator("clearance_keywords", "citizenship_keywords", mode="before")
+    @field_validator("restriction_keywords", mode="before")
     @classmethod
     def parse_keyword_lists(cls, v):
         """Parse keyword lists from a string or list."""
