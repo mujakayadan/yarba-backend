@@ -57,18 +57,7 @@ class PortfolioWebsiteService:
     ) -> PortfolioWebsite:
         """
         Create a new portfolio website for a user.
-
-        Args:
-            user_id: User ID
-            config: Website configuration (optional)
-            custom_subdomain: Custom subdomain (optional)
-
-        Returns:
-            PortfolioWebsite: Created website
-
-        Raises:
-            NotFoundException: If user or portfolio not found
-            ConflictException: If user already has a website or subdomain is taken
+        This will also trigger the initial deployment asynchronously.
         """
         # Check if user exists
         user = await self.user_repository.get_by_id(user_id)
@@ -103,28 +92,38 @@ class PortfolioWebsiteService:
         if not config:
             website_config = WebsiteConfig()
         else:
-            # Convert from API schema (PortfolioWebsiteConfig) to model (WebsiteConfig) if needed
             if hasattr(config, "model_dump"):
-                # It's a Pydantic model, convert it
                 website_config = WebsiteConfig(**config.model_dump())
             else:
-                # It's already a WebsiteConfig
-                website_config = config
+                website_config = config  # Assume it's already a WebsiteConfig model
 
-        # Create the portfolio website
+        # Create the portfolio website instance
         website = PortfolioWebsite(
             user_id=user_id,
             portfolio_id=portfolio.id,
             subdomain=subdomain,
             config=website_config,
+            # Initialize deployment status (optional, could also be set by _deploy_website_async first call)
+            # deployment=PortfolioDeploymentStatus(status="pending")
         )
 
         # Save to database
         website = await self.website_repository.create(website)
 
         self.logger.info(
-            f"Created portfolio website for user {user_id} with subdomain: {subdomain}"
+            f"Created portfolio website record for user {user_id} with subdomain: {subdomain}. ID: {website.id}"
         )
+
+        # Trigger initial deployment asynchronously
+        # _deploy_website_async will handle updating the website object with deployment details (URL, status etc.)
+        asyncio.create_task(self._deploy_website_async(website.id))
+
+        self.logger.info(
+            f"Initial asynchronous deployment triggered for website {website.id}. The website object will be updated upon completion."
+        )
+
+        # Return the initially created website object.
+        # The caller should understand that deployment is happening in the background.
         return website
 
     async def get_portfolio_website(
@@ -264,6 +263,7 @@ class PortfolioWebsiteService:
                 website_id,
                 "building",
                 started_at=datetime.now(timezone.utc),
+                completed_at=None,  # Clear previous completed_at
                 build_id=f"build_{int(datetime.now().timestamp())}",
                 error_message=None,  # Clear previous error
                 error_code=None,  # Clear previous error code
@@ -368,6 +368,7 @@ class PortfolioWebsiteService:
                 website_id,
                 "building",
                 started_at=datetime.now(timezone.utc),
+                completed_at=None,  # Clear previous completed_at
                 build_id=f"build_{int(datetime.now().timestamp())}",
                 error_message=None,  # Clear previous error
                 error_code=None,  # Clear previous error code

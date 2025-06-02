@@ -985,10 +985,9 @@ class StorageSettings(BaseSettings):
         description="AWS S3 region",
         env="AWS_REGION",  # Ensuring explicit mapping
     )
-    aws_bucket: Optional[str] = Field(  # Renamed back to aws_bucket
-        default=None,  # Or your previous default like "yarba-app-media"
-        description="AWS S3 bucket name",
-        env="AWS_BUCKET",  # Ensuring explicit mapping to STORAGE_AWS_BUCKET
+    aws_bucket: str = Field(  # Changed to non-optional
+        description="AWS S3 bucket name for storing all content",
+        env="AWS_BUCKET",
     )
     aws_use_presigned_urls: bool = Field(
         default=False,
@@ -1003,13 +1002,18 @@ class StorageSettings(BaseSettings):
 
     # CloudFront settings
     cloudfront_enabled: bool = Field(
-        default=False,
+        default=False,  # This might be re-evaluated based on the new architecture. Keeping for now.
         description="Whether to use CloudFront for distribution",
         env="CLOUDFRONT_ENABLED",
     )
+    cloudfront_distribution_id: Optional[str] = Field(  # New field
+        default=None,
+        description="The ID of the single, shared CloudFront distribution for portfolios",
+        env="CLOUDFRONT_DISTRIBUTION_ID",
+    )
     cloudfront_domain: Optional[str] = Field(
         default=None,
-        description="CloudFront distribution domain",
+        description="CloudFront distribution domain (can be derived or set if needed for other purposes)",
         env="CLOUDFRONT_DOMAIN",
     )
     cloudfront_key_pair_id: Optional[str] = Field(
@@ -1244,3 +1248,8 @@ class Settings(BaseSettings):
 
 # Create settings instance
 settings = Settings()
+
+
+def get_settings() -> Settings:
+    """Return the global settings instance."""
+    return settings
