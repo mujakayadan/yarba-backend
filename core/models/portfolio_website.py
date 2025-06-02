@@ -1,5 +1,6 @@
 """Portfolio website model for MongoDB using Beanie ODM."""
 
+import os
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
@@ -28,9 +29,6 @@ class WebsiteConfig(BaseModel):
 
     # Social Media Configuration
     social_media_enabled: bool = Field(default=True)
-
-    # Custom Domain Configuration
-    custom_domain: Optional[str] = None
 
     # Sections Configuration
     enabled_sections: List[str] = Field(
@@ -180,9 +178,9 @@ class PortfolioWebsite(Document):
 
     def get_website_url(self) -> str:
         """Get the full website URL."""
-        if self.config.custom_domain:
-            return f"https://{self.config.custom_domain}"
-        return f"https://{self.subdomain}.yarba.app"
+        # Custom domains are not currently processed, so always use the subdomain-based URL.
+        domain_name = os.getenv("VERCEL_DOMAIN_NAME", "yarba.app")
+        return f"https://{self.subdomain}.{domain_name}"
 
     def generate_subdomain_from_name(self, full_name: str) -> str:
         """Generate a subdomain from the user's full name."""

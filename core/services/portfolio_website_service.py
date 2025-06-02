@@ -291,7 +291,11 @@ class PortfolioWebsiteService:
 
             # Generate website files
             website_files = await self.website_generator_service.generate_website(
-                portfolio=portfolio, user=user, profile=profile, config=website.config
+                portfolio=portfolio,
+                subdomain=website.subdomain,
+                user=user,
+                profile=profile,
+                config=website.config,
             )
 
             # Deploy to AWS
@@ -299,35 +303,48 @@ class PortfolioWebsiteService:
                 subdomain=website.subdomain, files=website_files, config=website.config
             )
 
-            # Update deployment status to success
-            await self.website_repository.update_deployment_status(
+            completed_time = datetime.now(timezone.utc)
+            # Ensure website.deployment.started_at is not None before calculating duration
+            build_duration_val = None
+            if website.deployment.started_at:
+                build_duration_val = int(
+                    (
+                        completed_time.timestamp()
+                        - website.deployment.started_at.timestamp()
+                    )
+                )
+
+            # Update deployment status to success and get the updated website object
+            updated_website = await self.website_repository.update_deployment_status(
                 website_id,
                 "success",
                 deployment_url=deployment_result.get("website_url"),
                 s3_bucket_name=deployment_result.get("bucket_name"),
                 cloudfront_distribution_id=deployment_result.get("distribution_id"),
                 cloudfront_domain=deployment_result.get("cloudfront_domain"),
-                completed_at=datetime.now(timezone.utc),
-                build_duration=int(
-                    (
-                        datetime.now(timezone.utc).timestamp()
-                        - website.deployment.started_at.timestamp()
-                    )
-                ),
+                completed_at=completed_time,
+                build_duration=build_duration_val,
                 error_message=None,  # Clear any previous error messages on success
                 error_code=None,
             )
 
-            # Update website as published and set build hash
-            website.is_published = True
-            website.last_build_hash = self._calculate_portfolio_hash(
-                portfolio, website.config
+            if not updated_website:
+                self.logger.error(
+                    f"Website {website_id} not found after status update to success in _deploy_website_async."
+                )
+                # Consider raising an exception or returning if critical
+                return
+
+            # Use the fresh website object for subsequent updates
+            updated_website.is_published = True
+            updated_website.last_build_hash = self._calculate_portfolio_hash(
+                portfolio, updated_website.config  # Use config from the fresh object
             )
-            website.last_deployed_at = datetime.now(timezone.utc)
-            await website.save()
+            updated_website.last_deployed_at = completed_time
+            await updated_website.save()
 
             self.logger.info(
-                f"Successfully deployed website {website_id} to {website.subdomain}.yarba.app"
+                f"Successfully deployed website {website_id} to {updated_website.subdomain}.yarba.app"
             )
 
         except (
@@ -396,7 +413,11 @@ class PortfolioWebsiteService:
 
             # Generate website files
             website_files = await self.website_generator_service.generate_website(
-                portfolio=portfolio, user=user, profile=profile, config=website.config
+                portfolio=portfolio,
+                subdomain=website.subdomain,
+                user=user,
+                profile=profile,
+                config=website.config,
             )
 
             # Deploy to AWS
@@ -404,33 +425,49 @@ class PortfolioWebsiteService:
                 subdomain=website.subdomain, files=website_files, config=website.config
             )
 
-            # Update deployment status
-            await self.website_repository.update_deployment_status(
+            completed_time = datetime.now(timezone.utc)
+            # Ensure website.deployment.started_at is not None before calculating duration
+            build_duration_val = None
+            if website.deployment.started_at:
+                build_duration_val = int(
+                    (
+                        completed_time.timestamp()
+                        - website.deployment.started_at.timestamp()
+                    )
+                )
+
+            # Update deployment status and get the updated website object
+            updated_website = await self.website_repository.update_deployment_status(
                 website_id,
                 "success",
                 deployment_url=deployment_result.get("website_url"),
                 s3_bucket_name=deployment_result.get("bucket_name"),
                 cloudfront_distribution_id=deployment_result.get("distribution_id"),
                 cloudfront_domain=deployment_result.get("cloudfront_domain"),
-                completed_at=datetime.now(timezone.utc),
-                build_duration=int(
-                    (
-                        datetime.now().timestamp()
-                        - website.deployment.started_at.timestamp()
-                    )
-                ),
+                completed_at=completed_time,
+                build_duration=build_duration_val,
+                error_message=None,  # Clear previous error on success
+                error_code=None,  # Clear previous error code on success
             )
 
-            # Update website as published and set build hash
-            website.is_published = True
-            website.last_build_hash = self._calculate_portfolio_hash(
-                portfolio, website.config
+            if not updated_website:
+                self.logger.error(
+                    f"Website {website_id} not found after status update to success in _deploy_website_sync."
+                )
+                raise DeploymentException(
+                    f"Website {website_id} not found after status update to success."
+                )
+
+            # Update website as published and set build hash using the fresh object
+            updated_website.is_published = True
+            updated_website.last_build_hash = self._calculate_portfolio_hash(
+                portfolio, updated_website.config  # Use config from the fresh object
             )
-            website.last_deployed_at = datetime.now(timezone.utc)
-            await website.save()
+            updated_website.last_deployed_at = completed_time
+            await updated_website.save()
 
             self.logger.info(
-                f"Successfully deployed website {website_id} to {website.subdomain}.yarba.app"
+                f"Successfully deployed website {website_id} to {updated_website.subdomain}.yarba.app"
             )
 
         except DeploymentException:

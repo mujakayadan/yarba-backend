@@ -1,5 +1,6 @@
 """AWS deployment service for portfolio websites."""
 
+import asyncio
 import os
 from datetime import datetime
 from typing import Dict, List
@@ -150,7 +151,8 @@ class AWSDeploymentService:
             s3_key = f"{s3_path_prefix.strip('/')}/{file_path.lstrip('/')}"
             try:
                 content_type = self._get_content_type(file_path)
-                self.s3_client.put_object(
+                await asyncio.to_thread(
+                    self.s3_client.put_object,
                     Bucket=bucket_name,
                     Key=s3_key,
                     Body=content.encode("utf-8"),
@@ -248,7 +250,8 @@ class AWSDeploymentService:
         ]
 
         try:
-            self.cloudfront_client.create_invalidation(
+            await asyncio.to_thread(
+                self.cloudfront_client.create_invalidation,
                 DistributionId=distribution_id,
                 InvalidationBatch={
                     "Paths": {

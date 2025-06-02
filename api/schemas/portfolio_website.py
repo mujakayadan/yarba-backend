@@ -25,9 +25,6 @@ class PortfolioWebsiteConfig(BaseModel):
     # Social Media Configuration
     social_media_enabled: bool = Field(default=True)
 
-    # Custom Domain Configuration
-    custom_domain: Optional[str] = None
-
     # Sections Configuration
     enabled_sections: List[str] = Field(
         default=["about", "experience", "education", "skills", "projects", "contact"],

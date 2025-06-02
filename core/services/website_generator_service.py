@@ -1,6 +1,7 @@
 """Website generator service for creating static portfolio websites."""
 
 import json
+import os
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -38,6 +39,7 @@ class WebsiteGeneratorService:
     async def generate_website(
         self,
         portfolio: Portfolio,
+        subdomain: str,
         user: Optional[User] = None,
         profile: Optional[Profile] = None,
         config: Optional[WebsiteConfig] = None,
@@ -47,6 +49,7 @@ class WebsiteGeneratorService:
 
         Args:
             portfolio: Portfolio data
+            subdomain: The subdomain for the website (used for generating full URLs)
             user: User data (optional)
             profile: Profile data (optional)
             config: Website configuration (optional)
@@ -58,7 +61,7 @@ class WebsiteGeneratorService:
             config = WebsiteConfig()
 
         # Prepare context data
-        context = self._prepare_context(portfolio, user, profile, config)
+        context = self._prepare_context(portfolio, subdomain, user, profile, config)
 
         # Generate files
         files = {}
@@ -81,6 +84,7 @@ class WebsiteGeneratorService:
     def _prepare_context(
         self,
         portfolio: Portfolio,
+        subdomain: str,
         user: Optional[User],
         profile: Optional[Profile],
         config: WebsiteConfig,
@@ -90,6 +94,7 @@ class WebsiteGeneratorService:
 
         Args:
             portfolio: Portfolio data
+            subdomain: The subdomain for the website
             user: User data
             profile: Profile data
             config: Website configuration
@@ -230,9 +235,7 @@ class WebsiteGeneratorService:
                 "description": config.meta_description
                 or "Professional portfolio website",
                 "keywords": config.meta_keywords,
-                "url": (
-                    f"https://{config.custom_domain}" if config.custom_domain else None
-                ),
+                "url": f"https://{subdomain}.{os.getenv('VERCEL_DOMAIN_NAME', 'yarba.app')}",
             },
         }
 

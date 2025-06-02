@@ -26,11 +26,16 @@ PDF_RATE_LIMIT_WINDOW = 60  # seconds
 # Route-specific rate limits
 ROUTE_SPECIFIC_LIMITS = {
     # Pattern to match: (rate_limit, window)
-    "/api/v1/resumes/": (30, 60),  # General resume endpoints
+    # More specific patterns should come before general ones
     "/api/v1/resumes/.*/pdf": (
         3,
         120,
     ),  # PDF generation endpoints - lower limit, longer window
+    "/api/v1/resumes/": (30, 60),  # General resume endpoints
+    "/api/v1/portfolio-websites/.*": (
+        15,
+        60,
+    ),  # Portfolio website endpoints (e.g., /deployment-status, /)
 }
 
 
