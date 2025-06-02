@@ -29,6 +29,7 @@ from config.logging_config import get_logger
 from config.settings import Settings
 from core.models.cover_letter import CoverLetter
 from core.models.portfolio import Portfolio
+from core.models.portfolio_website import PortfolioWebsite
 from core.models.preamble import Preamble
 from core.models.profile import Profile
 from core.models.resume import Resume
@@ -87,6 +88,8 @@ async def init_db() -> Optional[AsyncIOMotorClient]:
             Profile,
             # Portfolio models
             Portfolio,
+            # Portfolio Website models
+            PortfolioWebsite,
             # LaTeX models
             TexHeader,
             Preamble,

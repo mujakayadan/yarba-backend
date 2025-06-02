@@ -1,0 +1,657 @@
+"""Portfolio website service for website generation and deployment."""
+
+import asyncio
+import hashlib
+import json
+from datetime import datetime, timezone
+from typing import Dict, Optional
+
+from beanie import PydanticObjectId
+
+from config.logging_config import get_logger
+
+from ..exceptions.base import (
+    ConflictException,
+    DeploymentException,
+    NotFoundException,
+    ValidationException,
+)
+from ..models.portfolio import Portfolio
+from ..models.portfolio_website import PortfolioWebsite, WebsiteConfig
+from ..models.profile import Profile
+from ..models.user import User
+from ..repositories.portfolio_repository import PortfolioRepository
+from ..repositories.portfolio_website_repository import PortfolioWebsiteRepository
+from ..repositories.profile_repository import ProfileRepository
+from ..repositories.user_repository import UserRepository
+from .aws_deployment_service import AWSDeploymentService
+from .website_generator_service import WebsiteGeneratorService
+
+
+class PortfolioWebsiteService:
+    """Service for portfolio website operations."""
+
+    def __init__(
+        self,
+        website_repository: PortfolioWebsiteRepository,
+        portfolio_repository: PortfolioRepository,
+        user_repository: UserRepository,
+        profile_repository: ProfileRepository,
+        aws_deployment_service: AWSDeploymentService,
+        website_generator_service: WebsiteGeneratorService,
+    ):
+        """Initialize the service."""
+        self.website_repository = website_repository
+        self.portfolio_repository = portfolio_repository
+        self.user_repository = user_repository
+        self.profile_repository = profile_repository
+        self.aws_deployment_service = aws_deployment_service
+        self.website_generator_service = website_generator_service
+        self.logger = get_logger(self.__class__.__name__)
+
+    async def create_portfolio_website(
+        self,
+        user_id: PydanticObjectId,
+        config: Optional[WebsiteConfig] = None,
+        custom_subdomain: Optional[str] = None,
+    ) -> PortfolioWebsite:
+        """
+        Create a new portfolio website for a user.
+
+        Args:
+            user_id: User ID
+            config: Website configuration (optional)
+            custom_subdomain: Custom subdomain (optional)
+
+        Returns:
+            PortfolioWebsite: Created website
+
+        Raises:
+            NotFoundException: If user or portfolio not found
+            ConflictException: If user already has a website or subdomain is taken
+        """
+        # Check if user exists
+        user = await self.user_repository.get_by_id(user_id)
+        if not user:
+            raise NotFoundException("User not found")
+
+        # Check if user already has a portfolio website
+        existing_website = await self.website_repository.get_by_user_id(user_id)
+        if existing_website:
+            raise ConflictException("User already has a portfolio website")
+
+        # Get user's portfolio
+        portfolio = await self.portfolio_repository.get_by_user_id(user_id)
+        if not portfolio:
+            # Create a default portfolio if none exists
+            portfolio = await self.portfolio_repository.create_for_user(user_id)
+
+        # Get user's profile for name extraction
+        profile = await self.profile_repository.get_by_user_id(user_id)
+
+        # Generate subdomain
+        if custom_subdomain:
+            subdomain = custom_subdomain.lower().strip()
+            if not await self.website_repository.check_subdomain_availability(
+                subdomain
+            ):
+                raise ConflictException(f"Subdomain '{subdomain}' is already taken")
+        else:
+            subdomain = await self._generate_subdomain(user, profile)
+
+        # Create website config if not provided, or convert from API schema
+        if not config:
+            website_config = WebsiteConfig()
+        else:
+            # Convert from API schema (PortfolioWebsiteConfig) to model (WebsiteConfig) if needed
+            if hasattr(config, "model_dump"):
+                # It's a Pydantic model, convert it
+                website_config = WebsiteConfig(**config.model_dump())
+            else:
+                # It's already a WebsiteConfig
+                website_config = config
+
+        # Create the portfolio website
+        website = PortfolioWebsite(
+            user_id=user_id,
+            portfolio_id=portfolio.id,
+            subdomain=subdomain,
+            config=website_config,
+        )
+
+        # Save to database
+        website = await self.website_repository.create(website)
+
+        self.logger.info(
+            f"Created portfolio website for user {user_id} with subdomain: {subdomain}"
+        )
+        return website
+
+    async def get_portfolio_website(
+        self, user_id: PydanticObjectId
+    ) -> Optional[PortfolioWebsite]:
+        """
+        Get a user's portfolio website.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            Optional[PortfolioWebsite]: Website if found
+        """
+        return await self.website_repository.get_by_user_id(user_id)
+
+    async def get_website_by_subdomain(
+        self, subdomain: str
+    ) -> Optional[PortfolioWebsite]:
+        """
+        Get a portfolio website by subdomain.
+
+        Args:
+            subdomain: Subdomain to search for
+
+        Returns:
+            Optional[PortfolioWebsite]: Website if found
+        """
+        return await self.website_repository.get_by_subdomain(subdomain)
+
+    async def update_website_config(
+        self,
+        user_id: PydanticObjectId,
+        config: WebsiteConfig,
+        force_rebuild: bool = False,
+    ) -> PortfolioWebsite:
+        """
+        Update website configuration.
+
+        Args:
+            user_id: User ID
+            config: New website configuration
+            force_rebuild: Force rebuild even if no significant changes
+
+        Returns:
+            PortfolioWebsite: Updated website
+
+        Raises:
+            NotFoundException: If website not found
+        """
+        website = await self.website_repository.get_by_user_id(user_id)
+        if not website:
+            raise NotFoundException("Portfolio website not found")
+
+        # Convert from API schema (PortfolioWebsiteConfig) to model (WebsiteConfig) if needed
+        if hasattr(config, "model_dump"):
+            # It's a Pydantic model, convert it
+            website_config = WebsiteConfig(**config.model_dump())
+        else:
+            # It's already a WebsiteConfig
+            website_config = config
+
+        # Update configuration
+        website.config = website_config
+        website.updated_at = datetime.now(timezone.utc)
+
+        # Save changes
+        website = await self.website_repository.update(website.id, website)
+
+        # Trigger rebuild if forced or significant changes detected
+        if force_rebuild or self._config_requires_rebuild(
+            website.config, website_config
+        ):
+            asyncio.create_task(self._deploy_website_async(website.id))
+
+        return website
+
+    async def deploy_website(
+        self, user_id: PydanticObjectId, force_rebuild: bool = False
+    ) -> PortfolioWebsite:
+        """
+        Deploy or redeploy a portfolio website.
+
+        Args:
+            user_id: User ID
+            force_rebuild: Force rebuild even if content hasn't changed
+
+        Returns:
+            PortfolioWebsite: Website with updated deployment status
+
+        Raises:
+            NotFoundException: If website or portfolio not found
+            DeploymentException: If deployment fails
+        """
+        website = await self.website_repository.get_by_user_id(user_id)
+        if not website:
+            raise NotFoundException("Portfolio website not found")
+
+        # Check if rebuild is needed
+        portfolio = await self.portfolio_repository.get_by_id(website.portfolio_id)
+        if not portfolio:
+            raise NotFoundException("Portfolio not found")
+
+        current_hash = self._calculate_portfolio_hash(portfolio, website.config)
+
+        if not force_rebuild and website.last_build_hash == current_hash:
+            self.logger.info(
+                f"No changes detected for website {website.id}, skipping rebuild"
+            )
+            return website
+
+        # Start deployment process synchronously
+        await self._deploy_website_sync(website.id)
+
+        # Get updated website after deployment
+        updated_website = await self.website_repository.get_by_id(website.id)
+        if not updated_website:
+            raise NotFoundException("Website not found after deployment")
+
+        # Check if deployment failed and raise exception
+        if updated_website.deployment.status == "failed":
+            error_msg = updated_website.deployment.error_message or "Deployment failed"
+            raise DeploymentException(error_msg)
+
+        return updated_website
+
+    async def _deploy_website_async(self, website_id: PydanticObjectId) -> None:
+        """
+        Asynchronously deploy a portfolio website.
+
+        Args:
+            website_id: Website ID to deploy
+        """
+        try:
+            # Update status to building and clear previous errors
+            await self.website_repository.update_deployment_status(
+                website_id,
+                "building",
+                started_at=datetime.now(timezone.utc),
+                build_id=f"build_{int(datetime.now().timestamp())}",
+                error_message=None,  # Clear previous error
+                error_code=None,  # Clear previous error code
+            )
+
+            website = await self.website_repository.get_by_id(website_id)
+            if not website:
+                self.logger.error(f"Website {website_id} not found during deployment")
+                return
+
+            # Get portfolio data
+            portfolio = await self.portfolio_repository.get_by_id(website.portfolio_id)
+            if not portfolio:
+                await self.website_repository.update_deployment_status(
+                    website_id,
+                    "failed",
+                    error_message="Portfolio not found",
+                    completed_at=datetime.now(timezone.utc),
+                )
+                return
+
+            # Get user and profile data
+            user = await self.user_repository.get_by_id(website.user_id)
+            profile = await self.profile_repository.get_by_user_id(website.user_id)
+
+            # Generate website files
+            website_files = await self.website_generator_service.generate_website(
+                portfolio=portfolio, user=user, profile=profile, config=website.config
+            )
+
+            # Deploy to AWS
+            deployment_result = await self.aws_deployment_service.deploy_website(
+                subdomain=website.subdomain, files=website_files, config=website.config
+            )
+
+            # Update deployment status to success
+            await self.website_repository.update_deployment_status(
+                website_id,
+                "success",
+                deployment_url=deployment_result.get("website_url"),
+                s3_bucket_name=deployment_result.get("bucket_name"),
+                cloudfront_distribution_id=deployment_result.get("distribution_id"),
+                cloudfront_domain=deployment_result.get("cloudfront_domain"),
+                completed_at=datetime.now(timezone.utc),
+                build_duration=int(
+                    (
+                        datetime.now(timezone.utc).timestamp()
+                        - website.deployment.started_at.timestamp()
+                    )
+                ),
+                error_message=None,  # Clear any previous error messages on success
+                error_code=None,
+            )
+
+            # Update website as published and set build hash
+            website.is_published = True
+            website.last_build_hash = self._calculate_portfolio_hash(
+                portfolio, website.config
+            )
+            website.last_deployed_at = datetime.now(timezone.utc)
+            await website.save()
+
+            self.logger.info(
+                f"Successfully deployed website {website_id} to {website.subdomain}.yarba.app"
+            )
+
+        except (
+            DeploymentException
+        ) as e:  # Catch specific DeploymentException from aws_deployment_service
+            self.logger.error(f"Deployment failed for website {website_id}: {str(e)}")
+            await self.website_repository.update_deployment_status(
+                website_id,
+                "failed",
+                error_message=str(e),
+                completed_at=datetime.now(timezone.utc),
+            )
+        except Exception as e:  # Catch any other unexpected errors
+            self.logger.error(
+                f"An unexpected error occurred during async deployment of website {website_id}: {str(e)}"
+            )
+            # Update status to failed
+            await self.website_repository.update_deployment_status(
+                website_id,
+                "failed",
+                error_message=f"Unexpected error during deployment: {str(e)}",
+                completed_at=datetime.now(timezone.utc),
+            )
+
+    async def _deploy_website_sync(self, website_id: PydanticObjectId) -> None:
+        """
+        Synchronously deploy a portfolio website.
+
+        Args:
+            website_id: Website ID to deploy
+
+        Raises:
+            DeploymentException: If deployment fails
+        """
+        try:
+            # Update status to building and clear previous errors
+            await self.website_repository.update_deployment_status(
+                website_id,
+                "building",
+                started_at=datetime.now(timezone.utc),
+                build_id=f"build_{int(datetime.now().timestamp())}",
+                error_message=None,  # Clear previous error
+                error_code=None,  # Clear previous error code
+            )
+
+            website = await self.website_repository.get_by_id(website_id)
+            if not website:
+                self.logger.error(f"Website {website_id} not found during deployment")
+                raise DeploymentException("Website not found during deployment")
+
+            # Get portfolio data
+            portfolio = await self.portfolio_repository.get_by_id(website.portfolio_id)
+            if not portfolio:
+                await self.website_repository.update_deployment_status(
+                    website_id,
+                    "failed",
+                    error_message="Portfolio not found",
+                    completed_at=datetime.now(timezone.utc),
+                )
+                raise DeploymentException("Portfolio not found")
+
+            # Get user and profile data
+            user = await self.user_repository.get_by_id(website.user_id)
+            profile = await self.profile_repository.get_by_user_id(website.user_id)
+
+            # Generate website files
+            website_files = await self.website_generator_service.generate_website(
+                portfolio=portfolio, user=user, profile=profile, config=website.config
+            )
+
+            # Deploy to AWS
+            deployment_result = await self.aws_deployment_service.deploy_website(
+                subdomain=website.subdomain, files=website_files, config=website.config
+            )
+
+            # Update deployment status
+            await self.website_repository.update_deployment_status(
+                website_id,
+                "success",
+                deployment_url=deployment_result.get("website_url"),
+                s3_bucket_name=deployment_result.get("bucket_name"),
+                cloudfront_distribution_id=deployment_result.get("distribution_id"),
+                cloudfront_domain=deployment_result.get("cloudfront_domain"),
+                completed_at=datetime.now(timezone.utc),
+                build_duration=int(
+                    (
+                        datetime.now().timestamp()
+                        - website.deployment.started_at.timestamp()
+                    )
+                ),
+            )
+
+            # Update website as published and set build hash
+            website.is_published = True
+            website.last_build_hash = self._calculate_portfolio_hash(
+                portfolio, website.config
+            )
+            website.last_deployed_at = datetime.now(timezone.utc)
+            await website.save()
+
+            self.logger.info(
+                f"Successfully deployed website {website_id} to {website.subdomain}.yarba.app"
+            )
+
+        except DeploymentException:
+            # Re-raise DeploymentException as-is
+            raise
+        except Exception as e:
+            self.logger.error(f"Failed to deploy website {website_id}: {str(e)}")
+
+            # Update status to failed
+            await self.website_repository.update_deployment_status(
+                website_id,
+                "failed",
+                error_message=str(e),
+                completed_at=datetime.now(timezone.utc),
+            )
+            raise DeploymentException(f"Deployment failed: {str(e)}")
+
+    async def check_subdomain_availability(self, subdomain: str) -> Dict[str, any]:
+        """
+        Check if a subdomain is available and suggest alternatives.
+
+        Args:
+            subdomain: Subdomain to check
+
+        Returns:
+            Dict containing availability status and suggestions
+        """
+        subdomain = subdomain.lower().strip()
+
+        # Validate subdomain format
+        if not self._is_valid_subdomain(subdomain):
+            raise ValidationException("Invalid subdomain format")
+
+        available = await self.website_repository.check_subdomain_availability(
+            subdomain
+        )
+
+        suggestions = []
+        if not available:
+            suggestions = await self.website_repository.suggest_alternative_subdomains(
+                subdomain
+            )
+
+        return {
+            "subdomain": subdomain,
+            "available": available,
+            "suggested_alternatives": suggestions,
+        }
+
+    async def delete_website(self, user_id: PydanticObjectId) -> bool:
+        """
+        Delete a portfolio website and its AWS resources.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            bool: True if deleted successfully
+
+        Raises:
+            NotFoundException: If website not found
+        """
+        website = await self.website_repository.get_by_user_id(user_id)
+        if not website:
+            raise NotFoundException("Portfolio website not found")
+
+        try:
+            # Delete AWS resources
+            await self.aws_deployment_service.delete_website(website.subdomain)
+
+            # Delete from database
+            await self.website_repository.delete(website.id)
+
+            self.logger.info(f"Deleted portfolio website for user {user_id}")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Failed to delete website for user {user_id}: {str(e)}")
+            raise
+
+    async def _generate_subdomain(self, user: User, profile: Optional[Profile]) -> str:
+        """
+        Generate a unique subdomain for the user.
+
+        Args:
+            user: User object
+            profile: User profile (optional)
+
+        Returns:
+            str: Unique subdomain
+        """
+        if profile and profile.personal_information.full_name:
+            base_subdomain = self._clean_name_for_subdomain(
+                profile.personal_information.full_name
+            )
+        else:
+            # Fallback to username or email
+            base_subdomain = user.username or user.email.split("@")[0]
+
+        # Clean and validate
+        base_subdomain = self._clean_name_for_subdomain(base_subdomain)
+
+        # Check availability
+        if await self.website_repository.check_subdomain_availability(base_subdomain):
+            return base_subdomain
+
+        # Generate alternatives
+        suggestions = await self.website_repository.suggest_alternative_subdomains(
+            base_subdomain, 1
+        )
+        if suggestions:
+            return suggestions[0]
+
+        # Final fallback
+        import uuid
+
+        return f"user{str(uuid.uuid4())[:8]}"
+
+    def _clean_name_for_subdomain(self, name: str) -> str:
+        """
+        Clean a name to create a valid subdomain.
+
+        Args:
+            name: Raw name string
+
+        Returns:
+            str: Cleaned subdomain
+        """
+        import re
+
+        # Convert to lowercase and remove special characters
+        clean_name = re.sub(r"[^a-z0-9\s]", "", name.lower())
+        # Remove extra spaces and join
+        subdomain = "".join(clean_name.split())
+
+        # Ensure reasonable length
+        if len(subdomain) > 63:  # DNS limit
+            subdomain = subdomain[:63]
+        elif len(subdomain) < 3:
+            subdomain = f"user{subdomain}"
+
+        return subdomain
+
+    def _is_valid_subdomain(self, subdomain: str) -> bool:
+        """
+        Validate subdomain format.
+
+        Args:
+            subdomain: Subdomain to validate
+
+        Returns:
+            bool: True if valid
+        """
+        import re
+
+        # Check basic format requirements
+        if not subdomain or len(subdomain) < 3 or len(subdomain) > 63:
+            return False
+
+        # Must start and end with alphanumeric
+        if not re.match(r"^[a-z0-9].*[a-z0-9]$", subdomain):
+            return False
+
+        # Only alphanumeric and hyphens
+        if not re.match(r"^[a-z0-9-]*$", subdomain):
+            return False
+
+        # No consecutive hyphens
+        if "--" in subdomain:
+            return False
+
+        return True
+
+    def _calculate_portfolio_hash(
+        self, portfolio: Portfolio, config: WebsiteConfig
+    ) -> str:
+        """
+        Calculate a hash of the portfolio and config for change detection.
+
+        Args:
+            portfolio: Portfolio object
+            config: Website configuration
+
+        Returns:
+            str: Hash string
+        """
+        # Create a dictionary with relevant data
+        data = {
+            "portfolio": portfolio.model_dump(
+                exclude={"id", "created_at", "updated_at"}
+            ),
+            "config": config.model_dump(),
+        }
+
+        # Convert to JSON and hash
+        json_str = json.dumps(data, sort_keys=True, default=str)
+        return hashlib.sha256(json_str.encode()).hexdigest()
+
+    def _config_requires_rebuild(
+        self, old_config: WebsiteConfig, new_config: WebsiteConfig
+    ) -> bool:
+        """
+        Check if configuration changes require a rebuild.
+
+        Args:
+            old_config: Previous configuration
+            new_config: New configuration
+
+        Returns:
+            bool: True if rebuild is required
+        """
+        # Check significant changes that affect appearance
+        significant_fields = [
+            "theme",
+            "primary_color",
+            "secondary_color",
+            "enabled_sections",
+            "section_order",
+        ]
+
+        for field in significant_fields:
+            if getattr(old_config, field) != getattr(new_config, field):
+                return True
+
+        return False

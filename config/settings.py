@@ -966,9 +966,7 @@ class StorageSettings(BaseSettings):
 
     # Storage provider
     provider: str = Field(
-        default="aws_s3",
-        description="Storage provider (local, aws_s3)",
-        env="PROVIDER",
+        default="aws_s3", description="Storage provider (local, s3, etc.)"
     )
 
     # AWS S3 settings
@@ -982,15 +980,15 @@ class StorageSettings(BaseSettings):
         description="AWS S3 secret key",
         env="AWS_SECRET_KEY",
     )
-    aws_region: str = Field(
-        default="us-east-1",
+    aws_region: Optional[str] = Field(
+        default="us-east-1",  # Restoring default as per your previous working version
         description="AWS S3 region",
-        env="AWS_REGION",
+        env="AWS_REGION",  # Ensuring explicit mapping
     )
-    aws_bucket: str = Field(
-        default="yarba-app-media",
+    aws_bucket: Optional[str] = Field(  # Renamed back to aws_bucket
+        default=None,  # Or your previous default like "yarba-app-media"
         description="AWS S3 bucket name",
-        env="AWS_BUCKET",
+        env="AWS_BUCKET",  # Ensuring explicit mapping to STORAGE_AWS_BUCKET
     )
     aws_use_presigned_urls: bool = Field(
         default=False,
@@ -1031,17 +1029,14 @@ class StorageSettings(BaseSettings):
     )
 
     # Local storage settings
-    local_storage_path: Path = Field(
-        default=Path("uploads"),
-        description="Path for local file storage",
-        env="LOCAL_STORAGE_PATH",
+    local_storage_path: str = Field(
+        default="uploads", description="Path for local storage"
     )
 
     # Media paths
     profile_pictures_path: str = Field(
-        default="profile-pictures",
-        description="Path for profile pictures storage",
-        env="PROFILE_PICTURES_PATH",
+        default="profile_pictures",
+        description="Subdirectory for profile pictures within local storage",
     )
     signatures_path: str = Field(
         default="signatures",
@@ -1076,11 +1071,17 @@ class StorageSettings(BaseSettings):
         env="ALLOWED_IMAGE_TYPES",
     )
 
+    # New field
+    aws_acm_certificate_arn: Optional[str] = Field(
+        default=None, description="AWS ACM certificate ARN for CloudFront"
+    )
+
     @field_validator("local_storage_path")
-    def create_directory_if_not_exists(cls, v: Path) -> Path:
+    def create_directory_if_not_exists(cls, v: str) -> Path:
         """Create directory if it doesn't exist."""
-        v.mkdir(parents=True, exist_ok=True)
-        return v
+        path_obj = Path(v)
+        path_obj.mkdir(parents=True, exist_ok=True)
+        return path_obj
 
 
 class PathSettings(BaseSettings):

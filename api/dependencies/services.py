@@ -14,19 +14,23 @@ from core.database.factory import (
 )
 from core.job_extractor.extract_job import JobExtractor
 from core.repositories.portfolio_repository import PortfolioRepository
+from core.repositories.portfolio_website_repository import PortfolioWebsiteRepository
 from core.repositories.profile_repository import ProfileRepository
 from core.repositories.resume_repository import ResumeRepository
 from core.repositories.user_repository import UserRepository
+from core.services.aws_deployment_service import AWSDeploymentService
 from core.services.cover_letter_generation_service import CoverLetterGenerationService
 from core.services.cover_letter_service import CoverLetterService
 from core.services.job_service import JobService
 from core.services.latex_service import LatexService
 from core.services.llm_service import LLMService
 from core.services.portfolio_service import PortfolioService
+from core.services.portfolio_website_service import PortfolioWebsiteService
 from core.services.profile_service import ProfileService
 from core.services.prompt_service import PromptService
 from core.services.resume_generation_service import ResumeGenerationService
 from core.services.resume_service import ResumeService
+from core.services.website_generator_service import WebsiteGeneratorService
 
 
 def get_portfolio_service(
@@ -225,4 +229,64 @@ def get_cover_letter_generation_service(
         llm_service=llm_service,
         prompt_service=prompt_service,
         latex_service=latex_service,
+    )
+
+
+async def get_portfolio_website_repository() -> PortfolioWebsiteRepository:
+    """Get a portfolio website repository.
+
+    Returns:
+        PortfolioWebsiteRepository: Portfolio website repository
+    """
+    return PortfolioWebsiteRepository()
+
+
+async def get_aws_deployment_service() -> AWSDeploymentService:
+    """Get AWS deployment service.
+
+    Returns:
+        AWSDeploymentService: AWS deployment service
+    """
+    return AWSDeploymentService()
+
+
+async def get_website_generator_service() -> WebsiteGeneratorService:
+    """Get website generator service.
+
+    Returns:
+        WebsiteGeneratorService: Website generator service
+    """
+    return WebsiteGeneratorService()
+
+
+async def get_portfolio_website_service(
+    website_repo: PortfolioWebsiteRepository = Depends(
+        get_portfolio_website_repository
+    ),
+    portfolio_repo: PortfolioRepository = Depends(get_portfolio_repository),
+    user_repo: UserRepository = Depends(get_user_repository),
+    profile_repo: ProfileRepository = Depends(get_profile_repository),
+    aws_service: AWSDeploymentService = Depends(get_aws_deployment_service),
+    generator_service: WebsiteGeneratorService = Depends(get_website_generator_service),
+) -> PortfolioWebsiteService:
+    """Get portfolio website service.
+
+    Args:
+        website_repo: Portfolio website repository
+        portfolio_repo: Portfolio repository
+        user_repo: User repository
+        profile_repo: Profile repository
+        aws_service: AWS deployment service
+        generator_service: Website generator service
+
+    Returns:
+        PortfolioWebsiteService: Portfolio website service
+    """
+    return PortfolioWebsiteService(
+        website_repository=website_repo,
+        portfolio_repository=portfolio_repo,
+        user_repository=user_repo,
+        profile_repository=profile_repo,
+        aws_deployment_service=aws_service,
+        website_generator_service=generator_service,
     )
