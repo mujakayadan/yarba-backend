@@ -1600,3 +1600,234 @@ Updates the user's system-level preferences (e.g., features, LLM settings, templ
 ```
 
 **Response:** Profile object
+
+## Portfolio Website Management
+
+These endpoints manage user portfolio websites, including creation, configuration, deployment, and public access. All endpoints under this section are prefixed with `/api/v1/portfolio-websites`.
+
+### Create Portfolio Website
+
+*   **Endpoint:** `POST /create`
+*   **Summary:** Create portfolio website
+*   **Description:** Create a new portfolio website for the authenticated user. This will also trigger an initial asynchronous deployment.
+*   **Query Parameters:**
+    *   `custom_subdomain` (string, optional): A custom subdomain for the website. If not provided, one will be generated.
+*   **Request Body:** (`PortfolioWebsiteRequest`)
+    ```json
+    {
+      "config": {
+        "theme": "modern",
+        "primary_color": "#3B82F6",
+        "secondary_color": "#1F2937",
+        "meta_title": "string (optional)",
+        "meta_description": "string (optional)",
+        "meta_keywords": ["string (optional)"],
+        "social_media_enabled": true,
+        "custom_domain": "string (optional)",
+        "enabled_sections": ["about", "experience", "education", "skills", "projects", "contact"],
+        "section_order": ["about", "experience", "education", "skills", "projects", "contact"],
+        "contact_form_enabled": true
+      },
+      "force_rebuild": false
+    }
+    ```
+    *   `config` (`PortfolioWebsiteConfig`): Configuration for the website. See `PortfolioWebsiteConfig` schema.
+    *   `force_rebuild` (boolean, optional, default: `false`): This field is part of the request but typically more relevant for updates/deployments. For creation, it's less critical.
+*   **Response (201 Created):** (`PortfolioWebsiteResponse`)
+    ```json
+    {
+      "website_url": "string (HttpUrl)",
+      "subdomain": "string",
+      "deployment_status": {
+        "status": "string (e.g., pending, building, success, failed)",
+        "deployment_url": "string (HttpUrl, optional)",
+        "s3_bucket_name": "string (optional)",
+        "cloudfront_distribution_id": "string (optional)",
+        "cloudfront_domain": "string (optional)",
+        "build_id": "string (optional)",
+        "build_logs": "string (optional)",
+        "build_duration": "integer (seconds, optional)",
+        "created_at": "string (datetime)",
+        "started_at": "string (datetime, optional)",
+        "completed_at": "string (datetime, optional)",
+        "error_message": "string (optional)",
+        "error_code": "string (optional)"
+      },
+      "config": {
+        // PortfolioWebsiteConfig object, mirrors request or defaults
+      },
+      "last_updated": "string (datetime)"
+    }
+    ```
+*   **Possible Errors:**
+    *   `409 Conflict`: If the subdomain is already taken or user already has a website.
+    *   `404 Not Found`: If the user is not found.
+
+### Get User's Portfolio Website
+
+*   **Endpoint:** `GET /`
+*   **Summary:** Get user's portfolio website
+*   **Description:** Get the portfolio website for the authenticated user.
+*   **Response:** (`PortfolioWebsiteResponse`, optional) - Returns the website object if found, otherwise `null` or an empty response if no website exists for the user.
+    *   Structure is the same as the response for "Create Portfolio Website".
+*   **Possible Errors:** None specific beyond standard auth/server errors if applicable.
+
+### Update Website Configuration
+
+*   **Endpoint:** `PUT /config`
+*   **Summary:** Update website configuration
+*   **Description:** Update the configuration of the user's portfolio website. May trigger a redeployment if significant changes are made or `force_rebuild` is true.
+*   **Request Body:** (`PortfolioWebsiteRequest`)
+    ```json
+    {
+      "config": {
+        // PortfolioWebsiteConfig object with fields to update
+        "theme": "dark", // example
+        "primary_color": "#FF5733" // example
+        // ... other config fields
+      },
+      "force_rebuild": false // boolean, set to true to force a deployment
+    }
+    ```
+*   **Response:** (`PortfolioWebsiteResponse`)
+    *   Structure is the same as the response for "Create Portfolio Website", reflecting the updated configuration and deployment status if a rebuild was triggered.
+*   **Possible Errors:**
+    *   `404 Not Found`: If the user's portfolio website is not found.
+
+### Deploy Portfolio Website
+
+*   **Endpoint:** `POST /deploy`
+*   **Summary:** Deploy portfolio website
+*   **Description:** Deploy or redeploy the user's portfolio website.
+*   **Query Parameters:**
+    *   `force_rebuild` (boolean, optional, default: `false`): If true, the website will be rebuilt and deployed even if no content or configuration changes are detected.
+*   **Response:** (`PortfolioWebsiteResponse`)
+    *   Structure is the same as the response for "Create Portfolio Website", reflecting the latest deployment status.
+*   **Possible Errors:**
+    *   `404 Not Found`: If the user's portfolio website is not found.
+    *   `500 Internal Server Error`: If the deployment process fails for any reason (e.g., S3 upload error, CloudFront invalidation error). The detail message will contain more information.
+
+### Check Subdomain Availability
+
+*   **Endpoint:** `GET /subdomain/check/{subdomain}`
+*   **Summary:** Check subdomain availability
+*   **Description:** Check if a subdomain is available for use.
+*   **Path Parameters:**
+    *   `subdomain` (string, required): The subdomain string to check.
+*   **Response:** (`SubdomainAvailabilityResponse`)
+    ```json
+    {
+      "subdomain": "string (the checked subdomain)",
+      "available": true, // boolean
+      "suggested_alternatives": ["string"] // list of strings, present if 'available' is false
+    }
+    ```
+*   **Possible Errors:**
+    *   `400 Bad Request`: If the subdomain format is invalid.
+
+### Get Public Portfolio Website
+
+*   **Endpoint:** `GET /public/{subdomain}`
+*   **Summary:** Get public portfolio website
+*   **Description:** Get a public portfolio website by subdomain (for public viewing). This endpoint does not require authentication.
+*   **Path Parameters:**
+    *   `subdomain` (string, required): The subdomain of the public website to retrieve.
+*   **Response:** (`PortfolioWebsiteResponse`)
+    *   Structure is the same as the response for "Create Portfolio Website".
+*   **Possible Errors:**
+    *   `404 Not Found`: If the portfolio website for the given subdomain is not found or is not published.
+
+### Delete Portfolio Website
+
+*   **Endpoint:** `DELETE /`
+*   **Summary:** Delete portfolio website
+*   **Description:** Delete the authenticated user's portfolio website and all associated resources (e.g., S3 files, potentially DNS records if managed by the app in the future).
+*   **Response:** `204 No Content` on successful deletion.
+*   **Possible Errors:**
+    *   `404 Not Found`: If the user's portfolio website is not found.
+
+### Get Deployment Status
+
+*   **Endpoint:** `GET /deployment-status`
+*   **Summary:** Get deployment status
+*   **Description:** Get the current deployment status of the authenticated user's portfolio website.
+*   **Response:** (`DeploymentStatus`)
+    ```json
+    {
+      "status": "string (e.g., pending, building, success, failed)",
+      "deployment_url": "string (HttpUrl, optional)",
+      "s3_bucket_name": "string (optional)",
+      "cloudfront_distribution_id": "string (optional)",
+      "cloudfront_domain": "string (optional)",
+      "build_id": "string (optional)",
+      "build_logs": "string (optional)",
+      "build_duration": "integer (seconds, optional)",
+      "created_at": "string (datetime)",
+      "started_at": "string (datetime, optional)",
+      "completed_at": "string (datetime, optional)",
+      "error_message": "string (optional)",
+      "error_code": "string (optional)"
+    }
+    ```
+*   **Possible Errors:**
+    *   `404 Not Found`: If the user's portfolio website is not found.
+
+### Get Website Analytics
+
+*   **Endpoint:** `GET /analytics`
+*   **Summary:** Get website analytics
+*   **Description:** Get analytics data for the authenticated user's portfolio website. (Note: Analytics data structure and population mechanism are TBD and depend on the chosen analytics solution).
+*   **Response:** (`WebsiteAnalytics`)
+    ```json
+    {
+      "page_views": 0,
+      "unique_visitors": 0,
+      "bounce_rate": 0.0,
+      "avg_session_duration": 0.0,
+      "top_pages": [ { "path_example": 100 } ], // Example structure
+      "traffic_sources": { "source_example": 50 }, // Example structure
+      "period_start": "string (datetime)",
+      "period_end": "string (datetime)"
+    }
+    ```
+*   **Possible Errors:**
+    *   `404 Not Found`: If the user's portfolio website is not found.
+
+### Schemas Reference
+
+#### `PortfolioWebsiteConfig`
+```json
+{
+  "theme": "string (default: modern)",
+  "primary_color": "string (hex color, default: #3B82F6)",
+  "secondary_color": "string (hex color, default: #1F2937)",
+  "meta_title": "string (optional)",
+  "meta_description": "string (optional)",
+  "meta_keywords": ["string (optional)"],
+  "social_media_enabled": "boolean (default: true)",
+  "custom_domain": "string (optional, FQDN)",
+  "enabled_sections": ["string (e.g., about, experience, education, skills, projects, contact)"],
+  "section_order": ["string (same as enabled_sections, defining display order)"],
+  "contact_form_enabled": "boolean (default: true)"
+}
+```
+
+#### `PortfolioWebsiteRequest`
+```json
+{
+  "config": "PortfolioWebsiteConfig", // See above
+  "force_rebuild": "boolean (optional, default: false)"
+}
+```
+
+#### `DeploymentStatus`
+(As shown in "Get Deployment Status" response)
+
+#### `PortfolioWebsiteResponse`
+(As shown in "Create Portfolio Website" response)
+
+#### `SubdomainAvailabilityResponse`
+(As shown in "Check Subdomain Availability" response)
+
+#### `WebsiteAnalytics`
+(As shown in "Get Website Analytics" response, structure is illustrative)
