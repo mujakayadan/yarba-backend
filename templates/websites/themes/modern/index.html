@@ -56,6 +56,9 @@
     <section id="home" class="hero">
         <div class="hero-container">
             <div class="hero-content">
+                {% if personal_info and personal_info.profile_picture_key %}
+                <img src="{{ personal_info.profile_picture_key }}" alt="Profile Picture" class="hero-profile-img">
+                {% endif %}
                 <h1 class="hero-title">
                     {% if personal_info %}
                         {{ personal_info.full_name }}

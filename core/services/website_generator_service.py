@@ -7,6 +7,7 @@ from typing import Dict, Optional
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from config.logging_config import get_logger
+from config.settings import Settings
 
 from ..models.portfolio import Portfolio
 from ..models.portfolio_website import WebsiteConfig
@@ -20,6 +21,7 @@ class WebsiteGeneratorService:
     def __init__(self):
         """Initialize the website generator service."""
         self.logger = get_logger(self.__class__.__name__)
+        self.settings = Settings()
         self.templates_dir = Path("templates/websites")
         self._ensure_templates_dir()
 
@@ -98,6 +100,14 @@ class WebsiteGeneratorService:
         # Extract basic info
         personal_info = None
         if profile and profile.personal_information:
+            profile_picture_url = None
+            if profile.profile_picture_key:
+                if self.settings.storage.cloudfront_domain:
+                    profile_picture_url = f"https://{self.settings.storage.cloudfront_domain}/{profile.profile_picture_key}"
+                else:
+                    # Fallback or alternative logic if CloudFront is not configured
+                    profile_picture_url = profile.profile_picture_key
+
             personal_info = {
                 "full_name": profile.personal_information.full_name,
                 "email": profile.personal_information.email,
@@ -106,6 +116,7 @@ class WebsiteGeneratorService:
                 "linkedin": profile.personal_information.linkedin,
                 "github": profile.personal_information.github,
                 "website": profile.personal_information.website,
+                "profile_picture_key": profile_picture_url,
             }
 
         # Prepare sections based on enabled sections
