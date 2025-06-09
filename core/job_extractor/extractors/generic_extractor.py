@@ -120,6 +120,61 @@ class GenericExtractor(BaseExtractor):
                 )
                 continue
 
+    async def handle_cloudflare_challenge(self, page: Page) -> bool:
+        """
+        Check for and handle Cloudflare protection challenges
+
+        Args:
+            page: Playwright page
+
+        Returns:
+            bool: True if a Cloudflare challenge was detected
+        """
+        # Check for Cloudflare challenge indicators
+        cloudflare_indicators = [
+            "Cloudflare",
+            "cloudflare",
+            "challenge",
+            "security check",
+            "Ray ID",
+            "Additional Verification Required",
+            "waiting for",
+            "to respond",
+            "Checking your browser",
+        ]
+
+        try:
+            # Get page content
+            content = await page.content()
+            page_text = await page.inner_text("body")
+
+            # Check for Cloudflare indicators
+            for indicator in cloudflare_indicators:
+                if indicator in content or indicator in page_text:
+                    logger.warning(
+                        f"Cloudflare protection detected: '{indicator}' found on page"
+                    )
+
+                    # Wait longer to see if the challenge resolves
+                    logger.info("Waiting for Cloudflare challenge to resolve...")
+                    await page.wait_for_timeout(10000)  # Wait 10 seconds
+
+                    # Check again after waiting
+                    new_content = await page.content()
+                    if "Cloudflare" in new_content or "Ray ID" in new_content:
+                        logger.error("Cloudflare challenge still present after waiting")
+                        return True
+                    else:
+                        logger.info("Cloudflare challenge appears to be resolved")
+                        return False
+
+            # No Cloudflare indicators found
+            return False
+
+        except Exception as e:
+            logger.error(f"Error checking for Cloudflare challenge: {e}")
+            return False
+
     async def scrape_job_posting(self, job_url: str) -> Optional[JobDetails]:
         """
         Extract job details from a job posting URL
@@ -157,10 +212,35 @@ class GenericExtractor(BaseExtractor):
 
             browser = await playwright.chromium.launch(headless=self.headless)
 
+            # Use a more up-to-date and common user agent
+            modern_user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+
+            # Create context with settings to bypass bot detection
             context = await browser.new_context(
-                viewport={"width": 1366, "height": 768},
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                viewport={
+                    "width": 1920,
+                    "height": 1080,
+                },  # More common screen resolution
+                user_agent=modern_user_agent,
                 java_script_enabled=True,
+                locale="en-US",  # Set locale
+                timezone_id="America/New_York",  # Set timezone
+                device_scale_factor=1,  # Standard scale
+                is_mobile=False,
+                has_touch=False,
+                # Add additional headers that regular browsers typically include
+                extra_http_headers={
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
+                    "Accept-Language": "en-US,en;q=0.9",
+                    "Sec-Ch-Ua": '"Chromium";v="123", "Google Chrome";v="123", "Not:A-Brand";v="99"',
+                    "Sec-Ch-Ua-Mobile": "?0",
+                    "Sec-Ch-Ua-Platform": '"Windows"',
+                    "Sec-Fetch-Dest": "document",
+                    "Sec-Fetch-Mode": "navigate",
+                    "Sec-Fetch-Site": "none",
+                    "Sec-Fetch-User": "?1",
+                    "Upgrade-Insecure-Requests": "1",
+                },
             )
 
             page = await context.new_page()
@@ -184,8 +264,32 @@ class GenericExtractor(BaseExtractor):
             else:
                 logger.info(f"Skipping network idle wait for {job_url} (domain config)")
 
+            # First handle cookie consent
             await self.handle_cookie_consent(page)
 
+            # Then check and handle any Cloudflare challenges
+            cloudflare_detected = await self.handle_cloudflare_challenge(page)
+
+            if cloudflare_detected:
+                logger.warning(f"Cloudflare protection is blocking access to {job_url}")
+
+                # Take screenshot for debugging (if in debug mode)
+                try:
+                    await page.screenshot(
+                        path=f"debug/output/cloudflare_block_{hash(job_url)}.png"
+                    )
+                    logger.info(f"Saved Cloudflare block screenshot for debugging")
+                except Exception as e:
+                    logger.debug(f"Could not save Cloudflare screenshot: {e}")
+
+                # Try to reload the page once more
+                logger.info(f"Attempting to reload page after Cloudflare detection...")
+                await page.reload(
+                    timeout=navigation_timeout, wait_until="domcontentloaded"
+                )
+                await page.wait_for_timeout(5000)  # Wait a bit after reload
+
+            # Extract content
             extracted_content_html = await self.extract_full_job_content(page, job_url)
 
         except Exception as e:

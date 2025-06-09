@@ -80,13 +80,20 @@ DOMAIN_CONFIGS: Dict[str, DomainSelectorConfig] = {
     # Indeed
     "indeed.com": DomainSelectorConfig(
         selectors=[
-            ".jobsearch-jobDescriptionText",
-            "#jobDescription",
-            "[data-testid='job-description']",
-            ".jobDescriptionContent",
+            "#jobDescriptionText",  # Primary target
+            "#jobsearch-ViewJobButtons-container ~ div.css-r6t43x div.jobsearch-BodyContainer div.jobsearch-JobComponent-description",  # More specific path
+            "div[id='jobDescriptionText']",  # Alternative syntax
+            ".jobsearch-JobComponent-description",  # Container class
+            "#jobDescriptionText.jobsearch-JobComponent-description",  # Combined selector
+            ".css-1rybqxq",  # CSS-specific class
+            ".jobsearch-jobDescriptionText",  # Legacy selector
+            "div.jobsearch-BodyContainer div.jobsearch-JobComponent-description",  # Parent-child path
+            "#jobDescription",  # Legacy ID
+            "[data-testid='job-description']",  # Data attribute
+            ".jobDescriptionContent",  # Legacy class
         ],
-        timeout_seconds=10,
-        wait_for_network_idle=True,
+        timeout_seconds=30,  # Increased timeout to handle Cloudflare
+        wait_for_network_idle=False,  # Avoid network idle wait which can timeout with Cloudflare
         requires_javascript=True,
     ),
     # LinkedIn Jobs
