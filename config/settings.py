@@ -591,7 +591,7 @@ class LoggingSettings(BaseSettings):
     """Logging settings."""
 
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
-        default="DEBUG",
+        default="INFO",
         description="Log level",
     )
     log_format: str = Field(

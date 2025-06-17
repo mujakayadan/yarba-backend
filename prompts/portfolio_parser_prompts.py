@@ -27,6 +27,14 @@ Focus on identifying and extracting data for the following typical resume/CV sec
 - References (usually stated as "available upon request" - note if present, but detailed references are rare)
 - Custom Sections (be prepared for other section titles the user might have, like "Interests", "Volunteering")
 
+**CRITICAL INSTRUCTIONS FOR URL/LINK FIELDS:**
+- ONLY include the "link" field if you find an actual, valid URL in the document (starting with http:// or https://)
+- If you find text that looks like a domain but lacks protocol (e.g., "github.com/user"), add "https://" to make it valid
+- If NO URL is found for a project or publication, DO NOT include the "link" field in the JSON at all - completely omit it
+- NEVER use placeholder text like "[link]", "[url]", "(link)", "<link>", "{link}", "N/A", "TBD", or any similar placeholders
+- NEVER create fake or placeholder URLs - only use actual URLs found in the document
+- If uncertain whether text is a URL, err on the side of omitting the link field entirely
+
 Ensure your output strictly adheres to the target Portfolio JSON schema that the system will use to validate your response.
 If information for a specific field is not found in the document, omit that field or use a default empty value
 (e.g., an empty list `[]` for list-based fields, an empty string `""` for optional string fields, or `null` if appropriate by the schema)
