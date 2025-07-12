@@ -587,12 +587,9 @@ async def upload_profile_picture(
         if profile.profile_picture_key:
             await storage_provider.delete_file(profile.profile_picture_key)
 
-        # Read the file content
-        content = await file.read()
-
-        # Save the new profile picture
+        # Save the new profile picture (pass the UploadFile object directly)
         filename = await storage_provider.save_profile_picture(
-            content, str(current_user.id)
+            file, str(current_user.id)
         )
 
         # Update profile with the new profile picture
@@ -1065,12 +1062,9 @@ async def upload_my_profile_picture(
         if profile.profile_picture_key:
             await storage_provider.delete_file(profile.profile_picture_key)
 
-        # Read the file content
-        content = await file.read()
-
-        # Save the new profile picture
+        # Save the new profile picture (pass the UploadFile object directly)
         filename = await storage_provider.save_profile_picture(
-            content, str(current_user.id)
+            file, str(current_user.id)
         )
 
         # Update profile with the new profile picture
