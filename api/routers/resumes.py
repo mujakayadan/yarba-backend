@@ -1,7 +1,7 @@
 """Resumes router."""
 
 from datetime import datetime
-from typing import Annotated, List, Optional
+from typing import Annotated, Any, Dict, List, Optional
 
 from beanie import PydanticObjectId
 from fastapi import (
@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from api.dependencies.auth import get_current_active_user
 from api.dependencies.services import (
     get_cover_letter_service,
+    get_latex_service,
     get_portfolio_service,
     get_profile_service,
     get_resume_generation_service,
@@ -164,6 +165,7 @@ async def create_resume(
             portfolio_id=portfolio.id,
             job_description=request.job_description,
             job_description_url=request.job_description_url,
+            template_id=request.template_id,
         )
         logger.info(f"Resume record created: {resume.id}")
 
@@ -319,6 +321,28 @@ async def get_resumes(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get resumes: {str(e)}",
+        )
+
+
+@router.get("/templates", response_model=List[Dict[str, str]])
+async def get_available_templates(
+    current_user: CurrentUser,
+    latex_service: Any = Depends(get_latex_service),
+) -> List[Dict[str, str]]:
+    """
+    Get available resume templates.
+
+    Returns:
+        List[Dict[str, str]]: List of available templates with id, name, and description
+    """
+    try:
+        templates = latex_service.get_available_resume_templates()
+        return templates
+    except Exception as e:
+        logger.error(f"Error getting available templates: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get available templates",
         )
 
 

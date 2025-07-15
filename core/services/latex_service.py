@@ -2,13 +2,18 @@
 
 import re
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from config.logging_config import get_logger
 from config.settings import Settings
 from core.exceptions.base import InternalServerException
 from core.latex.compilers import CoverLetterCompiler, ResumeCompiler
-from core.latex.templates import DEFAULT_COVER_LETTER_PREAMBLE, DEFAULT_RESUME_PREAMBLE
+from core.latex.template_registry import (
+    get_cover_letter_template,
+    get_resume_template,
+    list_cover_letter_templates,
+    list_resume_templates,
+)
 from core.models.cover_letter import CoverLetter
 from core.models.profile import Profile
 from core.models.resume import Resume
@@ -27,6 +32,14 @@ class LatexService:
         self.cover_letter_compiler = CoverLetterCompiler()
         self.portfolio_service = portfolio_service
         self.logger = get_logger(__name__)
+
+    def get_available_resume_templates(self) -> List[Dict[str, str]]:
+        """Get list of available resume templates."""
+        return list_resume_templates()
+
+    def get_available_cover_letter_templates(self) -> List[Dict[str, str]]:
+        """Get list of available cover letter templates."""
+        return list_cover_letter_templates()
 
     def configure_latex_logging(
         self, log_level: str = None, suppress_logs: bool = None
@@ -88,23 +101,25 @@ class LatexService:
         return s if s else default_name
 
     async def _prepare_template_data(
-        self, document_type: str = "resume"
+        self, document_type: str = "resume", template_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Prepare template data for document generation.
 
         Args:
             document_type: Type of document ('resume' or 'cover_letter')
+            template_id: Optional template ID to use
 
         Returns:
             Template data dictionary
         """
-        # Get preamble based on document type
-        preamble = (
-            DEFAULT_RESUME_PREAMBLE
-            if document_type == "resume"
-            else DEFAULT_COVER_LETTER_PREAMBLE
-        )
+        # Get preamble based on document type and template ID
+        if document_type == "resume":
+            template_data = get_resume_template(template_id)
+            preamble = template_data["preamble"]
+        else:
+            template_data = get_cover_letter_template(template_id)
+            preamble = template_data["preamble"]
 
         # Prepare template data structure
         return {
@@ -112,12 +127,14 @@ class LatexService:
                 "preamble": preamble,
             },
             "section_formats": {},
+            "template_id": template_data["id"],
         }
 
     async def generate_resume_latex(
         self,
         resume: Resume,
         profile: Profile,
+        template_id: Optional[str] = None,
     ) -> str:
         """
         Generate LaTeX for a resume.
@@ -125,6 +142,7 @@ class LatexService:
         Args:
             resume: Resume model
             profile: Profile model
+            template_id: Optional template ID to override default
 
         Returns:
             str: LaTeX document
@@ -173,32 +191,32 @@ class LatexService:
                 # raise InternalServerException(f"Failed to fetch portfolio: {str(e)}")
             # --- End Get Portfolio Data ---
 
-            # Get template ID - first check resume, then fallback to profile preferences
-            template_id = None
+            # Get template ID - priority: parameter > resume.template_id > profile preferences
+            final_template_id = template_id or resume.template_id
 
-            # Check if resume has template_id set
-            if resume.template_id:
-                template_id = resume.template_id
-                self.logger.info(f"Using template ID from resume: {template_id}")
-            # Otherwise check profile preferences
-            elif (
-                profile.system_preferences
-                and profile.system_preferences.templates
-                and "default_resume_template_id" in profile.system_preferences.templates
-            ):
-                template_id = profile.system_preferences.templates[
-                    "default_resume_template_id"
-                ]
-                self.logger.info(
-                    f"Using template ID from profile system preferences: {template_id}"
-                )
+            # Check profile preferences if still no template_id
+            if not final_template_id:
+                if (
+                    profile.system_preferences
+                    and profile.system_preferences.templates
+                    and "default_resume_template_id"
+                    in profile.system_preferences.templates
+                ):
+                    final_template_id = profile.system_preferences.templates[
+                        "default_resume_template_id"
+                    ]
+                    self.logger.info(
+                        f"Using template ID from profile system preferences: {final_template_id}"
+                    )
 
-            # Prepare template data with preamble
-            template_data = await self._prepare_template_data(document_type="resume")
+            # Prepare template data with the selected template
+            template_data = await self._prepare_template_data(
+                document_type="resume", template_id=final_template_id
+            )
 
-            # If template_id is available, add it to template_data
-            if template_id:
-                template_data["template_id"] = template_id
+            self.logger.info(
+                f"Using template: {template_data.get('template_id', 'classic')}"
+            )
 
             # Generate the LaTeX content using the compiler
             self.logger.info("Calling resume compiler to generate tex content")
@@ -250,138 +268,114 @@ class LatexService:
         cover_letter: CoverLetter,
         profile: Profile,
         resume: Resume,
+        template_id: Optional[str] = None,
     ) -> str:
         """
         Generate LaTeX for a cover letter.
 
         Args:
-            cover_letter: Cover letter model
+            cover_letter: CoverLetter model
             profile: Profile model
-            resume: Resume model linked to the cover letter
+            resume: Resume model
+            template_id: Optional template ID to override default
 
         Returns:
             str: LaTeX document
         """
         try:
+            # Log input data IDs
             self.logger.info(f"Generating LaTeX for cover letter ID: {cover_letter.id}")
             self.logger.info(f"Using profile ID: {profile.id}")
-            self.logger.info(f"Using resume ID: {resume.id}")
 
-            # Get job data from the resume
-            company_name = resume.company_name or ""
-            job_title = resume.job_title or ""
+            # --- Get Portfolio Data ---
+            portfolio_data_for_compiler = {}
+            try:
+                # Ensure profile has user_id to fetch portfolio
+                if not hasattr(profile, "user_id") or not profile.user_id:
+                    self.logger.error(
+                        f"Profile object {profile.id} lacks user_id. Cannot fetch portfolio."
+                    )
+                    raise InternalServerException(
+                        "Profile lacks user_id for portfolio lookup."
+                    )
 
-            # Get cover letter content
-            cover_letter_content = ""
-            if cover_letter.content:  # Check if content exists
-                cover_letter_content = (
-                    cover_letter.content
-                )  # Assign the string directly
-
-            # Get personal information from profile
-            personal_info = {
-                "name": "",
-                "phone": "",
-                "email": "",
-                "linkedin": "#",
-                "github": "#",
-                "website": "#",
-                "address": "",
-            }
-
-            if profile:
-                # Check if profile has personal_information field
-                if (
-                    hasattr(profile, "personal_information")
-                    and profile.personal_information
-                ):
-                    info = profile.personal_information
-                    personal_info["name"] = getattr(info, "full_name", "")
-                    personal_info["phone"] = getattr(info, "phone", "")
-                    personal_info["email"] = getattr(info, "email", "")
-                    personal_info["linkedin"] = getattr(info, "linkedin", "#")
-                    personal_info["github"] = getattr(info, "github", "#")
-                    personal_info["website"] = getattr(info, "website", "#")
-                    personal_info["address"] = getattr(info, "address", "")
-                else:
-                    # Try to get fields directly from profile as fallback
-                    personal_info["name"] = getattr(profile, "full_name", "")
-                    personal_info["phone"] = getattr(profile, "phone", "")
-                    personal_info["email"] = getattr(profile, "email", "")
-                    personal_info["linkedin"] = getattr(profile, "linkedin", "#")
-                    personal_info["github"] = getattr(profile, "github", "#")
-                    personal_info["website"] = getattr(profile, "website", "#")
-                    personal_info["address"] = getattr(profile, "address", "")
-
-            # Prepare template data
-            template_data = await self._prepare_template_data(
-                document_type="cover_letter"
-            )
-
-            # Add all the needed data to template_data
-            template_data.update(
-                {
-                    "company_name": company_name,
-                    "job_title": job_title,
-                    "cover_letter_content": cover_letter_content,
-                    "personal_info": personal_info,
-                }
-            )
-
-            # Add signature URL if available
-            if hasattr(profile, "signature_key") and profile.signature_key:
-                from core.services.storage_service import get_storage_provider
-
-                # Get storage provider
-                storage_provider = get_storage_provider()
-
-                # Get URL for the signature from CloudFront
-                signature_url = storage_provider.get_url(profile.signature_key)
-                self.logger.info(f"Using signature URL: {signature_url}")
-
-                # Create a temporary file to store the signature image
-                import os
-                import tempfile
-                from pathlib import Path
-
-                import requests
-
-                # Create a temporary directory for the signature
-                # Use a LaTeX-friendly path: no spaces, special characters, etc.
-                signature_filename = (
-                    f"signature_{str(cover_letter.id).replace('-', '')}.png"
+                portfolio = await self.portfolio_service.get_portfolio_by_user_id(
+                    profile.user_id
                 )
-                temp_dir = Path(tempfile.gettempdir())
-                os.makedirs(temp_dir, exist_ok=True)
+                if portfolio and portfolio.career_summary:
+                    # Pass the specific career_summary dict needed by the compiler
+                    portfolio_data_for_compiler = {
+                        "career_summary": portfolio.career_summary.dict()
+                    }
+                    self.logger.info(
+                        f"Successfully fetched portfolio career summary for user {profile.user_id}"
+                    )
+                else:
+                    self.logger.warning(
+                        f"Portfolio or career_summary not found for user {profile.user_id}. Proceeding without it."
+                    )
+            except NotFoundException:
+                self.logger.warning(
+                    f"Portfolio not found via service for user {profile.user_id}. Proceeding without it."
+                )
+            except Exception as e:
+                self.logger.error(
+                    f"Error fetching portfolio via service for user {profile.user_id}: {e}"
+                )
+                # Decide if this should be fatal or just a warning
+                # raise InternalServerException(f"Failed to fetch portfolio: {str(e)}")
+            # --- End Get Portfolio Data ---
 
-                # Download the signature image
-                try:
-                    self.logger.info(f"Downloading signature from URL: {signature_url}")
-                    response = requests.get(signature_url, timeout=10)
-                    response.raise_for_status()
+            # Get template ID - priority: parameter > cover_letter.template_id > profile preferences
+            final_template_id = template_id or cover_letter.template_id
 
-                    # Save the image to the temporary directory
-                    signature_path = temp_dir / signature_filename
-                    with open(signature_path, "wb") as f:
-                        f.write(response.content)
+            # Check profile preferences if still no template_id
+            if not final_template_id:
+                if (
+                    profile.system_preferences
+                    and profile.system_preferences.templates
+                    and "default_cover_letter_template_id"
+                    in profile.system_preferences.templates
+                ):
+                    final_template_id = profile.system_preferences.templates[
+                        "default_cover_letter_template_id"
+                    ]
+                    self.logger.info(
+                        f"Using template ID from profile system preferences: {final_template_id}"
+                    )
 
-                    self.logger.info(f"Signature downloaded to: {signature_path}")
-
-                    # Add the local path to the template
-                    template_data["signature_path"] = str(signature_path)
-                except Exception as e:
-                    self.logger.error(f"Error downloading signature: {e}")
-                    # Continue without signature if download fails
-
-            # Generate LaTeX content using the compiler
-            self.logger.info("Calling cover letter compiler to generate tex content")
-            latex_content = await self.cover_letter_compiler.generate_tex_content(
-                cover_letter=cover_letter, template=template_data
+            # Prepare template data with the selected template
+            template_data = await self._prepare_template_data(
+                document_type="cover_letter", template_id=final_template_id
             )
 
             self.logger.info(
-                f"Successfully generated cover letter LaTeX, length: {len(latex_content)} bytes"
+                f"Using template: {template_data.get('template_id', 'standard')}"
             )
+
+            # Generate the LaTeX content using the compiler
+            self.logger.info("Calling cover letter compiler to generate tex content")
+
+            # Ensure cover_letter.content exists and is a dictionary
+            if not cover_letter.content or not isinstance(cover_letter.content, dict):
+                self.logger.error(
+                    f"Cover letter content is missing or not a dictionary for cover letter {cover_letter.id}"
+                )
+                raise InternalServerException(
+                    "Cover letter content is invalid or missing for LaTeX generation."
+                )
+
+            # Pass the cover_letter.content and portfolio data to the compiler
+            latex_content = self.cover_letter_compiler.generate_tex_content(
+                cover_letter_content=cover_letter.content,
+                portfolio_data=portfolio_data_for_compiler,  # Pass fetched portfolio data
+                template=template_data,
+            )
+
+            self.logger.info(
+                f"Successfully generated LaTeX content, length: {len(latex_content)} bytes"
+            )
+
             return latex_content
 
         except Exception as e:

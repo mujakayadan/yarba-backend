@@ -6,25 +6,31 @@ visual styles to be registered, retrieved, and managed by name.
 
 from typing import Dict, List, Optional
 
+from .templates import (
+    DEFAULT_COVER_LETTER_PREAMBLE,
+    DEFAULT_RESUME_PREAMBLE,
+    MODERN_RESUME_PREAMBLE,
+)
+
 # Template registry - stores available preamble templates
 RESUME_TEMPLATES: Dict[str, Dict[str, str]] = {
     "classic": {
         "id": "classic",
         "name": "Classic Resume",
         "description": "A clean, professional resume template with traditional formatting",
-        "preamble": "DEFAULT_RESUME_PREAMBLE",  # Reference to preamble in templates.py
+        "preamble": DEFAULT_RESUME_PREAMBLE,  # Now references the actual preamble
     },
     "modern": {
         "id": "modern",
         "name": "Modern Resume",
-        "description": "A modern resume template with sleek design elements",
-        "preamble": "DEFAULT_RESUME_PREAMBLE",  # Would be replaced with a modern variant
+        "description": "A modern resume template with professional colors and enhanced design",
+        "preamble": MODERN_RESUME_PREAMBLE,  # Now references the modern preamble
     },
     "academic": {
         "id": "academic",
         "name": "Academic CV",
         "description": "Focused on academic achievements, publications and research",
-        "preamble": "DEFAULT_RESUME_PREAMBLE",  # Would be replaced with an academic variant
+        "preamble": DEFAULT_RESUME_PREAMBLE,  # Would be replaced with an academic variant later
     },
 }
 
@@ -33,13 +39,13 @@ COVER_LETTER_TEMPLATES: Dict[str, Dict[str, str]] = {
         "id": "standard",
         "name": "Standard Cover Letter",
         "description": "A professional cover letter with traditional formatting",
-        "preamble": "DEFAULT_COVER_LETTER_PREAMBLE",  # Reference to preamble in templates.py
+        "preamble": DEFAULT_COVER_LETTER_PREAMBLE,  # Now references the actual preamble
     },
     "modern": {
         "id": "modern",
         "name": "Modern Cover Letter",
         "description": "A sleek, modern cover letter design",
-        "preamble": "DEFAULT_COVER_LETTER_PREAMBLE",  # Would be replaced with a modern variant
+        "preamble": DEFAULT_COVER_LETTER_PREAMBLE,  # Would be replaced with a modern variant later
     },
 }
 

@@ -29,6 +29,10 @@ class ResumeCreate(BaseModel):
     job_description_url: Optional[str] = Field(
         None, description="URL of the job description"
     )
+    template_id: Optional[str] = Field(
+        None,
+        description="Template ID to use for the resume (e.g., 'classic', 'modern')",
+    )
     compile_pdf: bool = Field(
         True,
         description="Whether to compile PDF immediately after resume creation (requires content to be populated)",
