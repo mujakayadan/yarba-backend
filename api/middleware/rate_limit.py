@@ -32,10 +32,18 @@ ROUTE_SPECIFIC_LIMITS = {
         120,
     ),  # PDF generation endpoints - lower limit, longer window
     "/api/v1/resumes/": (30, 60),  # General resume endpoints
-    "/api/v1/portfolio-websites/.*": (
-        15,
+    "/api/v1/portfolio-websites/deployment-status": (
         60,
-    ),  # Portfolio website endpoints (e.g., /deployment-status, /)
+        60,
+    ),  # Deployment status endpoint - allow more frequent polling but with limit
+    "/api/v1/portfolio-websites/$": (
+        60,
+        60,
+    ),  # Main portfolio website endpoint - allow more frequent polling but with limit
+    "/api/v1/portfolio-websites/.*": (
+        30,
+        60,
+    ),  # Other portfolio website endpoints
 }
 
 

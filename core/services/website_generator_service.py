@@ -78,6 +78,9 @@ class WebsiteGeneratorService:
         # Generate manifest and other metadata files
         files.update(await self._generate_metadata_files(context, config))
 
+        # Copy all static assets from the theme directory (excluding processed templates)
+        files.update(await self._copy_theme_assets(config))
+
         self.logger.info(f"Generated {len(files)} files for portfolio website")
         return files
 
@@ -138,6 +141,11 @@ class WebsiteGeneratorService:
                     portfolio.career_summary.default_job_title
                     if portfolio.career_summary
                     else "Professional"
+                ),
+                "job_titles": (
+                    portfolio.career_summary.job_titles
+                    if portfolio.career_summary
+                    else []
                 ),
                 "years_experience": (
                     portfolio.career_summary.years_of_experience
@@ -360,6 +368,68 @@ Allow: /
             indent=2,
         )
 
+        return files
+
+    async def _copy_theme_assets(self, config: WebsiteConfig) -> Dict[str, str]:
+        """Copy all static assets from the theme directory, excluding processed template files."""
+        files = {}
+
+        theme_dir = self.templates_dir / f"themes/{config.theme}"
+
+        if not theme_dir.exists():
+            self.logger.warning(f"Theme directory not found: {theme_dir}")
+            return files
+
+        # Files that are processed as templates and should not be copied as static assets
+        template_files = {"index.html", "style.css", "script.js", "contact.html"}
+
+        # Copy all files from theme directory except template files
+        for file_path in theme_dir.rglob("*"):
+            if file_path.is_file():
+                # Skip template files that are processed by Jinja2
+                if file_path.name in template_files:
+                    continue
+
+                # Create relative path for the deployed website
+                relative_path = file_path.relative_to(theme_dir)
+
+                try:
+                    # Determine if file is text or binary
+                    file_extension = file_path.suffix.lower()
+                    text_extensions = {
+                        ".txt",
+                        ".json",
+                        ".xml",
+                        ".md",
+                        ".svg",
+                        ".css",
+                        ".js",
+                        ".html",
+                        ".htm",
+                    }
+
+                    if file_extension in text_extensions:
+                        # Text files
+                        with open(file_path, "r", encoding="utf-8") as f:
+                            files[str(relative_path)] = f.read()
+                    else:
+                        # Binary files (images, models, etc.)
+                        with open(file_path, "rb") as f:
+                            file_content = f.read()
+                        # Mark as binary for the deployment service
+                        files[str(relative_path)] = {
+                            "content": file_content,
+                            "binary": True,
+                        }
+
+                    self.logger.debug(f"Copied theme asset: {relative_path}")
+
+                except Exception as e:
+                    self.logger.warning(f"Failed to copy asset {file_path}: {e}")
+
+        self.logger.info(
+            f"Copied {len(files)} static assets from theme '{config.theme}'"
+        )
         return files
 
     def _generate_default_html(self, context: Dict) -> str:

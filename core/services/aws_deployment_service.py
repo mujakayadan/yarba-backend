@@ -151,16 +151,34 @@ class AWSDeploymentService:
             s3_key = f"{s3_path_prefix.strip('/')}/{file_path.lstrip('/')}"
             try:
                 content_type = self._get_content_type(file_path)
+                # Handle binary files marked by the website generator
+                if isinstance(content, dict) and content.get("binary"):
+                    body = content["content"]
+                else:
+                    body = (
+                        content.encode("utf-8") if isinstance(content, str) else content
+                    )
+
                 await asyncio.to_thread(
                     self.s3_client.put_object,
                     Bucket=bucket_name,
                     Key=s3_key,
-                    Body=content.encode("utf-8"),
+                    Body=body,
                     ContentType=content_type,
                     CacheControl=(
                         "max-age=86400"
                         if file_path.endswith(
-                            (".css", ".js", ".png", ".jpg", ".jpeg", ".ico")
+                            (
+                                ".css",
+                                ".js",
+                                ".png",
+                                ".jpg",
+                                ".jpeg",
+                                ".ico",
+                                ".gltf",
+                                ".bin",
+                                ".webp",
+                            )
                         )
                         else "max-age=3600"
                     ),
@@ -192,6 +210,14 @@ class AWSDeploymentService:
             return "image/png"
         if file_path.endswith((".jpg", ".jpeg")):
             return "image/jpeg"
+        if file_path.endswith(".webp"):
+            return "image/webp"
+        if file_path.endswith(".gltf"):
+            return "model/gltf+json"
+        if file_path.endswith(".bin"):
+            return "application/octet-stream"
+        if file_path.endswith(".svg"):
+            return "image/svg+xml"
         return "application/octet-stream"
 
     async def _delete_s3_objects_with_prefix(

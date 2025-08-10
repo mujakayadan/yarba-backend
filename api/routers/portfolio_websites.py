@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from api.dependencies.auth import get_current_user
 from api.dependencies.services import get_portfolio_website_service
@@ -80,6 +80,7 @@ async def create_portfolio_website(
     description="Get the portfolio website for the authenticated user.",
 )
 async def get_portfolio_website(
+    response: Response,
     current_user: User = Depends(get_current_user),
     website_service: PortfolioWebsiteService = Depends(get_portfolio_website_service),
 ):
@@ -87,7 +88,23 @@ async def get_portfolio_website(
     website = await website_service.get_portfolio_website(current_user.id)
 
     if not website:
+        # Cache for longer when no website exists
+        response.headers["Cache-Control"] = "private, max-age=60"
         return None
+
+    # Add caching headers based on deployment status
+    if website.deployment.status in ["building"]:
+        # Short cache for building status (5 seconds)
+        response.headers["Cache-Control"] = "private, max-age=5, must-revalidate"
+        response.headers["X-Recommended-Poll-Interval"] = "5"
+    elif website.deployment.status in ["success", "failed"]:
+        # Longer cache for completed states (30 seconds)
+        response.headers["Cache-Control"] = "private, max-age=30"
+        response.headers["X-Recommended-Poll-Interval"] = "30"
+    else:
+        # Default cache (10 seconds)
+        response.headers["Cache-Control"] = "private, max-age=10"
+        response.headers["X-Recommended-Poll-Interval"] = "10"
 
     return PortfolioWebsiteResponse(
         website_url=website.get_website_url(),
@@ -328,6 +345,7 @@ async def delete_website(
     description="Get the current deployment status of the user's portfolio website.",
 )
 async def get_deployment_status(
+    response: Response,
     current_user: User = Depends(get_current_user),
     website_service: PortfolioWebsiteService = Depends(get_portfolio_website_service),
 ):
@@ -338,6 +356,20 @@ async def get_deployment_status(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Portfolio website not found"
         )
+
+    # Add caching headers based on deployment status
+    if website.deployment.status in ["building"]:
+        # Very short cache for building status (2 seconds)
+        response.headers["Cache-Control"] = "private, max-age=2, must-revalidate"
+        response.headers["X-Recommended-Poll-Interval"] = "2"
+    elif website.deployment.status in ["success", "failed"]:
+        # Longer cache for completed states (60 seconds)
+        response.headers["Cache-Control"] = "private, max-age=60"
+        response.headers["X-Recommended-Poll-Interval"] = "60"
+    else:
+        # Default cache (5 seconds)
+        response.headers["Cache-Control"] = "private, max-age=5"
+        response.headers["X-Recommended-Poll-Interval"] = "5"
 
     return DeploymentStatus(
         status=website.deployment.status,
