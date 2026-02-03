@@ -334,6 +334,49 @@ body {
     flex: 1;
 }
 
+.hero-profile-img {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-bottom: 1.5rem;
+    border: 3px solid var(--accent-color);
+    box-shadow: 0 0 30px rgba(145, 94, 255, 0.4);
+    animation: profilePulse 3s ease-in-out infinite;
+}
+
+@keyframes profilePulse {
+    0%, 100% { box-shadow: 0 0 30px rgba(145, 94, 255, 0.4); }
+    50% { box-shadow: 0 0 50px rgba(145, 94, 255, 0.6); }
+}
+
+.hero-social-links {
+    display: flex;
+    gap: 1rem;
+    margin-top: 2rem;
+}
+
+.hero-social-links a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    background: var(--card-background);
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    color: var(--text-secondary);
+    font-size: 1.25rem;
+    transition: var(--transition);
+}
+
+.hero-social-links a:hover {
+    background: var(--accent-color);
+    color: white;
+    transform: translateY(-3px);
+    box-shadow: 0 10px 20px rgba(145, 94, 255, 0.3);
+}
+
 /* Hero Head Text - Matching heroHeadText */
 .hero-title {
     font-weight: 900;
@@ -459,7 +502,7 @@ body {
 
 /* Common Section Styles - Matching Original Styles */
 .section {
-    padding: 4rem 1.5rem;
+    padding: 3rem 1.5rem;
     position: relative;
 }
 
@@ -490,7 +533,7 @@ body {
     color: white;
     font-weight: 900;
     text-align: center;
-    margin-bottom: 1rem;
+    margin-bottom: 0.5rem;
     font-size: 1.875rem; /* 30px */
 }
 
@@ -519,7 +562,7 @@ body {
     color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    margin-bottom: 3rem;
+    margin-bottom: 2rem;
 }
 
 @media (min-width: 640px) {
@@ -684,19 +727,23 @@ body {
 
 /* Skills Section */
 .skill-category {
-    margin-bottom: 3rem;
+    margin-bottom: 2rem;
+}
+
+.skill-category:last-child {
+    margin-bottom: 0;
 }
 
 .skill-category-title {
-    font-size: 1.5rem;
+    font-size: 1.25rem;
     color: var(--accent-color);
     text-align: center;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
     font-family: 'Courier New', monospace;
 }
 
 .skill-category-title.bottom {
-    margin-top: 1.5rem;
+    margin-top: 1rem;
     margin-bottom: 0;
 }
 
@@ -894,9 +941,18 @@ body {
 
 /* Contact Section */
 .contact-content {
-    max-width: 600px;
+    max-width: 1000px;
     margin: 0 auto;
-    text-align: center;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+}
+
+@media (max-width: 768px) {
+    .contact-content {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
 }
 
 .contact-info {
@@ -907,32 +963,155 @@ body {
 
 .contact-item {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding: 1rem;
+    gap: 1rem;
+    padding: 1.25rem;
     background: var(--card-background);
-    border-radius: 8px;
+    border-radius: 12px;
     border: 1px solid var(--border-color);
     transition: var(--transition);
 }
 
 .contact-item:hover {
     background: rgba(145, 94, 255, 0.1);
+    transform: translateX(5px);
+}
+
+.contact-icon {
+    font-size: 1.5rem;
+    color: var(--accent-color);
+    width: 40px;
+    text-align: center;
+}
+
+.contact-details {
+    display: flex;
+    flex-direction: column;
 }
 
 .contact-label {
-    font-weight: 600;
-    color: var(--text-primary);
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.25rem;
 }
 
 .contact-value {
-    color: var(--accent-color);
+    color: var(--text-primary);
     text-decoration: none;
+    font-weight: 500;
     transition: var(--transition);
 }
 
 .contact-value:hover {
+    color: var(--accent-color);
+}
+
+.contact-social {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.social-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 50px;
+    height: 50px;
+    background: var(--card-background);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    color: var(--text-secondary);
+    font-size: 1.25rem;
+    transition: var(--transition);
+}
+
+.social-btn:hover {
+    background: var(--accent-color);
+    color: white;
+    transform: translateY(-3px);
+    box-shadow: 0 10px 20px rgba(145, 94, 255, 0.3);
+}
+
+/* Contact Form */
+.contact-form-container {
+    background: var(--card-background);
+    border-radius: 12px;
+    padding: 2rem;
+    border: 1px solid var(--border-color);
+}
+
+.contact-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.form-group label {
     color: var(--text-primary);
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+
+.form-group input,
+.form-group textarea {
+    background: var(--background-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0.875rem 1rem;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 1rem;
+    transition: var(--transition);
+}
+
+.form-group input::placeholder,
+.form-group textarea::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.6;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px rgba(145, 94, 255, 0.2);
+}
+
+.form-group textarea {
+    resize: vertical;
+    min-height: 120px;
+}
+
+.btn-submit {
+    background: linear-gradient(135deg, var(--accent-color), #00BFFF);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 1rem 2rem;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.btn-submit:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 30px rgba(145, 94, 255, 0.4);
+}
+
+.btn-submit:active {
+    transform: translateY(0);
 }
 
 /* Footer */
@@ -1009,25 +1188,14 @@ body {
     }
 }
 
-/* Animation Classes */
-.fade-in {
-    opacity: 0;
-    transform: translateY(20px);
-    transition: opacity 0.6s ease, transform 0.6s ease;
-}
-
-.fade-in.visible {
-    opacity: 1;
-    transform: translateY(0);
-}
-
-.slide-up {
-    opacity: 0;
-    transform: translateY(30px);
-    transition: opacity 0.8s ease, transform 0.8s ease;
-}
-
-.slide-up.visible {
-    opacity: 1;
-    transform: translateY(0);
+/* All cards always visible - no animations that could hide content */
+.experience-card,
+.education-card,
+.project-card,
+.award-card,
+.publication-card,
+.skill-tag {
+    opacity: 1 !important;
+    transform: none !important;
+    visibility: visible !important;
 }

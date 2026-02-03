@@ -303,7 +303,7 @@
     <footer class="footer">
         <div class="container">
             <div class="footer-content">
-                <p>&copy; {{ "2024" }} {{ personal_info.full_name if personal_info else site_info.title }}. All rights reserved.</p>
+                <p>&copy; <span id="current-year"></span> {{ personal_info.full_name if personal_info else site_info.title }}. All rights reserved.</p>
                 <p class="footer-credit">Built with <a href="https://yarba.app" target="_blank">Yarba</a></p>
             </div>
         </div>

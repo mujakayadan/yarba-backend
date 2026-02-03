@@ -6,6 +6,7 @@
     <link rel="apple-touch-icon" type="image/webp" href="favicon.webp" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{{ site_info.title }}</title>
@@ -74,6 +75,9 @@
                 <div class="hero-line"></div>
             </div>
             <div class="hero-content">
+                {% if personal_info and personal_info.profile_picture_key %}
+                <img src="{{ personal_info.profile_picture_key }}" alt="Profile Picture" class="hero-profile-img">
+                {% endif %}
                 <h1 class="hero-title">
                     Hi, I'm <span class="hero-name">{{ personal_info.full_name.split(' ')[0] if personal_info and personal_info.full_name else site_info.title }}</span>
                     <span class="wave-emoji">👋</span>
@@ -83,11 +87,30 @@
                     <br>
                     <b>{{ sections.about.career_summary if sections.about and sections.about.career_summary else 'Welcome to my portfolio!' }}</b>
                 </p>
+                {% if config.social_media_enabled and personal_info %}
+                <div class="hero-social-links">
+                    {% if personal_info.linkedin %}
+                    <a href="{{ personal_info.linkedin }}" target="_blank" aria-label="LinkedIn">
+                        <i class="fab fa-linkedin"></i>
+                    </a>
+                    {% endif %}
+                    {% if personal_info.github %}
+                    <a href="{{ personal_info.github }}" target="_blank" aria-label="GitHub">
+                        <i class="fab fa-github"></i>
+                    </a>
+                    {% endif %}
+                    {% if personal_info.email %}
+                    <a href="mailto:{{ personal_info.email }}" aria-label="Email">
+                        <i class="fas fa-envelope"></i>
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
             </div>
         </div>
 
         <div class="scroll-indicator">
-            <a href="#about">
+            <a href="#experience">
                 <div class="scroll-dot"></div>
             </a>
         </div>
@@ -132,8 +155,8 @@
                         <h3 class="education-degree">{{ edu.degree }} in {{ edu.degree_type }}</h3>
                         <h4 class="education-university">{{ edu.university_name }}</h4>
                         <p class="education-meta">{{ edu.location }} • {{ edu.time }}</p>
-                        {% if edu.GPA %}
-                        <p class="education-gpa">GPA: {{ edu.GPA }}</p>
+                        {% if edu.gpa %}
+                        <p class="education-gpa">GPA: {{ edu.gpa }}</p>
                         {% endif %}
                     </div>
                     {% if edu.transcript %}
@@ -258,36 +281,81 @@
     <section id="contact" class="section section-alt">
         <div class="container">
             <h2 class="section-title">Get In Touch</h2>
+            <p class="section-subtitle">Let's connect</p>
             <div class="contact-content">
                 <div class="contact-info">
                     {% if personal_info and personal_info.email %}
                     <div class="contact-item">
-                        <span class="contact-label">Email:</span>
-                        <a href="mailto:{{ personal_info.email }}" class="contact-value">{{ personal_info.email }}</a>
+                        <i class="fas fa-envelope contact-icon"></i>
+                        <div class="contact-details">
+                            <span class="contact-label">Email</span>
+                            <a href="mailto:{{ personal_info.email }}" class="contact-value">{{ personal_info.email }}</a>
+                        </div>
                     </div>
                     {% endif %}
 
                     {% if personal_info and personal_info.phone %}
                     <div class="contact-item">
-                        <span class="contact-label">Phone:</span>
-                        <span class="contact-value">{{ personal_info.phone }}</span>
+                        <i class="fas fa-phone contact-icon"></i>
+                        <div class="contact-details">
+                            <span class="contact-label">Phone</span>
+                            <span class="contact-value">{{ personal_info.phone }}</span>
+                        </div>
                     </div>
                     {% endif %}
 
-                    {% if personal_info and personal_info.linkedin %}
+                    {% if personal_info and personal_info.address %}
                     <div class="contact-item">
-                        <span class="contact-label">LinkedIn:</span>
-                        <a href="{{ personal_info.linkedin }}" target="_blank" class="contact-value">View Profile</a>
+                        <i class="fas fa-map-marker-alt contact-icon"></i>
+                        <div class="contact-details">
+                            <span class="contact-label">Location</span>
+                            <span class="contact-value">{{ personal_info.address }}</span>
+                        </div>
                     </div>
                     {% endif %}
 
-                    {% if personal_info and personal_info.github %}
-                    <div class="contact-item">
-                        <span class="contact-label">GitHub:</span>
-                        <a href="{{ personal_info.github }}" target="_blank" class="contact-value">View Profile</a>
+                    {% if config.social_media_enabled %}
+                    <div class="contact-social">
+                        {% if personal_info and personal_info.linkedin %}
+                        <a href="{{ personal_info.linkedin }}" target="_blank" class="social-btn" aria-label="LinkedIn">
+                            <i class="fab fa-linkedin"></i>
+                        </a>
+                        {% endif %}
+                        {% if personal_info and personal_info.github %}
+                        <a href="{{ personal_info.github }}" target="_blank" class="social-btn" aria-label="GitHub">
+                            <i class="fab fa-github"></i>
+                        </a>
+                        {% endif %}
+                        {% if personal_info and personal_info.website %}
+                        <a href="{{ personal_info.website }}" target="_blank" class="social-btn" aria-label="Website">
+                            <i class="fas fa-globe"></i>
+                        </a>
+                        {% endif %}
                     </div>
                     {% endif %}
                 </div>
+
+                {% if config.contact_form_enabled %}
+                <div class="contact-form-container">
+                    <form class="contact-form" id="contact-form">
+                        <div class="form-group">
+                            <label for="name">Name</label>
+                            <input type="text" id="name" name="name" placeholder="Your name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="email">Email</label>
+                            <input type="email" id="email" name="email" placeholder="your@email.com" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="message">Message</label>
+                            <textarea id="message" name="message" rows="5" placeholder="Your message..." required></textarea>
+                        </div>
+                        <button type="submit" class="btn-submit">
+                            Send Message <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </form>
+                </div>
+                {% endif %}
             </div>
         </div>
     </section>
@@ -296,7 +364,7 @@
     <!-- Footer -->
     <footer class="footer">
         <div class="container">
-            <p>&copy; 2024 {{ personal_info.full_name if personal_info else site_info.title }}. Built with Yarba.</p>
+            <p>&copy; <span id="current-year"></span> {{ personal_info.full_name if personal_info else site_info.title }}. Built with <a href="https://yarba.app" target="_blank">Yarba</a></p>
         </div>
     </footer>
 

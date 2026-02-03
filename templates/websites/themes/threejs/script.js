@@ -13,7 +13,49 @@ document.addEventListener('DOMContentLoaded', function() {
     initSmoothScrolling();
     initScrollAnimations();
     initParallaxEffects();
+    initDynamicYear();
+    initContactForm();
 });
+
+// Set dynamic year in footer
+function initDynamicYear() {
+    const yearElement = document.getElementById('current-year');
+    if (yearElement) {
+        yearElement.textContent = new Date().getFullYear();
+    }
+}
+
+// Contact form handling
+function initContactForm() {
+    const contactForm = document.getElementById('contact-form');
+    if (!contactForm) return;
+
+    contactForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const formData = new FormData(contactForm);
+        const name = formData.get('name');
+        const email = formData.get('email');
+        const message = formData.get('message');
+
+        // Create mailto link as fallback
+        const subject = encodeURIComponent(`Contact from ${name}`);
+        const body = encodeURIComponent(`Name: ${name}\nEmail: ${email}\n\nMessage:\n${message}`);
+
+        // Get the site owner's email from contact info if available
+        const ownerEmailEl = document.querySelector('.contact-info a[href^="mailto:"]');
+        const ownerEmail = ownerEmailEl ? ownerEmailEl.href.replace('mailto:', '') : '';
+
+        if (ownerEmail) {
+            window.location.href = `mailto:${ownerEmail}?subject=${subject}&body=${body}`;
+        } else {
+            alert('Thank you for your message! Please contact the site owner directly.');
+        }
+
+        // Reset form
+        contactForm.reset();
+    });
+}
 
 // Detect mobile device
 function detectMobile() {
@@ -289,51 +331,12 @@ function updateActiveNavLink(targetId) {
     });
 }
 
-// Scroll animations for elements
+// Scroll animations for elements - DISABLED for reliability
+// Cards and content are always visible by default
 function initScrollAnimations() {
-    const observerOptions = {
-        threshold: 0.1,
-        rootMargin: '0px 0px -50px 0px'
-    };
-
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                entry.target.classList.add('visible');
-
-                // Add staggered animation for child elements
-                const childElements = entry.target.querySelectorAll('.experience-card, .education-card, .project-card, .award-card, .skill-tag');
-                childElements.forEach((child, index) => {
-                    setTimeout(() => {
-                        child.classList.add('visible');
-                    }, index * 100); // Stagger by 100ms
-                });
-            }
-        });
-    }, observerOptions);
-
-    // Observe all sections and cards
-    const elementsToAnimate = document.querySelectorAll(
-        '.section, .experience-card, .education-card, .project-card, .award-card, .publication-card'
-    );
-
-    elementsToAnimate.forEach(element => {
-        element.classList.add('fade-in');
-        observer.observe(element);
-    });
-
-    // Special animation for skills
-    const skillTags = document.querySelectorAll('.skill-tag');
-    skillTags.forEach((tag, index) => {
-        tag.classList.add('slide-up');
-        tag.style.animationDelay = `${index * 50}ms`;
-    });
-
-    // Observe skill categories
-    const skillCategories = document.querySelectorAll('.skill-category');
-    skillCategories.forEach(category => {
-        observer.observe(category);
-    });
+    // Animation disabled - all content visible by default via CSS
+    // This ensures content is never hidden due to JS issues
+    console.log('Scroll animations disabled for reliability');
 }
 
 // Parallax effects for enhanced visual appeal
@@ -406,55 +409,12 @@ function initScrollProgress() {
 // Initialize scroll progress
 initScrollProgress();
 
-// Add smooth reveal animation for text elements
+// Text animations - DISABLED for reliability
 function initTextAnimations() {
-    const textElements = document.querySelectorAll('.section-title, .section-subtitle, .hero-title, .hero-subtitle');
-
-    const textObserver = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                entry.target.style.animation = 'fadeInUp 0.8s ease forwards';
-            }
-        });
-    }, { threshold: 0.3 });
-
-    textElements.forEach(element => {
-        element.style.opacity = '0';
-        element.style.transform = 'translateY(30px)';
-        textObserver.observe(element);
-    });
-
-    // Add CSS animation
-    const style = document.createElement('style');
-    style.textContent = `
-        @keyframes fadeInUp {
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-    `;
-    document.head.appendChild(style);
+    // All text elements visible by default
+    console.log('Text animations disabled for reliability');
 }
 
-// Initialize text animations
-initTextAnimations();
-
-// Add dynamic theme color updates
-function initDynamicColors() {
-    const sections = document.querySelectorAll('.section');
-    const colors = [
-        '#915EFF', '#00BFA6', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#FF9FF3'
-    ];
-
-    sections.forEach((section, index) => {
-        const color = colors[index % colors.length];
-        section.style.setProperty('--section-accent', color);
-    });
-}
-
-// Initialize dynamic colors
-initDynamicColors();
 
 // Performance optimization: Throttle scroll events
 function throttle(func, limit) {
