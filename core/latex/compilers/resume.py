@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional
 
 from ..base import LatexCompiler
 from ..processors import get_processor_for_section
-from ..templates import DEFAULT_RESUME_PREAMBLE
+from ..template_registry import get_resume_template
 
 
 class ResumeCompiler(LatexCompiler):
@@ -159,9 +159,10 @@ class ResumeCompiler(LatexCompiler):
                 self.logger.error(f"Section data: {str(section_data)[:100]}")
 
         # Use preamble from template if provided, otherwise use default
-        preamble = DEFAULT_RESUME_PREAMBLE
         if template and "header" in template and "preamble" in template["header"]:
             preamble = template["header"]["preamble"]
+        else:
+            preamble = get_resume_template()["preamble"]
 
         # Format the complete document
         latex_content = preamble + "\n"

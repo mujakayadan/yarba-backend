@@ -1,0 +1,162 @@
+\documentclass[letterpaper,11pt]{article}
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\usepackage{hyphenat}
+\usepackage{fontawesome5}
+\usepackage{seqsplit}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern,textcomp}
+\usepackage{bookmark}
+\usepackage{xcolor}
+
+% Define colors for modern theme
+\definecolor{primarycolor}{RGB}{0, 51, 102}
+\definecolor{accentcolor}{RGB}{46, 125, 50}
+\definecolor{textcolor}{RGB}{33, 37, 41}
+
+\pagestyle{fancy}
+\fancyhf{} % clear all header and footer fields
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% Adjust margins for modern look
+\addtolength{\oddsidemargin}{-0.6in}
+\addtolength{\evensidemargin}{-0.6in}
+\addtolength{\textwidth}{1.2in}
+\addtolength{\topmargin}{-.6in}
+\addtolength{\textheight}{1.2in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+\setlength{\footskip}{4.08003pt}
+
+% Modern sections formatting with color
+\titleformat{\section}{
+  \vspace{-8pt}\color{primarycolor}\scshape\raggedright\large\bfseries
+}{}{0em}{}[\color{primarycolor}\titlerule \vspace{-6pt}]
+
+% Ensure that generated pdf is machine readable/ATS parsable
+\pdfgentounicode=1
+
+%-------------------------
+% Custom commands for modern template
+
+\newcommand{\resumeItem}[1]{
+  \item\small{
+    {\color{textcolor}#1 \vspace{-1pt}}
+  }
+}
+
+\newcommand{\resumeSubheading}[4]{
+  \vspace{-1pt}\item
+    \begin{tabular*}{0.98\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{\color{primarycolor}#1} & \textbf{\color{accentcolor}#2} \\
+      \textit{\small\color{textcolor}#3} & \textit{\small\color{textcolor}#4} \\
+    \end{tabular*}\vspace{-6pt}
+}
+
+\newcommand{\resumeVolunteeringHeading}[4]{
+  \vspace{-1pt}\item
+    \begin{tabular*}{0.98\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{\color{primarycolor}#1} & \textbf{\color{accentcolor}#2} \\
+      \textit{\small\color{textcolor}#3} & \textit{\small\color{textcolor}#4} \\
+    \end{tabular*}\vspace{-6pt}
+}
+
+\newcommand{\resumeSubSubheading}[2]{
+    \vspace{-1pt}\item
+    \begin{tabular*}{0.98\textwidth}{l@{\extracolsep{\fill}}r}
+      \textit{\small\color{textcolor}#1} & \textit{\small\color{textcolor}#2} \\
+    \end{tabular*}\vspace{-6pt}
+}
+
+\newcommand{\resumeEducationHeading}[5]{
+  \vspace{-1pt}\item
+    \begin{tabular*}{0.98\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{\color{primarycolor}#1} & \textbf{\color{accentcolor}#2} \\
+      \textit{\small\color{textcolor}#3} & \textit{\small\color{textcolor}#4} \\
+    \end{tabular*}\vspace{2pt} \\
+    \textit{\small\color{textcolor}#5} \\
+}
+
+\newcommand{\resumeProjectHeading}[2]{
+    \vspace{-1pt}\item
+    \begin{tabular*}{0.98\textwidth}{l@{\extracolsep{\fill}}r}
+      \small\textbf{\color{primarycolor}#1} & \textbf{\color{accentcolor}#2} \\
+    \end{tabular*}\vspace{-6pt}
+}
+
+\newcommand{\resumeSkillHeading}[2]{
+    \itemsep -0.3em % Reduces the space between items
+    \parsep 0em     % Removes paragraph spacing between items
+    \item{\textbf{\color{primarycolor}\small#1 }}{\small\color{textcolor}#2}
+}
+
+\newcommand{\resumeWorkHeading}[5]{
+    \resumeSubHeadingListStart
+        \resumeSubheading{#1}{#2}{#3}{#4}
+        #5
+    \resumeSubHeadingListEnd
+}
+
+\newcommand{\resumeOrganizationHeading}[4]{
+  \vspace{-1pt}\item
+    \begin{tabular*}{0.98\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{\color{primarycolor}#1} & \textit{\small\color{accentcolor}#2} \\
+      \textit{\small\color{textcolor}#3}
+    \end{tabular*}\vspace{-6pt}
+}
+
+\newcommand{\resumeAwardHeading}[2]{
+    \itemsep -0.3em % Reduces the space between items
+    \parsep 0em     % Removes paragraph spacing between items
+    \small{\item{\textbf{\color{primarycolor}#1: }\color{textcolor}#2 }}
+}
+
+\newcommand{\resumeSubItem}[1]{\resumeItem{#1}\vspace{-3pt}}
+\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.12in, label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{
+    \begin{itemize}
+    \setlength{\itemsep}{1pt}
+    \setlength{\parskip}{0pt}
+    \setlength{\leftskip}{-8pt} % Adjust this value to reduce indent
+}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-4pt}}
+
+% Modern personal information with better spacing and colors
+\newcommand{\personalInformation}[7]{
+    \begin{center}
+        \textbf{\Huge\color{primarycolor}\MakeUppercase{\scshape #1}} \\ \vspace{5pt}
+        \begin{tabular*}{\textwidth}{@{}c@{}}
+            \small\color{textcolor}
+            \faMobile \hspace{.5pt} \href{mobile:#2}{#2} \hspace{8pt}
+            \faAt \hspace{.5pt} \href{mailto:#3}{#3} \hspace{8pt}
+            \faLinkedin \hspace{.5pt} \href{#4}{LinkedIn} \hspace{8pt}
+            \faGithub \hspace{.5pt} \href{#5}{GitHub} \hspace{8pt}
+            \faGlobe \hspace{.5pt} \href{#6}{Website} \hspace{8pt}
+            \faMapMarker \hspace{.5pt} #7
+        \end{tabular*}
+    \end{center}
+    \vspace{-8pt}
+}
+
+% Custom command for career summary with modern styling
+\newcommand{\careerSummary}[1]{%
+  \color{textcolor}{#1}
+}

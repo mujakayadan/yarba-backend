@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 
 from ...models.cover_letter import CoverLetter
 from ..base import LatexCompiler
-from ..templates import DEFAULT_COVER_LETTER_PREAMBLE
+from ..template_registry import get_cover_letter_template
 from ..utils.safety import sanitize_latex
 
 
@@ -71,9 +71,10 @@ class CoverLetterCompiler(LatexCompiler):
                 signature_path = signature_path.replace("\\", "/")
 
             # Get the template preamble or use default
-            preamble = DEFAULT_COVER_LETTER_PREAMBLE
             if template and "header" in template and "preamble" in template["header"]:
                 preamble = template["header"]["preamble"]
+            else:
+                preamble = get_cover_letter_template()["preamble"]
 
             # Ensure graphicx package is included with proper options for external images
             if signature_path and "\\usepackage{graphicx}" in preamble:
