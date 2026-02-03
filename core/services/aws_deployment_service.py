@@ -57,15 +57,23 @@ class AWSDeploymentService:
         subdomain: str,
         files: Dict[str, str],
         config: WebsiteConfig,
+        clean_deploy: bool = False,
     ) -> Dict[str, str]:
         """
         Deploy a portfolio website to AWS S3 and trigger CloudFront invalidation.
         Files are stored in the main S3 bucket under 'portfolios/{subdomain}/'.
         Invalidation uses the shared CloudFront distribution ID from settings.
+
+        Args:
+            subdomain: The subdomain for the website
+            files: Dictionary of file paths to content
+            config: Website configuration
+            clean_deploy: If True, delete all existing files before uploading new ones
         """
         s3_portfolio_prefix = f"portfolios/{subdomain}"
         self.logger.info(
             f"Deploying website for {subdomain} to S3: s3://{self.main_bucket_name}/{s3_portfolio_prefix}"
+            f" (clean_deploy={clean_deploy})"
         )
 
         if not settings.storage.cloudfront_distribution_id:
@@ -77,6 +85,15 @@ class AWSDeploymentService:
             )
 
         try:
+            # Clean deploy: delete all existing files first
+            if clean_deploy:
+                self.logger.info(
+                    f"Clean deploy: deleting existing files for {subdomain}"
+                )
+                await self._delete_s3_objects_with_prefix(
+                    self.main_bucket_name, s3_portfolio_prefix
+                )
+
             await self._upload_files_to_s3(
                 self.main_bucket_name, s3_portfolio_prefix, files
             )

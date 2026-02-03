@@ -202,7 +202,10 @@ class PortfolioWebsiteService:
         return website
 
     async def deploy_website(
-        self, user_id: PydanticObjectId, force_rebuild: bool = False
+        self,
+        user_id: PydanticObjectId,
+        force_rebuild: bool = False,
+        clean_deploy: bool = False,
     ) -> PortfolioWebsite:
         """
         Deploy or redeploy a portfolio website.
@@ -210,6 +213,7 @@ class PortfolioWebsiteService:
         Args:
             user_id: User ID
             force_rebuild: Force rebuild even if content hasn't changed
+            clean_deploy: Delete all existing files before uploading (clean slate)
 
         Returns:
             PortfolioWebsite: Website with updated deployment status
@@ -229,14 +233,19 @@ class PortfolioWebsiteService:
 
         current_hash = self._calculate_portfolio_hash(portfolio, website.config)
 
-        if not force_rebuild and website.last_build_hash == current_hash:
+        # Clean deploy always forces rebuild
+        if (
+            not force_rebuild
+            and not clean_deploy
+            and website.last_build_hash == current_hash
+        ):
             self.logger.info(
                 f"No changes detected for website {website.id}, skipping rebuild"
             )
             return website
 
         # Start deployment process synchronously
-        await self._deploy_website_sync(website.id)
+        await self._deploy_website_sync(website.id, clean_deploy=clean_deploy)
 
         # Get updated website after deployment
         updated_website = await self.website_repository.get_by_id(website.id)
@@ -369,12 +378,15 @@ class PortfolioWebsiteService:
                 completed_at=datetime.now(timezone.utc),
             )
 
-    async def _deploy_website_sync(self, website_id: PydanticObjectId) -> None:
+    async def _deploy_website_sync(
+        self, website_id: PydanticObjectId, clean_deploy: bool = False
+    ) -> None:
         """
         Synchronously deploy a portfolio website.
 
         Args:
             website_id: Website ID to deploy
+            clean_deploy: Delete all existing files before uploading (clean slate)
 
         Raises:
             DeploymentException: If deployment fails
@@ -422,7 +434,10 @@ class PortfolioWebsiteService:
 
             # Deploy to AWS
             deployment_result = await self.aws_deployment_service.deploy_website(
-                subdomain=website.subdomain, files=website_files, config=website.config
+                subdomain=website.subdomain,
+                files=website_files,
+                config=website.config,
+                clean_deploy=clean_deploy,
             )
 
             completed_time = datetime.now(timezone.utc)
@@ -534,19 +549,26 @@ class PortfolioWebsiteService:
         if not website:
             raise NotFoundException("Portfolio website not found")
 
+        subdomain = website.subdomain
+
+        # Delete from database FIRST - this must succeed
+        # so user can create a new website even if AWS cleanup fails
+        await self.website_repository.delete(website.id)
+        self.logger.info(f"Deleted portfolio website record for user {user_id}")
+
+        # Then try to delete AWS resources (best effort)
         try:
-            # Delete AWS resources
-            await self.aws_deployment_service.delete_website(website.subdomain)
-
-            # Delete from database
-            await self.website_repository.delete(website.id)
-
-            self.logger.info(f"Deleted portfolio website for user {user_id}")
-            return True
-
+            await self.aws_deployment_service.delete_website(subdomain)
+            self.logger.info(f"Deleted AWS resources for subdomain {subdomain}")
         except Exception as e:
-            self.logger.error(f"Failed to delete website for user {user_id}: {str(e)}")
-            raise
+            # Log but don't fail - orphaned S3 files are better than
+            # a user stuck unable to create a new website
+            self.logger.warning(
+                f"Failed to delete AWS resources for {subdomain}: {str(e)}. "
+                "Orphaned S3 files may need manual cleanup."
+            )
+
+        return True
 
     async def _generate_subdomain(self, user: User, profile: Optional[Profile]) -> str:
         """

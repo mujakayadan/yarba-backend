@@ -130,11 +130,17 @@
                         <p class="experience-meta">{{ exp.location }} • {{ exp.time }}</p>
                     </div>
                     {% if exp.responsibilities %}
-                    <ul class="experience-list">
+                    <ul class="experience-list expandable-list" data-visible="4">
                         {% for resp in exp.responsibilities %}
-                        <li>{{ resp }}</li>
+                        <li class="expandable-item">{{ resp }}</li>
                         {% endfor %}
                     </ul>
+                    {% if exp.responsibilities|length > 4 %}
+                    <button class="read-more-btn" type="button">
+                        <span class="btn-text">Show more</span>
+                        <span class="btn-icon">▼</span>
+                    </button>
+                    {% endif %}
                     {% endif %}
                 </div>
                 {% endfor %}
@@ -162,11 +168,17 @@
                     {% if edu.transcript %}
                     <div class="education-transcript">
                         <h5 class="transcript-title">Relevant Coursework:</h5>
-                        <ul class="transcript-list">
+                        <ul class="transcript-list expandable-list" data-visible="4">
                             {% for course in edu.transcript %}
-                            <li>{{ course }}</li>
+                            <li class="expandable-item">{{ course }}</li>
                             {% endfor %}
                         </ul>
+                        {% if edu.transcript|length > 4 %}
+                        <button class="read-more-btn" type="button">
+                            <span class="btn-text">Show more</span>
+                            <span class="btn-icon">▼</span>
+                        </button>
+                        {% endif %}
                     </div>
                     {% endif %}
                 </div>
@@ -215,17 +227,25 @@
                         {% endif %}
                     </div>
                     {% if project.bullet_points %}
-                    <ul class="project-description">
+                    <ul class="project-description expandable-list" data-visible="4">
                         {% for bullet in project.bullet_points %}
-                        <li>{{ bullet }}</li>
+                        <li class="expandable-item">{{ bullet }}</li>
                         {% endfor %}
                     </ul>
                     {% endif %}
-                    {% if project.link %}
+                    {% if (project.bullet_points and project.bullet_points|length > 4) or project.link %}
                     <div class="project-footer">
+                        {% if project.bullet_points and project.bullet_points|length > 4 %}
+                        <button class="read-more-btn" type="button">
+                            <span class="btn-text">Show more</span>
+                            <span class="btn-icon">▼</span>
+                        </button>
+                        {% endif %}
+                        {% if project.link %}
                         <a href="{{ project.link }}" target="_blank" class="project-link">
                             View Project →
                         </a>
+                        {% endif %}
                     </div>
                     {% endif %}
                 </div>

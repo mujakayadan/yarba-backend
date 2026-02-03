@@ -15,7 +15,48 @@ document.addEventListener('DOMContentLoaded', function() {
     initParallaxEffects();
     initDynamicYear();
     initContactForm();
+    initExpandableLists();
 });
+
+function toggleExpand(button) {
+    if (!button) return;
+
+    const btnText = button.querySelector('.btn-text');
+    const container =
+        button.closest('.experience-card, .education-card, .project-card, .education-transcript') ?? button.parentElement;
+    const list =
+        (button.previousElementSibling && button.previousElementSibling.classList?.contains('expandable-list'))
+            ? button.previousElementSibling
+            : container?.querySelector('.expandable-list');
+
+    if (list && list.classList.contains('expandable-list')) {
+        list.classList.toggle('expanded');
+        button.classList.toggle('expanded');
+
+        if (btnText) {
+            btnText.textContent = list.classList.contains('expanded') ? 'Show less' : 'Show more';
+        }
+    }
+}
+
+// Initialize expandable lists - ensure they start collapsed
+function initExpandableLists() {
+    const lists = document.querySelectorAll('.expandable-list');
+    lists.forEach(list => {
+        // Ensure list starts collapsed
+        list.classList.remove('expanded');
+    });
+
+    const buttons = document.querySelectorAll('.read-more-btn');
+    buttons.forEach(btn => {
+        btn.classList.remove('expanded');
+        const btnText = btn.querySelector('.btn-text');
+        if (btnText) btnText.textContent = 'Show more';
+
+        // Bind click handler (avoids inline onclick which can be blocked by CSP)
+        btn.addEventListener('click', () => toggleExpand(btn));
+    });
+}
 
 // Set dynamic year in footer
 function initDynamicYear() {

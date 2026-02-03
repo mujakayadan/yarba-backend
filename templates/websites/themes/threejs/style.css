@@ -846,6 +846,16 @@ body {
 
 .project-footer {
     margin-top: auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+/* In project cards, the "Show more" control lives in the footer row; remove its top spacing */
+.project-footer .read-more-btn {
+    margin-top: 0 !important;
 }
 
 .project-link {
@@ -1198,4 +1208,82 @@ body {
     opacity: 1 !important;
     transform: none !important;
     visibility: visible !important;
+}
+
+/* Read More / Expandable Lists */
+.expandable-list {
+    position: relative;
+}
+
+.expandable-list > li:nth-child(n+5) {
+    display: none !important;
+}
+
+.expandable-list.expanded > li:nth-child(n+5) {
+    display: list-item !important;
+}
+
+/* Show All Button */
+.read-more-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    border-width: 0 !important;
+    outline: none !important;
+    box-shadow: none !important;
+    color: var(--text-secondary) !important;
+    padding: 0.6rem 0 !important;
+    font-size: 0.9rem !important;
+    font-weight: 500 !important;
+    font-family: inherit !important;
+    cursor: pointer !important;
+    margin-top: 0.75rem !important;
+    transition: color 0.2s ease !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    appearance: none !important;
+    text-decoration: none !important;
+}
+
+.read-more-btn:hover {
+    color: var(--accent-color) !important;
+}
+
+.read-more-btn:focus {
+    outline: none !important;
+    box-shadow: none !important;
+    border: none !important;
+}
+
+.read-more-btn:active {
+    background: transparent !important;
+    border: none !important;
+}
+
+.read-more-btn .btn-icon {
+    font-size: 0.65rem !important;
+    transition: transform 0.2s ease !important;
+    color: inherit !important;
+}
+
+.read-more-btn.expanded .btn-icon {
+    transform: rotate(180deg) !important;
+}
+
+/* Transcript list specific - grid layout */
+.transcript-list.expandable-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 0.5rem;
+}
+
+.transcript-list.expandable-list > li:nth-child(n+5) {
+    display: none !important;
+}
+
+.transcript-list.expandable-list.expanded > li:nth-child(n+5) {
+    display: block !important;
 }

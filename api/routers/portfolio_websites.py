@@ -189,14 +189,21 @@ async def update_website_config(
 )
 async def deploy_website(
     force_rebuild: bool = False,
+    clean_deploy: bool = False,
     current_user: User = Depends(get_current_user),
     website_service: PortfolioWebsiteService = Depends(get_portfolio_website_service),
 ):
-    """Deploy or redeploy portfolio website."""
+    """Deploy or redeploy portfolio website.
+
+    Args:
+        force_rebuild: Force rebuild even if content hasn't changed
+        clean_deploy: Delete all existing files and redeploy from scratch (like delete + create)
+    """
     try:
         website = await website_service.deploy_website(
             user_id=current_user.id,
             force_rebuild=force_rebuild,
+            clean_deploy=clean_deploy,
         )
 
         return PortfolioWebsiteResponse(
