@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ site_info.title }}</title>
+    <meta name="description" content="{{ site_info.description }}">
+    <meta name="keywords" content="{{ ', '.join(site_info.keywords) }}">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ site_info.url or '' }}">
+    <meta property="og:title" content="{{ site_info.title }}">
+    <meta property="og:description" content="{{ site_info.description }}">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="{{ site_info.url or '' }}">
+    <meta property="twitter:title" content="{{ site_info.title }}">
+    <meta property="twitter:description" content="{{ site_info.description }}">
+
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <a href="#home">{{ personal_info.full_name if personal_info else site_info.title }}</a>
+            </div>
+            <ul class="nav-menu" id="nav-menu">
+                {% for section in config.section_order %}
+                    {% if section in config.enabled_sections %}
+                    <li class="nav-item">
+                        <a href="#{{ section }}" class="nav-link">
+                            {{ section.replace('_', ' ').title() }}
+                        </a>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+            </ul>
+            <div class="nav-toggle" id="mobile-menu">
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section id="home" class="hero">
+        <div class="hero-container">
+            <div class="hero-content">
+                {% if personal_info and personal_info.profile_picture_key %}
+                <img src="{{ personal_info.profile_picture_key }}" alt="Profile Picture" class="hero-profile-img">
+                {% endif %}
+                <h1 class="hero-title">
+                    {% if personal_info %}
+                        {{ personal_info.full_name }}
+                    {% else %}
+                        {{ site_info.title }}
+                    {% endif %}
+                </h1>
+
+                {% if sections.about %}
+                <p class="hero-subtitle">{{ sections.about.job_title }}</p>
+                {% endif %}
+
+                {% if sections.about and sections.about.career_summary %}
+                <p class="hero-description">{{ sections.about.career_summary }}</p>
+                {% endif %}
+
+                <div class="hero-buttons">
+                    {% if 'contact' in config.enabled_sections %}
+                    <a href="#contact" class="btn btn-primary">Get In Touch</a>
+                    {% endif %}
+                    {% if 'projects' in config.enabled_sections %}
+                    <a href="#projects" class="btn btn-secondary">View Projects</a>
+                    {% endif %}
+                </div>
+
+                {% if config.social_media_enabled and personal_info %}
+                <div class="social-links">
+                    {% if personal_info.linkedin %}
+                    <a href="{{ personal_info.linkedin }}" target="_blank" aria-label="LinkedIn">
+                        <i class="fab fa-linkedin"></i>
+                    </a>
+                    {% endif %}
+                    {% if personal_info.github %}
+                    <a href="{{ personal_info.github }}" target="_blank" aria-label="GitHub">
+                        <i class="fab fa-github"></i>
+                    </a>
+                    {% endif %}
+                    {% if personal_info.email %}
+                    <a href="mailto:{{ personal_info.email }}" aria-label="Email">
+                        <i class="fas fa-envelope"></i>
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Content -->
+    <main>
+        {% for section_name in config.section_order %}
+            {% if section_name in config.enabled_sections and section_name != 'about' %}
+
+                {% if section_name == 'experience' and sections.experience %}
+                <section id="experience" class="section">
+                    <div class="container">
+                        <h2 class="section-title">Work Experience</h2>
+                        <div class="timeline">
+                            {% for exp in sections.experience %}
+                            <div class="timeline-item">
+                                <div class="timeline-marker"></div>
+                                <div class="timeline-content">
+                                    <h3 class="timeline-title">{{ exp.job_title }}</h3>
+                                    <h4 class="timeline-company">{{ exp.company }}</h4>
+                                    <p class="timeline-meta">{{ exp.location }} • {{ exp.time }}</p>
+                                    {% if exp.responsibilities %}
+                                    <ul class="timeline-list">
+                                        {% for resp in exp.responsibilities %}
+                                        <li>{{ resp }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </section>
+                {% endif %}
+
+                {% if section_name == 'skills' and sections.skills %}
+                <section id="skills" class="section section-alt">
+                    <div class="container">
+                        <h2 class="section-title">Skills & Technologies</h2>
+                        <div class="skills-grid">
+                            {% for skill_category in sections.skills %}
+                            <div class="skill-category">
+                                <h3 class="skill-category-title">{{ skill_category.category }}</h3>
+                                <div class="skill-tags">
+                                    {% for skill in skill_category.skills %}
+                                    <span class="skill-tag">{{ skill }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </section>
+                {% endif %}
+
+                {% if section_name == 'projects' and sections.projects %}
+                <section id="projects" class="section">
+                    <div class="container">
+                        <h2 class="section-title">Featured Projects</h2>
+                        <div class="projects-grid">
+                            {% for project in sections.projects %}
+                            <div class="project-card">
+                                <div class="project-header">
+                                    <h3 class="project-title">{{ project.name }}</h3>
+                                    {% if project.date %}
+                                    <span class="project-date">{{ project.date }}</span>
+                                    {% endif %}
+                                </div>
+                                {% if project.bullet_points %}
+                                <ul class="project-description">
+                                    {% for bullet in project.bullet_points %}
+                                    <li>{{ bullet }}</li>
+                                    {% endfor %}
+                                </ul>
+                                {% endif %}
+                                {% if project.link %}
+                                <div class="project-footer">
+                                    <a href="{{ project.link }}" target="_blank" class="project-link">
+                                        View Project <i class="fas fa-external-link-alt"></i>
+                                    </a>
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </section>
+                {% endif %}
+
+                {% if section_name == 'education' and sections.education %}
+                <section id="education" class="section section-alt">
+                    <div class="container">
+                        <h2 class="section-title">Education</h2>
+                        <div class="education-grid">
+                            {% for edu in sections.education %}
+                            <div class="education-card">
+                                <h3 class="education-degree">{{ edu.degree }} {% if edu.degree_type %}in {{ edu.degree_type }}{% endif %}</h3>
+                                <h4 class="education-school">{{ edu.university_name }}</h4>
+                                <p class="education-meta">{{ edu.location }} • {{ edu.time }}</p>
+                                {% if edu.gpa %}
+                                <p class="education-gpa">GPA: {{ edu.gpa }}</p>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </section>
+                {% endif %}
+
+                {% if section_name == 'contact' and personal_info %}
+                <section id="contact" class="section">
+                    <div class="container">
+                        <h2 class="section-title">Get In Touch</h2>
+                        <div class="contact-content">
+                            <div class="contact-info">
+                                <p class="contact-description">
+                                    Let's connect! Feel free to reach out for opportunities, collaborations, or just to say hello.
+                                </p>
+                                <div class="contact-details">
+                                    {% if personal_info.email %}
+                                    <div class="contact-item">
+                                        <i class="fas fa-envelope"></i>
+                                        <a href="mailto:{{ personal_info.email }}">{{ personal_info.email }}</a>
+                                    </div>
+                                    {% endif %}
+                                    {% if personal_info.phone %}
+                                    <div class="contact-item">
+                                        <i class="fas fa-phone"></i>
+                                        <span>{{ personal_info.phone }}</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if personal_info.address %}
+                                    <div class="contact-item">
+                                        <i class="fas fa-map-marker-alt"></i>
+                                        <span>{{ personal_info.address }}</span>
+                                    </div>
+                                    {% endif %}
+                                </div>
+
+                                {% if config.social_media_enabled %}
+                                <div class="contact-social">
+                                    {% if personal_info.linkedin %}
+                                    <a href="{{ personal_info.linkedin }}" target="_blank" class="social-link">
+                                        <i class="fab fa-linkedin"></i>
+                                        <span>LinkedIn</span>
+                                    </a>
+                                    {% endif %}
+                                    {% if personal_info.github %}
+                                    <a href="{{ personal_info.github }}" target="_blank" class="social-link">
+                                        <i class="fab fa-github"></i>
+                                        <span>GitHub</span>
+                                    </a>
+                                    {% endif %}
+                                    {% if personal_info.website %}
+                                    <a href="{{ personal_info.website }}" target="_blank" class="social-link">
+                                        <i class="fas fa-globe"></i>
+                                        <span>Website</span>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            {% if config.contact_form_enabled %}
+                            <div class="contact-form-container">
+                                <form class="contact-form" id="contact-form">
+                                    <div class="form-group">
+                                        <label for="name">Name</label>
+                                        <input type="text" id="name" name="name" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="email">Email</label>
+                                        <input type="email" id="email" name="email" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="subject">Subject</label>
+                                        <input type="text" id="subject" name="subject" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="message">Message</label>
+                                        <textarea id="message" name="message" rows="6" required></textarea>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">Send Message</button>
+                                </form>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </section>
+                {% endif %}
+
+            {% endif %}
+        {% endfor %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <p>&copy; <span id="current-year"></span> {{ personal_info.full_name if personal_info else site_info.title }}. All rights reserved.</p>
+                <p class="footer-credit">Built with <a href="https://yarba.app" target="_blank">Yarba</a></p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>

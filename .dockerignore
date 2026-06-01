@@ -1,0 +1,49 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Docker - These are typically not needed inside the image itself
+# Dockerfile
+# .dockerignore
+
+# Python virtual environment & cache files
+.venv/
+venv/
+env/
+*.pyc
+__pycache__/
+*.egg-info/
+build/
+dist/
+.mypy_cache/
+.pytest_cache/
+
+# IDE and OS specific
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Project specific large/unnecessary directories
+.do/
+# debug/ # If debug outputs are large and not needed in production
+logs/ # Local logs; the container should generate its own
+mongodb_backup/
+my_data/
+output/ # Or specific subdirectories like output/temp/ if other outputs aren't needed
+user_data/
+core/easy_applier/chrome_profile/ # Specific large data
+core/easy_applier/chrome-data/ # Specific large data
+core/easy_applier/chromedriver-win64/ # Windows specific, not for Linux container
+
+# Test files (unless you run tests within the final image)
+tests/
+
+# Temporary and log files
+*.log
+*.swp
+*.swo
+
+docs/

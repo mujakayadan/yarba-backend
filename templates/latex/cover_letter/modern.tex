@@ -1,0 +1,63 @@
+\documentclass[12pt, letterpaper]{letter}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\graphicspath{{.}}
+\usepackage{fontawesome5}
+\usepackage{lmodern}
+\pagenumbering{gobble}
+
+% Hyperref setup
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    filecolor=black,
+    urlcolor=black,
+    citecolor=black,
+    pdfborder={0 0 0}
+}
+
+% Geometry setup
+\geometry{
+    top=0.8in,
+    bottom=1in,
+    left=1in,
+    right=1in
+}
+
+% Font setup
+\renewcommand{\familydefault}{\rmdefault}
+\renewcommand{\seriesdefault}{\mddefault}
+\renewcommand{\shapedefault}{\updefault}
+
+% Define personal details with FontAwesome icons
+\newcommand{\personalInformation}[7]{
+    \begin{center}
+        \textbf{\Huge \MakeUppercase{\scshape #1}} \\ \vspace{2pt}
+        {\small\raggedright  % Add raggedright to prevent line breaks
+        \makebox[\textwidth][c]{%  Force content into a single line
+        \faMobile \hspace{.5pt} \href{mobile:#2}{#2}%
+        \hspace{1pt}$|$\hspace{1pt}%
+        \faAt \hspace{.5pt} \href{mailto:#3}{#3}%
+        \hspace{1pt}$|$\hspace{1pt}%
+        \faLinkedin \hspace{.5pt} \href{#4}{LinkedIn}%
+        \hspace{1pt}$|$\hspace{1pt}%
+        \faGithub \hspace{.5pt} \href{#5}{GitHub}%
+        \hspace{1pt}$|$\hspace{1pt}%
+        \faGlobe \hspace{.5pt} \href{#6}{Website}%
+        \hspace{1pt}$|$\hspace{1pt}%
+        \faMapMarker \hspace{.5pt} #7%
+        }}
+    \end{center}
+}
+
+% Document spacing and alignment
+\setlength{\parskip}{1em}
+\setlength{\parindent}{0pt}
+\sloppy
+
+% Justify paragraphs
+\newcommand{\justifying}{\leftskip=0pt \rightskip=0pt}

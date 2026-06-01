@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/webp" href="favicon.webp" />
+    <link rel="apple-touch-icon" type="image/webp" href="favicon.webp" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ site_info.title }}</title>
+    <meta name="description" content="{{ site_info.description }}">
+    <meta name="keywords" content="{{ ', '.join(site_info.keywords) if site_info.keywords else '' }}">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ site_info.url or '' }}">
+    <meta property="og:title" content="{{ site_info.title }}">
+    <meta property="og:description" content="{{ site_info.description }}">
+    <meta property="og:image" content="{{ personal_info.profile_picture_key if personal_info and personal_info.profile_picture_key else '/favicon.webp' }}" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="{{ site_info.url or '' }}">
+    <meta property="twitter:title" content="{{ site_info.title }}">
+    <meta property="twitter:description" content="{{ site_info.description }}">
+
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+</head>
+<body>
+    <!-- Stars Background -->
+    <div id="stars-background"></div>
+
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <a href="#home" class="nav-logo-link">
+                    <span class="nav-logo-text">
+                        <span class="nav-logo-bracket">{"</"}</span>{{ personal_info.full_name or site_info.title }}<span class="nav-logo-bracket">{">"}</span>
+                    </span>
+                </a>
+            </div>
+            <ul class="nav-menu" id="nav-menu">
+                <li class="nav-item">
+                    <a href="#home" class="nav-link" data-section="home">
+                        About
+                    </a>
+                </li>
+                {% for section in config.section_order %}
+                    {% if section in config.enabled_sections and section != 'about' %}
+                    <li class="nav-item">
+                        <a href="#{{ section }}" class="nav-link" data-section="{{ section }}">
+                            {{ section.replace('_', ' ').title() }}
+                        </a>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+            </ul>
+            <div class="nav-toggle" id="mobile-menu">
+                <span class="hamburger-bar"></span>
+                <span class="hamburger-bar"></span>
+                <span class="hamburger-bar"></span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section id="home" class="hero">
+        <div class="hero-container">
+            <div class="hero-indicator">
+                <div class="hero-dot"></div>
+                <div class="hero-line"></div>
+            </div>
+            <div class="hero-content">
+                {% if personal_info and personal_info.profile_picture_key %}
+                <img src="{{ personal_info.profile_picture_key }}" alt="Profile Picture" class="hero-profile-img">
+                {% endif %}
+                <h1 class="hero-title">
+                    Hi, I'm <span class="hero-name">{{ personal_info.full_name.split(' ')[0] if personal_info and personal_info.full_name else site_info.title }}</span>
+                    <span class="wave-emoji">👋</span>
+                </h1>
+                <p class="hero-subtitle">
+                    I'm a <span class="typewriter-text" data-job-titles='{{ sections.about.job_titles | tojson if sections.about and sections.about.job_titles else "[]" }}'></span>
+                    <br>
+                    <b>{{ sections.about.career_summary if sections.about and sections.about.career_summary else 'Welcome to my portfolio!' }}</b>
+                </p>
+                {% if config.social_media_enabled and personal_info %}
+                <div class="hero-social-links">
+                    {% if personal_info.linkedin %}
+                    <a href="{{ personal_info.linkedin }}" target="_blank" aria-label="LinkedIn">
+                        <i class="fab fa-linkedin"></i>
+                    </a>
+                    {% endif %}
+                    {% if personal_info.github %}
+                    <a href="{{ personal_info.github }}" target="_blank" aria-label="GitHub">
+                        <i class="fab fa-github"></i>
+                    </a>
+                    {% endif %}
+                    {% if personal_info.email %}
+                    <a href="mailto:{{ personal_info.email }}" aria-label="Email">
+                        <i class="fas fa-envelope"></i>
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="scroll-indicator">
+            <a href="#experience">
+                <div class="scroll-dot"></div>
+            </a>
+        </div>
+    </section>
+
+    <!-- Experience Section -->
+    {% if 'experience' in config.enabled_sections and sections.experience %}
+    <section id="experience" class="section section-alt">
+        <div class="container">
+            <h2 class="section-title">Work Experience</h2>
+            <div class="experience-timeline">
+                {% for exp in sections.experience %}
+                <div class="experience-card">
+                    <div class="experience-header">
+                        <h3 class="experience-title">{{ exp.job_title }}</h3>
+                        <h4 class="experience-company">{{ exp.company }}</h4>
+                        <p class="experience-meta">{{ exp.location }} • {{ exp.time }}</p>
+                    </div>
+                    {% if exp.responsibilities %}
+                    <ul class="experience-list expandable-list" data-visible="4">
+                        {% for resp in exp.responsibilities %}
+                        <li class="expandable-item">{{ resp }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% if exp.responsibilities|length > 4 %}
+                    <button class="read-more-btn" type="button">
+                        <span class="btn-text">Show more</span>
+                        <span class="btn-icon">▼</span>
+                    </button>
+                    {% endif %}
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Education Section -->
+    {% if 'education' in config.enabled_sections and sections.education %}
+    <section id="education" class="section">
+        <div class="container">
+            <h2 class="section-title">Education</h2>
+            <div class="education-grid">
+                {% for edu in sections.education %}
+                <div class="education-card">
+                    <div class="education-header">
+                        <h3 class="education-degree">{{ edu.degree }} in {{ edu.degree_type }}</h3>
+                        <h4 class="education-university">{{ edu.university_name }}</h4>
+                        <p class="education-meta">{{ edu.location }} • {{ edu.time }}</p>
+                        {% if edu.gpa %}
+                        <p class="education-gpa">GPA: {{ edu.gpa }}</p>
+                        {% endif %}
+                    </div>
+                    {% if edu.transcript %}
+                    <div class="education-transcript">
+                        <h5 class="transcript-title">Relevant Coursework:</h5>
+                        <ul class="transcript-list expandable-list" data-visible="4">
+                            {% for course in edu.transcript %}
+                            <li class="expandable-item">{{ course }}</li>
+                            {% endfor %}
+                        </ul>
+                        {% if edu.transcript|length > 4 %}
+                        <button class="read-more-btn" type="button">
+                            <span class="btn-text">Show more</span>
+                            <span class="btn-icon">▼</span>
+                        </button>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Skills Section -->
+    {% if 'skills' in config.enabled_sections and sections.skills %}
+    <section id="skills" class="section section-alt">
+        <div class="container">
+            <h2 class="section-title">Skills & Technologies</h2>
+            <p class="section-subtitle">What I work with</p>
+
+            {% for skill_category in sections.skills %}
+            <div class="skill-category">
+                <h3 class="skill-category-title">&lt;{{ skill_category.category }}&gt;</h3>
+                <div class="skills-grid">
+                    {% for skill in skill_category.skills %}
+                    <div class="skill-tag">
+                        <span class="skill-name">{{ skill }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                <h3 class="skill-category-title bottom">&lt;/{{ skill_category.category }}&gt;</h3>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Projects Section -->
+    {% if 'projects' in config.enabled_sections and sections.projects %}
+    <section id="projects" class="section">
+        <div class="container">
+            <h2 class="section-title">Projects</h2>
+            <div class="projects-grid">
+                {% for project in sections.projects %}
+                <div class="project-card">
+                    <div class="project-header">
+                        <h3 class="project-title">{{ project.name }}</h3>
+                        {% if project.date %}
+                        <span class="project-date">{{ project.date }}</span>
+                        {% endif %}
+                    </div>
+                    {% if project.bullet_points %}
+                    <ul class="project-description expandable-list" data-visible="4">
+                        {% for bullet in project.bullet_points %}
+                        <li class="expandable-item">{{ bullet }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                    {% if (project.bullet_points and project.bullet_points|length > 4) or project.link %}
+                    <div class="project-footer">
+                        {% if project.bullet_points and project.bullet_points|length > 4 %}
+                        <button class="read-more-btn" type="button">
+                            <span class="btn-text">Show more</span>
+                            <span class="btn-icon">▼</span>
+                        </button>
+                        {% endif %}
+                        {% if project.link %}
+                        <a href="{{ project.link }}" target="_blank" class="project-link">
+                            View Project →
+                        </a>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Awards Section -->
+    {% if 'awards' in config.enabled_sections and sections.awards %}
+    <section id="awards" class="section section-alt">
+        <div class="container">
+            <h2 class="section-title">Awards & Achievements</h2>
+            <div class="awards-grid">
+                {% for award in sections.awards %}
+                <div class="award-card">
+                    <h3 class="award-name">{{ award.name }}</h3>
+                    {% if award.explanation %}
+                    <p class="award-explanation">{{ award.explanation }}</p>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Publications Section -->
+    {% if 'publications' in config.enabled_sections and sections.publications %}
+    <section id="publications" class="section">
+        <div class="container">
+            <h2 class="section-title">Publications</h2>
+            <div class="publications-list">
+                {% for pub in sections.publications %}
+                <div class="publication-card">
+                    <h3 class="publication-name">{{ pub.name }}</h3>
+                    <p class="publication-publisher">{{ pub.publisher }} • {{ pub.time }}</p>
+                    {% if pub.link %}
+                    <a href="{{ pub.link }}" target="_blank" class="publication-link">
+                        Read Publication →
+                    </a>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Contact Section -->
+    {% if 'contact' in config.enabled_sections %}
+    <section id="contact" class="section section-alt">
+        <div class="container">
+            <h2 class="section-title">Get In Touch</h2>
+            <p class="section-subtitle">Let's connect</p>
+            <div class="contact-content">
+                <div class="contact-info">
+                    {% if personal_info and personal_info.email %}
+                    <div class="contact-item">
+                        <i class="fas fa-envelope contact-icon"></i>
+                        <div class="contact-details">
+                            <span class="contact-label">Email</span>
+                            <a href="mailto:{{ personal_info.email }}" class="contact-value">{{ personal_info.email }}</a>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if personal_info and personal_info.phone %}
+                    <div class="contact-item">
+                        <i class="fas fa-phone contact-icon"></i>
+                        <div class="contact-details">
+                            <span class="contact-label">Phone</span>
+                            <span class="contact-value">{{ personal_info.phone }}</span>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if personal_info and personal_info.address %}
+                    <div class="contact-item">
+                        <i class="fas fa-map-marker-alt contact-icon"></i>
+                        <div class="contact-details">
+                            <span class="contact-label">Location</span>
+                            <span class="contact-value">{{ personal_info.address }}</span>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if config.social_media_enabled %}
+                    <div class="contact-social">
+                        {% if personal_info and personal_info.linkedin %}
+                        <a href="{{ personal_info.linkedin }}" target="_blank" class="social-btn" aria-label="LinkedIn">
+                            <i class="fab fa-linkedin"></i>
+                        </a>
+                        {% endif %}
+                        {% if personal_info and personal_info.github %}
+                        <a href="{{ personal_info.github }}" target="_blank" class="social-btn" aria-label="GitHub">
+                            <i class="fab fa-github"></i>
+                        </a>
+                        {% endif %}
+                        {% if personal_info and personal_info.website %}
+                        <a href="{{ personal_info.website }}" target="_blank" class="social-btn" aria-label="Website">
+                            <i class="fas fa-globe"></i>
+                        </a>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+
+                {% if config.contact_form_enabled %}
+                <div class="contact-form-container">
+                    <form class="contact-form" id="contact-form">
+                        <div class="form-group">
+                            <label for="name">Name</label>
+                            <input type="text" id="name" name="name" placeholder="Your name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="email">Email</label>
+                            <input type="email" id="email" name="email" placeholder="your@email.com" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="message">Message</label>
+                            <textarea id="message" name="message" rows="5" placeholder="Your message..." required></textarea>
+                        </div>
+                        <button type="submit" class="btn-submit">
+                            Send Message <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </form>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; <span id="current-year"></span> {{ personal_info.full_name if personal_info else site_info.title }}. Built with <a href="https://yarba.app" target="_blank">Yarba</a></p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
