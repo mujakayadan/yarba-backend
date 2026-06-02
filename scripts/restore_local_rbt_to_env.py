@@ -61,7 +61,14 @@ def main() -> None:
     remote.admin.command("ping")
     rdb = remote[db_name]
     print("Atlas counts:")
-    for coll in ("users", "profiles", "portfolios", "resumes", "preambles", "tex_headers"):
+    for coll in (
+        "users",
+        "profiles",
+        "portfolios",
+        "resumes",
+        "preambles",
+        "tex_headers",
+    ):
         if coll in rdb.list_collection_names():
             print(f"  {coll}: {rdb[coll].count_documents({})}")
 

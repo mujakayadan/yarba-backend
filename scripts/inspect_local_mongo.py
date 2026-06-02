@@ -25,7 +25,9 @@ for db_name in ("rbt", "user_information"):
             print("  sample resume fields:", sorted(resume.keys()))
             print("  has content dict:", bool(resume.get("content")))
         with_content = sum(1 for r in db.resumes.find() if r.get("content"))
-        print(f"  resumes with content: {with_content}/{db.resumes.count_documents({})}")
+        print(
+            f"  resumes with content: {with_content}/{db.resumes.count_documents({})}"
+        )
         inspect_recovered_users(db)
 
     if db_name == "user_information":
@@ -35,4 +37,6 @@ for db_name in ("rbt", "user_information"):
 
 client.close()
 
-print("\nRecovery: uv run python scripts/recover_local_mongodb.py [--dry-run] [--target-uri URI]")
+print(
+    "\nRecovery: uv run python scripts/recover_local_mongodb.py [--dry-run] [--target-uri URI]"
+)

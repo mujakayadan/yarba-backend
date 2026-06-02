@@ -123,7 +123,9 @@ if "user_information" in local.list_database_names():
             except OperationFailure as e:
                 print(f"fill portfolio fail {email}:", e.details.get("errInfo", e))
 
-print(f"Atlas: users={rdb.users.count_documents({})}, profiles={rdb.profiles.count_documents({})}, portfolios={rdb.portfolios.count_documents({})}, resumes={rdb.resumes.count_documents({})}")
-print(f"Inserted profiles {p_ok}/{p_ok+p_fail}, portfolios {pf_ok}/{pf_ok+pf_fail}")
+print(
+    f"Atlas: users={rdb.users.count_documents({})}, profiles={rdb.profiles.count_documents({})}, portfolios={rdb.portfolios.count_documents({})}, resumes={rdb.resumes.count_documents({})}"
+)
+print(f"Inserted profiles {p_ok}/{p_ok + p_fail}, portfolios {pf_ok}/{pf_ok + pf_fail}")
 local.close()
 remote.close()

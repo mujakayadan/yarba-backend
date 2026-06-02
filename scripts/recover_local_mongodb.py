@@ -60,7 +60,14 @@ USER_STRIP_FIELDS = {
     "user",
 }
 
-PROFILE_STRIP_FIELDS = {"user", "signature", "SUPPORTED_API_KEYS", "api_keys", "supported_api_keys", "preferences"}
+PROFILE_STRIP_FIELDS = {
+    "user",
+    "signature",
+    "SUPPORTED_API_KEYS",
+    "api_keys",
+    "supported_api_keys",
+    "preferences",
+}
 
 
 def _oid(value: Any) -> ObjectId | None:
@@ -198,7 +205,9 @@ def migrate_profile_preferences(doc: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def normalize_portfolio(doc: dict[str, Any], profile_id: ObjectId | None) -> dict[str, Any]:
+def normalize_portfolio(
+    doc: dict[str, Any], profile_id: ObjectId | None
+) -> dict[str, Any]:
     out = copy.deepcopy(doc)
     out.pop("is_active", None)
     out.pop("template_preferences", None)
@@ -425,7 +434,9 @@ def empty_portfolio(user_id: ObjectId, profile_id: ObjectId) -> dict[str, Any]:
     }
 
 
-def pick_richer(existing: dict[str, Any] | None, candidate: dict[str, Any]) -> dict[str, Any]:
+def pick_richer(
+    existing: dict[str, Any] | None, candidate: dict[str, Any]
+) -> dict[str, Any]:
     if not existing:
         return candidate
     existing_score = len(json.dumps(existing, default=str))
@@ -469,7 +480,9 @@ def recover(
     client.admin.command("ping")
 
     sources: dict[str, Database] = {
-        name: client[name] for name in SOURCE_DBS if name in client.list_database_names()
+        name: client[name]
+        for name in SOURCE_DBS
+        if name in client.list_database_names()
     }
     if not sources:
         raise SystemExit("No source databases found on local MongoDB.")
@@ -498,11 +511,15 @@ def recover(
 
     for db_name, db in sources.items():
         for raw in db.profiles.find():
-            email = resolve_email_for_document(raw, old_user_to_email, username_to_email)
+            email = resolve_email_for_document(
+                raw, old_user_to_email, username_to_email
+            )
             if not email:
                 continue
             migrated = migrate_profile_preferences(raw)
-            profiles_by_email[email] = pick_richer(profiles_by_email.get(email), migrated)
+            profiles_by_email[email] = pick_richer(
+                profiles_by_email.get(email), migrated
+            )
             profiles_by_email[email].setdefault("_recovery_sources", []).append(db_name)
 
     portfolios_by_email: dict[str, dict[str, Any]] = {}
@@ -512,13 +529,17 @@ def recover(
     if "user_information" in sources:
         ui = sources["user_information"]
         for item in ui.portfolio_items.find():
-            email = resolve_email_for_document(item, old_user_to_email, username_to_email)
+            email = resolve_email_for_document(
+                item, old_user_to_email, username_to_email
+            )
             if email:
                 portfolio_items_by_user.setdefault(email, []).append(item)
 
     for db_name, db in sources.items():
         for raw in db.portfolios.find():
-            email = resolve_email_for_document(raw, old_user_to_email, username_to_email)
+            email = resolve_email_for_document(
+                raw, old_user_to_email, username_to_email
+            )
             if not email:
                 continue
             profile = profiles_by_email.get(email)
@@ -527,7 +548,9 @@ def recover(
             portfolios_by_email[email] = pick_richer(
                 portfolios_by_email.get(email), normalized
             )
-            portfolios_by_email[email].setdefault("_recovery_sources", []).append(db_name)
+            portfolios_by_email[email].setdefault("_recovery_sources", []).append(
+                db_name
+            )
             merge_projects(
                 portfolios_by_email[email],
                 portfolio_items_by_user.get(email, []),
@@ -567,7 +590,12 @@ def recover(
                 profile = bootstrap_profile_from_resume(resume_hint, email, user_id)
             else:
                 profile = bootstrap_profile_from_resume(
-                    {"personal_information": {"email": email, "full_name": email.split("@")[0]}},
+                    {
+                        "personal_information": {
+                            "email": email,
+                            "full_name": email.split("@")[0],
+                        }
+                    },
                     email,
                     user_id,
                 )
@@ -585,7 +613,9 @@ def recover(
             portfolios_by_email[email] = portfolio
         return profile, portfolio
 
-    def register_user_from_email(email: str, hint: dict[str, Any] | None = None) -> None:
+    def register_user_from_email(
+        email: str, hint: dict[str, Any] | None = None
+    ) -> None:
         key = _email_key(email)
         if not key or key in users_by_email:
             return
@@ -623,7 +653,9 @@ def recover(
 
     for db_name, db in sources.items():
         for raw in db.resumes.find():
-            email = resolve_email_for_document(raw, old_user_to_email, username_to_email)
+            email = resolve_email_for_document(
+                raw, old_user_to_email, username_to_email
+            )
             if not email or email not in users_by_email:
                 continue
             pair = ensure_profile_and_portfolio(email, raw)
@@ -840,7 +872,10 @@ def analyze_gaps(source_uri: str = DEFAULT_TARGET_URI) -> None:
         print(
             "profiles:",
             [
-                (str(p.get("user_id")), (p.get("personal_information") or {}).get("email"))
+                (
+                    str(p.get("user_id")),
+                    (p.get("personal_information") or {}).get("email"),
+                )
                 for p in db.profiles.find()
             ],
         )
@@ -848,7 +883,11 @@ def analyze_gaps(source_uri: str = DEFAULT_TARGET_URI) -> None:
         print("resumes:", db.resumes.count_documents({}))
         sample = db.resumes.find_one()
         if sample:
-            print("sample resume user_id:", sample.get("user_id"), type(sample.get("user_id")))
+            print(
+                "sample resume user_id:",
+                sample.get("user_id"),
+                type(sample.get("user_id")),
+            )
         if "resumes_backup" in db.list_collection_names():
             print("resumes_backup:", db.resumes_backup.count_documents({}))
     client.close()

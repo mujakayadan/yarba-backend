@@ -25,7 +25,14 @@ def _str_or_empty(value) -> str:
 
 def sanitize_resume(doc: dict) -> dict:
     out = deepcopy(doc)
-    for key in ("company_name", "job_title", "job_description", "title", "template_id", "resume_pdf_key"):
+    for key in (
+        "company_name",
+        "job_title",
+        "job_description",
+        "title",
+        "template_id",
+        "resume_pdf_key",
+    ):
         if key in out and out[key] is None:
             out[key] = "" if key != "title" else "Recovered resume"
     if not out.get("title"):
@@ -84,6 +91,8 @@ for resume in ldb.resumes.find():
         if fail <= 3:
             print("resume fail:", doc.get("_id"), e.details)
 
-print(f"Atlas resumes: {ok} ok, {fail} failed, total now {rdb.resumes.count_documents({})}")
+print(
+    f"Atlas resumes: {ok} ok, {fail} failed, total now {rdb.resumes.count_documents({})}"
+)
 local.close()
 remote.close()
