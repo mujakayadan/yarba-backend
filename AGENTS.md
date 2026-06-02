@@ -8,6 +8,7 @@
 
 ```bash
 uv sync
+uv run pre-commit install && uv run pre-commit install --hook-type pre-push
 uv run ruff check . && uv run ruff format .
 uv run mypy
 uv run pytest

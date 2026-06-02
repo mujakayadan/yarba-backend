@@ -14,6 +14,17 @@ cp .env.example .env
 # edit .env
 ```
 
+## Git hooks (Ruff on commit)
+
+```bash
+uv run pre-commit install
+uv run pre-commit install --hook-type pre-push
+```
+
+On every `git commit`, hooks run `uv run ruff check` and `uv run ruff format` on the repo (same as CI). On `git push`, `mypy` runs.
+
+Manual run: `uv run pre-commit run --all-files`
+
 ## Quality checks
 
 ```bash

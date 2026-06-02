@@ -24,7 +24,7 @@ API docs: http://127.0.0.1:8000/docs
 | Format | `uv run ruff format .` |
 | Types | `uv run mypy` |
 | Migrations | `uv run python scripts/run_migrations.py migrate` |
-| Pre-commit | `uv run pre-commit install` |
+| Git hooks | `uv run pre-commit install` (Ruff on commit; mypy on push) |
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md).
 
