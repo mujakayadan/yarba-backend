@@ -3,7 +3,7 @@
 from datetime import datetime
 
 from beanie import PydanticObjectId
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class CoverLetterBase(BaseModel):
@@ -47,11 +47,7 @@ class CoverLetterResponse(CoverLetterBase):
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
 
-    class Config:
-        """Pydantic config."""
-
-        from_attributes = True
-        json_encoders = {PydanticObjectId: str}
+    model_config = ConfigDict(from_attributes=True)
 
     def model_dump(self, **kwargs):
         data = super().model_dump(**kwargs)

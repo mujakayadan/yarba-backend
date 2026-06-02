@@ -1,6 +1,6 @@
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class JobDetails(BaseModel):
@@ -15,7 +15,4 @@ class JobDetails(BaseModel):
     )
     extraction_metadata: dict[str, Any] | None = Field(default_factory=dict)
 
-    class Config:
-        """Allows the model to be created from arbitrary class instances (ORM mode)"""
-
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

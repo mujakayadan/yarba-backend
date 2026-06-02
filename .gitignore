@@ -29,8 +29,6 @@ ENV/
 .venv
 env.bak/
 venv.bak/
-.python-version
-
 # IDE specific files
 .idea/
 .vscode/

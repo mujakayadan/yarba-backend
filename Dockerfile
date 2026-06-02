@@ -102,4 +102,4 @@ RUN echo "Final directory structure:" && \
 EXPOSE 8000
 
 # Run the application
-CMD ["python", "api.py"]
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]

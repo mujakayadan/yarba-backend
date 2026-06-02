@@ -1,6 +1,6 @@
 """Pydantic schemas for LLM interactions related to Portfolios."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 # These schemas mirror core/models/portfolio.py but are simplified for LLM interaction,
 # especially avoiding Field(default=...) where it causes issues with OpenAI's JSON mode.
@@ -14,8 +14,7 @@ class CareerSummaryLLMSchema(BaseModel):
     years_of_experience: str
     default_summary: str
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class WorkExperienceLLMSchema(BaseModel):
@@ -27,8 +26,7 @@ class WorkExperienceLLMSchema(BaseModel):
     time: str | None = None
     responsibilities: list[str] = Field(default_factory=list)
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class EducationLLMSchema(BaseModel):
@@ -42,8 +40,7 @@ class EducationLLMSchema(BaseModel):
     GPA: str | None = None
     transcript: list[str] = Field(default_factory=list)
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class ProjectLLMSchema(BaseModel):
@@ -54,8 +51,7 @@ class ProjectLLMSchema(BaseModel):
     date: str | None = None
     link: str | None = None
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class AwardLLMSchema(BaseModel):
@@ -64,8 +60,7 @@ class AwardLLMSchema(BaseModel):
     name: str
     explanation: str | None = None
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class PublicationLLMSchema(BaseModel):
@@ -75,8 +70,7 @@ class PublicationLLMSchema(BaseModel):
     publisher: str | None = None
     link: str | None = None
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class CustomSectionItemLLMSchema(BaseModel):
@@ -87,8 +81,7 @@ class CustomSectionItemLLMSchema(BaseModel):
         description="Content of the custom section. Can be a single string, a list of strings (bullet points), or a JSON string representing a list of objects or a complex object."
     )
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class CustomSectionsLLMSchema(BaseModel):
@@ -99,8 +92,7 @@ class CustomSectionsLLMSchema(BaseModel):
         description="List of custom sections, each a dictionary with a title and content.",
     )
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class SkillLLMSchema(BaseModel):
@@ -109,8 +101,7 @@ class SkillLLMSchema(BaseModel):
     category: str
     skills: list[str] = Field(default_factory=list)
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class PortfolioLLMSchema(BaseModel):
@@ -134,6 +125,4 @@ class PortfolioLLMSchema(BaseModel):
     )
     # professional_title: Optional[str] = None # If this is distinct from career_summary.job_title
 
-    class Config:
-        extra = "forbid"
-        # title = "Portfolio LLM Output Schema" # Optional title for the schema if generated
+    model_config = ConfigDict(extra="forbid")

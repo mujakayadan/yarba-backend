@@ -1078,16 +1078,15 @@ async def get_resume_llm_usage(
             user_id=PydanticObjectId(current_user.id),
         )
 
-        # Return usage data along with basic resume info
-        return {
-            "resume_id": str(resume.id),
-            "title": resume.title,
-            "company_name": resume.company_name,
-            "job_title": resume.job_title,
-            "usage": resume.llm_usage,
-            "created_at": resume.created_at,
-            "updated_at": resume.updated_at,
-        }
+        return ResumeLLMUsageResponse(
+            resume_id=str(resume.id),
+            title=resume.title,
+            company_name=resume.company_name,
+            job_title=resume.job_title,
+            usage=resume.llm_usage,
+            created_at=resume.created_at,
+            updated_at=resume.updated_at,
+        )
 
     except NotFoundException:
         raise HTTPException(

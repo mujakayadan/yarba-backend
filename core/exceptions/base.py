@@ -197,11 +197,3 @@ class DeploymentException(AppException):
     def __init__(self, message: str = "Deployment operation failed"):
         """Initialize DeploymentException."""
         super().__init__(message)
-
-
-class ValidationException(AppException):
-    """Exception raised when validation fails."""
-
-    def __init__(self, message: str = "Validation failed"):
-        """Initialize ValidationException."""
-        super().__init__(message)

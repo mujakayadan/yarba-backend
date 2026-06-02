@@ -2,22 +2,24 @@ from datetime import datetime
 from typing import Any
 
 from beanie import PydanticObjectId
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class LLMUsageResponse(BaseModel):
     """Response model for LLM usage."""
 
-    total_tokens: int
-    total_cost: float
-    usage_by_model: dict[str, dict[str, float]]
-    usage_by_operation: dict[str, dict[str, float]]
-    monthly_quota: int | None
-    monthly_cost_limit: float | None
-    current_month_tokens: int
-    current_month_cost: float
+    total_tokens: int = 0
+    total_input_tokens: int = 0
+    total_output_tokens: int = 0
+    total_cost: float = 0.0
+    usage_by_model: dict[str, dict[str, float]] = Field(default_factory=dict)
+    usage_by_operation: dict[str, dict[str, float]] = Field(default_factory=dict)
+    monthly_quota: int | None = None
+    monthly_cost_limit: float | None = None
+    current_month_tokens: int = 0
+    current_month_cost: float = 0.0
     last_used: datetime | None = None
-    monthly_history: dict[str, dict[str, float]] | None = None
+    monthly_history: dict[str, dict[str, float]] = Field(default_factory=dict)
 
 
 class LLMUsageSummary(BaseModel):
@@ -86,6 +88,7 @@ class ProfileCreate(BaseModel):
     """Schema for creating a profile. Requires only personal info."""
 
     personal_information: PersonalInfoCreate
+    preferences: dict | None = None
 
 
 class ProfileUpdate(BaseModel):
@@ -122,9 +125,7 @@ class ProfileResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-        json_encoders = {PydanticObjectId: str}
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SignatureResponse(BaseModel):

@@ -1,11 +1,9 @@
 """Profile router for the API."""
 
-from datetime import datetime
-
 from beanie import PydanticObjectId
 from bson import ObjectId
 from fastapi import APIRouter, Depends, File, HTTPException, Path, UploadFile, status
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from api.dependencies.auth import get_current_active_user
 from api.dependencies.services import get_profile_service
@@ -36,50 +34,6 @@ from utils.storage import get_storage_provider
 
 router = APIRouter()
 logger = get_logger(__name__)
-
-
-class PersonalInfoCreate(BaseModel):
-    """Schema for creating personal information."""
-
-    full_name: str
-    email: EmailStr
-    phone: str | None = None
-    address: str | None = None
-    linkedin: str | None = None
-    github: str | None = None
-    website: str | None = None
-
-
-class ProfileCreate(BaseModel):
-    """Schema for creating a profile."""
-
-    personal_information: PersonalInfoCreate
-    preferences: dict | None = None
-
-
-class PersonalInfoUpdate(BaseModel):
-    """Schema for updating personal information."""
-
-    full_name: str | None = None
-    email: EmailStr | None = None
-    phone: str | None = None
-    address: str | None = None
-    linkedin: str | None = None
-    github: str | None = None
-    website: str | None = None
-
-
-class ProfileUpdate(BaseModel):
-    """Schema for updating a profile."""
-
-    personal_information: PersonalInfoUpdate | None = None
-
-
-class ProfilePatch(BaseModel):
-    """Schema for patching specific profile fields."""
-
-    life_story: str | None = None
-    api_keys: dict | None = None
 
 
 class ObjectIdPath(BaseModel):
@@ -681,13 +635,6 @@ async def get_my_profile_picture(
         )
 
 
-class SignatureResponse(BaseModel):
-    """Response model for signature storage key."""
-
-    signature_key: str | None = None
-    signature_url: str | None = None
-
-
 @router.post("/me/signature", response_model=SignatureResponse)
 async def upload_signature(
     file: UploadFile = File(...),
@@ -830,54 +777,6 @@ async def get_my_signature(
         )
 
 
-class LLMUsageResponse(BaseModel):
-    """Response model for LLM usage statistics."""
-
-    # Total usage
-    total_tokens: int = Field(default=0, description="Total number of tokens used")
-    total_input_tokens: int = Field(
-        default=0, description="Total number of input tokens"
-    )
-    total_output_tokens: int = Field(
-        default=0, description="Total number of output tokens"
-    )
-    total_cost: float = Field(default=0.0, description="Total cost in USD")
-
-    # Current month usage
-    current_month_tokens: int = Field(
-        default=0, description="Tokens used in current month"
-    )
-    current_month_cost: float = Field(
-        default=0.0, description="Cost accumulated in current month"
-    )
-
-    # Usage limits
-    monthly_quota: int | None = Field(
-        default=None, description="Monthly token quota (None means unlimited)"
-    )
-    monthly_cost_limit: float | None = Field(
-        default=None, description="Monthly cost limit in USD (None means unlimited)"
-    )
-
-    # Time tracking
-    last_used: datetime | None = Field(
-        default=None, description="Last time LLM was used"
-    )
-
-    # Breakdown
-    usage_by_model: dict[str, dict[str, float]] = Field(
-        default_factory=dict, description="Usage breakdown by model"
-    )
-    usage_by_operation: dict[str, dict[str, float]] = Field(
-        default_factory=dict, description="Usage breakdown by operation type"
-    )
-
-    # Monthly history
-    monthly_history: dict[str, dict[str, float]] = Field(
-        default_factory=dict, description="Historical usage by month"
-    )
-
-
 @router.get("/me/llm-usage", response_model=LLMUsageResponse)
 async def get_my_llm_usage(
     current_user: User = Depends(get_current_active_user),
@@ -910,35 +809,6 @@ async def get_my_llm_usage(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get LLM usage statistics: {str(e)}",
         )
-
-
-class LLMUsageSummary(BaseModel):
-    """Simplified response model for LLM usage summary statistics."""
-
-    total_tokens: int = Field(default=0, description="Total number of tokens used")
-    total_cost: float = Field(default=0.0, description="Total cost in USD")
-    current_month_tokens: int = Field(
-        default=0, description="Tokens used in current month"
-    )
-    current_month_cost: float = Field(
-        default=0.0, description="Cost accumulated in current month"
-    )
-    monthly_quota: int | None = Field(
-        default=None, description="Monthly token quota (None means unlimited)"
-    )
-    monthly_cost_limit: float | None = Field(
-        default=None, description="Monthly cost limit in USD (None means unlimited)"
-    )
-    usage_limit_percentage: float = Field(
-        default=0.0, description="Percentage of monthly quota used (0-100)"
-    )
-    cost_limit_percentage: float = Field(
-        default=0.0, description="Percentage of monthly cost limit used (0-100)"
-    )
-    model_count: int = Field(default=0, description="Number of different models used")
-    operation_count: int = Field(
-        default=0, description="Number of different operation types used"
-    )
 
 
 @router.get("/me/llm-usage/summary", response_model=LLMUsageSummary)

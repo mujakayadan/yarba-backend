@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any
 
 from beanie import PydanticObjectId
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ResumeBase(BaseModel):
@@ -106,11 +106,7 @@ class ResumeResponse(BaseModel):
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
 
-    class Config:
-        """Pydantic config."""
-
-        from_attributes = True
-        json_encoders = {PydanticObjectId: str}
+    model_config = ConfigDict(from_attributes=True)
 
     def model_dump(self, **kwargs):
         """Custom dump method to add has_pdf field and remove internal fields."""
@@ -159,11 +155,7 @@ class ResumeSelectionItem(BaseModel):
     id: PydanticObjectId = Field(..., description="Resume ID")
     resume_name: str = Field(..., description="Formatted resume name for display")
 
-    class Config:
-        """Pydantic config."""
-
-        from_attributes = True
-        json_encoders = {PydanticObjectId: str}
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ResumeSelectionList(BaseModel):

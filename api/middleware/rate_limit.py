@@ -74,7 +74,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.window = window
         self.exclude_paths = exclude_paths or ["/docs", "/redoc", "/openapi.json", "/"]
         self.get_key = get_key or self._get_client_ip
-        self.route_specific_limits = route_specific_limits or ROUTE_SPECIFIC_LIMITS
+        if route_specific_limits is None:
+            self.route_specific_limits = ROUTE_SPECIFIC_LIMITS
+        else:
+            self.route_specific_limits = route_specific_limits
 
         logger.info(
             f"Rate limiting middleware initialized: {rate_limit} requests per {window} seconds"
@@ -94,7 +97,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             Response: FastAPI response
         """
         # Skip rate limiting for excluded paths
-        if any(request.url.path.startswith(path) for path in self.exclude_paths):
+        if self._is_excluded_path(request.url.path):
             return await call_next(request)
 
         # Get the appropriate rate limit and window for this path
@@ -137,6 +140,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             response.headers[header_name] = str(header_value)
 
         return response
+
+    def _is_excluded_path(self, path: str) -> bool:
+        for excluded in self.exclude_paths:
+            if excluded == "/":
+                if path == "/":
+                    return True
+            elif path.startswith(excluded):
+                return True
+        return False
 
     def _get_client_ip(self, request: Request) -> str:
         """Get the client IP address from the request.

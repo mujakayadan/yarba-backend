@@ -1,6 +1,6 @@
 """Pydantic schemas for resume data structures."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class PersonalInformationSchema(BaseModel):
@@ -14,10 +14,7 @@ class PersonalInformationSchema(BaseModel):
     github: str | None = Field(None, description="GitHub profile URL")
     website: str | None = Field(None, description="Personal website URL")
 
-    class Config:
-        """Pydantic model configuration."""
-
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class CareerSummarySchema(BaseModel):
@@ -31,10 +28,7 @@ class CareerSummarySchema(BaseModel):
         ..., description="Career summary text tailored to the job description"
     )
 
-    class Config:
-        """Pydantic model configuration."""
-
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class SkillCategorySchema(BaseModel):
@@ -43,10 +37,7 @@ class SkillCategorySchema(BaseModel):
     category: str = Field(..., description="Skill category name")
     skills: list[str] = Field(..., description="List of skills in this category")
 
-    class Config:
-        """Pydantic model configuration."""
-
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class WorkExperienceSchema(BaseModel):
@@ -60,10 +51,7 @@ class WorkExperienceSchema(BaseModel):
         ..., description="Key responsibilities, achievements, or contributions"
     )
 
-    class Config:
-        """Pydantic model configuration."""
-
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class EducationSchema(BaseModel):
@@ -81,10 +69,7 @@ class EducationSchema(BaseModel):
         None, description="Relevant coursework or academic achievements"
     )
 
-    class Config:
-        """Pydantic model configuration."""
-
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class ProjectSchema(BaseModel):
@@ -102,10 +87,7 @@ class ProjectSchema(BaseModel):
         default=None, description="Optional link to the project (URL as string)"
     )
 
-    class Config:
-        """Pydantic model configuration."""
-
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class PublicationSchema(BaseModel):
@@ -116,10 +98,7 @@ class PublicationSchema(BaseModel):
     link: str | None = Field(None, description="Link to the publication")
     time: str = Field(..., description="Publication date or timeframe")
 
-    class Config:
-        """Pydantic model configuration."""
-
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class AwardSchema(BaseModel):
@@ -134,12 +113,9 @@ class AwardSchema(BaseModel):
         ),
     )
 
-    class Config:
-        """Pydantic model configuration."""
-
-        extra = "forbid"
-        # Keep example if desired, or remove if not needed here
-        json_schema_extra = {
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
             "example": {
                 "name": "68th Iowa Reserve Chess Championship Winner",
                 "explanation": (
@@ -147,7 +123,8 @@ class AwardSchema(BaseModel):
                     "4 Rounds G/60 d5, won with a perfect score of 4/4"
                 ),
             }
-        }
+        },
+    )
 
 
 class ResumeOutputSchema(BaseModel):
@@ -176,7 +153,4 @@ class ResumeOutputSchema(BaseModel):
         ..., description="List of relevant awards and honors"
     )
 
-    class Config:
-        """Pydantic model configuration."""
-
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
