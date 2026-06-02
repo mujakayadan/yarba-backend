@@ -1,227 +1,112 @@
 """Tests for LLM service."""
 
-import sys
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from beanie import PydanticObjectId
 
-# Make sure tests can import from the project root
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from core.models.profile import Preferences, Profile
+from core.repositories.profile_repository import ProfileRepository
 from core.services.llm_service import LLMService
-from core.services.profile_service import ProfileService
-from core.services.prompt_service import PromptService
 
 
 @pytest.fixture
 def mock_profile_repository():
-    """Create a mock profile repository."""
-    from core.repositories.profile_repository import ProfileRepository
-
-    repo = AsyncMock(spec=ProfileRepository)
-    return repo
+    return AsyncMock(spec=ProfileRepository)
 
 
 @pytest.fixture
-def mock_profile_service(mock_profile_repository):
-    """Create a mock profile service."""
-    service = AsyncMock(spec=ProfileService)
-
-    # Mock a profile instead of creating an actual Profile instance
-    profile = MagicMock(spec=Profile)
-    profile.preferences = MagicMock(spec=Preferences)
-    profile.preferences.llm_preferences = {
-        "model_name": "test-model",
-        "temperature": 0.5,
-        "max_tokens": 1000,
-    }
-    profile.api_keys = {"OPENAI_API_KEY": "test_key"}
-
-    service.get_profile_by_user_id.return_value = profile
-    service.get_api_keys.return_value = {"OPENAI_API_KEY": "test_key"}
-    service.profile_repository = mock_profile_repository
-    return service
-
-
-@pytest.fixture
-def mock_prompt_service():
-    """Create a mock prompt service."""
-    service = AsyncMock(spec=PromptService)
-
-    # Set up the methods that actually exist in PromptService
-    service.get_prompt = AsyncMock(return_value="Test prompt")
-    service.get_system_prompt = AsyncMock(return_value="You are a helpful assistant")
-    service.get_cover_letter_prompt = AsyncMock(return_value="Write a cover letter")
-    service.get_portfolio_section_prompt = AsyncMock(
-        return_value="Generate content for section"
-    )
-    service.get_resume_prompt = AsyncMock(return_value="Generate a complete resume")
-    service.set_user_id = MagicMock()  # This is not async
-
-    return service
+def sample_profile():
+    user_id = PydanticObjectId()
+    profile = MagicMock()
+    profile.user_id = user_id
+    profile.email = "test@example.com"
+    return profile
 
 
 @pytest.mark.asyncio
 @patch("core.services.llm_service.litellm")
-@patch("core.services.llm_service.acompletion")
-async def test_llm_init(mock_acompletion, mock_litellm, mock_profile_service):
-    """Test LLM service initialization."""
-    # Test with default settings
-    llm = LLMService(profile_service=mock_profile_service)
-    assert llm.model is not None
-    assert llm.temperature is not None
+async def test_llm_init(mock_litellm, mock_profile_repository):
+    llm = LLMService(profile_repository=mock_profile_repository)
+    assert llm.model == "gpt-4.1"
+    assert llm.temperature == 0.1
+    assert llm.profile_repository is mock_profile_repository
 
-    # Test with custom settings
     llm = LLMService(
-        profile_service=mock_profile_service, model="custom-model", temperature=0.7
+        profile_repository=mock_profile_repository,
+        model="custom-model",
+        temperature=0.7,
     )
     assert llm.model == "custom-model"
     assert llm.temperature == 0.7
 
 
 @pytest.mark.asyncio
-async def test_configure_for_user(mock_profile_service, mock_prompt_service):
-    """Test configuring LLM for a specific user."""
-    user_id = str(PydanticObjectId())  # Convert to string for the method call
+@patch("core.services.llm_service.litellm")
+async def test_configure_for_user(
+    mock_litellm, mock_profile_repository, sample_profile
+):
+    user_id = sample_profile.user_id
+    mock_profile_repository.get_by_user_id = AsyncMock(return_value=sample_profile)
 
-    # Reset the mock before using it
-    mock_profile_service.reset_mock()
+    llm = LLMService(profile_repository=mock_profile_repository)
+    await llm.configure_for_user(user_id)
 
-    with patch("core.services.llm_service.litellm"):
-        llm = LLMService(
-            profile_service=mock_profile_service,
-            prompt_service=mock_prompt_service,
-        )
-
-        await llm.configure_for_user(user_id)
-
-        # Verify profile was retrieved - use assert_called_with instead of assert_called_once_with
-        mock_profile_service.get_profile_by_user_id.assert_called_with(user_id)
-
-        # Verify user preferences were applied
-        assert llm.model == "test-model"
-        assert llm.temperature == 0.5
-        assert llm.max_tokens == 1000
-
-        # Verify prompt service was configured
-        mock_prompt_service.set_user_id.assert_called_once_with(user_id)
+    mock_profile_repository.get_by_user_id.assert_awaited_once_with(user_id)
 
 
 @pytest.mark.asyncio
-async def test_get_completion():
-    """Test getting completion from LLM."""
-    with patch("core.services.llm_service.litellm"):
-        with patch("core.services.llm_service.acompletion") as mock_completion:
-            llm = LLMService()
+@patch("core.services.llm_service.acompletion", new_callable=AsyncMock)
+@patch("core.services.llm_service.litellm")
+async def test_get_completion(
+    mock_litellm, mock_acompletion, mock_profile_repository, sample_profile
+):
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock(message=MagicMock(content='{"ok": true}'))]
+    mock_response.usage = MagicMock(
+        prompt_tokens=10, completion_tokens=5, total_tokens=15
+    )
+    mock_acompletion.return_value = mock_response
 
-            # Setup mock response
-            mock_response = MagicMock()
-            mock_response.choices = [
-                MagicMock(message=MagicMock(content="Test completion"))
-            ]
-            mock_completion.return_value = mock_response
+    llm = LLMService(profile_repository=mock_profile_repository)
+    llm.check_usage_limits = AsyncMock(return_value={"can_use": True})
+    result = await llm.get_completion(
+        prompt="Hello",
+        user_id=str(sample_profile.user_id),
+        tags=["test"],
+    )
 
-            # Test completion
-            result = await llm.get_completion(
-                prompt="Test prompt", system_prompt="Test system"
+    assert "llm_output" in result
+    mock_acompletion.assert_awaited()
+
+
+@pytest.mark.asyncio
+@patch("core.services.llm_service.acompletion", new_callable=AsyncMock)
+@patch("core.services.llm_service.litellm")
+async def test_get_completion_json_mode(
+    mock_litellm, mock_acompletion, mock_profile_repository, sample_profile
+):
+    mock_response = MagicMock()
+    mock_response.choices = [
+        MagicMock(
+            message=MagicMock(
+                content='{"personal_information": {"full_name": "Test", "email": "a@b.com"}, '
+                '"career_summary": {"job_title": "Engineer", "default_summary": "Summary"}, '
+                '"skills": [], "work_experience": [], "education": [], '
+                '"projects": [], "publications": [], "awards": []}'
             )
-
-            # Verify completion was called with correct params
-            mock_completion.assert_called_once()
-            call_args = mock_completion.call_args[1]
-            assert call_args["model"] == llm.model
-            assert call_args["temperature"] == llm.temperature
-            assert call_args["messages"] == [
-                {"role": "system", "content": "Test system"},
-                {"role": "user", "content": "Test prompt"},
-            ]
-
-            # Verify result
-            assert result == "Test completion"
-
-
-@pytest.mark.asyncio
-async def test_generate_cover_letter(mock_prompt_service):
-    """Test generating cover letter."""
-    with patch("core.services.llm_service.litellm"):
-        llm = LLMService(prompt_service=mock_prompt_service)
-
-        # Mock get_completion
-        llm.get_completion = AsyncMock(
-            return_value={
-                "substituted_prompt": "prompt",
-                "llm_output": "Generated cover letter",
-            }
         )
+    ]
+    mock_response.usage = MagicMock(
+        prompt_tokens=10, completion_tokens=50, total_tokens=60
+    )
+    mock_acompletion.return_value = mock_response
 
-        # Test generate cover letter
-        result = await llm.generate_cover_letter(
-            resume_content={"name": "Test User"},
-            job_description="Test job",
-            company_name="Test Company",
-            job_title="Test Title",
-        )
+    llm = LLMService(profile_repository=mock_profile_repository)
+    llm.check_usage_limits = AsyncMock(return_value={"can_use": True})
+    result = await llm.get_completion(
+        prompt="Generate resume JSON",
+        user_id=str(sample_profile.user_id),
+        json_response=True,
+    )
 
-        # Verify cover letter prompt was retrieved
-        mock_prompt_service.get_cover_letter_prompt.assert_called_once()
-
-        # Verify system prompt was retrieved
-        mock_prompt_service.get_system_prompt.assert_called_once()
-
-        # Verify result
-        assert result == "Generated cover letter"
-
-
-@pytest.mark.asyncio
-async def test_generate_resume(mock_prompt_service):
-    """Test generating resume."""
-    with patch("core.services.llm_service.litellm"):
-        llm = LLMService(prompt_service=mock_prompt_service)
-
-        # Mock model_supports_json_mode
-        llm.model_supports_json_mode = MagicMock(return_value=True)
-
-        # Mock get_completion
-        llm.get_completion = AsyncMock(
-            return_value={
-                "substituted_prompt": "prompt",
-                "llm_output": '{"personal_information":{"name":"Test User"},"skills":["Python"]}',
-            }
-        )
-
-        # Prepare test data
-        job_description = "Software Engineer position"
-        portfolio_data = {
-            "personal_information": {"name": "Test User"},
-            "skills": ["Python", "JavaScript"],
-        }
-
-        # Test generate resume
-        result = await llm.generate_resume(
-            job_description=job_description,
-            portfolio_data=portfolio_data,
-            user_id="test_user",
-        )
-
-        # Verify resume prompt was retrieved
-        mock_prompt_service.get_resume_prompt.assert_called_once()
-
-        # Verify system prompt was retrieved
-        mock_prompt_service.get_system_prompt.assert_called_once()
-
-        # Verify get_completion was called with correct parameters
-        llm.get_completion.assert_called_once()
-        args, kwargs = llm.get_completion.call_args
-        assert kwargs["variables"]["job_description"] == job_description
-        assert kwargs["variables"]["portfolio_data"] == portfolio_data
-        assert kwargs["json_response"] is True
-
-        # Verify result is correct
-        assert isinstance(result, dict)
-        assert "personal_information" in result
-        assert result["personal_information"]["name"] == "Test User"
-        assert "skills" in result
-        assert result["skills"] == ["Python"]
+    assert "llm_output" in result

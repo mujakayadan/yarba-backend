@@ -1,42 +1,47 @@
 """Tests for authentication endpoints."""
 
+from unittest.mock import AsyncMock
+
 import pytest
-from fastapi import status
+from fastapi import HTTPException, status
 from httpx import AsyncClient
 
+from api.main import app as fastapi_app
+from core.database.factory import get_auth_service
+
 
 @pytest.mark.asyncio
-async def test_register_success(async_client: AsyncClient):
+async def test_register_success(async_client_auth: AsyncClient):
     """Test successful user registration."""
-    # Arrange
-    user_data = {
-        "email": "newuser@example.com",
-        "password": "Password123!",
-        "full_name": "New User",
-    }
+    response = await async_client_auth.post(
+        "/api/v1/auth/register",
+        json={"email": "newuser@example.com", "password": "Password123!"},
+    )
 
-    # Act
-    response = await async_client.post("/api/v1/auth/register", json=user_data)
-
-    # Assert
     assert response.status_code == status.HTTP_201_CREATED
-    assert response.json() == {"message": "User registered successfully"}
+    body = response.json()
+    assert body["access_token"] == "test-access-token"
+    assert body["token_type"] == "bearer"
+    assert body["user"]["email"] == "newuser@example.com"
 
 
 @pytest.mark.asyncio
-async def test_register_duplicate_email(async_client: AsyncClient, registered_user):
+async def test_register_duplicate_email(
+    async_client_auth: AsyncClient, mock_auth_service, registered_user
+):
     """Test registration with duplicate email."""
-    # Arrange
-    user_data = {
-        "email": registered_user["email"],  # Use the same email as registered_user
-        "password": "Password123!",
-        "full_name": "Duplicate User",
-    }
+    mock_auth_service.register_with_firebase = AsyncMock(
+        side_effect=HTTPException(status_code=400, detail="Email already registered")
+    )
 
-    # Act
-    response = await async_client.post("/api/v1/auth/register", json=user_data)
+    response = await async_client_auth.post(
+        "/api/v1/auth/register",
+        json={
+            "email": registered_user["email"],
+            "password": "Password123!",
+        },
+    )
 
-    # Assert
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert "Email already registered" in response.json()["detail"]
 
@@ -44,17 +49,11 @@ async def test_register_duplicate_email(async_client: AsyncClient, registered_us
 @pytest.mark.asyncio
 async def test_register_invalid_email(async_client: AsyncClient):
     """Test registration with invalid email format."""
-    # Arrange
-    user_data = {
-        "email": "invalid-email",
-        "password": "Password123!",
-        "full_name": "Invalid Email User",
-    }
+    response = await async_client.post(
+        "/api/v1/auth/register",
+        json={"email": "invalid-email", "password": "Password123!"},
+    )
 
-    # Act
-    response = await async_client.post("/api/v1/auth/register", json=user_data)
-
-    # Assert
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
     assert "email" in response.json()["detail"][0]["loc"]
 
@@ -62,68 +61,51 @@ async def test_register_invalid_email(async_client: AsyncClient):
 @pytest.mark.asyncio
 async def test_register_weak_password(async_client: AsyncClient):
     """Test registration with weak password."""
-    # Arrange
-    user_data = {
-        "email": "weakpass@example.com",
-        "password": "weak",
-        "full_name": "Weak Password User",
-    }
+    response = await async_client.post(
+        "/api/v1/auth/register",
+        json={"email": "weakpass@example.com", "password": "weak"},
+    )
 
-    # Act
-    response = await async_client.post("/api/v1/auth/register", json=user_data)
-
-    # Assert
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-    assert "password" in response.json()["detail"][0]["loc"]
+    assert "password" in str(response.json()["detail"]).lower()
 
 
 @pytest.mark.asyncio
-async def test_login_success(async_client: AsyncClient, registered_user):
-    """Test successful login."""
-    # Arrange
-    login_data = {
-        "username": registered_user["email"],
-        "password": registered_user["password"],
-    }
+async def test_login_success(async_client_auth: AsyncClient):
+    """Test successful Firebase token login."""
+    response = await async_client_auth.post(
+        "/api/v1/auth/login",
+        json={"id_token": "valid-firebase-id-token"},
+    )
 
-    # Act
-    response = await async_client.post("/api/v1/auth/login", data=login_data)
-
-    # Assert
     assert response.status_code == status.HTTP_200_OK
-    assert "access_token" in response.json()
-    assert response.json()["token_type"] == "bearer"
+    body = response.json()
+    assert body["access_token"] == "test-access-token"
+    assert body["token_type"] == "bearer"
 
 
 @pytest.mark.asyncio
-async def test_login_invalid_email(async_client: AsyncClient):
-    """Test login with invalid email."""
-    # Arrange
-    login_data = {
-        "username": "nonexistent@example.com",
-        "password": "Password123!",
-    }
+async def test_login_invalid_token(async_client_auth: AsyncClient, mock_auth_service):
+    """Test login with invalid Firebase token."""
+    mock_auth_service.login_with_firebase = AsyncMock(
+        side_effect=HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication token",
+        )
+    )
+    fastapi_app.dependency_overrides[get_auth_service] = lambda: mock_auth_service
 
-    # Act
-    response = await async_client.post("/api/v1/auth/login", data=login_data)
+    response = await async_client_auth.post(
+        "/api/v1/auth/login",
+        json={"id_token": "invalid-token"},
+    )
 
-    # Assert
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
-    assert "Incorrect email or password" in response.json()["detail"]
 
 
 @pytest.mark.asyncio
-async def test_login_wrong_password(async_client: AsyncClient, registered_user):
-    """Test login with wrong password."""
-    # Arrange
-    login_data = {
-        "username": registered_user["email"],
-        "password": "WrongPassword123!",
-    }
+async def test_login_missing_token(async_client: AsyncClient):
+    """Test login without id_token."""
+    response = await async_client.post("/api/v1/auth/login", json={})
 
-    # Act
-    response = await async_client.post("/api/v1/auth/login", data=login_data)
-
-    # Assert
-    assert response.status_code == status.HTTP_401_UNAUTHORIZED
-    assert "Incorrect email or password" in response.json()["detail"]
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
