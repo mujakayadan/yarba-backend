@@ -27,9 +27,7 @@ jobs:
       - name: Ruff format
         run: uv run ruff format --check .
 
-      # ~400 type errors remain; see docs/MODERNIZATION_TODO.md
       - name: Mypy
-        continue-on-error: true
         run: uv run mypy
 
       - name: Pytest
