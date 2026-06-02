@@ -57,7 +57,7 @@
 # @router.post("/credentials", status_code=status.HTTP_200_OK)
 # async def save_linkedin_credentials(
 #     request: LinkedInCredentialsRequest,
-#     current_user: User = Depends(get_current_active_user),
+#     current_user: CurrentActiveUser,
 # ) -> Dict[str, str]:
 #     """Save LinkedIn credentials for the current user.
 
@@ -84,7 +84,7 @@
 
 # @router.get("/status", response_model=LinkedInStatusResponse)
 # async def get_linkedin_status(
-#     current_user: User = Depends(get_current_active_user),
+#     current_user: CurrentActiveUser,
 # ) -> LinkedInStatusResponse:
 #     """Get LinkedIn integration status for the current user.
 
@@ -104,7 +104,7 @@
 # @router.post("/search", status_code=status.HTTP_200_OK)
 # async def search_linkedin_jobs(
 #     request: LinkedInJobSearchRequest,
-#     current_user: User = Depends(get_current_active_user),
+#     current_user: CurrentActiveUser,
 # ) -> List[Dict[str, Any]]:
 #     """Search for jobs on LinkedIn using the current user's credentials.
 
@@ -141,7 +141,7 @@
 # @router.post("/apply", status_code=status.HTTP_200_OK)
 # async def apply_for_linkedin_jobs(
 #     request: LinkedInJobApplicationRequest,
-#     current_user: User = Depends(get_current_active_user),
+#     current_user: CurrentActiveUser,
 # ) -> Dict[str, Any]:
 #     """Apply for jobs on LinkedIn using the current user's credentials.
 
@@ -191,7 +191,7 @@
 # @router.post("/apply/single", status_code=status.HTTP_200_OK)
 # async def apply_for_single_linkedin_job(
 #     request: LinkedInSingleJobApplicationRequest,
-#     current_user: User = Depends(get_current_active_user),
+#     current_user: CurrentActiveUser,
 # ) -> Dict[str, Any]:
 #     """Apply for a single job on LinkedIn using the current user's credentials.
 

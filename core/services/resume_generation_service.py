@@ -22,6 +22,7 @@ from core.services.portfolio_service import PortfolioService
 from core.services.profile_service import ProfileService
 from core.services.prompt_service import PromptService
 from core.utils.json_helper import convert_to_serializable
+from core.utils.object_id import require_object_id
 
 logger = get_logger(__name__)
 
@@ -185,7 +186,7 @@ class ResumeGenerationService:
                 )
 
             # Check if the job requires clearance using JobService
-            requires_clearance = self.job_service.check_security_clearance(
+            requires_clearance = self.job_service.check_job_restrictions(
                 job_description=job_description,
                 user_has_clearance_check_enabled=user_has_clearance_check_enabled,
             )
@@ -530,7 +531,7 @@ class ResumeGenerationService:
             resume.updated_at = datetime.now(UTC)
 
             # Save updated resume
-            await self.resume_repository.update(resume.id, resume)
+            await self.resume_repository.update(require_object_id(resume.id), resume)
             self.logger.info(f"Saved resume {resume.id} with generated content")
 
             # --- 5. Debug Output (Optional) ---
@@ -577,7 +578,7 @@ class ResumeGenerationService:
         Returns:
             Dictionary with portfolio data structured for the prompt.
         """
-        result = {}
+        result: dict[str, Any] = {}
         portfolio = None  # Initialize portfolio
 
         # Get personal information from Profile
@@ -650,7 +651,7 @@ class ResumeGenerationService:
             and portfolio.custom_sections.enabled
             and "custom_sections" not in result
         ):
-            enabled_sections_data = {}
+            enabled_sections_data: dict[str, Any] = {}
             for section_name in portfolio.custom_sections.enabled:
                 if hasattr(portfolio, section_name):
                     data = getattr(portfolio, section_name)

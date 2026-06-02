@@ -183,7 +183,7 @@ class Crawl4AIExtractor(BaseExtractor):
                         logger.info(
                             f"Crawl4AIExtractor: Successfully extracted job description from {url}"
                         )
-                        return job_description.strip()
+                        return str(job_description).strip()
                     else:
                         logger.warning(
                             f"Crawl4AIExtractor: Job description too short or empty from {url}"

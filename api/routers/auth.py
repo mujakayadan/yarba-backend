@@ -263,9 +263,11 @@ async def update_setup_progress(
         )
     except NotFoundException as e:
         logger.error(
-            f"Error updating setup progress for user {current_user.email}: {e.detail}"
+            f"Error updating setup progress for user {current_user.email}: {e.message}"
         )
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e.detail))
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(e.message)
+        )
     except Exception as e:
         logger.error(
             f"Unexpected error updating setup progress for {current_user.email}: {str(e)}",

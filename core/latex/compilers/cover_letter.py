@@ -111,10 +111,9 @@ class CoverLetterCompiler(LatexCompiler):
 \\end{{document}}"""
 
             # Replace placeholders in the cover letter
-            return (
-                (
-                    preamble
-                    + """
+            latex_content: str = (
+                preamble
+                + """
 \\begin{document}
 \\begin{letter}{{{COMPANY_NAME}} \\\\ {{JOB_TITLE}}}
 
@@ -126,9 +125,10 @@ class CoverLetterCompiler(LatexCompiler):
 {{COVER_LETTER_CONTENT}}
 
 """
-                    + closing_part
-                )
-                .replace("{{NAME}}", name)
+                + closing_part
+            )
+            latex_content = (
+                latex_content.replace("{{NAME}}", name)
                 .replace("{{PHONE}}", phone)
                 .replace("{{EMAIL}}", email)
                 .replace("{{LINKEDIN}}", linkedin)
@@ -139,6 +139,7 @@ class CoverLetterCompiler(LatexCompiler):
                 .replace("{{JOB_TITLE}}", job_title)
                 .replace("{{COVER_LETTER_CONTENT}}", cover_letter_content)
             )
+            return latex_content
 
         except Exception as e:
             self.logger.error(f"Error generating LaTeX content: {e}")

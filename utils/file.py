@@ -87,7 +87,7 @@ def safe_file_read(
         with open(path, mode=mode, encoding=encoding) as f:
             content = f.read()
         logger.debug(f"Successfully read from file: {path}")
-        return content
+        return content if isinstance(content, bytes) else str(content)
     except Exception as e:
         logger.error(f"Error reading from file {path}: {str(e)}")
         raise

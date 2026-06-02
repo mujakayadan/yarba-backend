@@ -64,7 +64,7 @@ async def init_db() -> AsyncIOMotorClient | None:
             )
 
         # Create motor client using settings
-        client = AsyncIOMotorClient(
+        client: AsyncIOMotorClient = AsyncIOMotorClient(
             mongodb_uri,
             minPoolSize=settings.database.min_pool_size,
             maxPoolSize=settings.database.max_pool_size,

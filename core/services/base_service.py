@@ -1,10 +1,11 @@
 """Base service for application services."""
 
-from typing import TypeVar
+from typing import TypeVar, cast
 
 from config.logging_config import get_logger
 
 from ..repositories.base_repository import BaseRepository
+from ..utils.object_id import coerce_object_id
 
 T = TypeVar("T")
 
@@ -52,7 +53,7 @@ class BaseService[T]:
             T: Created entity
         """
         self.logger.debug(f"Creating entity: {entity}")
-        return await self.repository.create(entity)
+        return cast(T, await self.repository.create(entity))
 
     async def update(self, id: str, entity: T) -> T | None:
         """Update an entity.
@@ -65,7 +66,7 @@ class BaseService[T]:
             Optional[T]: Updated entity if successful, None otherwise
         """
         self.logger.debug(f"Updating entity with ID: {id}")
-        return await self.repository.update(id, entity)
+        return await self.repository.update(coerce_object_id(id), entity)
 
     async def delete(self, id: str) -> bool:
         """Delete an entity.
@@ -77,4 +78,4 @@ class BaseService[T]:
             bool: True if successful, False otherwise
         """
         self.logger.debug(f"Deleting entity with ID: {id}")
-        return await self.repository.delete(id)
+        return await self.repository.delete(coerce_object_id(id))

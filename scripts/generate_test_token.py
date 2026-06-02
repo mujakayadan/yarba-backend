@@ -13,7 +13,7 @@ import datetime
 import json
 import sys
 import time
-from typing import Any
+from typing import Any, cast
 
 try:
     import jwt
@@ -34,7 +34,7 @@ def generate_firebase_like_token(
     user_id: str,
     expiry_seconds: int,
     secret: str,
-    additional_claims: dict[str, Any] = None,
+    additional_claims: dict[str, Any] | None = None,
 ) -> str:
     """Generate a token that mimics the format of a Firebase ID token.
 
@@ -72,11 +72,14 @@ def generate_firebase_like_token(
         payload.update(additional_claims)
 
     # Create a JWT with header that mimics Firebase tokens
-    token = jwt.encode(
-        payload,
-        secret,
-        algorithm="HS256",
-        headers={"kid": "test-key-id-123", "typ": "JWT"},
+    token = cast(
+        str,
+        jwt.encode(
+            payload,
+            secret,
+            algorithm="HS256",
+            headers={"kid": "test-key-id-123", "typ": "JWT"},
+        ),
     )
 
     return token

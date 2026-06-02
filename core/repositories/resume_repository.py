@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from typing import Any
 
-from beanie import PydanticObjectId
+from beanie import PydanticObjectId, SortDirection
 
 from config.logging_config import get_logger
 from config.settings import settings
@@ -36,9 +36,7 @@ class ResumeRepository(BeanieRepository[Resume]):
         if not resume:
             return None
 
-        if not resume.user:
-            resume.user = await User.get(resume.user_id)
-        return resume.user
+        return await User.get(resume.user_id)
 
     async def get_profile(self, resume_id: PydanticObjectId) -> Profile | None:
         """Get the profile associated with a resume.
@@ -53,9 +51,7 @@ class ResumeRepository(BeanieRepository[Resume]):
         if not resume:
             return None
 
-        if not resume.profile:
-            resume.profile = await Profile.get(resume.profile_id)
-        return resume.profile
+        return await Profile.get(resume.profile_id)
 
     async def get_portfolio(self, resume_id: PydanticObjectId) -> Portfolio | None:
         """Get the portfolio associated with a resume.
@@ -70,9 +66,9 @@ class ResumeRepository(BeanieRepository[Resume]):
         if not resume:
             return None
 
-        if not resume.portfolio:
-            resume.portfolio = await Portfolio.get(resume.portfolio_id)
-        return resume.portfolio
+        if resume.portfolio_id is None:
+            return None
+        return await Portfolio.get(resume.portfolio_id)
 
     async def get_related_documents(
         self, resume_id: PydanticObjectId
@@ -89,22 +85,13 @@ class ResumeRepository(BeanieRepository[Resume]):
         if not resume:
             return None, None, None
 
-        user = profile = portfolio = None
-
-        # Get user
-        if not resume.user:
-            resume.user = await User.get(resume.user_id)
-        user = resume.user
-
-        # Get profile
-        if not resume.profile:
-            resume.profile = await Profile.get(resume.profile_id)
-        profile = resume.profile
-
-        # Get portfolio
-        if not resume.portfolio:
-            resume.portfolio = await Portfolio.get(resume.portfolio_id)
-        portfolio = resume.portfolio
+        user = await User.get(resume.user_id)
+        profile = await Profile.get(resume.profile_id)
+        portfolio = (
+            await Portfolio.get(resume.portfolio_id)
+            if resume.portfolio_id is not None
+            else None
+        )
 
         return user, profile, portfolio
 
@@ -196,7 +183,9 @@ class ResumeRepository(BeanieRepository[Resume]):
             Optional[Resume]: Latest resume if found, None otherwise
         """
         resumes = (
-            await Resume.find({"user_id": user.id}).sort("created_at", -1).to_list()
+            await Resume.find({"user_id": user.id})
+            .sort([("created_at", SortDirection.DESCENDING)])
+            .to_list()
         )
         return resumes[0] if resumes else None
 
@@ -210,7 +199,9 @@ class ResumeRepository(BeanieRepository[Resume]):
             Optional[Resume]: Latest resume if found, None otherwise
         """
         resumes = (
-            await Resume.find({"user_id": user_id}).sort("created_at", -1).to_list()
+            await Resume.find({"user_id": user_id})
+            .sort([("created_at", SortDirection.DESCENDING)])
+            .to_list()
         )
         return resumes[0] if resumes else None
 
@@ -226,7 +217,7 @@ class ResumeRepository(BeanieRepository[Resume]):
         return await Resume.find({"template_id": template_id}).to_list()
 
     def _build_filter_query(self, filter_conditions: dict[str, Any]) -> dict[str, Any]:
-        query = {}
+        query: dict[str, Any] = {}
         search_term = filter_conditions.pop(
             "search_term", None
         )  # Remove search_term to handle separately
@@ -279,7 +270,7 @@ class ResumeRepository(BeanieRepository[Resume]):
         if search_term:
             # Build the initial match query (excluding search_term itself for the $match stage,
             # as $or with $regex will handle the search part)
-            base_match_query = {}
+            base_match_query: dict[str, Any] = {}
             for key, value in filter_conditions.items():
                 if key != "search_term" and value is not None:
                     if key == "user_id" and isinstance(value, str):
@@ -375,9 +366,14 @@ class ResumeRepository(BeanieRepository[Resume]):
             self.logger.info(
                 f"Filtering resumes (no search_term) with query: {query}, sort: {sort_field} {sort_direction}, skip: {skip}, limit: {limit}"
             )
+            sort_dir = (
+                SortDirection.DESCENDING
+                if sort_direction < 0
+                else SortDirection.ASCENDING
+            )
             resumes = (
                 await Resume.find(query)
-                .sort([(sort_field, sort_direction)])
+                .sort([(sort_field, sort_dir)])
                 .skip(skip)
                 .limit(limit)
                 .to_list()

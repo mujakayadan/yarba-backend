@@ -15,6 +15,7 @@ from ..models.profile import (
 )
 from ..repositories.profile_repository import ProfileRepository
 from ..repositories.user_repository import UserRepository
+from ..utils.object_id import require_object_id
 
 logger = get_logger(__name__)
 
@@ -174,9 +175,10 @@ class ProfileService:
 
         try:
             # Check if profile exists
-            existing_profile = await self.profile_repository.get_by_id(profile.id)
+            profile_id = require_object_id(profile.id)
+            existing_profile = await self.profile_repository.get_by_id(profile_id)
             if not existing_profile:
-                raise NotFoundException(f"Profile not found with ID: {profile.id}")
+                raise NotFoundException(f"Profile not found with ID: {profile_id}")
 
             # Update the profile using our new method
             updated_profile = await self.profile_repository.update_by_object(profile)
@@ -399,7 +401,7 @@ class ProfileService:
 
             # Delegate update to repository
             updated_prefs = await self.profile_repository.update_prompt_preferences(
-                profile.id, update_data
+                require_object_id(profile.id), update_data
             )
             if updated_prefs:
                 self.logger.info(f"Prompt preferences updated for user: {user_id}")
@@ -441,7 +443,7 @@ class ProfileService:
 
             # Delegate update to repository
             updated_prefs = await self.profile_repository.update_system_preferences(
-                profile.id, update_data
+                require_object_id(profile.id), update_data
             )
             if updated_prefs:
                 self.logger.info(f"System preferences updated for user: {user_id}")

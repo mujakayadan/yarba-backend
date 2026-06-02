@@ -1,8 +1,9 @@
 """Resume service for resume management and generation."""
 
 from datetime import UTC, datetime
+from typing import Any
 
-from beanie import PydanticObjectId
+from beanie import PydanticObjectId, SortDirection
 
 from api.schemas.resume import ResumeFilter as ApiResumeFilter
 from api.schemas.resume import ResumeSelectionItem, SortOptions
@@ -38,7 +39,7 @@ class ResumeService:
         self.job_service = job_service
         self.logger = get_logger(self.__class__.__name__)
 
-    def _parse_sort_option(self, sort_by: str) -> tuple[str, int]:
+    def _parse_sort_option(self, sort_by: str | None) -> tuple[str, int]:
         """Parse the sort_by string into a field name and direction.
 
         Args:
@@ -170,8 +171,8 @@ class ResumeService:
     async def create_resume(
         self,
         user_id: PydanticObjectId,
-        profile_id: PydanticObjectId = None,
-        portfolio_id: PydanticObjectId = None,
+        profile_id: PydanticObjectId | None = None,
+        portfolio_id: PydanticObjectId | None = None,
         company_name: str | None = None,
         job_title: str | None = None,
         job_description: str | None = None,
@@ -382,7 +383,7 @@ class ResumeService:
             ValueError: If sort_by is invalid.
         """
         # Convert API filter to repository filter
-        repo_filter = {"user_id": user_id}
+        repo_filter: dict[str, Any] = {"user_id": user_id}
         if filter_params.title:
             repo_filter["title"] = filter_params.title
         if filter_params.template_id:
@@ -421,7 +422,7 @@ class ResumeService:
             int: Total number of resumes matching the filter.
         """
         # Convert API filter to repository filter
-        repo_filter = {"user_id": user_id}
+        repo_filter: dict[str, Any] = {"user_id": user_id}
         if filter_params.title:
             repo_filter["title"] = filter_params.title
         if filter_params.template_id:
@@ -453,21 +454,21 @@ class ResumeService:
             f"Listing resumes for selection for user {user_id}, sort_by: {sort_by}"
         )
 
-        sort_criteria = []
+        sort_criteria: list[tuple[str, SortDirection]] = []
         if sort_by == SortOptions.UPDATED_DESC:
-            sort_criteria = [("updated_at", -1)]
+            sort_criteria = [("updated_at", SortDirection.DESCENDING)]
         elif sort_by == SortOptions.UPDATED_ASC:
-            sort_criteria = [("updated_at", 1)]
+            sort_criteria = [("updated_at", SortDirection.ASCENDING)]
         elif sort_by == SortOptions.CREATED_DESC:
-            sort_criteria = [("created_at", -1)]
+            sort_criteria = [("created_at", SortDirection.DESCENDING)]
         elif sort_by == SortOptions.CREATED_ASC:
-            sort_criteria = [("created_at", 1)]
+            sort_criteria = [("created_at", SortDirection.ASCENDING)]
         elif sort_by == SortOptions.TITLE_ASC:
-            sort_criteria = [("title", 1)]
+            sort_criteria = [("title", SortDirection.ASCENDING)]
         elif sort_by == SortOptions.TITLE_DESC:
-            sort_criteria = [("title", -1)]
+            sort_criteria = [("title", SortDirection.DESCENDING)]
         else:  # Default sort if an invalid option is somehow passed
-            sort_criteria = [("updated_at", -1)]
+            sort_criteria = [("updated_at", SortDirection.DESCENDING)]
 
         resumes_data = (
             await Resume.find(

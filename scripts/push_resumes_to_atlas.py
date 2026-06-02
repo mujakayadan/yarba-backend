@@ -2,19 +2,22 @@
 
 from copy import deepcopy
 from pathlib import Path
+from typing import Any
 
 from dotenv import dotenv_values
 from pymongo import MongoClient
+from pymongo.database import Database
 from pymongo.errors import OperationFailure
 
 ROOT = Path(__file__).resolve().parents[1]
 cfg = dotenv_values(ROOT / ".env.local")
 ATLAS = cfg["MONGODB_URI"]
-DB = cfg.get("MONGODB_DATABASE", "rbt")
+DB: str = cfg.get("MONGODB_DATABASE") or "rbt"
 
-local = MongoClient("mongodb://localhost:27017")
-remote = MongoClient(ATLAS, serverSelectionTimeoutMS=60000)
-ldb, rdb = local[DB], remote[DB]
+local: MongoClient[Any] = MongoClient("mongodb://localhost:27017")
+remote: MongoClient[Any] = MongoClient(ATLAS, serverSelectionTimeoutMS=60000)
+ldb: Database = local[DB]
+rdb: Database = remote[DB]
 
 
 def _str_or_empty(value) -> str:

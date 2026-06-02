@@ -138,7 +138,7 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
         Returns:
             Dict[str, Any]: Formatted error response
         """
-        response = {
+        response: dict[str, Any] = {
             "status": "error",
             "message": message,
         }
@@ -146,7 +146,7 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
         if error_code:
             response["error_code"] = error_code
 
-        if details and (self.debug or settings.environment != "production"):
+        if details and (self.debug or settings.env != "production"):
             response["details"] = details
 
         return response
@@ -160,6 +160,6 @@ def add_error_handler_middleware(app: FastAPI, debug: bool = False) -> None:
         debug: Whether to include debug information in error responses
     """
     app.add_middleware(
-        ErrorHandlerMiddleware,
+        ErrorHandlerMiddleware,  # type: ignore[arg-type]
         debug=debug,
     )

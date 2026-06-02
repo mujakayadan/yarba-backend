@@ -250,14 +250,20 @@ class LinkedInExtractor(BaseExtractor):
         for selector in settings.cookie_consent_selectors:
             try:
                 button = await page.query_selector(selector)
-                if button and await button.is_visible(
-                    timeout=settings.modal_check_timeout_ms
-                ):
-                    logger.info(f"Clicking cookie consent button: {selector}")
-                    await button.click(timeout=settings.modal_dismiss_timeout_ms)
-                    await page.wait_for_timeout(500)
-                    logger.info("Cookie consent clicked.")
-                    return
+                if not button:
+                    continue
+                try:
+                    await button.wait_for_element_state(
+                        "visible",
+                        timeout=settings.modal_check_timeout_ms,
+                    )
+                except Exception:
+                    continue
+                logger.info(f"Clicking cookie consent button: {selector}")
+                await button.click(timeout=settings.modal_dismiss_timeout_ms)
+                await page.wait_for_timeout(500)
+                logger.info("Cookie consent clicked.")
+                return
             except Exception as e:
                 logger.debug(f"Cookie button {selector} not found or error: {e}")
 
@@ -276,9 +282,15 @@ class LinkedInExtractor(BaseExtractor):
                     dismiss_button = await page.query_selector(
                         user_specific_dismiss_selector
                     )
-                    if dismiss_button and await dismiss_button.is_visible(
-                        timeout=settings.modal_check_timeout_ms
-                    ):
+                    if dismiss_button:
+                        try:
+                            await dismiss_button.wait_for_element_state(
+                                "visible",
+                                timeout=settings.modal_check_timeout_ms,
+                            )
+                        except Exception:
+                            dismiss_button = None
+                    if dismiss_button:
                         logger.info(
                             f"Trying to click dismiss button with user-specific selector: {user_specific_dismiss_selector}"
                         )
@@ -314,9 +326,14 @@ class LinkedInExtractor(BaseExtractor):
                     for selector in settings.li_signin_dismiss_selectors:
                         try:
                             dismiss_button = await page.query_selector(selector)
-                            if dismiss_button and await dismiss_button.is_visible(
-                                timeout=settings.modal_check_timeout_ms
-                            ):
+                            if dismiss_button:
+                                try:
+                                    await dismiss_button.wait_for_element_state(
+                                        "visible",
+                                        timeout=settings.modal_check_timeout_ms,
+                                    )
+                                except Exception:
+                                    continue
                                 logger.info(
                                     f"Trying to click dismiss button with selector: {selector}"
                                 )

@@ -3,6 +3,7 @@
 import asyncio
 import os
 from datetime import datetime
+from typing import Any
 
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
@@ -54,7 +55,7 @@ class AWSDeploymentService:
     async def deploy_website(
         self,
         subdomain: str,
-        files: dict[str, str],
+        files: dict[str, Any],
         config: WebsiteConfig,
         clean_deploy: bool = False,
     ) -> dict[str, str]:
@@ -158,7 +159,7 @@ class AWSDeploymentService:
             return False
 
     async def _upload_files_to_s3(
-        self, bucket_name: str, s3_path_prefix: str, files: dict[str, str]
+        self, bucket_name: str, s3_path_prefix: str, files: dict[str, Any]
     ) -> None:
         """Upload website files to S3 bucket under a specific path prefix."""
         for file_path, content in files.items():

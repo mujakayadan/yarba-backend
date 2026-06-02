@@ -17,7 +17,7 @@ class BasePrompt:
         self._template = template.strip()
         self._jinja_template = Template(self._template)
 
-    def format(self, **kwargs: dict[str, Any]) -> str:
+    def format(self, **kwargs: Any) -> str:
         """Format the prompt template with the given arguments.
 
         Args:

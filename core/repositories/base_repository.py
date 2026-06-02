@@ -1,7 +1,7 @@
 """Base repository interfaces for the application."""
 
 from abc import ABC, abstractmethod
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from beanie import Document, PydanticObjectId
 from bson import ObjectId
@@ -9,6 +9,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel
 
 from ..exceptions.base import NotFoundException
+from ..utils.object_id import ObjectIdLike, coerce_object_id
 
 T = TypeVar("T", bound=Document)
 M = TypeVar("M", bound=BaseModel)
@@ -18,7 +19,7 @@ class BaseRepository[T: Document](ABC):
     """Base repository interface for database operations."""
 
     @abstractmethod
-    async def get_by_id(self, id: PydanticObjectId) -> T | None:
+    async def get_by_id(self, id: ObjectIdLike) -> T | None:
         """Get a document by ID.
 
         Args:
@@ -82,7 +83,7 @@ class BeanieRepository(BaseRepository[T]):
         """
         self.model_class = model_class
 
-    async def get_by_id(self, id: PydanticObjectId) -> T | None:
+    async def get_by_id(self, id: ObjectIdLike) -> T | None:
         """Get a document by ID.
 
         Args:
@@ -91,7 +92,7 @@ class BeanieRepository(BaseRepository[T]):
         Returns:
             Optional[T]: Document if found, None otherwise
         """
-        return await self.model_class.get(id)
+        return await self.model_class.get(coerce_object_id(id))
 
     async def get_all(self) -> list[T]:
         """Get all documents.
@@ -147,7 +148,7 @@ class BeanieRepository(BaseRepository[T]):
         return True
 
 
-class BaseRepository[T: Document]:
+class MotorRepository[T: Document]:
     """Base repository with common CRUD operations.
 
     This class provides a base implementation for repositories with common
@@ -183,11 +184,15 @@ class BaseRepository[T: Document]:
 
         # Get the inserted document
         document = await self.collection.find_one({"_id": result.inserted_id})
+        if document is None:
+            raise NotFoundException(
+                f"{self.collection_name.capitalize()} not found after create"
+            )
 
         # Convert ObjectId to string
         document["id"] = str(document.pop("_id"))
 
-        return document
+        return cast(dict[str, Any], document)
 
     async def find_by_id(self, id: PydanticObjectId) -> dict[str, Any] | None:
         """Find a document by ID.
@@ -208,7 +213,7 @@ class BaseRepository[T: Document]:
         # Convert ObjectId to string
         document["id"] = str(document.pop("_id"))
 
-        return document
+        return cast(dict[str, Any], document)
 
     async def find_all(self, **kwargs) -> list[dict[str, Any]]:
         """Find all documents matching the criteria.
@@ -264,6 +269,8 @@ class BaseRepository[T: Document]:
 
         # Get the updated document
         updated_document = await self.find_by_id(id)
+        if updated_document is None:
+            raise NotFoundException(f"{self.collection_name.capitalize()} not found")
 
         return updated_document
 

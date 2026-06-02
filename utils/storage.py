@@ -546,7 +546,7 @@ class AWSS3StorageProvider(StorageProvider):
                     signed_url = self.cloudfront_signer.generate_presigned_url(
                         cloudfront_url, date_less_than=expiry_time
                     )
-                    return signed_url
+                    return str(signed_url)
                 except Exception as e:
                     logger.error(f"Failed to generate CloudFront signed URL: {str(e)}")
 
@@ -561,7 +561,7 @@ class AWSS3StorageProvider(StorageProvider):
                     Params={"Bucket": self.bucket, "Key": object_key},
                     ExpiresIn=settings.storage.aws_presigned_url_expiry,
                 )
-                return presigned_url
+                return str(presigned_url)
             except Exception as e:
                 logger.error(f"Error generating pre-signed URL: {str(e)}")
                 # Fall back to direct URL (may not work if bucket is private)

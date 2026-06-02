@@ -456,8 +456,14 @@ def process_content_by_section(section_name: str, content: Any) -> str:
 
     # Select appropriate processor based on section name
     if section_name == "personal_information":
-        # Just extract the values, LaTeX formatting handled by template
-        return process_personal_information(parsed_content)
+        info = process_personal_information(parsed_content)
+        if not info:
+            return ""
+        return (
+            f"\\personalInformation{{{info['full_name']}}}{{{info['phone']}}}"
+            f"{{{info['email']}}}{{{info['linkedin']}}}{{{info['github']}}}"
+            f"{{{info['website']}}}{{{info['address']}}}"
+        )
     elif section_name == "career_summary":
         return process_career_summary(parsed_content)
     elif section_name == "skills":

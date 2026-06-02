@@ -1,14 +1,18 @@
 """Align Atlas resumes/profiles/portfolios to canonical user_id by email."""
 
 from pathlib import Path
+from typing import Any
 
 from dotenv import dotenv_values
 from pymongo import MongoClient
+from pymongo.database import Database
 
 cfg = dotenv_values(Path(__file__).resolve().parents[1] / ".env.local")
-db = MongoClient(cfg["MONGODB_URI"], serverSelectionTimeoutMS=60000)[
-    cfg.get("MONGODB_DATABASE", "rbt")
-]
+_db_name: str = cfg.get("MONGODB_DATABASE") or "rbt"
+_client: MongoClient[Any] = MongoClient(
+    cfg["MONGODB_URI"], serverSelectionTimeoutMS=60000
+)
+db: Database = _client[_db_name]
 
 for user in db.users.find():
     email = (user.get("email") or "").lower()

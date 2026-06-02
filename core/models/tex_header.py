@@ -33,7 +33,6 @@ class TexHeader(Document):
     model_config = {
         "validate_assignment": True,
         "json_encoders": {datetime: lambda v: v.isoformat()},
-        "collection": "tex_headers",
     }
 
     class Settings:

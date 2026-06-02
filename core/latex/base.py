@@ -45,7 +45,7 @@ class LatexCompiler(ABC):
         """
 
     async def compile_pdf(
-        self, tex_path: Path, latex_content: str = None
+        self, tex_path: Path, latex_content: str | None = None
     ) -> bytes | None:
         """Compile the LaTeX file to PDF.
 

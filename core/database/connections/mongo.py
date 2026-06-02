@@ -1,7 +1,5 @@
 """MongoDB connection manager."""
 
-from typing import Optional
-
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 
 from config.logging_config import get_logger
@@ -12,9 +10,10 @@ logger = get_logger(__name__)
 class MongoDBManager:
     """MongoDB connection manager singleton."""
 
-    _instance: Optional["MongoDBManager"] = None
+    _instance: "MongoDBManager | None" = None
     _async_client: AsyncIOMotorClient | None = None
     _async_db: AsyncIOMotorDatabase | None = None
+    _initialized: bool = False
 
     def __new__(cls, *args, **kwargs):
         """Ensure singleton pattern."""
@@ -23,7 +22,7 @@ class MongoDBManager:
             cls._instance._initialized = False
         return cls._instance
 
-    def __init__(self, uri: str = None, database: str = None):
+    def __init__(self, uri: str | None = None, database: str | None = None):
         """Initialize the MongoDB connection manager.
 
         Args:

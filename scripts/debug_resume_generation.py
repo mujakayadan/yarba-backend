@@ -391,14 +391,10 @@ async def get_or_create_test_resume(
     resume_repo: ResumeRepository,
     portfolio_service: PortfolioService,
     profile_service: ProfileService,
-    user_id: str,
+    user_id: PydanticObjectId,
 ) -> PydanticObjectId:
     """Get an existing resume or create a new one for testing."""
     logger.info(f"Finding or creating a test resume for user {user_id}")
-
-    # Convert string ID to PydanticObjectId if needed
-    if isinstance(user_id, str):
-        user_id = PydanticObjectId(user_id)
 
     # Check for existing resumes
     user_resumes = await resume_repo.get_by_user_id(user_id)
@@ -410,9 +406,13 @@ async def get_or_create_test_resume(
         # Update the job description if it's empty
         if not test_resume.job_description:
             test_resume.job_description = SAMPLE_JOB_DESCRIPTION
+            if test_resume.id is None:
+                raise ValueError("Existing resume has no id")
             await resume_repo.update(test_resume.id, test_resume)
             logger.info("Updated empty job description in existing resume")
 
+        if test_resume.id is None:
+            raise ValueError("Existing resume has no id")
         return test_resume.id
 
     # No existing resume, create a new one
@@ -443,6 +443,8 @@ async def get_or_create_test_resume(
 
     created_resume = await resume_repo.create(new_resume)
     logger.info(f"Created new test resume: {created_resume.id}")
+    if created_resume.id is None:
+        raise ValueError("Created resume has no id")
     return created_resume.id
 
 

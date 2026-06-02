@@ -317,7 +317,9 @@ class LLMService:
 
         try:
             supported_params = get_supported_openai_params(model=model)
-            return "response_format" in supported_params
+            return (
+                supported_params is not None and "response_format" in supported_params
+            )
         except Exception as e:
             self.logger.warning(f"Error checking JSON mode support: {e}")
             return False
@@ -348,7 +350,7 @@ class LLMService:
         output_tokens: int,
         total_tokens: int,
         cost: float,
-        operation_type: str,
+        operation_type: str | list[str],
         resume_id: PydanticObjectId | None = None,
         cover_letter_id: PydanticObjectId | None = None,
     ) -> None:
@@ -679,6 +681,8 @@ class LLMService:
                         )
                         raise
 
+            raise RuntimeError("LLM completion failed after retries")
+
         except Exception as e:
             self.logger.error(f"Error getting LLM completion: {str(e)}")
             self.logger.error(f"Model: {model}, Prompt length: {len(prompt)}")
@@ -769,7 +773,7 @@ class LLMService:
                 )
 
             # Configure response format if supported
-            kwargs = {}
+            kwargs: dict[str, Any] = {}
             if supports_json:
                 if supports_schema:
                     # Use full JSON schema

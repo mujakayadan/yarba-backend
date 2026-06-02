@@ -1,6 +1,7 @@
 import logging
-from typing import Any
 from urllib.parse import urlparse
+
+from core.models.job_extractor import JobDetails
 
 from .extractors.crawl4ai_extractor import Crawl4AIExtractor
 from .extractors.generic_extractor import GenericExtractor
@@ -53,7 +54,7 @@ class ExtractorManager:
                 headless=self.headless, fast_mode=self.fast_mode
             )
 
-    async def extract(self, job_url: str) -> dict[str, Any] | None:
+    async def extract(self, job_url: str) -> JobDetails | None:
         """Extract job description from a URL, handling different job sites.
 
         Args:

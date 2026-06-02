@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import Depends
 
-from core.models.user import User
+from core.models.user import AuthenticatedUser
 
 from ..middleware.auth import (
     get_current_active_user,
@@ -12,10 +12,11 @@ from ..middleware.auth import (
 )
 
 # Type annotations for dependency injection
-CurrentUser = Annotated[User, Depends(get_current_user)]
-CurrentActiveUser = Annotated[User, Depends(get_current_active_user)]
+CurrentUser = Annotated[AuthenticatedUser, Depends(get_current_user)]
+CurrentActiveUser = Annotated[AuthenticatedUser, Depends(get_current_active_user)]
 
 __all__ = [
+    "AuthenticatedUser",
     "CurrentActiveUser",
     "CurrentUser",
     "get_current_active_user",

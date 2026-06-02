@@ -103,7 +103,12 @@ class JobExtractor:
                 else:
                     with open(output_path_obj, "w", encoding="utf-8") as f:
                         f.write("--- Job Title ---\n")
-                        f.write(f"{job_details.title or 'Not available'}\n")
+                        title = (
+                            (job_details.extraction_metadata or {}).get("title")
+                            if job_details.extraction_metadata
+                            else None
+                        )
+                        f.write(f"{title or 'Not available'}\n")
                         f.write("--- End of Title ---\n\n")
                         f.write("--- Job Description ---\n")
                         f.write(f"{processed_description or 'Not available'}\n")

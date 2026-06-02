@@ -4,7 +4,7 @@ import json
 import logging
 import re
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 import jsonschema
 from beanie import PydanticObjectId
@@ -85,7 +85,7 @@ def repair_json(json_str: str) -> str:
         try:
             from json_repair import repair_json as external_repair_json
 
-            return external_repair_json(json_str)
+            return str(external_repair_json(json_str))
         except ImportError:
             logger.warning("json_repair package not installed. Using fallback methods.")
 
@@ -187,7 +187,7 @@ def parse_json_with_repair(
     if schema_model:
         return schema_model.model_validate(parsed)
 
-    return parsed
+    return cast(dict[str, Any], parsed)
 
 
 def dumps(obj: Any, **kwargs) -> str:

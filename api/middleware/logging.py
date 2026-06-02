@@ -1,6 +1,7 @@
 """Request logging middleware for FastAPI."""
 
 import time
+from typing import Any
 
 from fastapi import FastAPI, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
@@ -18,7 +19,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         app: FastAPI,
         log_request_body: bool = False,
         log_response_body: bool = False,
-        exclude_paths: list = None,
+        exclude_paths: list[Any] | None = None,
     ):
         """Initialize request logging middleware.
 
@@ -116,7 +117,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         if self.log_response_body:
             try:
                 body = response.body
-                if body:
+                if body and isinstance(body, bytes):
                     logger.debug(f"Response body: {body.decode()}")
             except Exception as e:
                 logger.warning(f"Failed to log response body: {str(e)}")
@@ -126,7 +127,7 @@ def add_logging_middleware(
     app: FastAPI,
     log_request_body: bool = False,
     log_response_body: bool = False,
-    exclude_paths: list = None,
+    exclude_paths: list[Any] | None = None,
 ) -> None:
     """Add request logging middleware to a FastAPI application.
 
@@ -137,7 +138,7 @@ def add_logging_middleware(
         exclude_paths: List of paths to exclude from logging
     """
     app.add_middleware(
-        RequestLoggingMiddleware,
+        RequestLoggingMiddleware,  # type: ignore[arg-type]
         log_request_body=log_request_body,
         log_response_body=log_response_body,
         exclude_paths=exclude_paths,

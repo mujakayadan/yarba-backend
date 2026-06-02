@@ -20,15 +20,15 @@ from pydantic import BaseModel, Field
 from config.logging_config import get_logger
 from core.exceptions.base import NotFoundException
 from core.models.resume import LLMUsageStats
-from core.models.user import User
 from core.services.cover_letter_generation_service import CoverLetterGenerationService
 from core.services.cover_letter_service import CoverLetterService
 from core.services.portfolio_service import PortfolioService
 from core.services.profile_service import ProfileService
 from core.services.resume_service import ResumeService
+from core.utils.object_id import require_object_id
 from utils.storage import get_storage_provider
 
-from ..dependencies.auth import CurrentUser, get_current_active_user
+from ..dependencies.auth import CurrentActiveUser, CurrentUser
 from ..dependencies.services import (
     get_cover_letter_generation_service,
     get_cover_letter_service,
@@ -286,12 +286,12 @@ async def create_cover_letter(
             # Always generate cover letter content first
             logger.info(f"Generating content for cover letter: {cover_letter.id}")
             await generation_service.generate_cover_letter_content(
-                cover_letter_id=cover_letter.id
+                cover_letter_id=require_object_id(cover_letter.id)
             )
 
             # Fetch the updated cover letter with content before proceeding
             cover_letter = await cover_letter_service.get_cover_letter_by_id(
-                cover_letter_id=cover_letter.id,
+                cover_letter_id=require_object_id(cover_letter.id),
                 user_id=user_id,
             )
 
@@ -309,11 +309,13 @@ async def create_cover_letter(
             # If PDF generation is requested, generate PDF
             if cover_letter_data.generate_pdf:
                 logger.info(f"Generating PDF for cover letter: {cover_letter.id}")
-                await generation_service.generate_pdf(cover_letter.id)
+                await generation_service.generate_pdf(
+                    require_object_id(cover_letter.id)
+                )
 
                 # Get the updated cover letter with PDF information
                 cover_letter = await cover_letter_service.get_cover_letter_by_id(
-                    cover_letter_id=cover_letter.id,
+                    cover_letter_id=require_object_id(cover_letter.id),
                     user_id=user_id,
                 )
 
@@ -634,9 +636,11 @@ async def get_cover_letter_pdf(
 
 @router.post("/{cover_letter_id}/upload-pdf", response_model=CoverLetterPDFResponse)
 async def upload_cover_letter_pdf(
-    cover_letter_id: PydanticObjectId = Path(..., description="Cover Letter ID"),
+    current_user: CurrentActiveUser,
+    cover_letter_id: Annotated[
+        PydanticObjectId, Path(..., description="Cover Letter ID")
+    ],
     file: UploadFile = File(..., description="PDF file to upload"),
-    current_user: User = Depends(get_current_active_user),
     cover_letter_service: CoverLetterService = Depends(get_cover_letter_service),
 ):
     """Upload a PDF file for a cover letter directly instead of generating it.
@@ -712,8 +716,10 @@ async def upload_cover_letter_pdf(
 
 @router.delete("/{cover_letter_id}/pdf", response_model=CoverLetterPDFResponse)
 async def delete_cover_letter_pdf(
-    cover_letter_id: PydanticObjectId = Path(..., description="Cover Letter ID"),
-    current_user: User = Depends(get_current_active_user),
+    current_user: CurrentActiveUser,
+    cover_letter_id: Annotated[
+        PydanticObjectId, Path(..., description="Cover Letter ID")
+    ],
     cover_letter_service: CoverLetterService = Depends(get_cover_letter_service),
 ):
     """Delete the PDF file for a cover letter.
@@ -819,15 +825,15 @@ async def get_cover_letter_llm_usage(
                 pass
 
         # Return usage data along with basic cover letter info
-        return {
-            "cover_letter_id": str(cover_letter.id),
-            "resume_id": str(cover_letter.resume_id),
-            "company_name": company_name,
-            "job_title": job_title,
-            "usage": cover_letter.llm_usage,
-            "created_at": cover_letter.created_at,
-            "updated_at": cover_letter.updated_at,
-        }
+        return CoverLetterLLMUsageResponse(
+            cover_letter_id=str(cover_letter.id),
+            resume_id=str(cover_letter.resume_id),
+            company_name=company_name,
+            job_title=job_title,
+            usage=cover_letter.llm_usage,
+            created_at=cover_letter.created_at,
+            updated_at=cover_letter.updated_at,
+        )
 
     except NotFoundException:
         raise HTTPException(

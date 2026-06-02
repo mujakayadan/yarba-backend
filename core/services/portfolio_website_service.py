@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 from datetime import UTC, datetime
+from typing import Any
 
 from beanie import PydanticObjectId
 
@@ -23,6 +24,7 @@ from ..repositories.portfolio_repository import PortfolioRepository
 from ..repositories.portfolio_website_repository import PortfolioWebsiteRepository
 from ..repositories.profile_repository import ProfileRepository
 from ..repositories.user_repository import UserRepository
+from ..utils.object_id import require_object_id
 from .aws_deployment_service import AWSDeploymentService
 from .website_generator_service import WebsiteGeneratorService
 
@@ -114,7 +116,7 @@ class PortfolioWebsiteService:
 
         # Trigger initial deployment asynchronously
         # _deploy_website_async will handle updating the website object with deployment details (URL, status etc.)
-        asyncio.create_task(self._deploy_website_async(website.id))
+        asyncio.create_task(self._deploy_website_async(require_object_id(website.id)))
 
         self.logger.info(
             f"Initial asynchronous deployment triggered for website {website.id}. The website object will be updated upon completion."
@@ -179,18 +181,22 @@ class PortfolioWebsiteService:
             # It's already a WebsiteConfig
             website_config = config
 
+        website_id = require_object_id(website.id)
+        old_config = website.config
+
         # Update configuration
         website.config = website_config
         website.updated_at = datetime.now(UTC)
 
         # Save changes
-        website = await self.website_repository.update(website.id, website)
+        updated_website = await self.website_repository.update(website_id, website)
+        if not updated_website:
+            raise NotFoundException("Portfolio website not found")
+        website = updated_website
 
         # Trigger rebuild if forced or significant changes detected
-        if force_rebuild or self._config_requires_rebuild(
-            website.config, website_config
-        ):
-            asyncio.create_task(self._deploy_website_async(website.id))
+        if force_rebuild or self._config_requires_rebuild(old_config, website_config):
+            asyncio.create_task(self._deploy_website_async(website_id))
 
         return website
 
@@ -236,11 +242,13 @@ class PortfolioWebsiteService:
             )
             return website
 
+        website_id = require_object_id(website.id)
+
         # Start deployment process synchronously
-        await self._deploy_website_sync(website.id, clean_deploy=clean_deploy)
+        await self._deploy_website_sync(website_id, clean_deploy=clean_deploy)
 
         # Get updated website after deployment
-        updated_website = await self.website_repository.get_by_id(website.id)
+        updated_website = await self.website_repository.get_by_id(website_id)
         if not updated_website:
             raise NotFoundException("Website not found after deployment")
 
@@ -488,7 +496,7 @@ class PortfolioWebsiteService:
             )
             raise DeploymentException(f"Deployment failed: {str(e)}")
 
-    async def check_subdomain_availability(self, subdomain: str) -> dict[str, any]:
+    async def check_subdomain_availability(self, subdomain: str) -> dict[str, Any]:
         """Check if a subdomain is available and suggest alternatives.
 
         Args:
@@ -539,7 +547,7 @@ class PortfolioWebsiteService:
 
         # Delete from database FIRST - this must succeed
         # so user can create a new website even if AWS cleanup fails
-        await self.website_repository.delete(website.id)
+        await self.website_repository.delete(require_object_id(website.id))
         self.logger.info(f"Deleted portfolio website record for user {user_id}")
 
         # Then try to delete AWS resources (best effort)

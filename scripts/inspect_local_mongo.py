@@ -1,11 +1,16 @@
 """Inspect local MongoDB databases for recovery assessment."""
 
+from typing import Any
+
 from pymongo import MongoClient
+from pymongo.database import Database
 
-client = MongoClient("mongodb://localhost:27017", serverSelectionTimeoutMS=5000)
+client: MongoClient[Any] = MongoClient(
+    "mongodb://localhost:27017", serverSelectionTimeoutMS=5000
+)
 
 
-def inspect_recovered_users(db) -> None:
+def inspect_recovered_users(db: Database) -> None:
     for u in db.users.find({}, {"email": 1, "username": 1, "firebase_uid": 1}):
         print(
             f"  user: {u.get('email')} / {u.get('username')} / {u.get('firebase_uid')}"

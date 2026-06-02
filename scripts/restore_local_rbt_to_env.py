@@ -3,9 +3,11 @@
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 from dotenv import dotenv_values
 from pymongo import MongoClient
+from pymongo.database import Database
 
 ROOT = Path(__file__).resolve().parents[1]
 BACKUP_DIR = ROOT / "mongodb_backup"
@@ -15,13 +17,15 @@ LEGACY_PASSWORD = "RECOVERED_FIREBASE_ONLY"
 def main() -> None:
     cfg = dotenv_values(ROOT / ".env.local")
     target_uri = cfg.get("MONGODB_URI")
-    db_name = cfg.get("MONGODB_DATABASE", "rbt")
+    db_name: str = cfg.get("MONGODB_DATABASE") or "rbt"
     if not target_uri:
         raise SystemExit("MONGODB_URI missing in .env.local")
 
-    local = MongoClient("mongodb://localhost:27017", serverSelectionTimeoutMS=5000)
+    local: MongoClient[Any] = MongoClient(
+        "mongodb://localhost:27017", serverSelectionTimeoutMS=5000
+    )
     local.admin.command("ping")
-    db = local[db_name]
+    db: Database = local[db_name]
 
     result = db.users.update_many(
         {"hashed_password": {"$exists": False}},
@@ -57,9 +61,9 @@ def main() -> None:
     print("Running mongorestore to Atlas...")
     subprocess.run(restore_cmd, check=True)
 
-    remote = MongoClient(target_uri, serverSelectionTimeoutMS=30000)
+    remote: MongoClient[Any] = MongoClient(target_uri, serverSelectionTimeoutMS=30000)
     remote.admin.command("ping")
-    rdb = remote[db_name]
+    rdb: Database = remote[db_name]
     print("Atlas counts:")
     for coll in (
         "users",

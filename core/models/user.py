@@ -1,16 +1,17 @@
 """User model for MongoDB using Beanie ODM."""
 
 from datetime import UTC, datetime
+from typing import Annotated
 
-from beanie import Document
+from beanie import Document, Indexed, PydanticObjectId
 from pydantic import EmailStr, Field
 
 
 class User(Document):
     """User model for MongoDB using Beanie ODM."""
 
-    username: str = Field(unique=True, index=True)
-    email: EmailStr = Field(unique=True, index=True)
+    username: Annotated[str, Indexed(unique=True)]
+    email: Annotated[EmailStr, Indexed(unique=True)]
     is_active: bool = True
     is_superuser: bool = False
     email_verified: bool = False
@@ -24,7 +25,7 @@ class User(Document):
     )
 
     # Firebase auth fields (required for authentication)
-    firebase_uid: str = Field(index=True)
+    firebase_uid: Annotated[str, Indexed()]
 
     # Firebase supports multiple authentication providers
     auth_provider: str = Field(
@@ -67,3 +68,9 @@ class User(Document):
         bson_encoders = {
             datetime: lambda dt: (dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt),
         }
+
+
+class AuthenticatedUser(User):
+    """User loaded from the database; always has a persisted ``id``."""
+
+    id: PydanticObjectId

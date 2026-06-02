@@ -1,5 +1,7 @@
 """Password utility functions."""
 
+from typing import Any
+
 from passlib.context import CryptContext
 from passlib.exc import UnknownHashError
 
@@ -26,7 +28,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
     try:
-        return pwd_context.verify(plain_password, hashed_password)
+        return bool(pwd_context.verify(plain_password, hashed_password))
     except UnknownHashError:
         logger.error(
             f"Unknown hash format detected. Hash might be invalid or corrupted. Length: {len(hashed_password)}"
@@ -46,10 +48,10 @@ def get_password_hash(password: str) -> str:
     Returns:
         str: Hashed password
     """
-    return pwd_context.hash(password)
+    return str(pwd_context.hash(password))
 
 
-def reset_user_password(user_obj: any, new_password: str) -> str | None:
+def reset_user_password(user_obj: Any, new_password: str) -> str | None:
     """Reset a user's password.
 
     Args:

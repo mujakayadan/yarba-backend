@@ -1,5 +1,7 @@
 """Prompts related to portfolio parsing and generation."""
 
+from typing import Any
+
 from prompts.base_prompt import BasePrompt
 
 MAP_TEXT_TO_PORTFOLIO_TEMPLATE = """
@@ -55,8 +57,11 @@ class MapDocumentToPortfolioPrompt(BasePrompt):
     def __init__(self):
         super().__init__(template=MAP_TEXT_TO_PORTFOLIO_TEMPLATE)
 
-    def format(self, document_text: str) -> str:
+    def format(self, **kwargs: Any) -> str:
         """Formats the prompt with the provided document text."""
+        document_text = kwargs.get("document_text")
+        if not isinstance(document_text, str):
+            raise TypeError("document_text must be a str")
         return super().format(document_text=document_text)
 
 

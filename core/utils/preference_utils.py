@@ -59,7 +59,9 @@ def get_prompt_preferences(profile: Profile | None) -> dict[str, Any]:
         Dict in the canonical structure expected by the prompt templates
     """
     # Start with empty result structure
-    result = {section: {} for section in PREFERENCE_STRUCTURE}
+    result: dict[str, dict[str, Any]] = {
+        section: {} for section in PREFERENCE_STRUCTURE
+    }
 
     # Get settings fallback values first
     settings_fallback = settings.preferences.get_prompt_variables()

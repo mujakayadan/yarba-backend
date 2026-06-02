@@ -2,7 +2,7 @@
 
 import re
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 from config.logging_config import get_logger
 from config.settings import Settings
@@ -42,7 +42,7 @@ class LatexService:
         return list_cover_letter_templates()
 
     def configure_latex_logging(
-        self, log_level: str = None, suppress_logs: bool = None
+        self, log_level: str | None = None, suppress_logs: bool | None = None
     ):
         """Configure LaTeX logging settings for both compilers.
 
@@ -227,7 +227,7 @@ class LatexService:
                 )
 
             # Pass the resume.content and portfolio data to the compiler
-            latex_content = self.resume_compiler.generate_tex_content(
+            latex_content = await self.resume_compiler.generate_tex_content(
                 resume_content=resume.content,
                 portfolio_data=portfolio_data_for_compiler,  # Pass fetched portfolio data
                 template=template_data,
@@ -361,7 +361,7 @@ class LatexService:
                 )
 
             # Pass the cover_letter.content and portfolio data to the compiler
-            latex_content = self.cover_letter_compiler.generate_tex_content(
+            latex_content = await self.cover_letter_compiler.generate_tex_content(
                 cover_letter_content=cover_letter.content,
                 portfolio_data=portfolio_data_for_compiler,  # Pass fetched portfolio data
                 template=template_data,
@@ -493,4 +493,4 @@ def get_latex_service() -> LatexService:
 
         portfolio_service = DummyPortfolioService()
 
-    return LatexService(portfolio_service=portfolio_service)  # Pass instance
+    return LatexService(portfolio_service=cast(PortfolioService, portfolio_service))

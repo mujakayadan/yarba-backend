@@ -16,7 +16,7 @@ from fastapi import (
 )
 from pydantic import BaseModel, Field
 
-from api.dependencies.auth import get_current_active_user
+from api.dependencies.auth import CurrentActiveUser, CurrentUser
 from api.dependencies.services import (
     get_cover_letter_service,
     get_latex_service,
@@ -25,7 +25,6 @@ from api.dependencies.services import (
     get_resume_generation_service,
     get_resume_service,
 )
-from api.middleware.auth import CurrentUser
 from api.schemas import (
     CoverLetterFilter,
     CoverLetterResponse,
@@ -40,12 +39,12 @@ from api.schemas.resume import SortOptions
 from config import get_logger
 from core.exceptions.base import InternalServerException, NotFoundException
 from core.models.resume import LLMUsageStats, Resume
-from core.models.user import User
 from core.services.cover_letter_service import CoverLetterService
 from core.services.portfolio_service import PortfolioService
 from core.services.profile_service import ProfileService
 from core.services.resume_generation_service import ResumeGenerationService
 from core.services.resume_service import ResumeService
+from core.utils.object_id import require_object_id
 from utils.storage import get_storage_provider
 
 router = APIRouter()
@@ -158,8 +157,8 @@ async def create_resume(
         # 1. Create the basic resume entry
         resume = await resume_service.create_resume(
             user_id=user_id,
-            profile_id=profile.id,
-            portfolio_id=portfolio.id,
+            profile_id=require_object_id(profile.id),
+            portfolio_id=require_object_id(portfolio.id),
             job_description=request.job_description,
             job_description_url=request.job_description_url,
             template_id=request.template_id,
@@ -170,11 +169,11 @@ async def create_resume(
         try:
             logger.info(f"Populating textual content for new resume: {resume.id}")
             await resume_generation_service.generate_resume_textual_content(
-                resume_id=resume.id
+                resume_id=require_object_id(resume.id)
             )
             # Refetch resume to get the populated content for potential PDF step or response
             resume_with_content = await resume_service.get_resume_by_id(
-                resume.id, user_id
+                require_object_id(resume.id), user_id
             )
             if not resume_with_content:
                 raise InternalServerException(
@@ -219,7 +218,7 @@ async def create_resume(
                     )
                     update_data = ResumeUpdate(resume_pdf_key=pdf_key)
                     resume_with_pdf = await resume_service.update_resume(
-                        resume_id=resume.id,
+                        resume_id=require_object_id(resume.id),
                         user_id=user_id,
                         update_data=update_data.model_dump(exclude_unset=True),
                     )
@@ -331,7 +330,7 @@ async def get_available_templates(
         List[Dict[str, str]]: List of available templates with id, name, and description
     """
     try:
-        templates = latex_service.get_available_resume_templates()
+        templates: list[dict[str, str]] = latex_service.get_available_resume_templates()
         return templates
     except Exception as e:
         logger.error(f"Error getting available templates: {str(e)}")
@@ -849,9 +848,9 @@ async def regenerate_resume(
 
 @router.post("/{resume_id}/upload-pdf", response_model=ResumePDFResponse)
 async def upload_resume_pdf(
-    resume_id: PydanticObjectId = Path(..., description="Resume ID"),
+    current_user: CurrentActiveUser,
+    resume_id: Annotated[PydanticObjectId, Path(..., description="Resume ID")],
     file: UploadFile = File(..., description="PDF file to upload"),
-    current_user: User = Depends(get_current_active_user),
     resume_service: ResumeService = Depends(get_resume_service),
 ):
     """Upload a PDF file for a resume directly instead of generating it.
@@ -925,8 +924,8 @@ async def upload_resume_pdf(
 
 @router.delete("/{resume_id}/pdf", response_model=ResumePDFResponse)
 async def delete_resume_pdf(
-    resume_id: PydanticObjectId = Path(..., description="Resume ID"),
-    current_user: User = Depends(get_current_active_user),
+    current_user: CurrentActiveUser,
+    resume_id: Annotated[PydanticObjectId, Path(..., description="Resume ID")],
     resume_service: ResumeService = Depends(get_resume_service),
 ):
     """Delete the PDF file for a resume.

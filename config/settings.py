@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import AnyHttpUrl, Field, SecretStr, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -34,9 +34,11 @@ class DatabaseSettings(BaseSettings):
     url: str = Field(
         default="mongodb://localhost:27017",
         description="MongoDB connection URL",
-        env="URI",
+        validation_alias="URI",
     )
-    name: str = Field(default="rbt", description="Database name", env="DATABASE")
+    name: str = Field(
+        default="rbt", description="Database name", validation_alias="DATABASE"
+    )
     min_pool_size: int = Field(
         default=10,
         description="Minimum number of connections in the pool",
@@ -88,103 +90,103 @@ class AuthSettings(BaseSettings):
 
     # JWT settings for API authentication after Firebase verification
     jwt_secret_key: SecretStr = Field(
-        default="your-secret-key",
+        default=SecretStr("your-secret-key"),
         description="Secret key for JWT token generation",
-        env="JWT_SECRET_KEY",
+        validation_alias="JWT_SECRET_KEY",
     )
     jwt_algorithm: str = Field(
         default="HS256",
         description="Algorithm for JWT token generation",
-        env="JWT_ALGORITHM",
+        validation_alias="JWT_ALGORITHM",
     )
     jwt_access_token_expire_minutes: int = Field(
         default=1440,  # Set to 24 hours (1440 minutes) for debug purposes
         description="Access token expiration time in minutes",
-        env="JWT_ACCESS_TOKEN_EXPIRE_MINUTES",
+        validation_alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES",
     )
 
     # API URLs
     api_base_url: str = Field(
         default="http://localhost:8000",
         description="Base URL for API endpoints",
-        env="API_BASE_URL",
+        validation_alias="API_BASE_URL",
     )
     email_verification_path: str = Field(
         default="/auth/verify-email",
         description="Path for email verification",
-        env="EMAIL_VERIFICATION_PATH",
+        validation_alias="EMAIL_VERIFICATION_PATH",
     )
     password_reset_path: str = Field(
         default="/auth/reset-password",
         description="Path for password reset",
-        env="PASSWORD_RESET_PATH",
+        validation_alias="PASSWORD_RESET_PATH",
     )
 
     # Firebase settings
     firebase_api_key: str | None = Field(
         default=None,
         description="Firebase Web API key - required for REST API authentication",
-        env="FIREBASE_API_KEY",
+        validation_alias="FIREBASE_API_KEY",
     )
     firebase_type: str = Field(
         default="service_account",
         description="Firebase credential type",
-        env="FIREBASE_TYPE",
+        validation_alias="FIREBASE_TYPE",
     )
     firebase_project_id: str = Field(
         default="",
         description="Firebase project ID",
-        env="FIREBASE_PROJECT_ID",
+        validation_alias="FIREBASE_PROJECT_ID",
     )
     firebase_private_key_id: str = Field(
         default="",
         description="Firebase private key ID",
-        env="FIREBASE_PRIVATE_KEY_ID",
+        validation_alias="FIREBASE_PRIVATE_KEY_ID",
     )
     firebase_private_key: str | None = Field(
         default=None,
         description="Firebase private key",
-        env="FIREBASE_PRIVATE_KEY",
+        validation_alias="FIREBASE_PRIVATE_KEY",
     )
     firebase_client_email: str = Field(
         default="",
         description="Firebase client email",
-        env="FIREBASE_CLIENT_EMAIL",
+        validation_alias="FIREBASE_CLIENT_EMAIL",
     )
     firebase_client_id: str = Field(
         default="",
         description="Firebase client ID",
-        env="FIREBASE_CLIENT_ID",
+        validation_alias="FIREBASE_CLIENT_ID",
     )
     firebase_auth_uri: str = Field(
         default="https://accounts.google.com/o/oauth2/auth",
         description="Firebase auth URI",
-        env="FIREBASE_AUTH_URI",
+        validation_alias="FIREBASE_AUTH_URI",
     )
     firebase_token_uri: str = Field(
         default="https://oauth2.googleapis.com/token",
         description="Firebase token URI",
-        env="FIREBASE_TOKEN_URI",
+        validation_alias="FIREBASE_TOKEN_URI",
     )
     firebase_auth_provider_x509_cert_url: str = Field(
         default="https://www.googleapis.com/oauth2/v1/certs",
         description="Firebase auth provider x509 cert URL",
-        env="FIREBASE_AUTH_PROVIDER_X509_CERT_URL",
+        validation_alias="FIREBASE_AUTH_PROVIDER_X509_CERT_URL",
     )
     firebase_client_x509_cert_url: str = Field(
         default="",
         description="Firebase client x509 cert URL",
-        env="FIREBASE_CLIENT_X509_CERT_URL",
+        validation_alias="FIREBASE_CLIENT_X509_CERT_URL",
     )
     firebase_universe_domain: str = Field(
         default="googleapis.com",
         description="Firebase universe domain",
-        env="FIREBASE_UNIVERSE_DOMAIN",
+        validation_alias="FIREBASE_UNIVERSE_DOMAIN",
     )
     firebase_private_key_base64: str | None = Field(
         default=None,
         description="Firebase private key encoded in base64",
-        env="FIREBASE_PRIVATE_KEY_BASE64",
+        validation_alias="FIREBASE_PRIVATE_KEY_BASE64",
     )
 
     @model_validator(mode="after")
@@ -295,17 +297,17 @@ class LLMSettings(BaseSettings):
     )
 
     openai_api_key: str | None = Field(
-        default=None, description="OpenAI API key", env="OPENAI_API_KEY"
+        default=None, description="OpenAI API key", validation_alias="OPENAI_API_KEY"
     )
     anthropic_api_key: str | None = Field(
         default=None,
         description="Anthropic API key",
-        env="ANTHROPIC_API_KEY",
+        validation_alias="ANTHROPIC_API_KEY",
     )
     gemini_api_key: str | None = Field(
         default=None,
         description="Google Gemini API key",
-        env="GEMINI_API_KEY",
+        validation_alias="GEMINI_API_KEY",
     )
     default_model: str = Field(
         default="gpt-4.1", description="Default LLM model to use"
@@ -320,12 +322,12 @@ class LLMSettings(BaseSettings):
     enable_json_schema: bool = Field(
         default=True,
         description="Whether to enable JSON schema output for supported models",
-        env="ENABLE_JSON_SCHEMA",
+        validation_alias="ENABLE_JSON_SCHEMA",
     )
     json_schema_validation: bool = Field(
         default=True,
         description="Whether to enable client-side JSON schema validation for all models",
-        env="JSON_SCHEMA_VALIDATION",
+        validation_alias="JSON_SCHEMA_VALIDATION",
     )
     json_compatible_models: list[str] = Field(
         default=[
@@ -338,28 +340,28 @@ class LLMSettings(BaseSettings):
             "gemini-1.5-pro",
         ],
         description="List of models known to support JSON schema output",
-        env="JSON_COMPATIBLE_MODELS",
+        validation_alias="JSON_COMPATIBLE_MODELS",
     )
 
     # Cost tracking settings
     enable_cost_tracking: bool = Field(
         default=True,
         description="Whether to enable cost tracking for LLM calls",
-        env="ENABLE_COST_TRACKING",
+        validation_alias="ENABLE_COST_TRACKING",
     )
 
     # Use LiteLLM's model cost map
     use_litellm_model_cost_map: bool = Field(
         default=True,
         description="Whether to use LiteLLM's built-in model cost map",
-        env="USE_LITELLM_MODEL_COST_MAP",
+        validation_alias="USE_LITELLM_MODEL_COST_MAP",
     )
 
     # URL for custom model cost map (optional)
     custom_model_cost_map_url: str | None = Field(
         default=None,
         description="URL to custom model cost map JSON for LiteLLM",
-        env="CUSTOM_MODEL_COST_MAP_URL",
+        validation_alias="CUSTOM_MODEL_COST_MAP_URL",
     )
 
     # Custom price overrides only for models not in LiteLLM's cost map
@@ -389,12 +391,12 @@ class LinkedInSettings(BaseSettings):
     email: str | None = Field(
         default=None,
         description="LinkedIn email for authentication (user-specific)",
-        env="EMAIL",
+        validation_alias="EMAIL",
     )
     password: str | None = Field(
         default=None,
         description="LinkedIn password for authentication (user-specific)",
-        env="PASSWORD",
+        validation_alias="PASSWORD",
     )
 
 
@@ -516,91 +518,91 @@ class PreferenceSettings(BaseSettings):
     career_summary_min_words: int = Field(
         default=15,
         description="Minimum words in career summary",
-        env="PREF_CAREER_SUMMARY_MIN_WORDS",
+        validation_alias="PREF_CAREER_SUMMARY_MIN_WORDS",
     )
     career_summary_max_words: int = Field(
         default=25,
         description="Maximum words in career summary",
-        env="PREF_CAREER_SUMMARY_MAX_WORDS",
+        validation_alias="PREF_CAREER_SUMMARY_MAX_WORDS",
     )
 
     # Work experience preferences
     work_experience_max_jobs: int = Field(
         default=4,
         description="Maximum number of jobs to include",
-        env="PREF_WORK_EXPERIENCE_MAX_JOBS",
+        validation_alias="PREF_WORK_EXPERIENCE_MAX_JOBS",
     )
     work_experience_bullet_points_per_job: int = Field(
         default=3,
         description="Number of bullet points per job",
-        env="PREF_WORK_EXPERIENCE_BULLET_POINTS",
+        validation_alias="PREF_WORK_EXPERIENCE_BULLET_POINTS",
     )
 
     # Project preferences
     project_max_projects: int = Field(
         default=4,
         description="Maximum number of projects to include",
-        env="PREF_PROJECT_MAX_PROJECTS",
+        validation_alias="PREF_PROJECT_MAX_PROJECTS",
     )
     project_bullet_points_per_project: int = Field(
         default=3,
         description="Number of bullet points per project",
-        env="PREF_PROJECT_BULLET_POINTS",
+        validation_alias="PREF_PROJECT_BULLET_POINTS",
     )
 
     # Cover letter preferences
     cover_letter_paragraphs: int = Field(
         default=5,
         description="Number of paragraphs in cover letter",
-        env="PREF_COVER_LETTER_PARAGRAPHS",
+        validation_alias="PREF_COVER_LETTER_PARAGRAPHS",
     )
     cover_letter_target_age: int = Field(
         default=25,
         description="Target age level for cover letter readability",
-        env="PREF_COVER_LETTER_AGE_LEVEL",
+        validation_alias="PREF_COVER_LETTER_AGE_LEVEL",
     )
 
     # Skills preferences
     skills_max_categories: int = Field(
         default=5,
         description="Maximum number of skill categories",
-        env="PREF_SKILLS_MAX_CATEGORIES",
+        validation_alias="PREF_SKILLS_MAX_CATEGORIES",
     )
     skills_min_per_category: int = Field(
         default=8,
         description="Minimum skills per category",
-        env="PREF_SKILLS_MIN_PER_CATEGORY",
+        validation_alias="PREF_SKILLS_MIN_PER_CATEGORY",
     )
     skills_max_per_category: int = Field(
         default=10,
         description="Maximum skills per category",
-        env="PREF_SKILLS_MAX_PER_CATEGORY",
+        validation_alias="PREF_SKILLS_MAX_PER_CATEGORY",
     )
 
     # Education preferences
     education_max_entries: int = Field(
         default=3,
         description="Maximum number of education entries",
-        env="PREF_EDUCATION_MAX_ENTRIES",
+        validation_alias="PREF_EDUCATION_MAX_ENTRIES",
     )
     education_max_courses: int = Field(
         default=6,
         description="Maximum number of courses per education entry",
-        env="PREF_EDUCATION_MAX_COURSES",
+        validation_alias="PREF_EDUCATION_MAX_COURSES",
     )
 
     # Awards preferences
     awards_max_awards: int = Field(
         default=4,
         description="Maximum number of awards to include",
-        env="PREF_AWARDS_MAX_AWARDS",
+        validation_alias="PREF_AWARDS_MAX_AWARDS",
     )
 
     # Publications preferences
     publications_max_publications: int = Field(
         default=3,
         description="Maximum number of publications to include",
-        env="PREF_PUBLICATIONS_MAX_PUBLICATIONS",
+        validation_alias="PREF_PUBLICATIONS_MAX_PUBLICATIONS",
     )
 
     def get_prompt_variables(self) -> dict[str, Any]:
@@ -661,7 +663,7 @@ class APISettings(BaseSettings):
     cors_origins: list[str] = Field(
         default=["http://localhost:3000", "https://www.yarba.app"],
         description="List of allowed CORS origins",
-        env="CORS_ORIGINS",
+        validation_alias="CORS_ORIGINS",
     )
     cors_allow_credentials: bool = Field(
         default=True,
@@ -725,7 +727,7 @@ class APISettings(BaseSettings):
     api_base_url: str = Field(
         default="http://localhost:8000",
         description="Base URL for API endpoints",
-        env="BASE_URL",
+        validation_alias="BASE_URL",
     )
 
     # Rate limiting settings
@@ -761,7 +763,7 @@ class FeatureSettings(BaseSettings):
     enable_clearance_check: bool = Field(
         default=True,
         description="Enable check for clearance requirements in job descriptions.",
-        env="ENABLE_CLEARANCE_CHECK",
+        validation_alias="ENABLE_CLEARANCE_CHECK",
     )
 
     # Optimized restriction keywords (consolidated clearance and citizenship requirements)
@@ -798,7 +800,7 @@ class FeatureSettings(BaseSettings):
             "naturalized citizen",
         ],
         description="Keywords indicating security clearance or citizenship requirements.",
-        env="RESTRICTION_KEYWORDS",
+        validation_alias="RESTRICTION_KEYWORDS",
     )
 
     @field_validator("restriction_keywords", mode="before")
@@ -835,64 +837,64 @@ class StorageSettings(BaseSettings):
     aws_access_key: str | None = Field(
         default=None,
         description="AWS S3 access key",
-        env="AWS_ACCESS_KEY",
+        validation_alias="AWS_ACCESS_KEY",
     )
     aws_secret_key: str | None = Field(
         default=None,
         description="AWS S3 secret key",
-        env="AWS_SECRET_KEY",
+        validation_alias="AWS_SECRET_KEY",
     )
     aws_region: str | None = Field(
         default="us-east-1",  # Restoring default as per your previous working version
         description="AWS S3 region",
-        env="AWS_REGION",  # Ensuring explicit mapping
+        validation_alias="AWS_REGION",  # Ensuring explicit mapping
     )
     aws_bucket: str = Field(
         default="yarba-local",
         description="AWS S3 bucket name for storing all content",
-        env="AWS_BUCKET",
+        validation_alias="AWS_BUCKET",
     )
     aws_use_presigned_urls: bool = Field(
         default=False,
         description="Whether to use pre-signed URLs for AWS S3",
-        env="AWS_USE_PRESIGNED_URLS",
+        validation_alias="AWS_USE_PRESIGNED_URLS",
     )
     aws_presigned_url_expiry: int = Field(
         default=3600,  # 1 hour
         description="Expiry time in seconds for pre-signed URLs",
-        env="AWS_PRESIGNED_URL_EXPIRY",
+        validation_alias="AWS_PRESIGNED_URL_EXPIRY",
     )
 
     # CloudFront settings
     cloudfront_enabled: bool = Field(
         default=False,  # This might be re-evaluated based on the new architecture. Keeping for now.
         description="Whether to use CloudFront for distribution",
-        env="CLOUDFRONT_ENABLED",
+        validation_alias="CLOUDFRONT_ENABLED",
     )
     cloudfront_distribution_id: str | None = Field(  # New field
         default=None,
         description="The ID of the single, shared CloudFront distribution for portfolios",
-        env="CLOUDFRONT_DISTRIBUTION_ID",
+        validation_alias="CLOUDFRONT_DISTRIBUTION_ID",
     )
     cloudfront_domain: str | None = Field(
         default=None,
         description="CloudFront distribution domain (can be derived or set if needed for other purposes)",
-        env="CLOUDFRONT_DOMAIN",
+        validation_alias="CLOUDFRONT_DOMAIN",
     )
     cloudfront_key_pair_id: str | None = Field(
         default=None,
         description="CloudFront key pair ID for signed URLs",
-        env="CLOUDFRONT_KEY_PAIR_ID",
+        validation_alias="CLOUDFRONT_KEY_PAIR_ID",
     )
     cloudfront_private_key_path: Path | None = Field(
         default=None,
         description="Path to CloudFront private key for signed URLs",
-        env="CLOUDFRONT_PRIVATE_KEY_PATH",
+        validation_alias="CLOUDFRONT_PRIVATE_KEY_PATH",
     )
     cloudfront_url_expiry: int = Field(
         default=86400,  # 24 hours
         description="Expiry time in seconds for CloudFront signed URLs",
-        env="CLOUDFRONT_URL_EXPIRY",
+        validation_alias="CLOUDFRONT_URL_EXPIRY",
     )
 
     # Local storage settings
@@ -908,34 +910,34 @@ class StorageSettings(BaseSettings):
     signatures_path: str = Field(
         default="signatures",
         description="Path for signature storage",
-        env="SIGNATURES_PATH",
+        validation_alias="SIGNATURES_PATH",
     )
     resumes_path: str = Field(
         default="resumes",
         description="Path for resume PDFs storage",
-        env="RESUMES_PATH",
+        validation_alias="RESUMES_PATH",
     )
     cover_letters_path: str = Field(
         default="cover-letters",
         description="Path for cover letter PDFs storage",
-        env="COVER_LETTERS_PATH",
+        validation_alias="COVER_LETTERS_PATH",
     )
 
     # Media settings
     max_image_size: int = Field(
         default=5 * 1024 * 1024,
         description="Maximum image size in bytes (5MB)",
-        env="MAX_IMAGE_SIZE",
+        validation_alias="MAX_IMAGE_SIZE",
     )
     max_pdf_size: int = Field(
         default=10 * 1024 * 1024,
         description="Maximum PDF size in bytes (10MB)",
-        env="MAX_PDF_SIZE",
+        validation_alias="MAX_PDF_SIZE",
     )
     allowed_image_types: list[str] = Field(
         default=["image/jpeg", "image/png", "image/gif", "image/webp"],
         description="Allowed image MIME types",
-        env="ALLOWED_IMAGE_TYPES",
+        validation_alias="ALLOWED_IMAGE_TYPES",
     )
 
     # New field
@@ -947,6 +949,62 @@ class StorageSettings(BaseSettings):
     def create_directory_if_not_exists(cls, v: str) -> Path:
         """Create directory if it doesn't exist."""
         return _ensure_directory(Path(v))
+
+
+class SeleniumSettings(BaseSettings):
+    """Selenium / Chrome WebDriver settings."""
+
+    model_config = SettingsConfigDict(
+        env_file=[".env.local", ".env"],
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        env_prefix="SELENIUM_",
+        extra="ignore",
+    )
+
+    headless: bool = Field(default=True, description="Run Chrome in headless mode")
+    chromedriver_path: str | None = Field(
+        default=None, description="Path to chromedriver executable"
+    )
+    disable_gpu: bool = Field(default=True, description="Disable GPU in Chrome")
+    window_size: str = Field(default="1920,1080", description="Chrome window size")
+    disable_extensions: bool = Field(
+        default=True, description="Disable Chrome extensions"
+    )
+    no_sandbox: bool = Field(default=True, description="Run Chrome with --no-sandbox")
+    disable_dev_shm_usage: bool = Field(
+        default=True, description="Disable /dev/shm usage in Chrome"
+    )
+    connection_timeout: int = Field(default=30, description="Script timeout in seconds")
+    page_load_timeout: int = Field(
+        default=60, description="Page load timeout in seconds"
+    )
+    implicit_wait: int = Field(default=10, description="Implicit wait in seconds")
+    max_retries: int = Field(default=3, description="Max WebDriver init retries")
+    retry_delay: int = Field(default=2, description="Delay between retries in seconds")
+    kill_existing_processes: bool = Field(
+        default=True, description="Kill existing Chrome processes before start"
+    )
+    container_chrome_path: str = Field(
+        default="/usr/bin/google-chrome",
+        description="Chrome binary path in containerized environments",
+    )
+    chrome_profiles_base_dir: Path = Field(
+        default=Path("chrome_profiles"),
+        description="Base directory for per-user Chrome profiles",
+    )
+
+    def get_user_chrome_profile_dir(self, user_id: str) -> Path:
+        """Return the Chrome profile directory for a user."""
+        profile_dir = self.chrome_profiles_base_dir / user_id
+        profile_dir.mkdir(parents=True, exist_ok=True)
+        return profile_dir
+
+    def is_containerized(self) -> bool:
+        """Detect if the app is running in a container."""
+        return Path("/.dockerenv").exists() or os.environ.get(
+            "CONTAINER", ""
+        ).lower() in {"1", "true", "yes"}
 
 
 class PathSettings(BaseSettings):
@@ -1004,7 +1062,7 @@ class Settings(BaseSettings):
     test_user_id: Any = Field(
         default="000000000000000000000000",
         description="Test user ID",
-        env="TEST_USER_ID",
+        validation_alias="TEST_USER_ID",
     )
 
     @field_validator("test_user_id")
@@ -1060,8 +1118,16 @@ class Settings(BaseSettings):
     features: FeatureSettings = Field(
         default_factory=FeatureSettings, description="Feature toggle settings"
     )
+    selenium: SeleniumSettings = Field(
+        default_factory=SeleniumSettings, description="Selenium settings"
+    )
 
     # Convenience properties
+    @property
+    def chrome_profiles_dir(self) -> Path:
+        """Get base directory for Chrome profiles."""
+        return self.selenium.chrome_profiles_base_dir
+
     @property
     def mongodb_uri(self) -> str:
         """Get MongoDB URI."""
@@ -1088,7 +1154,7 @@ class Settings(BaseSettings):
         return self.auth.jwt_access_token_expire_minutes
 
     @property
-    def cors_origins(self) -> list[str | AnyHttpUrl]:
+    def cors_origins(self) -> list[str]:
         """Get CORS origins."""
         return self.api.cors_origins
 

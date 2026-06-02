@@ -5,7 +5,7 @@ with the application.
 """
 
 import os
-from typing import Any
+from typing import Any, cast
 
 import firebase_admin
 from firebase_admin import auth, credentials
@@ -226,7 +226,7 @@ class FirebaseAuth:
             logger.debug(
                 f"Successfully verified token for user: {decoded_token.get('uid')}"
             )
-            return decoded_token
+            return cast(dict[str, Any], decoded_token)
 
         except Exception as e:
             logger.error(f"Failed to verify Firebase token: {str(e)}")
@@ -347,7 +347,7 @@ class FirebaseAuth:
             )
             link = auth.generate_email_verification_link(email, action_code_settings)
             logger.info(f"Generated email verification link for: {email}")
-            return link
+            return str(link)
 
         except Exception as e:
             logger.error(f"Failed to generate email verification link: {str(e)}")
@@ -381,7 +381,7 @@ class FirebaseAuth:
             link = auth.generate_password_reset_link(
                 email, action_code_settings=action_code_settings
             )
-            return link
+            return str(link)
         except Exception as e:
             logger.error(f"Failed to generate password reset link: {str(e)}")
             raise
@@ -482,7 +482,10 @@ class FirebaseAuth:
                         raise Exception(f"Firebase API error: {error_data}")
 
                     data = await response.json()
-                    return data.get("idToken")
+                    id_token = data.get("idToken")
+                    if not isinstance(id_token, str):
+                        raise ValueError("Firebase response missing idToken")
+                    return id_token
         except Exception as e:
             logger.error(f"Failed to exchange custom token for ID token: {str(e)}")
             raise
@@ -533,7 +536,7 @@ class FirebaseAuth:
                         error_data = await response.json()
                         raise Exception(f"Firebase API error: {error_data}")
 
-                    return await response.json()
+                    return cast(dict[str, Any], await response.json())
         except Exception as e:
             logger.error(f"Failed to sign in with email and password: {str(e)}")
             raise

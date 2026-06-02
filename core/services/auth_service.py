@@ -19,6 +19,7 @@ from core.exceptions.base import (
 )
 from core.models.user import User
 from core.repositories.user_repository import UserRepository
+from core.utils.object_id import require_object_id
 
 settings = Settings()
 
@@ -242,9 +243,12 @@ class AuthService:
             elif user.firebase_uid != uid:
                 self.logger.info(f"Updating Firebase UID for user: {email}")
                 user.firebase_uid = uid
-                user = await self.user_repository.update(user.id, user)
+                user_id = require_object_id(user.id)
+                updated_user = await self.user_repository.update(user_id, user)
+                if updated_user is not None:
+                    user = updated_user
 
-            await self.user_repository.update_last_login(user.id)
+            await self.user_repository.update_last_login(require_object_id(user.id))
             access_token = self.create_access_token(data={"sub": user.email})
 
             self.logger.info(f"Firebase login successful for {email}")
@@ -302,7 +306,7 @@ class AuthService:
             algorithm=settings.auth.jwt_algorithm,
         )
 
-        return encoded_jwt
+        return str(encoded_jwt)
 
     async def send_verification_email(self, email: EmailStr) -> bool:
         """Send a verification email using Firebase.
@@ -512,7 +516,12 @@ class AuthService:
         }
 
         if local_update_data:
-            updated_user = await self.user_repository.update(user.id, local_update_data)  # type: ignore
+            updated_user = await self.user_repository.update(
+                require_object_id(user.id),
+                local_update_data,  # type: ignore[arg-type]
+            )
+            if updated_user is None:
+                raise NotFoundException("User not found")
             self.logger.info(f"Successfully updated user {user.email} in local DB.")
             return updated_user
 

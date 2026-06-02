@@ -33,7 +33,6 @@ class Preamble(Document):
     model_config = {
         "validate_assignment": True,
         "json_encoders": {datetime: lambda v: v.isoformat()},
-        "collection": "preambles",
     }
 
     class Settings:

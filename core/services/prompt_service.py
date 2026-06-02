@@ -4,7 +4,7 @@ This service is responsible for retrieving prompt templates, mapping profile pre
 to template variables, and formatting prompts with those variables.
 """
 
-from typing import Any
+from typing import Any, cast
 
 from beanie import PydanticObjectId
 
@@ -172,7 +172,7 @@ class PromptService:
 
             # Get variables and format using the template's format method
             variables = await self._get_prompt_variables()
-            return prompt_template.format(**variables)
+            return cast(str, prompt_template.format(**variables))
         except NotFoundException:
             raise
         except Exception as e:
@@ -194,7 +194,7 @@ class PromptService:
         """
         try:
             prompt_template = await self.get_prompt_template(prompt_name)
-            return prompt_template.format(**variables)
+            return cast(str, prompt_template.format(**variables))
         except NotFoundException:
             raise
         except Exception as e:

@@ -17,6 +17,7 @@ from ..models.portfolio import (
 )
 from ..repositories.portfolio_repository import PortfolioRepository
 from ..repositories.user_repository import UserRepository
+from ..utils.object_id import require_object_id
 
 logger = get_logger(__name__)
 
@@ -105,7 +106,9 @@ class PortfolioService:
             raise NotFoundException("User not found")
 
         # Check if portfolio already exists - will be handled by repository
-        portfolio = await self.portfolio_repository.create_for_user(user.id)
+        portfolio = await self.portfolio_repository.create_for_user(
+            require_object_id(user.id)
+        )
         self.logger.info(f"Portfolio retrieved or created for user: {user_id}")
 
         return portfolio
@@ -138,7 +141,7 @@ class PortfolioService:
                 setattr(portfolio, key, value)
 
         updated_portfolio = await self.portfolio_repository.update(
-            portfolio.id, portfolio
+            require_object_id(portfolio.id), portfolio
         )
         if not updated_portfolio:
             self.logger.error(f"Failed to update portfolio for user: {user_id}")
@@ -166,7 +169,9 @@ class PortfolioService:
         portfolio = await self.get_portfolio_by_user_id(user_id)
 
         # Update skills in the portfolio
-        result = await self.portfolio_repository.update_skills(portfolio.id, skills)
+        result = await self.portfolio_repository.update_skills(
+            require_object_id(portfolio.id), skills
+        )
         if not result:
             self.logger.error(f"Failed to update skills for user: {user_id}")
             raise NotFoundException("Portfolio not found")
@@ -209,7 +214,7 @@ class PortfolioService:
 
         # Update skills in the portfolio
         result = await self.portfolio_repository.update_skills(
-            portfolio.id, current_skills
+            require_object_id(portfolio.id), current_skills
         )
         if not result:
             self.logger.warning(f"Failed to add skill category for user: {user_id}")
@@ -253,7 +258,7 @@ class PortfolioService:
 
         # Update skills in the portfolio
         result = await self.portfolio_repository.update_skills(
-            portfolio.id, updated_skills
+            require_object_id(portfolio.id), updated_skills
         )
         if not result:
             self.logger.warning(f"Failed to remove skill category for user: {user_id}")
@@ -285,7 +290,7 @@ class PortfolioService:
 
         # Update work experience in the portfolio
         result = await self.portfolio_repository.update_work_experience(
-            portfolio.id, work_experience
+            require_object_id(portfolio.id), work_experience
         )
         if not result:
             self.logger.error(f"Failed to update work experience for user: {user_id}")
@@ -322,7 +327,7 @@ class PortfolioService:
 
         # Update work experience in the portfolio
         result = await self.portfolio_repository.update_work_experience(
-            portfolio.id, current_experiences
+            require_object_id(portfolio.id), current_experiences
         )
         if not result:
             self.logger.warning(f"Failed to add work experience for user: {user_id}")
@@ -354,7 +359,7 @@ class PortfolioService:
 
         # Update education in the portfolio
         result = await self.portfolio_repository.update_education(
-            portfolio.id, education
+            require_object_id(portfolio.id), education
         )
         if not result:
             self.logger.error(f"Failed to update education for user: {user_id}")
@@ -389,7 +394,7 @@ class PortfolioService:
 
         # Update education in the portfolio
         result = await self.portfolio_repository.update_education(
-            portfolio.id, current_education
+            require_object_id(portfolio.id), current_education
         )
         if not result:
             self.logger.warning(f"Failed to add education entry for user: {user_id}")
@@ -420,7 +425,9 @@ class PortfolioService:
         portfolio = await self.get_portfolio_by_user_id(user_id)
 
         # Update projects in the portfolio
-        result = await self.portfolio_repository.update_projects(portfolio.id, projects)
+        result = await self.portfolio_repository.update_projects(
+            require_object_id(portfolio.id), projects
+        )
         if not result:
             self.logger.error(f"Failed to update projects for user: {user_id}")
             raise NotFoundException("Portfolio not found")
@@ -454,7 +461,7 @@ class PortfolioService:
 
         # Update projects in the portfolio
         result = await self.portfolio_repository.update_projects(
-            portfolio.id, current_projects
+            require_object_id(portfolio.id), current_projects
         )
         if not result:
             self.logger.warning(f"Failed to add project for user: {user_id}")
@@ -485,7 +492,9 @@ class PortfolioService:
         portfolio = await self.get_portfolio_by_user_id(user_id)
 
         # Update awards in the portfolio
-        result = await self.portfolio_repository.update_awards(portfolio.id, awards)
+        result = await self.portfolio_repository.update_awards(
+            require_object_id(portfolio.id), awards
+        )
         if not result:
             self.logger.error(f"Failed to update awards for user: {user_id}")
             raise NotFoundException("Portfolio not found")
@@ -517,7 +526,7 @@ class PortfolioService:
 
         # Update awards in the portfolio
         result = await self.portfolio_repository.update_awards(
-            portfolio.id, current_awards
+            require_object_id(portfolio.id), current_awards
         )
         if not result:
             self.logger.warning(f"Failed to add award for user: {user_id}")
@@ -549,7 +558,7 @@ class PortfolioService:
 
         # Update publications in the portfolio
         result = await self.portfolio_repository.update_publications(
-            portfolio.id, publications
+            require_object_id(portfolio.id), publications
         )
         if not result:
             self.logger.error(f"Failed to update publications for user: {user_id}")
@@ -584,7 +593,7 @@ class PortfolioService:
 
         # Update publications in the portfolio
         result = await self.portfolio_repository.update_publications(
-            portfolio.id, current_publications
+            require_object_id(portfolio.id), current_publications
         )
         if not result:
             self.logger.warning(f"Failed to add publication for user: {user_id}")
@@ -616,7 +625,7 @@ class PortfolioService:
 
         # Update career summary in the portfolio
         result = await self.portfolio_repository.update_career_summary(
-            portfolio.id, career_summary
+            require_object_id(portfolio.id), career_summary
         )
         if not result:
             self.logger.error(f"Failed to update career summary for user: {user_id}")

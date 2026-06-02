@@ -1,5 +1,7 @@
 """Utility functions for mapping between resume generation output schema and database models."""
 
+from pydantic import HttpUrl, TypeAdapter
+
 from core.models.portfolio import (
     Award,
     CareerSummary,
@@ -22,6 +24,15 @@ from core.schemas.resume_schemas import (
     SkillCategorySchema,
     WorkExperienceSchema,
 )
+
+_http_url_adapter = TypeAdapter(HttpUrl)
+
+
+def _optional_project_link(link: str | None) -> HttpUrl | None:
+    if not link:
+        return None
+    return _http_url_adapter.validate_python(link)
+
 
 # --- Individual Section Mappers --- #
 
@@ -111,7 +122,7 @@ def _map_projects(schemas: list[ProjectSchema]) -> list[Project]:
             name=project.name,
             bullet_points=project.bullet_points,
             date=project.date,
-            link=project.link,
+            link=_optional_project_link(project.link),
         )
         for project in schemas
         if project  # Basic validation

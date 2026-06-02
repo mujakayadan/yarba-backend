@@ -18,6 +18,7 @@ from ..models.profile import (
 )
 from ..models.resume import Resume
 from ..models.user import User
+from ..utils.object_id import ObjectIdLike, coerce_object_id
 from .base_repository import BeanieRepository
 
 
@@ -99,9 +100,9 @@ class ProfileRepository(BeanieRepository[Profile]):
 
     async def update(
         self,
-        profile_id: str | PydanticObjectId | ObjectId,
-        updates: dict[str, Any] = None,
-        profile: Profile = None,
+        profile_id: ObjectIdLike,
+        updates: dict[str, Any] | None = None,
+        profile: Profile | None = None,
     ) -> Profile | None:
         """Update an existing profile.
 
@@ -128,7 +129,7 @@ class ProfileRepository(BeanieRepository[Profile]):
             if profile is not None:
                 # Full profile object update
                 if not profile.id:
-                    profile.id = object_id
+                    profile.id = coerce_object_id(object_id)
                 profile.updated_at = datetime.now(UTC)
 
                 self.logger.debug(f"Updating profile with ID: {profile.id}")
@@ -221,9 +222,7 @@ class ProfileRepository(BeanieRepository[Profile]):
         self.logger.debug(f"Getting profile by user_id: {object_id}")
         return await Profile.find_one({"user_id": object_id})
 
-    async def get_by_id(
-        self, profile_id: str | PydanticObjectId | ObjectId
-    ) -> Profile | None:
+    async def get_by_id(self, profile_id: ObjectIdLike) -> Profile | None:
         """Get profile by its ID.
 
         Args:

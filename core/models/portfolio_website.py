@@ -2,8 +2,9 @@
 
 import os
 from datetime import UTC, datetime
+from typing import Annotated
 
-from beanie import Document, Link, PydanticObjectId
+from beanie import Document, Indexed, Link, PydanticObjectId
 from pydantic import BaseModel, Field, HttpUrl
 
 from core.models.portfolio import Portfolio
@@ -106,10 +107,8 @@ class PortfolioWebsite(Document):
     portfolio: Link[Portfolio] | None = None
 
     # Website identification
-    subdomain: str = Field(
+    subdomain: Annotated[str, Indexed(unique=True)] = Field(
         description="Subdomain for the portfolio website (e.g., 'johnsmith')",
-        unique=True,
-        index=True,
     )
 
     # Website configuration

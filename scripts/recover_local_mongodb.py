@@ -133,7 +133,7 @@ def normalize_user(doc: dict[str, Any]) -> dict[str, Any] | None:
     out = {k: v for k, v in doc.items() if k not in USER_STRIP_FIELDS}
     out["email"] = email
     if not out.get("username"):
-        out["username"] = _email_key(email).split("@")[0] if email else "user"
+        out["username"] = email.split("@")[0]
     email_key = _email_key(email)
     if email_key and email_key in KNOWN_FIREBASE_BY_EMAIL:
         out["firebase_uid"] = KNOWN_FIREBASE_BY_EMAIL[email_key]
@@ -476,7 +476,7 @@ def recover(
     dry_run: bool,
 ) -> RecoveryStats:
     stats = RecoveryStats()
-    client = MongoClient(source_uri, serverSelectionTimeoutMS=5000)
+    client: MongoClient[Any] = MongoClient(source_uri, serverSelectionTimeoutMS=5000)
     client.admin.command("ping")
 
     sources: dict[str, Database] = {
@@ -730,9 +730,9 @@ def recover(
             final_profiles.append(profile)
             user_profile_id = profile["_id"]
 
-            portfolio = portfolios_by_email.get(email)
-            if portfolio:
-                portfolio = copy.deepcopy(portfolio)
+            portfolio_doc = portfolios_by_email.get(email)
+            if portfolio_doc:
+                portfolio = copy.deepcopy(portfolio_doc)
                 portfolio["user_id"] = user["_id"]
                 portfolio["profile_id"] = user_profile_id
                 portfolio.pop("_recovery_sources", None)
@@ -742,18 +742,18 @@ def recover(
     for resume in resumes_out:
         resume.pop("_recovery_source", None)
 
-    preambles: dict[Any, dict] = {}
-    tex_headers: dict[Any, dict] = {}
+    preambles: dict[tuple[Any, Any], dict[str, Any]] = {}
+    tex_headers: dict[tuple[Any, Any], dict[str, Any]] = {}
     migrations: dict[Any, dict] = {}
     tex_templates: dict[Any, dict] = {}
 
     for _db_name, db in sources.items():
         for p in db.preambles.find():
-            key = (p.get("name"), p.get("type"))
-            preambles[key] = pick_richer(preambles.get(key), p)
+            preamble_key = (p.get("name"), p.get("type"))
+            preambles[preamble_key] = pick_richer(preambles.get(preamble_key), p)
         for h in db.tex_headers.find():
-            key = (h.get("name"), h.get("category"))
-            tex_headers[key] = pick_richer(tex_headers.get(key), h)
+            header_key = (h.get("name"), h.get("category"))
+            tex_headers[header_key] = pick_richer(tex_headers.get(header_key), h)
         for m in db.migrations.find():
             migrations[m.get("_id")] = m
         if "tex_templates" in db.list_collection_names():
@@ -776,7 +776,9 @@ def recover(
         client.close()
         return stats
 
-    target_client = MongoClient(target_uri, serverSelectionTimeoutMS=10000)
+    target_client: MongoClient[Any] = MongoClient(
+        target_uri, serverSelectionTimeoutMS=10000
+    )
     target_client.admin.command("ping")
     target_db = target_client[target_db_name]
 
@@ -862,7 +864,7 @@ def main() -> None:
 
 
 def analyze_gaps(source_uri: str = DEFAULT_TARGET_URI) -> None:
-    client = MongoClient(source_uri, serverSelectionTimeoutMS=5000)
+    client: MongoClient[Any] = MongoClient(source_uri, serverSelectionTimeoutMS=5000)
     for db_name in SOURCE_DBS:
         if db_name not in client.list_database_names():
             continue

@@ -1,7 +1,7 @@
 """Portfolio router for the API."""
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Annotated, Any
 
 from beanie import PydanticObjectId
 from fastapi import APIRouter, Depends, File, HTTPException, Path, UploadFile, status
@@ -21,13 +21,13 @@ from core.models.portfolio import (
     Skill,
     WorkExperience,
 )
-from core.models.user import User
 from core.repositories.portfolio_repository import PortfolioRepository
 from core.repositories.profile_repository import ProfileRepository
 from core.services.document_parser_service import DocumentParserService
 from core.services.llm_service import LLMService
+from core.utils.object_id import coerce_object_id, require_object_id
 
-from ..dependencies.auth import get_current_active_user
+from ..dependencies.auth import CurrentActiveUser
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -142,7 +142,7 @@ class PortfolioPatchOperation(BaseModel):
 
 @router.get("/", response_model=Portfolio)
 async def get_portfolios(
-    current_user: User = Depends(get_current_active_user),
+    current_user: CurrentActiveUser,
     portfolio_repository: PortfolioRepository = Depends(get_portfolio_repository),
 ):
     """Get the portfolio for the current user.
@@ -166,7 +166,7 @@ async def get_portfolios(
 @router.post("/", response_model=Portfolio, status_code=status.HTTP_201_CREATED)
 async def create_portfolio(
     portfolio_data: PortfolioCreate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: CurrentActiveUser,
     portfolio_repository: PortfolioRepository = Depends(get_portfolio_repository),
 ):
     """Create a new portfolio.
@@ -222,8 +222,8 @@ async def create_portfolio(
 
 @router.get("/{portfolio_id}", response_model=Portfolio)
 async def get_portfolio(
-    portfolio_id: str = Path(..., description="Portfolio ID"),
-    current_user: User = Depends(get_current_active_user),
+    portfolio_id: Annotated[str, Path(..., description="Portfolio ID")],
+    current_user: CurrentActiveUser,
     portfolio_repository: PortfolioRepository = Depends(get_portfolio_repository),
 ):
     """Get a portfolio by ID.
@@ -236,7 +236,7 @@ async def get_portfolio(
     Returns:
         Portfolio
     """
-    portfolio = await portfolio_repository.get_by_id(portfolio_id)
+    portfolio = await portfolio_repository.get_by_id(coerce_object_id(portfolio_id))
     if not portfolio:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -256,8 +256,8 @@ async def get_portfolio(
 @router.put("/{portfolio_id}", response_model=Portfolio)
 async def update_portfolio(
     portfolio_data: PortfolioUpdate,
-    portfolio_id: str = Path(..., description="Portfolio ID"),
-    current_user: User = Depends(get_current_active_user),
+    portfolio_id: Annotated[str, Path(..., description="Portfolio ID")],
+    current_user: CurrentActiveUser,
     portfolio_repository: PortfolioRepository = Depends(get_portfolio_repository),
 ):
     """Update a portfolio.
@@ -271,7 +271,7 @@ async def update_portfolio(
     Returns:
         Updated portfolio
     """
-    portfolio = await portfolio_repository.get_by_id(portfolio_id)
+    portfolio = await portfolio_repository.get_by_id(coerce_object_id(portfolio_id))
     if not portfolio:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -287,7 +287,7 @@ async def update_portfolio(
 
     # Update career summary if provided
     if portfolio_data.career_summary:
-        portfolio.career_summary = CareerSummary(**portfolio_data.career_summary)
+        portfolio.career_summary = portfolio_data.career_summary
 
     # Update portfolio fields
     for field, value in portfolio_data.model_dump(exclude_unset=True).items():
@@ -301,8 +301,8 @@ async def update_portfolio(
 @router.patch("/{portfolio_id}", response_model=Portfolio)
 async def patch_portfolio(
     portfolio_data: PortfolioPatchOperation,
-    portfolio_id: str = Path(..., description="Portfolio ID"),
-    current_user: User = Depends(get_current_active_user),
+    portfolio_id: Annotated[str, Path(..., description="Portfolio ID")],
+    current_user: CurrentActiveUser,
     portfolio_repository: PortfolioRepository = Depends(get_portfolio_repository),
 ):
     """Partially update a portfolio (only specified fields).
@@ -316,7 +316,7 @@ async def patch_portfolio(
     Returns:
         Updated portfolio
     """
-    portfolio = await portfolio_repository.get_by_id(portfolio_id)
+    portfolio = await portfolio_repository.get_by_id(coerce_object_id(portfolio_id))
     if not portfolio:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -335,7 +335,9 @@ async def patch_portfolio(
 
     # Handle special case for career_summary which needs to be instantiated as a model
     if "career_summary" in patch_data:
-        portfolio.career_summary = CareerSummary(**patch_data.pop("career_summary"))
+        portfolio.career_summary = CareerSummary.model_validate(
+            patch_data.pop("career_summary")
+        )
 
     # Update remaining portfolio fields
     for field, value in patch_data.items():
@@ -351,8 +353,8 @@ async def patch_portfolio(
 @router.patch("/{portfolio_id}/career-summary", response_model=Portfolio)
 async def patch_career_summary(
     career_summary: CareerSummary,
-    portfolio_id: str = Path(..., description="Portfolio ID"),
-    current_user: User = Depends(get_current_active_user),
+    portfolio_id: Annotated[str, Path(..., description="Portfolio ID")],
+    current_user: CurrentActiveUser,
     portfolio_repository: PortfolioRepository = Depends(get_portfolio_repository),
 ):
     """Update only the career summary section of a portfolio.
@@ -366,7 +368,7 @@ async def patch_career_summary(
     Returns:
         Updated portfolio
     """
-    portfolio = await portfolio_repository.get_by_id(portfolio_id)
+    portfolio = await portfolio_repository.get_by_id(coerce_object_id(portfolio_id))
     if not portfolio:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -381,17 +383,19 @@ async def patch_career_summary(
         )
 
     # Update career summary
-    await portfolio_repository.update_career_summary(portfolio.id, career_summary)
+    await portfolio_repository.update_career_summary(
+        require_object_id(portfolio.id), career_summary
+    )
 
     # Return updated portfolio
-    return await portfolio_repository.get_by_id(portfolio_id)
+    return await portfolio_repository.get_by_id(coerce_object_id(portfolio_id))
 
 
 @router.patch("/{portfolio_id}/skills", response_model=Portfolio)
 async def patch_skills(
     skills: list[Skill],
-    portfolio_id: str = Path(..., description="Portfolio ID"),
-    current_user: User = Depends(get_current_active_user),
+    portfolio_id: Annotated[str, Path(..., description="Portfolio ID")],
+    current_user: CurrentActiveUser,
     portfolio_repository: PortfolioRepository = Depends(get_portfolio_repository),
 ):
     """Update only the skills section of a portfolio.
@@ -405,7 +409,7 @@ async def patch_skills(
     Returns:
         Updated portfolio
     """
-    portfolio = await portfolio_repository.get_by_id(portfolio_id)
+    portfolio = await portfolio_repository.get_by_id(coerce_object_id(portfolio_id))
     if not portfolio:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -420,17 +424,17 @@ async def patch_skills(
         )
 
     # Update skills
-    await portfolio_repository.update_skills(portfolio.id, skills)
+    await portfolio_repository.update_skills(require_object_id(portfolio.id), skills)
 
     # Return updated portfolio
-    return await portfolio_repository.get_by_id(portfolio_id)
+    return await portfolio_repository.get_by_id(coerce_object_id(portfolio_id))
 
 
 @router.patch("/{portfolio_id}/work-experience", response_model=Portfolio)
 async def patch_work_experience(
     work_experience: list[WorkExperience],
-    portfolio_id: str = Path(..., description="Portfolio ID"),
-    current_user: User = Depends(get_current_active_user),
+    portfolio_id: Annotated[str, Path(..., description="Portfolio ID")],
+    current_user: CurrentActiveUser,
     portfolio_repository: PortfolioRepository = Depends(get_portfolio_repository),
 ):
     """Update only the work experience section of a portfolio.
@@ -444,7 +448,7 @@ async def patch_work_experience(
     Returns:
         Updated portfolio
     """
-    portfolio = await portfolio_repository.get_by_id(portfolio_id)
+    portfolio = await portfolio_repository.get_by_id(coerce_object_id(portfolio_id))
     if not portfolio:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -459,17 +463,19 @@ async def patch_work_experience(
         )
 
     # Update work experience
-    await portfolio_repository.update_work_experience(portfolio.id, work_experience)
+    await portfolio_repository.update_work_experience(
+        require_object_id(portfolio.id), work_experience
+    )
 
     # Return updated portfolio
-    return await portfolio_repository.get_by_id(portfolio_id)
+    return await portfolio_repository.get_by_id(coerce_object_id(portfolio_id))
 
 
 @router.patch("/{portfolio_id}/education", response_model=Portfolio)
 async def patch_education(
     education: list[Education],
-    portfolio_id: str = Path(..., description="Portfolio ID"),
-    current_user: User = Depends(get_current_active_user),
+    portfolio_id: Annotated[str, Path(..., description="Portfolio ID")],
+    current_user: CurrentActiveUser,
     portfolio_repository: PortfolioRepository = Depends(get_portfolio_repository),
 ):
     """Update only the education section of a portfolio.
@@ -483,7 +489,7 @@ async def patch_education(
     Returns:
         Updated portfolio
     """
-    portfolio = await portfolio_repository.get_by_id(portfolio_id)
+    portfolio = await portfolio_repository.get_by_id(coerce_object_id(portfolio_id))
     if not portfolio:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -498,17 +504,19 @@ async def patch_education(
         )
 
     # Update education
-    await portfolio_repository.update_education(portfolio.id, education)
+    await portfolio_repository.update_education(
+        require_object_id(portfolio.id), education
+    )
 
     # Return updated portfolio
-    return await portfolio_repository.get_by_id(portfolio_id)
+    return await portfolio_repository.get_by_id(coerce_object_id(portfolio_id))
 
 
 @router.patch("/{portfolio_id}/projects", response_model=Portfolio)
 async def patch_projects(
     projects: list[Project],
-    portfolio_id: str = Path(..., description="Portfolio ID"),
-    current_user: User = Depends(get_current_active_user),
+    portfolio_id: Annotated[str, Path(..., description="Portfolio ID")],
+    current_user: CurrentActiveUser,
     portfolio_repository: PortfolioRepository = Depends(get_portfolio_repository),
 ):
     """Update only the projects section of a portfolio.
@@ -522,7 +530,7 @@ async def patch_projects(
     Returns:
         Updated portfolio
     """
-    portfolio = await portfolio_repository.get_by_id(portfolio_id)
+    portfolio = await portfolio_repository.get_by_id(coerce_object_id(portfolio_id))
     if not portfolio:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -537,17 +545,19 @@ async def patch_projects(
         )
 
     # Update projects
-    await portfolio_repository.update_projects(portfolio.id, projects)
+    await portfolio_repository.update_projects(
+        require_object_id(portfolio.id), projects
+    )
 
     # Return updated portfolio
-    return await portfolio_repository.get_by_id(portfolio_id)
+    return await portfolio_repository.get_by_id(coerce_object_id(portfolio_id))
 
 
 @router.patch("/{portfolio_id}/awards", response_model=Portfolio)
 async def patch_awards(
     awards: list[Award],
-    portfolio_id: str = Path(..., description="Portfolio ID"),
-    current_user: User = Depends(get_current_active_user),
+    portfolio_id: Annotated[str, Path(..., description="Portfolio ID")],
+    current_user: CurrentActiveUser,
     portfolio_repository: PortfolioRepository = Depends(get_portfolio_repository),
 ):
     """Update only the awards section of a portfolio.
@@ -561,7 +571,7 @@ async def patch_awards(
     Returns:
         Updated portfolio
     """
-    portfolio = await portfolio_repository.get_by_id(portfolio_id)
+    portfolio = await portfolio_repository.get_by_id(coerce_object_id(portfolio_id))
     if not portfolio:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -576,17 +586,17 @@ async def patch_awards(
         )
 
     # Update awards
-    await portfolio_repository.update_awards(portfolio.id, awards)
+    await portfolio_repository.update_awards(require_object_id(portfolio.id), awards)
 
     # Return updated portfolio
-    return await portfolio_repository.get_by_id(portfolio_id)
+    return await portfolio_repository.get_by_id(coerce_object_id(portfolio_id))
 
 
 @router.patch("/{portfolio_id}/publications", response_model=Portfolio)
 async def patch_publications(
     publications: list[Publication],
-    portfolio_id: str = Path(..., description="Portfolio ID"),
-    current_user: User = Depends(get_current_active_user),
+    portfolio_id: Annotated[str, Path(..., description="Portfolio ID")],
+    current_user: CurrentActiveUser,
     portfolio_repository: PortfolioRepository = Depends(get_portfolio_repository),
 ):
     """Update only the publications section of a portfolio.
@@ -600,7 +610,7 @@ async def patch_publications(
     Returns:
         Updated portfolio
     """
-    portfolio = await portfolio_repository.get_by_id(portfolio_id)
+    portfolio = await portfolio_repository.get_by_id(coerce_object_id(portfolio_id))
     if not portfolio:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -615,16 +625,18 @@ async def patch_publications(
         )
 
     # Update publications
-    await portfolio_repository.update_publications(portfolio.id, publications)
+    await portfolio_repository.update_publications(
+        require_object_id(portfolio.id), publications
+    )
 
     # Return updated portfolio
-    return await portfolio_repository.get_by_id(portfolio_id)
+    return await portfolio_repository.get_by_id(coerce_object_id(portfolio_id))
 
 
 @router.delete("/{portfolio_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_portfolio(
-    portfolio_id: str = Path(..., description="Portfolio ID"),
-    current_user: User = Depends(get_current_active_user),
+    portfolio_id: Annotated[str, Path(..., description="Portfolio ID")],
+    current_user: CurrentActiveUser,
     uow: AsyncMongoUnitOfWork = Depends(get_unit_of_work),
 ):
     """Delete a portfolio.
@@ -638,7 +650,14 @@ async def delete_portfolio(
         None
     """
     async with uow:
-        portfolio = await uow.portfolio_repository.get_by_id(portfolio_id)
+        portfolio_repository = uow.portfolio_repository
+        if portfolio_repository is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Portfolio repository unavailable",
+            )
+
+        portfolio = await portfolio_repository.get_by_id(coerce_object_id(portfolio_id))
         if not portfolio:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -652,12 +671,6 @@ async def delete_portfolio(
                 detail="Not authorized to delete this portfolio",
             )
 
-        # Delete all portfolio items
-        portfolio_items = await uow.portfolio_repository.get_items(portfolio)
-        for item in portfolio_items:
-            await item.delete()
-
-        # Delete the portfolio
         await portfolio.delete()
 
 
@@ -665,9 +678,9 @@ async def delete_portfolio(
     "/{portfolio_id}/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT
 )
 async def delete_portfolio_item(
-    portfolio_id: str = Path(..., description="Portfolio ID"),
-    item_id: str = Path(..., description="Portfolio item ID"),
-    current_user: User = Depends(get_current_active_user),
+    portfolio_id: Annotated[str, Path(..., description="Portfolio ID")],
+    item_id: Annotated[str, Path(..., description="Portfolio item ID")],
+    current_user: CurrentActiveUser,
     portfolio_repository: PortfolioRepository = Depends(get_portfolio_repository),
 ):
     """Delete a portfolio item.
@@ -681,36 +694,20 @@ async def delete_portfolio_item(
     Returns:
         None
     """
-    portfolio = await portfolio_repository.get_by_id(portfolio_id)
-    if not portfolio:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Portfolio not found",
-        )
-
-    # Check if the portfolio belongs to the current user
-    if portfolio.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to delete items from this portfolio",
-        )
-
-    # Get portfolio item
-    item = await portfolio_repository.get_item_by_id(item_id)
-    if not item or item.portfolio_id != portfolio_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Portfolio item not found",
-        )
-
-    # Delete the portfolio item
-    await item.delete()
+    # Portfolio sections are embedded on the portfolio document.
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail=(
+            "Portfolio items are embedded in portfolio sections; "
+            "use section endpoints instead."
+        ),
+    )
 
 
 @router.get("/by-profile/{profile_id}", response_model=Portfolio)
 async def get_portfolio_by_profile(
-    profile_id: str = Path(..., description="Profile ID"),
-    current_user: User = Depends(get_current_active_user),
+    profile_id: Annotated[str, Path(..., description="Profile ID")],
+    current_user: CurrentActiveUser,
     portfolio_repository: PortfolioRepository = Depends(get_portfolio_repository),
 ):
     """Get a portfolio by profile ID.
@@ -723,7 +720,9 @@ async def get_portfolio_by_profile(
     Returns:
         Portfolio
     """
-    portfolio = await portfolio_repository.get_by_profile_id(profile_id)
+    portfolio = await portfolio_repository.get_by_profile_id(
+        coerce_object_id(profile_id)
+    )
     if not portfolio:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -744,10 +743,10 @@ async def get_portfolio_by_profile(
     "/parse-document", response_model=Portfolio, status_code=status.HTTP_200_OK
 )
 async def parse_portfolio_document(
+    current_user: CurrentActiveUser,
     file: UploadFile = File(
         ..., description="Portfolio document (PDF or DOCX) to upload and parse."
     ),
-    current_user: User = Depends(get_current_active_user),
     parser_service: DocumentParserService = Depends(get_document_parser_service),
 ):
     """Uploads a portfolio document (PDF, DOCX), parses its content,

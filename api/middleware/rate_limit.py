@@ -243,7 +243,7 @@ def add_rate_limit_middleware(
         route_specific_limits: Dictionary of route patterns to (rate_limit, window) tuples
     """
     app.add_middleware(
-        RateLimitMiddleware,
+        RateLimitMiddleware,  # type: ignore[arg-type]
         rate_limit=rate_limit,
         window=window,
         exclude_paths=exclude_paths,

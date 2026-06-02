@@ -2,7 +2,6 @@
 
 import json
 from datetime import UTC, datetime
-from typing import Any
 
 from beanie import PydanticObjectId
 
@@ -18,6 +17,7 @@ from core.repositories.resume_repository import ResumeRepository
 from core.services.latex_service import LatexService, get_latex_service
 from core.services.llm_service import LLMService
 from core.services.prompt_service import PromptService
+from core.utils.object_id import require_object_id
 
 logger = get_logger(__name__)
 
@@ -61,10 +61,9 @@ class CoverLetterGenerationService:
             user_repository=user_repository
         )
 
-        # Initialize LLM service with prompt service
+        # Initialize LLM service
         self.llm_service = llm_service or LLMService(
             profile_repository=profile_repository,
-            prompt_service=self.prompt_service,
         )
 
         # Initialize LaTeX service for document generation
@@ -78,7 +77,7 @@ class CoverLetterGenerationService:
         Args:
             user_id: User ID to configure for
         """
-        await self.llm_service.configure_for_user(str(user_id))
+        await self.llm_service.configure_for_user(user_id)
         self.logger.debug(
             f"Cover letter generation service configured for user {user_id}"
         )
@@ -103,7 +102,9 @@ class CoverLetterGenerationService:
             raise ValueError(f"Cover letter with ID {cover_letter_id} not found")
 
         # Get profile
-        profile = await self.profile_repository.get_by_id(cover_letter.profile_id)
+        profile = await self.profile_repository.get_by_id(
+            require_object_id(cover_letter.profile_id)
+        )
         if not profile:
             raise ValueError(f"Profile with ID {cover_letter.profile_id} not found")
 
@@ -119,7 +120,7 @@ class CoverLetterGenerationService:
                 )
         else:
             # Try to get default portfolio for user
-            portfolio = await self.portfolio_repository.get_default_by_user_id(
+            portfolio = await self.portfolio_repository.get_by_user_id(
                 cover_letter.user_id
             )
 
@@ -171,7 +172,7 @@ class CoverLetterGenerationService:
         self,
         cover_letter_id: PydanticObjectId,
         regenerate: bool = False,
-    ) -> dict[str, Any]:
+    ) -> str:
         """Generate content for a cover letter.
 
         Args:
@@ -203,10 +204,10 @@ class CoverLetterGenerationService:
             # If no resume is available, build basic content from profile and portfolio
             resume_data = await self._build_basic_resume_content(profile, portfolio)
 
-        # Get job information from resume
-        job_title = resume.job_title or "the position"
-        company_name = resume.company_name or "your company"
-        job_description = resume.job_description or ""
+        # Get job information from resume when available
+        job_title = (resume.job_title if resume else None) or "the position"
+        company_name = (resume.company_name if resume else None) or "your company"
+        job_description = (resume.job_description if resume else None) or ""
 
         # Get candidate's full name
         candidate_name = "Candidate"
@@ -309,7 +310,7 @@ Candidate Name: {candidate_name}
             self.logger.info(
                 f"Successfully generated cover letter content ({len(full_document_text)} chars)"
             )
-            return full_document_text  # Return the extracted text string
+            return str(full_document_text)  # Return the extracted text string
 
         except Exception as e:
             self.logger.error(f"Error generating cover letter: {e}")
@@ -353,9 +354,14 @@ Candidate Name: {candidate_name}
                 )
                 await self.generate_cover_letter_content(cover_letter_id)
                 # Reload cover letter to get updated content
-                cover_letter = await self.cover_letter_repository.get_by_id(
+                reloaded_cover_letter = await self.cover_letter_repository.get_by_id(
                     cover_letter_id
                 )
+                if not reloaded_cover_letter:
+                    raise ValueError(
+                        f"Cover letter with ID {cover_letter_id} not found after content generation"
+                    )
+                cover_letter = reloaded_cover_letter
                 content_exists = bool(cover_letter.content)  # Re-check
 
                 if not content_exists:
@@ -419,9 +425,14 @@ Candidate Name: {candidate_name}
                 )
                 await self.generate_cover_letter_content(cover_letter_id)
                 # Reload cover letter to get updated content
-                cover_letter = await self.cover_letter_repository.get_by_id(
+                reloaded_cover_letter = await self.cover_letter_repository.get_by_id(
                     cover_letter_id
                 )
+                if not reloaded_cover_letter:
+                    raise ValueError(
+                        f"Cover letter with ID {cover_letter_id} not found after content generation"
+                    )
+                cover_letter = reloaded_cover_letter
                 content_exists = bool(cover_letter.content)  # Re-check
 
                 if not content_exists:

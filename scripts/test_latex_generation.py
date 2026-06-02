@@ -3,7 +3,7 @@
 import asyncio
 from pathlib import Path
 
-from core.models.profile import PersonalInformation, Preferences, Profile
+from core.models.profile import PersonalInformation, Profile, SystemPreferences
 from core.models.resume import Resume
 from core.services.latex_service import get_latex_service
 
@@ -26,14 +26,18 @@ async def test_resume_generation():
     )
 
     # Create preferences with template settings
-    preferences = Preferences()
-    preferences.default_latex_templates = {
-        "default_resume_template_id": "classic",
-        "default_cover_letter_template_id": "standard",
-    }
+    system_preferences = SystemPreferences(
+        templates={
+            "default_resume_template_id": "classic",
+            "default_cover_letter_template_id": "standard",
+        }
+    )
 
     # Create a profile
-    profile = Profile(personal_information=personal_info, preferences=preferences)
+    profile = Profile(
+        personal_information=personal_info,
+        system_preferences=system_preferences,
+    )
 
     # Create a simple resume
     resume = Resume(

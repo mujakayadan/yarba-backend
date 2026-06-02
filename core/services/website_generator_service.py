@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -42,7 +43,7 @@ class WebsiteGeneratorService:
         user: User | None = None,
         profile: Profile | None = None,
         config: WebsiteConfig | None = None,
-    ) -> dict[str, str]:
+    ) -> dict[str, Any]:
         """Generate website files from portfolio data.
 
         Args:
@@ -62,7 +63,7 @@ class WebsiteGeneratorService:
         context = self._prepare_context(portfolio, subdomain, user, profile, config)
 
         # Generate files
-        files = {}
+        files: dict[str, Any] = {}
 
         # Generate HTML files
         files.update(await self._generate_html_files(context, config))
@@ -89,7 +90,7 @@ class WebsiteGeneratorService:
         user: User | None,
         profile: Profile | None,
         config: WebsiteConfig,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Prepare template context from portfolio data.
 
         Args:
@@ -125,7 +126,7 @@ class WebsiteGeneratorService:
             }
 
         # Prepare sections based on enabled sections
-        sections = {}
+        sections: dict[str, Any] = {}
 
         if "about" in config.enabled_sections:
             sections["about"] = {
@@ -361,9 +362,9 @@ Allow: /
 
         return files
 
-    async def _copy_theme_assets(self, config: WebsiteConfig) -> dict[str, str]:
+    async def _copy_theme_assets(self, config: WebsiteConfig) -> dict[str, Any]:
         """Copy all static assets from the theme directory, excluding processed template files."""
-        files = {}
+        files: dict[str, Any] = {}
 
         theme_dir = self.templates_dir / f"themes/{config.theme}"
 

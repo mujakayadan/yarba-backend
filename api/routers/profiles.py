@@ -1,11 +1,13 @@
 """Profile router for the API."""
 
+from typing import Annotated
+
 from beanie import PydanticObjectId
 from bson import ObjectId
 from fastapi import APIRouter, Depends, File, HTTPException, Path, UploadFile, status
 from pydantic import BaseModel, Field, field_validator
 
-from api.dependencies.auth import get_current_active_user
+from api.dependencies.auth import CurrentActiveUser
 from api.dependencies.services import get_profile_service
 from api.schemas.profile import (
     LifeStoryPatch,
@@ -28,8 +30,8 @@ from core.models.profile import (
     PromptPreferences,
     SystemPreferences,
 )
-from core.models.user import User
 from core.services.profile_service import ProfileService
+from core.utils.object_id import require_object_id
 from utils.storage import get_storage_provider
 
 router = APIRouter()
@@ -51,7 +53,7 @@ class ObjectIdPath(BaseModel):
 
 @router.get("/me", response_model=Profile)
 async def get_my_profile(
-    current_user: User = Depends(get_current_active_user),
+    current_user: CurrentActiveUser,
     profile_service: ProfileService = Depends(get_profile_service),
 ):
     """Get the current user's profile.
@@ -95,7 +97,7 @@ async def get_my_profile(
 @router.post("/", response_model=Profile, status_code=status.HTTP_201_CREATED)
 async def create_profile(
     profile_data: ProfileCreate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: CurrentActiveUser,
     profile_service: ProfileService = Depends(get_profile_service),
 ):
     """Create a new profile.
@@ -159,7 +161,7 @@ async def create_profile(
 @router.put("/me", response_model=Profile)
 async def update_my_profile(
     profile_data: ProfileUpdate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: CurrentActiveUser,
     profile_service: ProfileService = Depends(get_profile_service),
 ):
     """Update the current user's profile.
@@ -185,11 +187,13 @@ async def update_my_profile(
             if personal_info_data:
                 # Update through service
                 await profile_service.update_personal_information(
-                    profile_id=profile.id,
+                    profile_id=require_object_id(profile.id),
                     personal_information=personal_info_data,
                 )
                 # Refresh profile
-                profile = await profile_service.get_profile_by_id(profile.id)
+                profile = await profile_service.get_profile_by_id(
+                    require_object_id(profile.id)
+                )
 
         return profile
     except NotFoundException:
@@ -207,7 +211,7 @@ async def update_my_profile(
 @router.patch("/me", response_model=Profile)
 async def patch_my_profile(
     profile_data: ProfilePatch,
-    current_user: User = Depends(get_current_active_user),
+    current_user: CurrentActiveUser,
     profile_service: ProfileService = Depends(get_profile_service),
 ):
     """Patch specific fields of the current user's profile.
@@ -266,7 +270,7 @@ async def patch_my_profile(
 @router.patch("/me/personal-information", response_model=Profile)
 async def patch_my_personal_info(
     personal_info_data: PersonalInfoUpdate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: CurrentActiveUser,
     profile_service: ProfileService = Depends(get_profile_service),
 ):
     """Patch specific personal information fields of the current user's profile.
@@ -288,12 +292,14 @@ async def patch_my_personal_info(
         if personal_info_update:
             # Update through service
             await profile_service.update_personal_information(
-                profile_id=profile.id,
+                profile_id=require_object_id(profile.id),
                 personal_information=personal_info_update,
             )
 
             # Refresh profile
-            profile = await profile_service.get_profile_by_id(profile.id)
+            profile = await profile_service.get_profile_by_id(
+                require_object_id(profile.id)
+            )
 
         return profile
     except NotFoundException:
@@ -310,7 +316,7 @@ async def patch_my_personal_info(
 
 @router.get("/me/personal-information", response_model=PersonalInformation)
 async def get_my_personal_info(
-    current_user: User = Depends(get_current_active_user),
+    current_user: CurrentActiveUser,
     profile_service: ProfileService = Depends(get_profile_service),
 ):
     """Get the personal information of the current user's profile.
@@ -351,8 +357,8 @@ async def get_my_personal_info(
 
 @router.get("/{profile_id}", response_model=Profile)
 async def get_profile(
-    profile_id: str = Path(..., description="Profile ID"),
-    current_user: User = Depends(get_current_active_user),
+    profile_id: Annotated[str, Path(..., description="Profile ID")],
+    current_user: CurrentActiveUser,
     profile_service: ProfileService = Depends(get_profile_service),
 ):
     """Get a profile by ID.
@@ -407,7 +413,7 @@ async def get_profile(
 @router.patch("/me/life-story", response_model=Profile)
 async def patch_my_life_story(
     life_story_data: LifeStoryPatch,
-    current_user: User = Depends(get_current_active_user),
+    current_user: CurrentActiveUser,
     profile_service: ProfileService = Depends(get_profile_service),
 ):
     """Update only the life story field of the current user's profile.
@@ -465,7 +471,7 @@ class LifeStoryResponse(BaseModel):
 
 @router.get("/me/life-story", response_model=LifeStoryResponse)
 async def get_my_life_story(
-    current_user: User = Depends(get_current_active_user),
+    current_user: CurrentActiveUser,
     profile_service: ProfileService = Depends(get_profile_service),
 ):
     """Get only the life story field of the current user's profile.
@@ -504,8 +510,8 @@ class ProfilePictureResponse(BaseModel):
 
 @router.post("/me/profile-picture", response_model=ProfilePictureResponse)
 async def upload_profile_picture(
+    current_user: CurrentActiveUser,
     file: UploadFile = File(...),
-    current_user: User = Depends(get_current_active_user),
     profile_service: ProfileService = Depends(get_profile_service),
 ):
     """Upload a profile picture image.
@@ -556,7 +562,7 @@ async def upload_profile_picture(
 
 @router.delete("/me/profile-picture", response_model=ProfilePictureResponse)
 async def delete_my_profile_picture(
-    current_user: User = Depends(get_current_active_user),
+    current_user: CurrentActiveUser,
     profile_service: ProfileService = Depends(get_profile_service),
 ):
     """Delete the current user's profile picture.
@@ -604,7 +610,7 @@ async def delete_my_profile_picture(
 
 @router.get("/me/profile-picture", response_model=ProfilePictureResponse)
 async def get_my_profile_picture(
-    current_user: User = Depends(get_current_active_user),
+    current_user: CurrentActiveUser,
     profile_service: ProfileService = Depends(get_profile_service),
 ):
     """Get the current user's profile picture key.
@@ -637,8 +643,8 @@ async def get_my_profile_picture(
 
 @router.post("/me/signature", response_model=SignatureResponse)
 async def upload_signature(
+    current_user: CurrentActiveUser,
     file: UploadFile = File(...),
-    current_user: User = Depends(get_current_active_user),
     profile_service: ProfileService = Depends(get_profile_service),
 ):
     """Upload a signature image.
@@ -695,7 +701,7 @@ async def upload_signature(
 
 @router.delete("/me/signature", response_model=SignatureResponse)
 async def delete_my_signature(
-    current_user: User = Depends(get_current_active_user),
+    current_user: CurrentActiveUser,
     profile_service: ProfileService = Depends(get_profile_service),
 ):
     """Delete the current user's signature.
@@ -743,7 +749,7 @@ async def delete_my_signature(
 
 @router.get("/me/signature", response_model=SignatureResponse)
 async def get_my_signature(
-    current_user: User = Depends(get_current_active_user),
+    current_user: CurrentActiveUser,
     profile_service: ProfileService = Depends(get_profile_service),
 ):
     """Get the current user's signature key and URL.
@@ -779,7 +785,7 @@ async def get_my_signature(
 
 @router.get("/me/llm-usage", response_model=LLMUsageResponse)
 async def get_my_llm_usage(
-    current_user: User = Depends(get_current_active_user),
+    current_user: CurrentActiveUser,
     profile_service: ProfileService = Depends(get_profile_service),
 ):
     """Get the current user's LLM usage statistics.
@@ -813,7 +819,7 @@ async def get_my_llm_usage(
 
 @router.get("/me/llm-usage/summary", response_model=LLMUsageSummary)
 async def get_my_llm_usage_summary(
-    current_user: User = Depends(get_current_active_user),
+    current_user: CurrentActiveUser,
     profile_service: ProfileService = Depends(get_profile_service),
 ):
     """Get a simplified summary of the current user's LLM usage statistics.
@@ -888,7 +894,7 @@ async def get_my_llm_usage_summary(
 @router.put("/me/preferences/prompt", response_model=ProfileResponse)
 async def update_my_prompt_preferences(
     preferences_data: PromptPreferencesUpdate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: CurrentActiveUser,
     profile_service: ProfileService = Depends(get_profile_service),
 ) -> ProfileResponse:
     """Update the current user's prompt preferences.
@@ -938,7 +944,7 @@ async def update_my_prompt_preferences(
 @router.put("/me/preferences/system", response_model=ProfileResponse)
 async def update_my_system_preferences(
     preferences_data: SystemPreferencesUpdate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: CurrentActiveUser,
     profile_service: ProfileService = Depends(get_profile_service),
 ) -> ProfileResponse:
     """Update the current user's system preferences.

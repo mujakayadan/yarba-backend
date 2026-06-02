@@ -1,7 +1,7 @@
 """Authentication middleware for FastAPI."""
 
 from datetime import UTC
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -10,7 +10,7 @@ from jose import ExpiredSignatureError, JWTError, jwt
 from config import get_logger, settings
 from core.auth.firebase import FirebaseAuth
 from core.database.factory import get_user_repository
-from core.models.user import User
+from core.models.user import AuthenticatedUser, User
 from core.repositories.user_repository import UserRepository
 
 logger = get_logger(__name__)
@@ -56,7 +56,7 @@ async def verify_token(
         # If successful, it's a JWT
         payload["token_type"] = "jwt"
         logger.debug(f"JWT token verified for user {payload.get('sub')}")
-        return payload
+        return dict(payload)
 
     except (JWTError, ExpiredSignatureError) as jwt_error:
         # If not a valid JWT, try as Firebase token
@@ -88,7 +88,7 @@ async def verify_token(
 async def get_current_user(
     payload: dict = Depends(verify_token),
     user_repo: UserRepository = Depends(get_user_repository),
-) -> User:
+) -> AuthenticatedUser:
     """Get the current authenticated user.
 
     Args:
@@ -130,7 +130,7 @@ async def get_current_user(
                 )
                 test_user = await user_repo.create(test_user)
 
-            return test_user
+            return cast(AuthenticatedUser, test_user)
 
     # Normal authentication flow
     # Handle different token types
@@ -193,12 +193,12 @@ async def get_current_user(
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-    return user
+    return cast(AuthenticatedUser, user)
 
 
 async def get_current_active_user(
-    current_user: User = Depends(get_current_user),
-) -> User:
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> AuthenticatedUser:
     """Get the current active authenticated user.
 
     Args:
@@ -222,8 +222,8 @@ async def get_current_active_user(
 
 
 async def get_current_active_superuser(
-    current_user: User = Depends(get_current_active_user),
-) -> User:
+    current_user: AuthenticatedUser = Depends(get_current_active_user),
+) -> AuthenticatedUser:
     """Get the current authenticated superuser.
 
     Args:
@@ -248,6 +248,6 @@ async def get_current_active_superuser(
 
 
 # Type aliases for dependency injection
-CurrentUser = Annotated[User, Depends(get_current_user)]
-CurrentActiveUser = Annotated[User, Depends(get_current_active_user)]
-CurrentSuperuser = Annotated[User, Depends(get_current_active_superuser)]
+CurrentUser = Annotated[AuthenticatedUser, Depends(get_current_user)]
+CurrentActiveUser = Annotated[AuthenticatedUser, Depends(get_current_active_user)]
+CurrentSuperuser = Annotated[AuthenticatedUser, Depends(get_current_active_superuser)]

@@ -9,6 +9,7 @@ from ..models.portfolio import Portfolio
 from ..models.profile import Profile
 from ..models.resume import Resume
 from ..models.user import User
+from ..utils.object_id import ObjectIdLike, coerce_object_id
 from .base_repository import BeanieRepository
 
 
@@ -41,7 +42,7 @@ class UserRepository(BeanieRepository[User]):
         """
         return await User.find_one({"username": username})
 
-    async def get_by_id(self, user_id: PydanticObjectId) -> User | None:
+    async def get_by_id(self, user_id: ObjectIdLike) -> User | None:
         """Get a user by ID.
 
         Args:
@@ -50,7 +51,7 @@ class UserRepository(BeanieRepository[User]):
         Returns:
             Optional[User]: User if found, None otherwise
         """
-        return await User.find_one({"_id": user_id})
+        return await User.find_one({"_id": coerce_object_id(user_id)})
 
     async def get_active_users(self) -> list[User]:
         """Get all active users.

@@ -12,7 +12,7 @@ For development testing only.
 import argparse
 import json
 import sys
-from typing import Any
+from typing import Any, cast
 
 try:
     import requests
@@ -84,7 +84,7 @@ def test_token_verification(
                     )
                     print(f"Firebase verification failed: {error}")
 
-            return result
+            return cast(dict[str, Any], result)
         else:
             print(f"❌ Token verification failed with status {response.status_code}")
             print(f"Error: {response.text}")
@@ -131,7 +131,7 @@ def test_firebase_login(
                 print(f"Username: {user.get('username')}")
                 print(f"Access token received: {result.get('access_token')[:20]}...")
 
-            return result
+            return cast(dict[str, Any], result)
         else:
             print(f"❌ Firebase login failed with status {response.status_code}")
             print(f"Error: {response.text}")
@@ -181,7 +181,7 @@ def test_authenticated_endpoint(
                 print(f"Username: {result.get('username')}")
                 print(f"Auth provider: {result.get('auth_provider')}")
 
-            return result
+            return cast(dict[str, Any], result)
         else:
             print(f"❌ Authenticated request failed with status {response.status_code}")
             print(f"Error: {response.text}")

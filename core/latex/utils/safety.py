@@ -72,7 +72,8 @@ def escape_latex(text: str) -> str:
         """Replace special character with its LaTeX escaped version."""
         return LATEX_SPECIAL_CHARS[match.group()]
 
-    return LATEX_SPECIAL_CHARS_PATTERN.sub(replace_special_char, text)
+    escaped: str = LATEX_SPECIAL_CHARS_PATTERN.sub(replace_special_char, text)
+    return escaped
 
 
 def escape_latex_brackets(text: str) -> str:
@@ -93,7 +94,8 @@ def escape_latex_brackets(text: str) -> str:
         """Replace bracket with its LaTeX escaped version."""
         return LATEX_BRACKETS[match.group()]
 
-    return LATEX_BRACKETS_PATTERN.sub(replace_bracket, text)
+    escaped: str = LATEX_BRACKETS_PATTERN.sub(replace_bracket, text)
+    return escaped
 
 
 #

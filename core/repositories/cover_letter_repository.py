@@ -1,9 +1,12 @@
 """Cover letter repository implementation."""
 
 from datetime import UTC, datetime
+from typing import Any
 
-from beanie import PydanticObjectId
+from beanie import PydanticObjectId, SortDirection
 from pydantic import BaseModel
+
+from config.logging_config import get_logger
 
 from ..models.cover_letter import CoverLetter
 from ..models.user import User
@@ -32,6 +35,7 @@ class CoverLetterRepository(BeanieRepository[CoverLetter]):
 
     def __init__(self):
         super().__init__(CoverLetter)
+        self.logger = get_logger(__name__)
 
     async def get_by_user_id(self, user_id: PydanticObjectId) -> list[CoverLetter]:
         """Get all cover letters belonging to a user.
@@ -57,7 +61,7 @@ class CoverLetterRepository(BeanieRepository[CoverLetter]):
         """
         results = (
             await self.model_class.find({"user_id": user_id})
-            .sort([("created_at", -1)])
+            .sort([("created_at", SortDirection.DESCENDING)])
             .limit(1)
             .to_list()
         )
@@ -86,7 +90,7 @@ class CoverLetterRepository(BeanieRepository[CoverLetter]):
         Returns:
             List[CoverLetter]: List of cover letters
         """
-        query = {"user_id": user.id}
+        query: dict[str, Any] = {"user_id": user.id}
 
         if filter_params.profile_id:
             query["profile_id"] = filter_params.profile_id
@@ -107,20 +111,34 @@ class CoverLetterRepository(BeanieRepository[CoverLetter]):
         if filter_params.sort_by:
             sort_option = filter_params.sort_by
             if sort_option == "updated_desc":
-                cover_letters_query = cover_letters_query.sort([("updated_at", -1)])
+                cover_letters_query = cover_letters_query.sort(
+                    [("updated_at", SortDirection.DESCENDING)]
+                )
             elif sort_option == "updated_asc":
-                cover_letters_query = cover_letters_query.sort([("updated_at", 1)])
+                cover_letters_query = cover_letters_query.sort(
+                    [("updated_at", SortDirection.ASCENDING)]
+                )
             elif sort_option == "created_desc":
-                cover_letters_query = cover_letters_query.sort([("created_at", -1)])
+                cover_letters_query = cover_letters_query.sort(
+                    [("created_at", SortDirection.DESCENDING)]
+                )
             elif sort_option == "created_asc":
-                cover_letters_query = cover_letters_query.sort([("created_at", 1)])
+                cover_letters_query = cover_letters_query.sort(
+                    [("created_at", SortDirection.ASCENDING)]
+                )
             elif sort_option == "template_asc":
-                cover_letters_query = cover_letters_query.sort([("template_id", 1)])
+                cover_letters_query = cover_letters_query.sort(
+                    [("template_id", SortDirection.ASCENDING)]
+                )
             elif sort_option == "template_desc":
-                cover_letters_query = cover_letters_query.sort([("template_id", -1)])
+                cover_letters_query = cover_letters_query.sort(
+                    [("template_id", SortDirection.DESCENDING)]
+                )
         else:
             # Default sort by updated_at desc
-            cover_letters_query = cover_letters_query.sort([("updated_at", -1)])
+            cover_letters_query = cover_letters_query.sort(
+                [("updated_at", SortDirection.DESCENDING)]
+            )
 
         # Apply pagination
         if filter_params.skip is not None:
@@ -142,7 +160,7 @@ class CoverLetterRepository(BeanieRepository[CoverLetter]):
         Returns:
             int: Count of matching cover letters
         """
-        query = {"user_id": user.id}
+        query: dict[str, Any] = {"user_id": user.id}
 
         if filter_params.profile_id:
             query["profile_id"] = filter_params.profile_id

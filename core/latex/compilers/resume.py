@@ -50,7 +50,7 @@ class ResumeCompiler(LatexCompiler):
         else:
             self.logger.debug(f"{section_name} {message} is {type(data).__name__}")
 
-    def generate_tex_content(
+    async def generate_tex_content(
         self,
         resume_content: dict[str, Any],
         portfolio_data: dict[str, Any] | None = None,
@@ -158,9 +158,9 @@ class ResumeCompiler(LatexCompiler):
 
         # Use preamble from template if provided, otherwise use default
         if template and "header" in template and "preamble" in template["header"]:
-            preamble = template["header"]["preamble"]
+            preamble = str(template["header"]["preamble"])
         else:
-            preamble = get_resume_template()["preamble"]
+            preamble = str(get_resume_template()["preamble"])
 
         # Format the complete document
         latex_content = preamble + "\n"

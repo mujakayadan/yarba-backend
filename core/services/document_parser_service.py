@@ -111,9 +111,9 @@ class DocumentParserService:
                     and hasattr(llm_response, "choices")
                     and llm_response.choices
                 ):
-                    error_detail += (
-                        f" LLM Message: {llm_response.choices[0].message.content[:200]}"
-                    )
+                    message_content = llm_response.choices[0].message.content
+                    if message_content:
+                        error_detail += f" LLM Message: {message_content[:200]}"
                 raise ValueError(error_detail)
 
         except Exception as e:
@@ -152,7 +152,7 @@ class DocumentParserService:
             logger.info(f"Successfully extracted text from document {file.filename}.")
 
             portfolio_data_dict = await self._map_text_to_portfolio_dict_via_llm(
-                extracted_text, user_id, file.filename
+                extracted_text, user_id, file.filename or "unknown"
             )
             return portfolio_data_dict
 
