@@ -3,10 +3,9 @@
 from copy import deepcopy
 from pathlib import Path
 
-from bson import ObjectId
 from dotenv import dotenv_values
 from pymongo import MongoClient
-from pymongo.errors import BulkWriteError, OperationFailure
+from pymongo.errors import OperationFailure
 
 ROOT = Path(__file__).resolve().parents[1]
 cfg = dotenv_values(ROOT / ".env.local")

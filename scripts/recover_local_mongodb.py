@@ -612,7 +612,7 @@ def recover(
     for email in KNOWN_FIREBASE_BY_EMAIL:
         register_user_from_email(email, None)
 
-    for db_name, db in sources.items():
+    for _db_name, db in sources.items():
         for coll_name in ("resumes", "resumes_backup"):
             if coll_name not in db.list_collection_names():
                 continue
@@ -715,7 +715,7 @@ def recover(
     migrations: dict[Any, dict] = {}
     tex_templates: dict[Any, dict] = {}
 
-    for db_name, db in sources.items():
+    for _db_name, db in sources.items():
         for p in db.preambles.find():
             key = (p.get("name"), p.get("type"))
             preambles[key] = pick_richer(preambles.get(key), p)

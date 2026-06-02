@@ -3,7 +3,6 @@
 from pathlib import Path
 
 from dotenv import dotenv_values
-
 from recover_local_mongodb import recover
 
 cfg = dotenv_values(Path(__file__).resolve().parents[1] / ".env.local")

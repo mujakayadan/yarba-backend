@@ -26,6 +26,7 @@ for user in db.users.find():
     portfolio = db.portfolios.find_one({"user_id": uid})
     if not portfolio and profile:
         from datetime import UTC, datetime
+
         from bson import ObjectId
 
         db.portfolios.insert_one(
