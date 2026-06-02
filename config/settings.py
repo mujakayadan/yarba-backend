@@ -8,6 +8,18 @@ from pydantic import AnyHttpUrl, Field, SecretStr, field_validator, model_valida
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def _should_skip_runtime_directory_creation() -> bool:
+    """Skip mkdir during import in CI/pytest where the process cwd may be read-only."""
+    return os.environ.get("ENVIRONMENT", "").lower() == "test"
+
+
+def _ensure_directory(path: Path) -> Path:
+    """Create directory when settings load outside test/CI."""
+    if not _should_skip_runtime_directory_creation():
+        path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 class DatabaseSettings(BaseSettings):
     """Database connection settings."""
 
@@ -426,8 +438,7 @@ class LatexSettings(BaseSettings):
     @field_validator("output_dir", "templates_dir")
     def create_directory_if_not_exists(cls, v: Path) -> Path:
         """Create directory if it doesn't exist."""
-        v.mkdir(parents=True, exist_ok=True)
-        return v
+        return _ensure_directory(v)
 
     @field_validator("log_level")
     def validate_log_level(cls, v: str) -> str:
@@ -935,9 +946,7 @@ class StorageSettings(BaseSettings):
     @field_validator("local_storage_path")
     def create_directory_if_not_exists(cls, v: str) -> Path:
         """Create directory if it doesn't exist."""
-        path_obj = Path(v)
-        path_obj.mkdir(parents=True, exist_ok=True)
-        return path_obj
+        return _ensure_directory(Path(v))
 
 
 class PathSettings(BaseSettings):
@@ -954,8 +963,8 @@ class PathSettings(BaseSettings):
     )
 
     prompts_dir: Path = Field(
-        default=Path("/prompts"),
-        description="Directory for prompt templates",
+        default=Path("prompts"),
+        description="Directory for prompt templates (relative to project root)",
     )
 
     output_dir: Path = Field(
@@ -966,8 +975,7 @@ class PathSettings(BaseSettings):
     @field_validator("temp_dir", "prompts_dir", "output_dir")
     def create_directory_if_not_exists(cls, v: Path) -> Path:
         """Create directory if it doesn't exist."""
-        v.mkdir(parents=True, exist_ok=True)
-        return v
+        return _ensure_directory(v)
 
 
 class Settings(BaseSettings):

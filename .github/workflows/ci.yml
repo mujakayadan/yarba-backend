@@ -33,4 +33,9 @@ jobs:
         run: uv run mypy
 
       - name: Pytest
+        env:
+          ENVIRONMENT: test
+          MONGODB_URI: mongodb://localhost:27017
+          MONGODB_DATABASE: test_db
+          JWT_SECRET_KEY: test_secret_key_for_jwt_signing_32chars
         run: uv run pytest
