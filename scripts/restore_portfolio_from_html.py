@@ -55,6 +55,17 @@ def _text(el: Tag | None) -> str:
     return el.get_text(strip=True)
 
 
+def _attr_str(tag: Tag | None, name: str, default: str = "") -> str:
+    if not tag:
+        return default
+    value = tag.get(name, default)
+    if value is None:
+        return default
+    if isinstance(value, list):
+        return str(value[0]) if value else default
+    return str(value)
+
+
 def _split_degree(degree_line: str) -> tuple[str, str]:
     """Parse '{degree} in {degree_type}' from education-degree heading."""
     marker = " in "
@@ -99,14 +110,14 @@ def parse_portfolio_html(html_path: Path) -> dict[str, Any]:
     # --- Personal / hero ---
     title = _text(soup.select_one("title")) or "Portfolio"
     profile_img = soup.select_one("img.hero-profile-img")
-    profile_picture_url = profile_img.get("src", "") if profile_img else ""
-    profile_picture_key = _cloudfront_key_from_url(profile_picture_url)
+    profile_picture_key = _cloudfront_key_from_url(_attr_str(profile_img, "src"))
 
     typewriter = soup.select_one(".typewriter-text")
     job_titles: list[str] = []
-    if typewriter and typewriter.get("data-job-titles"):
+    job_titles_raw = _attr_str(typewriter, "data-job-titles")
+    if job_titles_raw:
         try:
-            job_titles = json.loads(typewriter["data-job-titles"])
+            job_titles = json.loads(job_titles_raw)
         except json.JSONDecodeError:
             job_titles = []
 
@@ -115,7 +126,7 @@ def parse_portfolio_html(html_path: Path) -> dict[str, Any]:
 
     linkedin = github = website = ""
     for link in soup.select(".hero-social-links a[href]"):
-        href = link.get("href", "")
+        href = _attr_str(link, "href")
         if "linkedin.com" in href:
             linkedin = href
         elif "github.com" in href:
@@ -129,14 +140,16 @@ def parse_portfolio_html(html_path: Path) -> dict[str, Any]:
         if not value_el:
             continue
         if label == "email":
-            email = value_el.get("href", "").replace("mailto:", "") or _text(value_el)
+            email = _attr_str(value_el, "href").replace("mailto:", "") or _text(
+                value_el
+            )
         elif label == "phone":
             phone = _text(value_el)
         elif label == "location":
             address = _text(value_el)
 
     for link in soup.select(".contact-social a[href]"):
-        href = link.get("href", "")
+        href = _attr_str(link, "href")
         if "linkedin.com" in href and not linkedin:
             linkedin = href
         elif "github.com" in href and not github:
@@ -227,7 +240,7 @@ def parse_portfolio_html(html_path: Path) -> dict[str, Any]:
         if not header:
             continue
         link_el = card.select_one("a.project-link")
-        link = link_el.get("href") if link_el else None
+        project_link = _attr_str(link_el, "href") or None
         bullet_points = [
             _text(li)
             for li in card.select(".project-description .expandable-item")
@@ -238,8 +251,8 @@ def parse_portfolio_html(html_path: Path) -> dict[str, Any]:
             "bullet_points": bullet_points,
             "date": _text(header.select_one(".project-date")),
         }
-        if link:
-            entry["link"] = link
+        if project_link:
+            entry["link"] = project_link
         projects.append(entry)
 
     return {

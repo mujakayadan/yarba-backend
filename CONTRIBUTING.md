@@ -18,10 +18,15 @@ cp .env.example .env
 
 ```bash
 uv run pre-commit install
-uv run pre-commit install --hook-type pre-push
 ```
 
-On `git commit`: `ruff check` and `ruff format`. On `git push`: `mypy` (same as CI).
+On `git commit`: Ruff, mypy, and generic file checks (same quality bar as CI).
+
+If you previously installed a pre-push hook, remove it:
+
+```bash
+uv run pre-commit uninstall --hook-type pre-push
+```
 
 Manual run: `uv run pre-commit run --all-files`
 

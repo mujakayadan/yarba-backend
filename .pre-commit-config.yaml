@@ -1,5 +1,5 @@
-# Install: uv run pre-commit install && uv run pre-commit install --hook-type pre-push
-# Ruff on commit; mypy on push.
+# Install: uv run pre-commit install
+# On commit: ruff + mypy (+ generic hooks).
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
@@ -30,4 +30,3 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
-        stages: [pre-push]
