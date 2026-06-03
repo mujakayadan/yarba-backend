@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -190,31 +190,27 @@ class AuthSettings(BaseSettings):
     )
 
     @model_validator(mode="after")
-    def decode_firebase_base64_key(cls, values):
+    def decode_firebase_base64_key(self) -> Self:
         """Decode base64 private key if present."""
-        # If we have a base64 key but no regular key, decode the base64
-        if not values.firebase_private_key and values.firebase_private_key_base64:
+        if not self.firebase_private_key and self.firebase_private_key_base64:
             try:
                 import base64
                 import logging
 
-                decoded_key = base64.b64decode(
-                    values.firebase_private_key_base64
-                ).decode("utf-8")
-                values.firebase_private_key = decoded_key
+                decoded_key = base64.b64decode(self.firebase_private_key_base64).decode(
+                    "utf-8"
+                )
+                self.firebase_private_key = decoded_key
                 logging.info("Successfully decoded Firebase private key from base64")
             except Exception as e:
                 import logging
 
                 logging.error(f"Failed to decode base64 private key: {str(e)}")
 
-        # Replace newlines if needed
-        if values.firebase_private_key and "\\n" in values.firebase_private_key:
-            values.firebase_private_key = values.firebase_private_key.replace(
-                "\\n", "\n"
-            )
+        if self.firebase_private_key and "\\n" in self.firebase_private_key:
+            self.firebase_private_key = self.firebase_private_key.replace("\\n", "\n")
 
-        return values
+        return self
 
     def get_firebase_credentials_dict(self) -> dict[str, Any]:
         """Get Firebase credentials as a dictionary for firebase-admin.

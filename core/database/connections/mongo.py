@@ -1,8 +1,9 @@
 """MongoDB connection manager."""
 
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from pymongo import AsyncMongoClient
 
 from config.logging_config import get_logger
+from core.database.types import AsyncMongoClientType, AsyncMongoDatabase
 
 logger = get_logger(__name__)
 
@@ -11,8 +12,8 @@ class MongoDBManager:
     """MongoDB connection manager singleton."""
 
     _instance: "MongoDBManager | None" = None
-    _async_client: AsyncIOMotorClient | None = None
-    _async_db: AsyncIOMotorDatabase | None = None
+    _async_client: AsyncMongoClientType | None = None
+    _async_db: AsyncMongoDatabase | None = None
     _initialized: bool = False
 
     def __new__(cls, *args, **kwargs):
@@ -47,25 +48,25 @@ class MongoDBManager:
         self._database = database
 
     @property
-    def async_client(self) -> AsyncIOMotorClient:
+    def async_client(self) -> AsyncMongoClientType:
         """Get the async MongoDB client.
 
         Returns:
-            AsyncIOMotorClient: Async MongoDB client
+            AsyncMongoClient: Async MongoDB client
         """
         if self._async_client is None:
             if not self._uri:
                 raise ValueError("MongoDB URI not set. Call initialize() first.")
-            self._async_client = AsyncIOMotorClient(self._uri)
+            self._async_client = AsyncMongoClient(self._uri)
             logger.info("Initialized async MongoDB client")
         return self._async_client
 
     @property
-    def async_db(self) -> AsyncIOMotorDatabase:
+    def async_db(self) -> AsyncMongoDatabase:
         """Get the async MongoDB database.
 
         Returns:
-            AsyncIOMotorDatabase: Async MongoDB database
+            AsyncMongoDatabase: Async MongoDB database
         """
         if self._async_db is None:
             if not self._database:
@@ -74,14 +75,13 @@ class MongoDBManager:
             logger.info(f"Connected to async MongoDB database: {self._database}")
         return self._async_db
 
-    def close_async_connection(self):
+    async def close_async_connection(self) -> None:
         """Close the async MongoDB connection."""
         if self._async_client:
-            self._async_client.close()
+            await self._async_client.close()
             self._async_client = None
             self._async_db = None
             logger.info("Closed async MongoDB connection")
 
 
-# Global instance
 mongo_manager = MongoDBManager()

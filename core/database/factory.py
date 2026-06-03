@@ -5,9 +5,8 @@ This module provides factory functions for creating database-related dependencie
 
 from collections.abc import AsyncGenerator
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
-
 from config.settings import Settings
+from core.database.types import AsyncMongoDatabase
 from core.repositories import (
     CoverLetterRepository,
     PortfolioRepository,
@@ -23,11 +22,11 @@ from .unit_of_work import AsyncMongoUnitOfWork
 settings = Settings()
 
 
-async def get_database() -> AsyncGenerator[AsyncIOMotorDatabase, None]:
+async def get_database() -> AsyncGenerator[AsyncMongoDatabase, None]:
     """Get a database connection.
 
     Yields:
-        AsyncIOMotorDatabase: MongoDB database instance
+        AsyncMongoDatabase: MongoDB database instance
     """
     db = await get_async_database_connection()
     try:

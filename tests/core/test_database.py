@@ -34,9 +34,9 @@ def mock_mongo_client():
 
 @pytest.fixture
 def mock_async_mongo_client():
-    client = AsyncMock()
-    client.get_database = MagicMock(return_value=MagicMock())
-    client.close = MagicMock()
+    client = MagicMock()
+    client.__getitem__ = MagicMock(return_value=MagicMock())
+    client.close = AsyncMock()
     return client
 
 
@@ -59,7 +59,7 @@ class TestDatabaseConnection:
         with (
             patch("core.database.connection.settings", mock_settings),
             patch(
-                "core.database.connection.AsyncIOMotorClient",
+                "core.database.connection.AsyncMongoClient",
                 return_value=mock_async_mongo_client,
             ) as mock_client,
         ):
@@ -67,7 +67,7 @@ class TestDatabaseConnection:
             db2 = await connection.get_async_database_connection()
 
         mock_client.assert_called_once_with("mongodb://localhost:27017")
-        mock_async_mongo_client.get_database.assert_called_with("test_db")
+        mock_async_mongo_client.__getitem__.assert_called_with("test_db")
         assert db1 is not None and db2 is not None
 
     def test_close_database_connection(self, mock_settings, mock_mongo_client):
@@ -87,7 +87,7 @@ class TestDatabaseConnection:
         with (
             patch("core.database.connection.settings", mock_settings),
             patch(
-                "core.database.connection.AsyncIOMotorClient",
+                "core.database.connection.AsyncMongoClient",
                 return_value=mock_async_mongo_client,
             ),
         ):

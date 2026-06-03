@@ -5,6 +5,8 @@ from datetime import UTC, datetime
 from beanie import Document
 from pydantic import Field
 
+from core.models.document_config import BSON_DATETIME_ENCODERS, DOCUMENT_MODEL_CONFIG
+
 
 class Preamble(Document):
     """Preamble model for storing LaTeX preamble content.
@@ -30,16 +32,11 @@ class Preamble(Document):
         description="Last update timestamp.",
     )
 
-    model_config = {
-        "validate_assignment": True,
-        "json_encoders": {datetime: lambda v: v.isoformat()},
-    }
+    model_config = DOCUMENT_MODEL_CONFIG
 
     class Settings:
         """Beanie document settings."""
 
         name = "preambles"
         use_state_management = True
-        bson_encoders = {
-            datetime: lambda dt: (dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt),
-        }
+        bson_encoders = BSON_DATETIME_ENCODERS

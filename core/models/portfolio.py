@@ -6,6 +6,7 @@ from typing import Any
 from beanie import Document, Link, PydanticObjectId
 from pydantic import BaseModel, Field, HttpUrl, model_validator
 
+from core.models.document_config import BSON_DATETIME_ENCODERS, NESTED_MODEL_CONFIG
 from core.models.profile import Profile
 from core.models.user import User
 
@@ -29,7 +30,7 @@ class CareerSummary(BaseModel):
         description="Default career summary to use when a custom one is not generated.",
     )
 
-    model_config = {"validate_assignment": True}
+    model_config = NESTED_MODEL_CONFIG
 
     @model_validator(mode="after")
     def set_default_job_title_if_empty(self) -> "CareerSummary":
@@ -48,7 +49,7 @@ class WorkExperience(BaseModel):
     time: str = Field(default="")
     responsibilities: list[str] = Field(default=[])
 
-    model_config = {"validate_assignment": True}
+    model_config = NESTED_MODEL_CONFIG
 
 
 class Education(BaseModel):
@@ -62,7 +63,7 @@ class Education(BaseModel):
     GPA: str = Field(default="")
     transcript: list[str] = Field(default=[])
 
-    model_config = {"validate_assignment": True}
+    model_config = NESTED_MODEL_CONFIG
 
 
 class Project(BaseModel):
@@ -75,7 +76,7 @@ class Project(BaseModel):
         default=None, description="Optional link to the project."
     )
 
-    model_config = {"validate_assignment": True}
+    model_config = NESTED_MODEL_CONFIG
 
 
 class Award(BaseModel):
@@ -84,7 +85,7 @@ class Award(BaseModel):
     name: str = Field(default="")
     explanation: str = Field(default="")
 
-    model_config = {"validate_assignment": True}
+    model_config = NESTED_MODEL_CONFIG
 
 
 class Publication(BaseModel):
@@ -95,7 +96,7 @@ class Publication(BaseModel):
     link: str = Field(default="")
     time: str = Field(default="")
 
-    model_config = {"validate_assignment": True}
+    model_config = NESTED_MODEL_CONFIG
 
 
 class CustomSections(BaseModel):
@@ -104,7 +105,7 @@ class CustomSections(BaseModel):
     enabled: list[str] = Field(default=[])
     order: list[str] = Field(default=[])
 
-    model_config = {"validate_assignment": True}
+    model_config = NESTED_MODEL_CONFIG
 
 
 class Skill(BaseModel):
@@ -113,7 +114,7 @@ class Skill(BaseModel):
     category: str = Field(default="")
     skills: list[str] = Field(default=[])
 
-    model_config = {"validate_assignment": True}
+    model_config = NESTED_MODEL_CONFIG
 
 
 class Portfolio(Document):
@@ -176,6 +177,4 @@ class Portfolio(Document):
         name = "portfolios"
         use_state_management = True
         indexes = ["user_id", "profile_id"]
-        bson_encoders = {
-            datetime: lambda dt: (dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt),
-        }
+        bson_encoders = BSON_DATETIME_ENCODERS

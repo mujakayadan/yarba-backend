@@ -7,6 +7,11 @@ from beanie import Document, Link, PydanticObjectId
 from pydantic import BaseModel, EmailStr, Field
 
 from config.settings import settings
+from core.models.document_config import (
+    BSON_DATETIME_ENCODERS,
+    DOCUMENT_MODEL_CONFIG,
+    NESTED_MODEL_CONFIG,
+)
 
 from .user import User
 
@@ -61,7 +66,7 @@ class LLMUsage(BaseModel):
         description="Historical usage by month: {'YYYY-MM': {'tokens': count, 'cost': amount}}",
     )
 
-    model_config = {"validate_assignment": True}
+    model_config = NESTED_MODEL_CONFIG
 
 
 class PromptPreferences(BaseModel):
@@ -107,7 +112,7 @@ class PromptPreferences(BaseModel):
         default_factory=dict, description="Publications section preferences"
     )
 
-    model_config = {"validate_assignment": True}
+    model_config = NESTED_MODEL_CONFIG
 
 
 class SystemPreferences(BaseModel):
@@ -148,7 +153,7 @@ class SystemPreferences(BaseModel):
         description="LaTeX template IDs for resume and cover letter generation",
     )
 
-    model_config = {"validate_assignment": True}
+    model_config = NESTED_MODEL_CONFIG
 
 
 class PersonalInformation(BaseModel):
@@ -162,7 +167,7 @@ class PersonalInformation(BaseModel):
     github: str | None = None
     website: str | None = None
 
-    model_config = {"validate_assignment": True}
+    model_config = NESTED_MODEL_CONFIG
 
 
 class FlatPreference:
@@ -278,13 +283,7 @@ class Profile(Document):
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
-    model_config = {
-        "validate_assignment": True,
-        "arbitrary_types_allowed": True,
-        "json_encoders": {
-            datetime: lambda x: x.isoformat(),
-        },
-    }
+    model_config = DOCUMENT_MODEL_CONFIG
 
     @property
     def flat_prefs(self) -> FlatPreference:
@@ -306,6 +305,4 @@ class Profile(Document):
 
         name = "profiles"
         use_state_management = True
-        bson_encoders = {
-            datetime: lambda dt: (dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt),
-        }
+        bson_encoders = BSON_DATETIME_ENCODERS

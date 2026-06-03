@@ -5,6 +5,8 @@ from datetime import UTC, datetime
 from beanie import Document
 from pydantic import Field
 
+from core.models.document_config import BSON_DATETIME_ENCODERS, DOCUMENT_MODEL_CONFIG
+
 
 class TexHeader(Document):
     """TexHeader model for storing reusable LaTeX headers or snippets.
@@ -30,10 +32,7 @@ class TexHeader(Document):
         description="Last update timestamp.",
     )
 
-    model_config = {
-        "validate_assignment": True,
-        "json_encoders": {datetime: lambda v: v.isoformat()},
-    }
+    model_config = DOCUMENT_MODEL_CONFIG
 
     class Settings:
         """Beanie document settings."""
@@ -41,6 +40,4 @@ class TexHeader(Document):
         name = "tex_headers"
         use_state_management = True
         indexes = ["category"]
-        bson_encoders = {
-            datetime: lambda dt: (dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt),
-        }
+        bson_encoders = BSON_DATETIME_ENCODERS

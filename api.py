@@ -73,6 +73,10 @@ try:
             host=host,
             port=port,
             workers=1,
+            loop="uvloop",
+            http="httptools",
+            proxy_headers=True,
+            forwarded_allow_ips="*",
         )
 
     if __name__ == "__main__":

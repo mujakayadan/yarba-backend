@@ -3,9 +3,11 @@
 from datetime import UTC
 from typing import Annotated, cast
 
+import jwt
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import ExpiredSignatureError, JWTError, jwt
+from jwt.exceptions import ExpiredSignatureError
+from jwt.exceptions import PyJWTError as JWTError
 
 from config import get_logger, settings
 from core.auth.firebase import FirebaseAuth

@@ -5,8 +5,9 @@ from typing import Any, TypeVar, cast
 
 from beanie import Document, PydanticObjectId
 from bson import ObjectId
-from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel
+
+from core.database.types import AsyncMongoDatabase
 
 from ..exceptions.base import NotFoundException
 from ..utils.object_id import ObjectIdLike, coerce_object_id
@@ -148,7 +149,7 @@ class BeanieRepository(BaseRepository[T]):
         return True
 
 
-class MotorRepository[T: Document]:
+class MongoRepository[T: Document]:
     """Base repository with common CRUD operations.
 
     This class provides a base implementation for repositories with common
@@ -159,7 +160,7 @@ class MotorRepository[T: Document]:
         collection_name: The name of the MongoDB collection
     """
 
-    def __init__(self, database: AsyncIOMotorDatabase, collection_name: str):
+    def __init__(self, database: AsyncMongoDatabase, collection_name: str):
         """Initialize the repository.
 
         Args:

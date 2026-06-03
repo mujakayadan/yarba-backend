@@ -44,7 +44,7 @@ def configure_logging() -> None:
 
     # Set specific log levels for noisy libraries
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-    logging.getLogger("motor").setLevel(logging.WARNING)
+    logging.getLogger("pymongo").setLevel(logging.WARNING)
     logging.getLogger("pymongo").setLevel(logging.WARNING)
     logging.getLogger("pymongo.topology").setLevel(logging.WARNING)
     logging.getLogger("boto3").setLevel(logging.WARNING)

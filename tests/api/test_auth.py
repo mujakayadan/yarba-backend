@@ -54,7 +54,7 @@ async def test_register_invalid_email(async_client: AsyncClient):
         json={"email": "invalid-email", "password": "Password123!"},
     )
 
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
     assert "email" in response.json()["detail"][0]["loc"]
 
 
@@ -66,7 +66,7 @@ async def test_register_weak_password(async_client: AsyncClient):
         json={"email": "weakpass@example.com", "password": "weak"},
     )
 
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
     assert "password" in str(response.json()["detail"]).lower()
 
 
@@ -108,4 +108,4 @@ async def test_login_missing_token(async_client: AsyncClient):
     """Test login without id_token."""
     response = await async_client.post("/api/v1/auth/login", json={})
 
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT

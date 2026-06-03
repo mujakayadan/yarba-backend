@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.testclient import TestClient
-from jose import JWTError
+from jwt.exceptions import PyJWTError as JWTError
 
 from api.middleware.auth import get_current_user, verify_token
 from tests.factories import make_user

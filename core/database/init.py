@@ -11,21 +11,20 @@ try:
     from dotenv import load_dotenv
 
     # Load environment variables from .env.local first, then fallback to others
-    env_loaded = False
     for env_file in [".env.local", ".env.production", ".env"]:
         if Path(env_file).exists():
             load_dotenv(dotenv_path=env_file)
-            env_loaded = True
             break
 except ImportError:
     # dotenv is optional, so handle the case where it's not installed
     pass
 
 from beanie import init_beanie
-from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo import AsyncMongoClient
 
 from config.logging_config import get_logger
 from config.settings import Settings
+from core.database.types import AsyncMongoClientType
 from core.models.cover_letter import CoverLetter
 from core.models.portfolio import Portfolio
 from core.models.portfolio_website import PortfolioWebsite
@@ -40,18 +39,16 @@ logger = get_logger(__name__)
 settings = Settings()
 
 
-async def init_db() -> AsyncIOMotorClient | None:
+async def init_db() -> AsyncMongoClientType | None:
     """Initialize database connection.
 
     Returns:
-        Optional[AsyncIOMotorClient]: Database client if successful, None otherwise.
+        Optional[AsyncMongoClient]: Database client if successful, None otherwise.
     """
     try:
-        # Use the database settings which already handle environment variables properly
         mongodb_uri = settings.database.url
         mongodb_db = settings.database.name
 
-        # Log sanitized URI
         sanitized_uri = sanitize_mongodb_uri(mongodb_uri)
         logger.info(
             f"Connecting to MongoDB at: {sanitized_uri} (database: {mongodb_db})"
@@ -63,8 +60,7 @@ async def init_db() -> AsyncIOMotorClient | None:
                 "make sure the MONGODB_URI environment variable is set in .env.local file."
             )
 
-        # Create motor client using settings
-        client: AsyncIOMotorClient = AsyncIOMotorClient(
+        client: AsyncMongoClientType = AsyncMongoClient(
             mongodb_uri,
             minPoolSize=settings.database.min_pool_size,
             maxPoolSize=settings.database.max_pool_size,
@@ -75,26 +71,17 @@ async def init_db() -> AsyncIOMotorClient | None:
             retryReads=settings.database.retry_reads,
         )
 
-        # Initialize beanie with all document models
         document_models = [
-            # User models
             User,
-            # Resume models
             Resume,
-            # Cover letter models
             CoverLetter,
-            # Profile models
             Profile,
-            # Portfolio models
             Portfolio,
-            # Portfolio Website models
             PortfolioWebsite,
-            # LaTeX models
             TexHeader,
             Preamble,
         ]
 
-        # Test connection before initializing Beanie
         logger.info("Testing MongoDB connection...")
         await client.admin.command("ping")
         logger.info("MongoDB connection test successful")
@@ -110,7 +97,6 @@ async def init_db() -> AsyncIOMotorClient | None:
 
     except Exception as e:
         logger.error(f"Failed to initialize database: {str(e)}")
-        # Print more details about error
         import traceback
 
         logger.error(f"Error details: {traceback.format_exc()}")

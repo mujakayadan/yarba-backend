@@ -2,7 +2,9 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+
+NESTED_MODEL_CONFIG = ConfigDict(validate_assignment=True)
 
 
 class PortfolioWebsiteConfig(BaseModel):
@@ -37,7 +39,7 @@ class PortfolioWebsiteConfig(BaseModel):
     # Contact Configuration
     contact_form_enabled: bool = Field(default=True)
 
-    model_config = {"validate_assignment": True}
+    model_config = NESTED_MODEL_CONFIG
 
 
 class DeploymentStatus(BaseModel):
@@ -65,7 +67,7 @@ class DeploymentStatus(BaseModel):
     error_message: str | None = None
     error_code: str | None = None
 
-    model_config = {"validate_assignment": True}
+    model_config = NESTED_MODEL_CONFIG
 
 
 class PortfolioWebsiteRequest(BaseModel):
@@ -109,4 +111,4 @@ class WebsiteAnalytics(BaseModel):
     period_start: datetime
     period_end: datetime
 
-    model_config = {"validate_assignment": True}
+    model_config = NESTED_MODEL_CONFIG

@@ -2,15 +2,16 @@
 
 from typing import Any
 
-from passlib.context import CryptContext
-from passlib.exc import UnknownHashError
+from pwdlib import PasswordHash
+from pwdlib import exceptions as pwd_exceptions
+from pwdlib.hashers.bcrypt import BcryptHasher
 
 from config.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Bcrypt-only: verifies legacy passlib-generated $2b$ hashes in the database.
+password_hasher = PasswordHash((BcryptHasher(),))
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -28,8 +29,8 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
     try:
-        return bool(pwd_context.verify(plain_password, hashed_password))
-    except UnknownHashError:
+        return password_hasher.verify(plain_password, hashed_password)
+    except pwd_exceptions.UnknownHashError:
         logger.error(
             f"Unknown hash format detected. Hash might be invalid or corrupted. Length: {len(hashed_password)}"
         )
@@ -48,7 +49,7 @@ def get_password_hash(password: str) -> str:
     Returns:
         str: Hashed password
     """
-    return str(pwd_context.hash(password))
+    return password_hasher.hash(password)
 
 
 def reset_user_password(user_obj: Any, new_password: str) -> str | None:

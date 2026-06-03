@@ -6,6 +6,8 @@ from typing import Annotated
 from beanie import Document, Indexed, PydanticObjectId
 from pydantic import EmailStr, Field
 
+from core.models.document_config import BSON_DATETIME_ENCODERS, DOCUMENT_MODEL_CONFIG
+
 
 class User(Document):
     """User model for MongoDB using Beanie ODM."""
@@ -52,22 +54,14 @@ class User(Document):
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
-    model_config = {
-        "validate_assignment": True,
-        "arbitrary_types_allowed": True,
-        "json_encoders": {
-            datetime: lambda x: x.isoformat(),
-        },
-    }
+    model_config = DOCUMENT_MODEL_CONFIG
 
     class Settings:
         """Beanie document settings."""
 
         name = "users"
         use_state_management = True
-        bson_encoders = {
-            datetime: lambda dt: (dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt),
-        }
+        bson_encoders = BSON_DATETIME_ENCODERS
 
 
 class AuthenticatedUser(User):

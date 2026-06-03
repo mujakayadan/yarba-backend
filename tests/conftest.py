@@ -11,7 +11,8 @@ import pytest
 from beanie import init_beanie
 from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
-from mongomock_motor import AsyncMongoMockClient
+
+from tests.support.async_mongo_mock import AsyncMongoMockClient
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -108,7 +109,7 @@ async def beanie_db() -> AsyncIterator[AsyncMongoMockClient]:
         document_models=BEANIE_DOCUMENT_MODELS,
     )
     yield _test_mongo_client
-    # Always clear via the mock client handle — never model.get_motor_collection(),
+    # Always clear via the mock client handle — never model.get_pymongo_collection(),
     # which follows Beanie's global connection and could point at a real database
     # if app lifespan re-initialized Beanie during the test.
     test_db = _test_mongo_client["test_db"]
@@ -387,11 +388,11 @@ async def async_client(
 
     fastapi_app.dependency_overrides[get_current_user] = override_active_user
     fastapi_app.dependency_overrides[get_current_active_user] = override_active_user
-    fastapi_app.dependency_overrides[get_resume_generation_service] = (
-        lambda: mock_resume_generation_service
+    fastapi_app.dependency_overrides[get_resume_generation_service] = lambda: (
+        mock_resume_generation_service
     )
-    fastapi_app.dependency_overrides[get_cover_letter_generation_service] = (
-        lambda: mock_cover_letter_generation
+    fastapi_app.dependency_overrides[get_cover_letter_generation_service] = lambda: (
+        mock_cover_letter_generation
     )
 
     transport = ASGITransport(app=fastapi_app)
@@ -438,8 +439,8 @@ def app_with_mocked_dependencies(
     app.dependency_overrides[get_current_user] = mock_get_current_user
     app.dependency_overrides[get_user_repository] = lambda: mock_user_repository
     app.dependency_overrides[get_profile_repository] = lambda: mock_profile_repository
-    app.dependency_overrides[get_portfolio_repository] = (
-        lambda: mock_portfolio_repository
+    app.dependency_overrides[get_portfolio_repository] = lambda: (
+        mock_portfolio_repository
     )
     app.dependency_overrides[get_resume_repository] = lambda: mock_resume_repository
     return app

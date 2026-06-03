@@ -4,9 +4,10 @@ import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import jwt
 from beanie import PydanticObjectId
 from fastapi import HTTPException, status
-from jose import JWTError, jwt
+from jwt.exceptions import PyJWTError as JWTError
 from pydantic import EmailStr
 
 from config.logging_config import get_logger

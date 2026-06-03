@@ -5,6 +5,12 @@ from datetime import UTC, datetime
 from beanie import Document, Link, PydanticObjectId
 from pydantic import BaseModel, Field
 
+from core.models.document_config import (
+    BSON_DATETIME_ENCODERS,
+    DOCUMENT_MODEL_CONFIG,
+    NESTED_MODEL_CONFIG,
+)
+
 from .portfolio import Portfolio
 from .profile import Profile
 from .resume import LLMUsageStats, Resume
@@ -19,7 +25,7 @@ class CoverLetterSection(BaseModel):
     order: int = 0
     is_visible: bool = True
 
-    model_config = {"validate_assignment": True}
+    model_config = NESTED_MODEL_CONFIG
 
 
 class CoverLetter(Document):
@@ -54,13 +60,7 @@ class CoverLetter(Document):
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
-    model_config = {
-        "validate_assignment": True,
-        "arbitrary_types_allowed": True,
-        "json_encoders": {
-            datetime: lambda x: x.isoformat(),
-        },
-    }
+    model_config = DOCUMENT_MODEL_CONFIG
 
     class Settings:
         """Beanie document settings."""
@@ -68,6 +68,4 @@ class CoverLetter(Document):
         name = "cover_letters"
         use_state_management = True
         indexes = ["user_id", "profile_id", "portfolio_id", "resume_id"]
-        bson_encoders = {
-            datetime: lambda dt: (dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt),
-        }
+        bson_encoders = BSON_DATETIME_ENCODERS

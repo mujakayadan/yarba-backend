@@ -3,7 +3,7 @@
 This module provides a Unit of Work implementation for MongoDB.
 """
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from core.database.types import AsyncMongoDatabase
 
 from ..repositories.portfolio_repository import PortfolioRepository
 from ..repositories.profile_repository import ProfileRepository
@@ -27,7 +27,7 @@ class AsyncMongoUnitOfWork:
         portfolio_repository: Repository for portfolio data
     """
 
-    def __init__(self, database: AsyncIOMotorDatabase | None = None):
+    def __init__(self, database: AsyncMongoDatabase | None = None):
         """Initialize the Unit of Work.
 
         Args:

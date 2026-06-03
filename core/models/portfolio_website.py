@@ -7,6 +7,7 @@ from typing import Annotated
 from beanie import Document, Indexed, Link, PydanticObjectId
 from pydantic import BaseModel, Field, HttpUrl
 
+from core.models.document_config import BSON_DATETIME_ENCODERS, NESTED_MODEL_CONFIG
 from core.models.portfolio import Portfolio
 from core.models.user import User
 
@@ -43,7 +44,7 @@ class WebsiteConfig(BaseModel):
     # Contact Configuration
     contact_form_enabled: bool = Field(default=True)
 
-    model_config = {"validate_assignment": True}
+    model_config = NESTED_MODEL_CONFIG
 
 
 class DeploymentInfo(BaseModel):
@@ -72,7 +73,7 @@ class DeploymentInfo(BaseModel):
     error_message: str | None = None
     error_code: str | None = None
 
-    model_config = {"validate_assignment": True}
+    model_config = NESTED_MODEL_CONFIG
 
 
 class WebsiteAnalytics(BaseModel):
@@ -89,7 +90,7 @@ class WebsiteAnalytics(BaseModel):
     period_start: datetime = Field(default_factory=lambda: datetime.now(UTC))
     period_end: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
-    model_config = {"validate_assignment": True}
+    model_config = NESTED_MODEL_CONFIG
 
 
 class PortfolioWebsite(Document):
@@ -168,9 +169,7 @@ class PortfolioWebsite(Document):
             "is_published",
             ("user_id", "subdomain"),  # Compound index for efficient queries
         ]
-        bson_encoders = {
-            datetime: lambda dt: (dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt),
-        }
+        bson_encoders = BSON_DATETIME_ENCODERS
 
     def get_website_url(self) -> str:
         """Get the full website URL."""

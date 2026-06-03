@@ -111,7 +111,11 @@ class DocumentParserService:
                     and hasattr(llm_response, "choices")
                     and llm_response.choices
                 ):
-                    message_content = llm_response.choices[0].message.content
+                    first_choice = llm_response.choices[0]
+                    message = getattr(first_choice, "message", None)
+                    message_content = (
+                        getattr(message, "content", None) if message else None
+                    )
                     if message_content:
                         error_detail += f" LLM Message: {message_content[:200]}"
                 raise ValueError(error_detail)

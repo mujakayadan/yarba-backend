@@ -5,8 +5,9 @@ from datetime import timedelta
 from io import StringIO
 from unittest.mock import MagicMock
 
+import jwt
 import pytest
-from jose import ExpiredSignatureError, jwt
+from jwt.exceptions import ExpiredSignatureError
 
 from config.logging_config import get_logger
 from config.settings import settings
