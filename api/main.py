@@ -62,7 +62,7 @@ logger = get_logger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_app: FastAPI):
     """FastAPI lifespan event handler.
 
     This runs on startup and shutdown of the application.

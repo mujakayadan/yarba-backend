@@ -10,6 +10,7 @@
 uv sync
 uv run pre-commit install
 uv run ruff check . && uv run ruff format .
+uv run vulture
 uv run mypy
 uv run pytest
 uv run uvicorn api.main:app --reload

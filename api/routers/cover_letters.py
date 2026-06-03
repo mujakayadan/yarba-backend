@@ -202,7 +202,6 @@ async def create_cover_letter(
     ],
     current_user: CurrentUser,
     cover_letter_service: CoverLetterService = Depends(get_cover_letter_service),
-    resume_service: ResumeService = Depends(get_resume_service),
     profile_service: ProfileService = Depends(get_profile_service),
     portfolio_service: PortfolioService = Depends(get_portfolio_service),
     generation_service: CoverLetterGenerationService = Depends(
@@ -217,7 +216,6 @@ async def create_cover_letter(
             - generate_pdf: Optional boolean to trigger immediate PDF generation (default: False)
         current_user: Current authenticated user
         cover_letter_service: Cover letter service
-        resume_service: Resume service for getting resume details
         profile_service: Profile service for accessing user preferences
         portfolio_service: Portfolio service for getting active portfolio
         generation_service: Cover letter generation service for PDF generation

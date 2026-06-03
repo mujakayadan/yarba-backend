@@ -242,6 +242,7 @@ class WebsiteGeneratorService:
                 or "Professional portfolio website",
                 "keywords": config.meta_keywords,
                 "url": f"https://{subdomain}.{os.getenv('VERCEL_DOMAIN_NAME', 'yarba.app')}",
+                "owner_id": str(user.id) if user and user.id else None,
             },
         }
 
@@ -686,7 +687,10 @@ footer {{
 
     def _generate_default_js(self, config: WebsiteConfig) -> str:
         """Generate default JavaScript when theme JS is not found."""
-        return """
+        header = f"// Default Portfolio JavaScript (theme: {config.theme})\n"
+        return (
+            header
+            + """
 // Default Portfolio JavaScript
 document.addEventListener('DOMContentLoaded', function() {
     // Smooth scrolling for anchor links
@@ -726,3 +730,4 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 """
+        )

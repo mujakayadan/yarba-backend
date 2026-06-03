@@ -167,14 +167,12 @@ async def get_portfolios(
 async def create_portfolio(
     portfolio_data: PortfolioCreate,
     current_user: CurrentActiveUser,
-    portfolio_repository: PortfolioRepository = Depends(get_portfolio_repository),
 ):
     """Create a new portfolio.
 
     Args:
         portfolio_data: Portfolio data
         current_user: Current authenticated user
-        portfolio_repository: Portfolio repository (available for use if needed)
 
     Returns:
         Created portfolio
@@ -678,10 +676,10 @@ async def delete_portfolio(
     "/{portfolio_id}/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT
 )
 async def delete_portfolio_item(
-    portfolio_id: Annotated[str, Path(..., description="Portfolio ID")],
-    item_id: Annotated[str, Path(..., description="Portfolio item ID")],
-    current_user: CurrentActiveUser,
-    portfolio_repository: PortfolioRepository = Depends(get_portfolio_repository),
+    _portfolio_id: Annotated[str, Path(..., description="Portfolio ID")],
+    _item_id: Annotated[str, Path(..., description="Portfolio item ID")],
+    _current_user: CurrentActiveUser,
+    _portfolio_repository: PortfolioRepository = Depends(get_portfolio_repository),
 ):
     """Delete a portfolio item.
 

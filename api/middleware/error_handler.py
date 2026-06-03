@@ -72,7 +72,6 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
         return JSONResponse(
             status_code=exc.status_code,
             content=self._format_error_response(
-                status_code=exc.status_code,
                 message=str(exc),
                 error_code=exc.error_code,
                 details=exc.details,
@@ -113,7 +112,6 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
         return JSONResponse(
             status_code=status_code,
             content=self._format_error_response(
-                status_code=status_code,
                 message=message,
                 error_code="internal_server_error",
                 details=details,
@@ -122,7 +120,6 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
 
     def _format_error_response(
         self,
-        status_code: int,
         message: str,
         error_code: str | None = None,
         details: dict[str, Any] | None = None,
@@ -130,7 +127,6 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
         """Format error response.
 
         Args:
-            status_code: HTTP status code
             message: Error message
             error_code: Error code
             details: Additional error details

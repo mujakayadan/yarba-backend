@@ -119,8 +119,3 @@ class UserRepository(BeanieRepository[User]):
         result.last_active = datetime.now(UTC)
         await result.save()
         return True
-
-
-async def get_user_repository(self) -> UserRepository:
-    """Get the user repository."""
-    return UserRepository()

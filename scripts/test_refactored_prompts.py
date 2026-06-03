@@ -430,10 +430,10 @@ async def test_llm_response_parsing():
 
     # Create a mock LaTeX service
     class MockLatexService:
-        async def generate_resume_latex(self, resume_id):
+        async def generate_resume_latex(self, _resume_id):
             return "Mock LaTeX content"
 
-        async def compile_latex_to_pdf(self, latex_content, is_cover_letter=False):
+        async def compile_latex_to_pdf(self, _latex_content, _is_cover_letter=False):
             return b"Mock PDF content"
 
     resume_service = ResumeGenerationService(

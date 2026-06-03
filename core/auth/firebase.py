@@ -61,12 +61,8 @@ class FirebaseAuth:
         logger.debug("=== END DEBUG INFO ===")
 
     @classmethod
-    def initialize(cls, service_account_path: str | None = None) -> bool:
-        """Initialize Firebase Admin SDK.
-
-        Args:
-            service_account_path: Path to Firebase service account credentials file.
-                If not provided, will use credentials from environment variables.
+    def initialize(cls) -> bool:
+        """Initialize Firebase Admin SDK from settings (env-backed service account fields).
 
         Returns:
             bool: True if initialized successfully, False otherwise.

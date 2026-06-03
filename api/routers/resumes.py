@@ -321,7 +321,7 @@ async def get_resumes(
 
 @router.get("/templates", response_model=list[dict[str, str]])
 async def get_available_templates(
-    current_user: CurrentUser,
+    _current_user: CurrentUser,
     latex_service: Any = Depends(get_latex_service),
 ) -> list[dict[str, str]]:
     """Get available resume templates.

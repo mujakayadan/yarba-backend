@@ -52,7 +52,7 @@ def get_password_hash(password: str) -> str:
     return password_hasher.hash(password)
 
 
-def reset_user_password(user_obj: Any, new_password: str) -> str | None:
+def reset_user_password(_user_obj: Any, new_password: str) -> str | None:
     """Reset a user's password.
 
     Args:

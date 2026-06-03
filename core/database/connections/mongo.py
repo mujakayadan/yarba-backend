@@ -16,7 +16,7 @@ class MongoDBManager:
     _async_db: AsyncMongoDatabase | None = None
     _initialized: bool = False
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *_args, **_kwargs):
         """Ensure singleton pattern."""
         if cls._instance is None:
             cls._instance = super().__new__(cls)

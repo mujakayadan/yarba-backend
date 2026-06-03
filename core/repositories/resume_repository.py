@@ -653,8 +653,3 @@ class ResumeRepository(BeanieRepository[Resume]):
         except Exception as e:
             self.logger.error(f"Error updating LLM usage for resume: {e}")
             return False
-
-
-async def get_resume_repository(self) -> ResumeRepository:
-    """Get the resume repository."""
-    return ResumeRepository()

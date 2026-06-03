@@ -23,12 +23,12 @@ class CoverLetterCompiler(LatexCompiler):
         super().__init__()
 
     async def generate_tex_content(
-        self, cover_letter: CoverLetter, template: dict[str, Any]
+        self, _cover_letter: CoverLetter, template: dict[str, Any]
     ) -> str:
         """Generate LaTeX content for a cover letter.
 
         Args:
-            cover_letter: Cover letter data
+            _cover_letter: Cover letter data (reserved; content comes from template)
             template: LaTeX template data containing personal_info, company_name, job_title, and cover_letter_content
 
         Returns:

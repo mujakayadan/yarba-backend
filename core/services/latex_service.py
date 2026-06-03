@@ -263,7 +263,7 @@ class LatexService:
         self,
         cover_letter: CoverLetter,
         profile: Profile,
-        resume: Resume,
+        _resume: Resume,
         template_id: str | None = None,
     ) -> str:
         """Generate LaTeX for a cover letter.
@@ -271,7 +271,7 @@ class LatexService:
         Args:
             cover_letter: CoverLetter model
             profile: Profile model
-            resume: Resume model
+            _resume: Resume model (reserved; cover letter carries job context)
             template_id: Optional template ID to override default
 
         Returns:
@@ -488,7 +488,7 @@ def get_latex_service() -> LatexService:
         # Depending on your DI framework, you might raise an error here or handle it differently
         # For now, creating a dummy to avoid immediate crash, but this is WRONG:
         class DummyPortfolioService:
-            async def get_portfolio_by_user_id(self, user_id):
+            async def get_portfolio_by_user_id(self, _user_id):
                 return None
 
         portfolio_service = DummyPortfolioService()

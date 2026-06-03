@@ -302,7 +302,7 @@ class LLMService:
             ValueError: If prompt_service is not available
         """
         # Removed prompt_service dependency
-        raise ValueError("Prompt service not available")
+        raise ValueError(f"Prompt service not available for: {prompt_name}")
 
     def model_supports_json_mode(self, model: str | None = None) -> bool:
         """Check if the model supports JSON output mode.
@@ -1087,12 +1087,18 @@ class LLMService:
 
             # Get tracking data from litellm
             # This would typically come from a database in a proxy server setup
-            cost_data = {
+            cost_data: dict[str, Any] = {
                 "enabled": settings.llm.enable_cost_tracking,
                 "message": "Cost tracking enabled but no database configured. Log data available.",
                 "note": "For full cost tracking, configure LiteLLM with a database.",
                 "models": list(settings.llm.model_pricing.keys()),
             }
+            if user_id is not None:
+                cost_data["user_id"] = user_id
+            if start_date is not None:
+                cost_data["start_date"] = start_date
+            if end_date is not None:
+                cost_data["end_date"] = end_date
 
             # If we had a proxy with database, we could query it here
             # Example future implementation:

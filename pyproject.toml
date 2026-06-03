@@ -46,6 +46,7 @@ dev = [
     "ruff>=0.15.0,<0.16.0",
     "pre-commit>=4.2.0,<5.0.0",
     "mongomock>=4.2.0,<5.0.0",
+    "vulture>=2.16",
 ]
 
 [tool.uv]
@@ -118,6 +119,7 @@ select = [
     "C4",
     "Q",
     "UP",
+    "ARG",
 ]
 ignore = [
     "E203",
@@ -133,10 +135,15 @@ max-complexity = 10
 "api.py" = ["E402"]
 "api/main.py" = ["E402"]
 "api/test_api.py" = ["E402"]
-"scripts/**" = ["E402"]
-"tests/**" = ["E402"]
+"scripts/**" = ["E402", "ARG002"]
+"tests/**" = ["E402", "ARG001", "ARG002"]
 "core/database/migrations/**" = ["E402"]
 
 [tool.ruff.format]
 quote-style = "double"
 docstring-code-format = true
+
+[tool.vulture]
+paths = ["api", "core", "config", "scripts", "utils"]
+exclude = ["tests/", "core/database/migrations/", "**/__pycache__"]
+min_confidence = 80

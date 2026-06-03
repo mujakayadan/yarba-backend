@@ -5,9 +5,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from config import get_logger
-from core.database import get_unit_of_work
 from core.database.factory import get_auth_service
-from core.database.unit_of_work import AsyncMongoUnitOfWork
 from core.exceptions.base import NotFoundException
 from core.services.auth_service import AuthService
 
@@ -33,14 +31,12 @@ logger = get_logger(__name__)
 )
 async def register(
     request: RegisterRequest,
-    uow: AsyncMongoUnitOfWork = Depends(get_unit_of_work),
     auth_service: AuthService = Depends(get_auth_service),
 ) -> FirebaseAuthResponse:
     """Register a new user and return user info and access token.
 
     Args:
         request: Registration request (containing email and password)
-        uow: Unit of work
         auth_service: Authentication service
 
     Returns:

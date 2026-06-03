@@ -70,6 +70,11 @@ class AWSDeploymentService:
             clean_deploy: If True, delete all existing files before uploading new ones
         """
         s3_portfolio_prefix = f"portfolios/{subdomain}"
+        self.logger.debug(
+            "Website config theme=%s sections=%s",
+            config.theme,
+            config.enabled_sections,
+        )
         self.logger.info(
             f"Deploying website for {subdomain} to S3: s3://{self.main_bucket_name}/{s3_portfolio_prefix}"
             f" (clean_deploy={clean_deploy})"

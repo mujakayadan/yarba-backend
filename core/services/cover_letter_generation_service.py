@@ -190,6 +190,9 @@ class CoverLetterGenerationService:
             cover_letter_id
         )
 
+        if not regenerate and cover_letter.content:
+            return str(cover_letter.content)
+
         # Configure LLM for user
         await self.configure_for_user(cover_letter.user_id)
 
