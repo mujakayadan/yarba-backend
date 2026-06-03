@@ -8,6 +8,7 @@ resolution-markers = [
 
 [manifest]
 overrides = [
+    { name = "litellm", specifier = ">=1.83.7,<1.87.0" },
     { name = "lxml", specifier = ">=6.1.0" },
     { name = "starlette", specifier = ">=0.49.1,<0.51.0" },
 ]
@@ -559,7 +560,7 @@ dependencies = [
     { name = "rich" },
     { name = "shapely" },
     { name = "snowballstemmer" },
-    { name = "unclecode-litellm" },
+    { name = "litellm" },
     { name = "xxhash" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/ca/88/e69eb33cf818a94c1419b8b537ac1c08d8d4c88e0e234c4325ae069d0e6e/crawl4ai-0.8.7.tar.gz", hash = "sha256:25f4e67d6ed95d08a145a544c686620d579b1608c2bcb154a8c0ffd664e0305f", size = 606384, upload-time = "2026-06-01T14:24:23.7Z" }
@@ -1355,7 +1356,7 @@ wheels = [
 
 [[package]]
 name = "litellm"
-version = "1.87.0"
+version = "1.86.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -1371,9 +1372,9 @@ dependencies = [
     { name = "tiktoken" },
     { name = "tokenizers" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/77/0d/ccdf682ccfd7f18bf0e179c39d85616b8f8ef05a798588285310412db13d/litellm-1.87.0.tar.gz", hash = "sha256:cafc1882cb0cbab8374c41180af86e4a067796e4524e15f59e99f6e689cd1bd8", size = 15453755, upload-time = "2026-06-02T03:53:29.076Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/95/f0/365958cc375dce88a5b65fb5ada2b957649ffaad2a4b9b295e65b406170b/litellm-1.86.3.tar.gz", hash = "sha256:d3e73394ec25cd80d63dea609179e0c680f3bf34843e967a6aaeaac33bf158c9", size = 15383118, upload-time = "2026-06-03T01:21:24.02Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/98/20/88a372fa7e50fc2c33458c6eef94a79afcf7bdfa43610079531b82b484a3/litellm-1.87.0-py3-none-any.whl", hash = "sha256:fbbba7e47ae29b55f878fe1acc80effb92761bc168f6236bd81a0cb6e147d855", size = 17103948, upload-time = "2026-06-02T03:53:25.677Z" },
+    { url = "https://files.pythonhosted.org/packages/72/65/1336b928007931fae7e65da43134172e6fd5cdd12dbd162edd278eed458b/litellm-1.86.3-py3-none-any.whl", hash = "sha256:7ddc20e64933d6b5a2f6ce40a3c5f7306d95ad44cc9f3f06d2f6caaa90ecb95f", size = 17016510, upload-time = "2026-06-03T01:21:17.019Z" },
 ]
 
 [[package]]
@@ -2808,29 +2809,6 @@ wheels = [
 ]
 
 [[package]]
-name = "unclecode-litellm"
-version = "1.81.13"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "aiohttp" },
-    { name = "click" },
-    { name = "fastuuid" },
-    { name = "httpx" },
-    { name = "importlib-metadata" },
-    { name = "jinja2" },
-    { name = "jsonschema" },
-    { name = "openai" },
-    { name = "pydantic" },
-    { name = "python-dotenv" },
-    { name = "tiktoken" },
-    { name = "tokenizers" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/ce/c4/93ed52c49c2347184f908c692ebb7c1f06303805910774c3282ac68033db/unclecode_litellm-1.81.13.tar.gz", hash = "sha256:db70e34e3e859c0a07f02cb02eaa644f8fa4b4ecc5e2f3be9a58bd7d1c3feedc", size = 16678208, upload-time = "2026-03-24T14:46:31.915Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/43/85/7b1e0bc5827bcb23dc572b17c447fb5825340f36a9e4405d4b777b862e0c/unclecode_litellm-1.81.13-py3-none-any.whl", hash = "sha256:5e1fbedbed92333b48e7371e0bacf86d1288020451bf34351703c3b159591399", size = 18008619, upload-time = "2026-03-24T14:46:28.009Z" },
-]
-
-[[package]]
 name = "urllib3"
 version = "2.7.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3116,7 +3094,7 @@ requires-dist = [
     { name = "h11", specifier = "==0.16.0" },
     { name = "jinja2", specifier = ">=3.1.3,<4.0.0" },
     { name = "json-repair", specifier = ">=0.41.1,<0.44.0" },
-    { name = "litellm", specifier = ">=1.63.14,<2.0.0" },
+    { name = "litellm", specifier = ">=1.83.7,<1.87.0" },
     { name = "markdownify", specifier = ">=0.14.1,<0.17.0" },
     { name = "pdfminer-six", specifier = ">=20221105" },
     { name = "pillow", specifier = ">=12.2.0,<13.0.0" },
