@@ -43,6 +43,7 @@ def configure_logging() -> None:
         root_logger.addHandler(file_handler)
 
     # Set specific log levels for noisy libraries
+    logging.getLogger("watchfiles").setLevel(logging.WARNING)
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     logging.getLogger("pymongo").setLevel(logging.WARNING)
     logging.getLogger("pymongo").setLevel(logging.WARNING)

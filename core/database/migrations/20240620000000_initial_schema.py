@@ -178,50 +178,6 @@ class InitialSchemaMigration(Migration):
             }
         )
 
-        # Preambles collection
-        self.db.create_collection("preambles")
-        self.db.command(
-            {
-                "collMod": "preambles",
-                "validator": {
-                    "$jsonSchema": {
-                        "bsonType": "object",
-                        "required": ["name", "content"],
-                        "properties": {
-                            "name": {"bsonType": "string"},
-                            "type": {"bsonType": "string"},
-                            "content": {"bsonType": "string"},
-                            "is_default": {"bsonType": "bool"},
-                            "created_at": {"bsonType": "date"},
-                            "updated_at": {"bsonType": "date"},
-                        },
-                    }
-                },
-            }
-        )
-
-        # TexHeaders collection
-        self.db.create_collection("tex_headers")
-        self.db.command(
-            {
-                "collMod": "tex_headers",
-                "validator": {
-                    "$jsonSchema": {
-                        "bsonType": "object",
-                        "required": ["name", "content", "category"],
-                        "properties": {
-                            "name": {"bsonType": "string"},
-                            "content": {"bsonType": "string"},
-                            "category": {"bsonType": "string"},
-                            "is_default": {"bsonType": "bool"},
-                            "created_at": {"bsonType": "date"},
-                            "updated_at": {"bsonType": "date"},
-                        },
-                    }
-                },
-            }
-        )
-
         # Create indexes
         self.db.users.create_index("username", unique=True)
         self.db.users.create_index("email", unique=True)
@@ -248,5 +204,3 @@ class InitialSchemaMigration(Migration):
         self.db.portfolios.drop()
         self.db.portfolio_items.drop()
         self.db.resumes.drop()
-        self.db.preambles.drop()
-        self.db.tex_headers.drop()

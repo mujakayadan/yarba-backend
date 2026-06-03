@@ -4,7 +4,6 @@ from typing import Any
 
 from ..base import LatexCompiler
 from ..processors import get_processor_for_section
-from ..template_registry import get_resume_template
 
 
 class ResumeCompiler(LatexCompiler):
@@ -156,11 +155,15 @@ class ResumeCompiler(LatexCompiler):
                 self.logger.error(f"Error processing {section_name}: {e}")
                 self.logger.error(f"Section data: {str(section_data)[:100]}")
 
-        # Use preamble from template if provided, otherwise use default
-        if template and "header" in template and "preamble" in template["header"]:
-            preamble = str(template["header"]["preamble"])
-        else:
-            preamble = str(get_resume_template()["preamble"])
+        if (
+            not template
+            or "header" not in template
+            or "preamble" not in template["header"]
+        ):
+            raise ValueError(
+                "Resume LaTeX generation requires template header preamble"
+            )
+        preamble = str(template["header"]["preamble"])
 
         # Format the complete document
         latex_content = preamble + "\n"

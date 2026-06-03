@@ -92,25 +92,17 @@ safe_text = sanitize_latex(user_input)
 paragraph = sanitize_latex_paragraph(user_input)
 ```
 
-## Templates and Headers
+## Templates
 
-The LaTeX service uses templates and headers stored in the database:
-
-- **Templates**: Define the overall document structure
-- **Headers**: Define the document header section
-- **Preambles**: Define the LaTeX preamble (packages, etc.)
-
-Access these through the service methods:
+Resume and cover letter preambles live under `templates/latex/` and are loaded by
+`core/latex/template_registry.py` (classic, modern, academic, etc.). Section markup
+is produced by `core/latex/processors/`.
 
 ```python
-# Get a template
-template = await latex_service.get_template("resume")
+from core.latex.template_registry import get_resume_template, list_resume_templates
 
-# Get a header
-header = await latex_service.get_header("modern")
-
-# Get a preamble
-preamble = await latex_service.get_preamble(preamble_id)
+templates = list_resume_templates()
+preamble = get_resume_template("modern")["preamble"]
 ```
 
 ## Extending

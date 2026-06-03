@@ -13,7 +13,7 @@ class UpdateModelsMigration(Migration):
     1. Remove preference-related classes from User model
     2. Ensure Profile model contains all user preferences
     3. Ensure Portfolio model contains all professional information
-    4. Add Preamble and TexHeader collections for LaTeX generation
+    4. Add portfolio_items indexes
     """
 
     def upgrade(self) -> None:
@@ -300,54 +300,6 @@ class UpdateModelsMigration(Migration):
             }
         )
 
-        # Create or update Preamble collection
-        if "preambles" not in self.db.list_collection_names():
-            self.db.create_collection("preambles")
-
-        self.db.command(
-            {
-                "collMod": "preambles",
-                "validator": {
-                    "$jsonSchema": {
-                        "bsonType": "object",
-                        "required": ["name", "type", "content"],
-                        "properties": {
-                            "name": {"bsonType": "string"},
-                            "type": {"bsonType": "string"},
-                            "content": {"bsonType": "string"},
-                            "is_default": {"bsonType": "bool"},
-                            "created_at": {"bsonType": "date"},
-                            "updated_at": {"bsonType": "date"},
-                        },
-                    }
-                },
-            }
-        )
-
-        # Create or update TexHeader collection
-        if "tex_headers" not in self.db.list_collection_names():
-            self.db.create_collection("tex_headers")
-
-        self.db.command(
-            {
-                "collMod": "tex_headers",
-                "validator": {
-                    "$jsonSchema": {
-                        "bsonType": "object",
-                        "required": ["name", "content"],
-                        "properties": {
-                            "name": {"bsonType": "string"},
-                            "content": {"bsonType": "string"},
-                            "category": {"bsonType": "string"},
-                            "is_default": {"bsonType": "bool"},
-                            "created_at": {"bsonType": "date"},
-                            "updated_at": {"bsonType": "date"},
-                        },
-                    }
-                },
-            }
-        )
-
         # Create indexes
         self.db.users.create_index("username", unique=True)
         self.db.users.create_index("email", unique=True)
@@ -357,12 +309,6 @@ class UpdateModelsMigration(Migration):
         self.db.portfolio_items.create_index("type")
         self.db.portfolio_items.create_index([("portfolio_id", 1), ("type", 1)])
         self.db.portfolio_items.create_index([("portfolio_id", 1), ("is_featured", 1)])
-        self.db.preambles.create_index([("type", 1), ("is_default", 1)])
-        self.db.tex_headers.create_index("category")
-        self.db.tex_headers.create_index([("name", 1), ("category", 1)])
-        self.db.tex_headers.create_index(
-            [("name", 1), ("category", 1), ("is_default", 1)]
-        )
 
     def downgrade(self) -> None:
         """Revert the migration."""

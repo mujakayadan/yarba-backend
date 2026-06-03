@@ -70,8 +70,6 @@ def main() -> None:
         "profiles",
         "portfolios",
         "resumes",
-        "preambles",
-        "tex_headers",
     ):
         if coll in rdb.list_collection_names():
             print(f"  {coll}: {rdb[coll].count_documents({})}")

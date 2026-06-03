@@ -37,10 +37,8 @@ from core.database.factory import get_auth_service
 from core.models.cover_letter import CoverLetter
 from core.models.portfolio import Portfolio
 from core.models.portfolio_website import PortfolioWebsite
-from core.models.preamble import Preamble
 from core.models.profile import Profile
 from core.models.resume import Resume
-from core.models.tex_header import TexHeader
 from core.models.user import User
 from core.repositories.portfolio_repository import PortfolioRepository
 from core.repositories.profile_repository import ProfileRepository
@@ -75,8 +73,6 @@ BEANIE_DOCUMENT_MODELS = [
     Profile,
     Portfolio,
     PortfolioWebsite,
-    TexHeader,
-    Preamble,
 ]
 
 _test_mongo_client: AsyncMongoMockClient | None = None
@@ -262,32 +258,8 @@ def mock_latex_service() -> AsyncMock:
 
 
 @pytest.fixture
-def mock_tex_header_repository() -> AsyncMock:
-    return AsyncMock()
-
-
-@pytest.fixture
-def mock_preamble_repository() -> AsyncMock:
-    return AsyncMock()
-
-
-@pytest.fixture
-def mock_tex_service(
-    mock_tex_header_repository: AsyncMock, mock_preamble_repository: AsyncMock
-) -> AsyncMock:
-    service = AsyncMock(spec=LatexService)
-    service.get_template = AsyncMock()
-    service.format_template = AsyncMock()
-    service.get_header = AsyncMock()
-    service.format_header = AsyncMock()
-    service.get_default_preamble = AsyncMock()
-    service.get_preamble = AsyncMock()
-    service.get_all_headers_by_category = AsyncMock()
-    service.get_all_header_names_by_category = AsyncMock()
-    service.clear_caches = AsyncMock()
-    service.header_repository = mock_tex_header_repository
-    service.preamble_repository = mock_preamble_repository
-    return service
+def mock_tex_service() -> AsyncMock:
+    return AsyncMock(spec=LatexService)
 
 
 @pytest.fixture

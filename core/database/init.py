@@ -28,10 +28,8 @@ from core.database.types import AsyncMongoClientType
 from core.models.cover_letter import CoverLetter
 from core.models.portfolio import Portfolio
 from core.models.portfolio_website import PortfolioWebsite
-from core.models.preamble import Preamble
 from core.models.profile import Profile
 from core.models.resume import Resume
-from core.models.tex_header import TexHeader
 from core.models.user import User
 from utils.text import sanitize_mongodb_uri
 
@@ -78,8 +76,6 @@ async def init_db() -> AsyncMongoClientType | None:
             Profile,
             Portfolio,
             PortfolioWebsite,
-            TexHeader,
-            Preamble,
         ]
 
         logger.info("Testing MongoDB connection...")

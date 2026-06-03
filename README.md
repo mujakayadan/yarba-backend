@@ -10,7 +10,7 @@
 uv python pin 3.12
 uv sync
 cp .env.example .env   # edit values
-uv run uvicorn api.main:app --reload
+uv run uvicorn api.main:app --reload --reload-dir api --reload-dir config --reload-dir core --reload-dir utils
 ```
 
 API docs: http://127.0.0.1:8000/docs

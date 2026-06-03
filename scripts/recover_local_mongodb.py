@@ -4,7 +4,6 @@ Merge local MongoDB databases (rbt + user_information) into current app schema.
 Maximum-coverage recovery:
 - Users/profiles/portfolios: merge by email/user_id, keep richest document
 - Resumes: import current-schema docs as-is; convert legacy embedded resumes to content dict
-- LaTeX seeds: merge preambles/tex_headers from both sources
 - portfolio_items: fold project-like items into portfolio.projects when missing
 
 Default target: mongodb://localhost:27017/rbt (use --target-uri for Atlas).
@@ -456,16 +455,13 @@ class RecoveryStats:
         self.resumes = 0
         self.resumes_skipped_dup = 0
         self.resumes_skipped_empty = 0
-        self.preambles = 0
-        self.tex_headers = 0
         self.migrations = 0
 
     def report(self) -> str:
         return (
             f"users={self.users}, profiles={self.profiles}, portfolios={self.portfolios}, "
             f"resumes={self.resumes} (skipped dup={self.resumes_skipped_dup}, "
-            f"empty={self.resumes_skipped_empty}), preambles={self.preambles}, "
-            f"tex_headers={self.tex_headers}, migrations={self.migrations}"
+            f"empty={self.resumes_skipped_empty}), migrations={self.migrations}"
         )
 
 
@@ -742,30 +738,16 @@ def recover(
     for resume in resumes_out:
         resume.pop("_recovery_source", None)
 
-    preambles: dict[tuple[Any, Any], dict[str, Any]] = {}
-    tex_headers: dict[tuple[Any, Any], dict[str, Any]] = {}
     migrations: dict[Any, dict] = {}
-    tex_templates: dict[Any, dict] = {}
 
     for _db_name, db in sources.items():
-        for p in db.preambles.find():
-            preamble_key = (p.get("name"), p.get("type"))
-            preambles[preamble_key] = pick_richer(preambles.get(preamble_key), p)
-        for h in db.tex_headers.find():
-            header_key = (h.get("name"), h.get("category"))
-            tex_headers[header_key] = pick_richer(tex_headers.get(header_key), h)
         for m in db.migrations.find():
             migrations[m.get("_id")] = m
-        if "tex_templates" in db.list_collection_names():
-            for t in db.tex_templates.find():
-                tex_templates[t.get("_id")] = t
 
     stats.users = len(final_users)
     stats.profiles = len(final_profiles)
     stats.portfolios = len(final_portfolios)
     stats.resumes = len(resumes_out)
-    stats.preambles = len(preambles)
-    stats.tex_headers = len(tex_headers)
     stats.migrations = len(migrations)
 
     print(f"Recovery plan ({'dry-run' if dry_run else 'apply'}): {stats.report()}")
@@ -788,10 +770,7 @@ def recover(
         "portfolios",
         "resumes",
         "cover_letters",
-        "preambles",
-        "tex_headers",
         "migrations",
-        "tex_templates",
     ]
     for coll in collections_to_replace:
         if coll in target_db.list_collection_names():
@@ -805,14 +784,8 @@ def recover(
         target_db.portfolios.insert_many(final_portfolios)
     if resumes_out:
         target_db.resumes.insert_many(resumes_out)
-    if preambles:
-        target_db.preambles.insert_many(list(preambles.values()))
-    if tex_headers:
-        target_db.tex_headers.insert_many(list(tex_headers.values()))
     if migrations:
         target_db.migrations.insert_many(list(migrations.values()))
-    if tex_templates:
-        target_db.tex_templates.insert_many(list(tex_templates.values()))
 
     client.close()
     target_client.close()

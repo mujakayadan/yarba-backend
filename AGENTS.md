@@ -13,7 +13,7 @@ uv run ruff check . && uv run ruff format .
 uv run vulture
 uv run mypy
 uv run pytest
-uv run uvicorn api.main:app --reload
+uv run uvicorn api.main:app --reload --reload-dir api --reload-dir config --reload-dir core --reload-dir utils
 ```
 
 ## Layout

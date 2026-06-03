@@ -12,10 +12,8 @@ from .portfolio import (
     Skill,
     WorkExperience,
 )
-from .preamble import Preamble
 from .profile import Profile
 from .resume import Resume, ResumeSection
-from .tex_header import TexHeader
 from .user import User
 
 __all__ = [
@@ -36,9 +34,6 @@ __all__ = [
     "Publication",
     "CustomSections",
     "Skill",
-    # LaTeX models
-    "TexHeader",
-    "Preamble",
     # Job Extractor models
     "JobDetails",
 ]

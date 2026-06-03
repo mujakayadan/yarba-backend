@@ -120,7 +120,7 @@ class SectionProcessor:
 
     def generate_content(self, content: Any) -> str:
         """Generate content for a section without adding section markup.
-        This provides the raw content to be used with section headers from tex_headers.
+        This provides the raw section content without outer \\section markup.
 
         Args:
             content: The section content to process
