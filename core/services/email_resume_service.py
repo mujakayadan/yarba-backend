@@ -5,6 +5,7 @@ from pymongo.errors import DuplicateKeyError
 
 from api.schemas.resume import ResumeUpdate
 from config.logging_config import get_logger
+from config.settings import settings
 from core.exceptions.base import InternalServerException
 from core.job_extractor.extract_job import JobExtractor
 from core.models.inbound_email import InboundEmail
@@ -27,12 +28,18 @@ from core.services.resume_generation_service import (
 from core.services.resume_service import ResumeService
 from core.utils.email_body_parser import extract_job_description
 from core.utils.object_id import require_object_id
+from core.utils.resume_pdf_filename import build_resume_pdf_filename
 from utils.storage import get_storage_provider
 
 logger = get_logger(__name__)
 
-APP_SETUP_URL = "https://www.yarba.app"
-REGISTER_URL = "https://www.yarba.app"
+
+def _generic_generation_error() -> str:
+    return (
+        "We ran into an error while generating your resume.\n\n"
+        "Please try again in a few minutes. If the problem persists, "
+        f"create the resume in the app at {settings.frontend_url}."
+    )
 
 
 class EmailResumeService:
@@ -89,15 +96,14 @@ class EmailResumeService:
         subject = received.subject or "Job application"
         try:
             job_description = extract_job_description(received.text, received.html)
-        except ValueError as exc:
+        except ValueError:
             await self._send_error(
                 sender,
                 subject,
                 (
                     "We could not find enough job description text in your email.\n\n"
                     "Please forward the full recruiter message (including the job "
-                    "description) to resumes@yarba.app and try again.\n\n"
-                    f"Details: {exc}"
+                    "description) to resumes@yarba.app and try again."
                 ),
             )
             await self.mark_inbound_status(email_id, "failed")
@@ -110,7 +116,7 @@ class EmailResumeService:
                 subject,
                 (
                     f"No YARBA account found for {sender}.\n\n"
-                    f"Register at {REGISTER_URL} using this email address, "
+                    f"Register at {settings.frontend_url} using this email address, "
                     "then forward the job description again."
                 ),
             )
@@ -125,7 +131,7 @@ class EmailResumeService:
                 subject,
                 (
                     "Your YARBA profile is not set up yet.\n\n"
-                    f"Complete your profile at {APP_SETUP_URL}, then forward "
+                    f"Complete your profile at {settings.frontend_url}, then forward "
                     "the job description again."
                 ),
             )
@@ -139,7 +145,7 @@ class EmailResumeService:
                 subject,
                 (
                     "Your YARBA portfolio is not set up yet.\n\n"
-                    f"Add your portfolio at {APP_SETUP_URL}, then forward "
+                    f"Add your portfolio at {settings.frontend_url}, then forward "
                     "the job description again."
                 ),
             )
@@ -162,7 +168,7 @@ class EmailResumeService:
                     "This job description appears to require a security clearance "
                     "or similar restriction that YARBA cannot generate a resume for "
                     "with your current settings.\n\n"
-                    f"Review the job posting or adjust settings at {APP_SETUP_URL}."
+                    f"Review the job posting or adjust settings at {settings.frontend_url}."
                 ),
             )
             await self.mark_inbound_status(email_id, "failed")
@@ -174,16 +180,7 @@ class EmailResumeService:
                 exc,
                 exc_info=True,
             )
-            await self._send_error(
-                sender,
-                subject,
-                (
-                    "We ran into an error while generating your resume.\n\n"
-                    "Please try again in a few minutes. If the problem persists, "
-                    f"create the resume in the app at {APP_SETUP_URL}.\n\n"
-                    f"Details: {exc}"
-                ),
-            )
+            await self._send_error(sender, subject, _generic_generation_error())
             await self.mark_inbound_status(email_id, "failed")
             return
 
@@ -198,10 +195,13 @@ class EmailResumeService:
             subject=pdf_subject,
             text=(
                 "Your tailored resume is attached.\n\n"
-                f"You can also view and edit it in your YARBA account at {APP_SETUP_URL}."
+                f"You can also view and edit it in your YARBA account at {settings.frontend_url}."
             ),
             pdf_bytes=pdf_bytes,
-            filename="resume.pdf",
+            filename=build_resume_pdf_filename(
+                resume.company_name,
+                resume.job_title,
+            ),
         )
         await self.mark_inbound_status(email_id, "completed")
         self.logger.info("Sent resume PDF for inbound email %s to %s", email_id, sender)

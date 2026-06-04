@@ -1104,6 +1104,11 @@ class Settings(BaseSettings):
     # Application
     app_name: str = Field(default="Resume Builder", description="Application name")
     version: str = Field(default="1.0.0", description="Application version")
+    frontend_url: str = Field(
+        default="https://www.yarba.app",
+        description="Public web app URL for links in emails and user-facing messages",
+        validation_alias="FRONTEND_URL",
+    )
 
     # Testing
     test_user_id: Any = Field(
