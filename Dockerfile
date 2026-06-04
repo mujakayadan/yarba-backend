@@ -59,8 +59,8 @@ COPY pyproject.toml uv.lock ./
 ENV UV_SYSTEM_PYTHON=1
 RUN uv sync --frozen --no-dev
 
-# Install Playwright browsers
-RUN playwright install --with-deps
+# Install Playwright browsers (use -m; uv does not put console scripts on PATH)
+RUN python -m playwright install --with-deps
 
 # Copy the rest of the application code
 # A comprehensive .dockerignore file (updated in the previous step) is CRITICAL here.
