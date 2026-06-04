@@ -21,41 +21,30 @@ WORKDIR /app
 # Copy the entire TeX Live distribution from the latex_env stage
 COPY --from=latex_env /usr/local/texlive/ /usr/local/texlive/
 
-# Set the PATH to include the TeX Live binaries from our copied distribution
-# For texlive/texlive:small (Ubuntu based, TeX Live 2024 usually)
-# Adjust year and arch if the base image changes its internal structure.
-ENV TEXLIVE_YEAR=2025
-ENV TEXLIVE_ARCH=x86_64-linux
-ENV TEXLIVE_BIN_DIR=/usr/local/texlive/${TEXLIVE_YEAR}/bin/${TEXLIVE_ARCH}
-ENV PATH=${TEXLIVE_BIN_DIR}:${PATH}
-
-# Install system dependencies for building Python packages (git, build-essential)
-# and tools for debugging (file, elfutils for readelf)
+# Install system dependencies for building Python packages
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     build-essential \
     git \
     ca-certificates \
-    file \
-    elfutils \
     && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Verify TeX Live executables and run mktexlsr
-RUN echo "PATH is $PATH" && \
-    echo "--- Checking TeX Live executables in ${TEXLIVE_BIN_DIR} ---" && \
-    ls -la "${TEXLIVE_BIN_DIR}/mktexlsr" "${TEXLIVE_BIN_DIR}/kpsewhich" && \
-    echo "--- file info for mktexlsr ---" && \
-    file "${TEXLIVE_BIN_DIR}/mktexlsr" && \
-    echo "--- file info for kpsewhich ---" && \
-    file "${TEXLIVE_BIN_DIR}/kpsewhich" && \
-    echo "--- readelf -d for kpsewhich (shows dynamic dependencies) ---" && \
-    (readelf -d "${TEXLIVE_BIN_DIR}/kpsewhich" || echo "readelf failed for kpsewhich, or not an ELF file. Exit code: $?") && \
-    echo "--- Trying to run kpsewhich --version directly ---" && \
-    ("${TEXLIVE_BIN_DIR}/kpsewhich" --version || echo "kpsewhich --version call failed. Exit code: $?") && \
-    echo "--- Trying to run mktexlsr ---" && \
-    (mktexlsr || echo "mktexlsr call failed. Exit code: $?")
-# RUN updmap-sys # If needed later for fonts
+# latest-small tracks the current TeX Live release (year changes annually).
+# Symlink bin -> .../<year>/bin/<arch> so PATH stays stable across image updates.
+RUN set -eux; \
+    TEXLIVE_YEAR="$(ls -1 /usr/local/texlive | grep -E '^[0-9]{4}$' | sort -n | tail -1)"; \
+    case "$(uname -m)" in \
+        x86_64) TEXLIVE_ARCH=x86_64-linux ;; \
+        aarch64) TEXLIVE_ARCH=aarch64-linux ;; \
+        *) echo "Unsupported architecture: $(uname -m)"; exit 1 ;; \
+    esac; \
+    TEXLIVE_BIN_DIR="/usr/local/texlive/${TEXLIVE_YEAR}/bin/${TEXLIVE_ARCH}"; \
+    test -x "${TEXLIVE_BIN_DIR}/kpsewhich"; \
+    ln -sfn "${TEXLIVE_BIN_DIR}" /usr/local/texlive/bin; \
+    /usr/local/texlive/bin/mktexlsr
+
+ENV PATH=/usr/local/texlive/bin:${PATH}
 
 # Install uv for dependency management
 COPY --from=ghcr.io/astral-sh/uv:0.7 /uv /uvx /bin/
