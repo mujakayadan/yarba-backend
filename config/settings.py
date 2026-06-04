@@ -864,6 +864,47 @@ class FeatureSettings(BaseSettings):
         return v
 
 
+# Alternate env keys for StorageSettings (STORAGE_* prefix is the canonical form).
+_STORAGE_ENV_ALIASES: tuple[tuple[str, str], ...] = (
+    ("AWS_ACCESS_KEY", "aws_access_key"),
+    ("STORAGE_AWS_ACCESS_KEY", "aws_access_key"),
+    ("STORAGE__AWS_ACCESS_KEY", "aws_access_key"),
+    ("AWS_SECRET_KEY", "aws_secret_key"),
+    ("STORAGE_AWS_SECRET_KEY", "aws_secret_key"),
+    ("STORAGE__AWS_SECRET_KEY", "aws_secret_key"),
+    ("AWS_REGION", "aws_region"),
+    ("STORAGE_AWS_REGION", "aws_region"),
+    ("STORAGE__AWS_REGION", "aws_region"),
+    ("AWS_BUCKET", "aws_bucket"),
+    ("STORAGE_AWS_BUCKET", "aws_bucket"),
+    ("STORAGE__AWS_BUCKET", "aws_bucket"),
+    ("AWS_USE_PRESIGNED_URLS", "aws_use_presigned_urls"),
+    ("STORAGE_AWS_USE_PRESIGNED_URLS", "aws_use_presigned_urls"),
+    ("STORAGE__AWS_USE_PRESIGNED_URLS", "aws_use_presigned_urls"),
+    ("AWS_PRESIGNED_URL_EXPIRY", "aws_presigned_url_expiry"),
+    ("STORAGE_AWS_PRESIGNED_URL_EXPIRY", "aws_presigned_url_expiry"),
+    ("STORAGE__AWS_PRESIGNED_URL_EXPIRY", "aws_presigned_url_expiry"),
+    ("CLOUDFRONT_ENABLED", "cloudfront_enabled"),
+    ("STORAGE_CLOUDFRONT_ENABLED", "cloudfront_enabled"),
+    ("STORAGE__CLOUDFRONT_ENABLED", "cloudfront_enabled"),
+    ("CLOUDFRONT_DISTRIBUTION_ID", "cloudfront_distribution_id"),
+    ("STORAGE_CLOUDFRONT_DISTRIBUTION_ID", "cloudfront_distribution_id"),
+    ("STORAGE__CLOUDFRONT_DISTRIBUTION_ID", "cloudfront_distribution_id"),
+    ("CLOUDFRONT_DOMAIN", "cloudfront_domain"),
+    ("STORAGE_CLOUDFRONT_DOMAIN", "cloudfront_domain"),
+    ("STORAGE__CLOUDFRONT_DOMAIN", "cloudfront_domain"),
+    ("CLOUDFRONT_KEY_PAIR_ID", "cloudfront_key_pair_id"),
+    ("STORAGE_CLOUDFRONT_KEY_PAIR_ID", "cloudfront_key_pair_id"),
+    ("STORAGE__CLOUDFRONT_KEY_PAIR_ID", "cloudfront_key_pair_id"),
+    ("CLOUDFRONT_PRIVATE_KEY_PATH", "cloudfront_private_key_path"),
+    ("STORAGE_CLOUDFRONT_PRIVATE_KEY_PATH", "cloudfront_private_key_path"),
+    ("STORAGE__CLOUDFRONT_PRIVATE_KEY_PATH", "cloudfront_private_key_path"),
+    ("CLOUDFRONT_URL_EXPIRY", "cloudfront_url_expiry"),
+    ("STORAGE_CLOUDFRONT_URL_EXPIRY", "cloudfront_url_expiry"),
+    ("STORAGE__CLOUDFRONT_URL_EXPIRY", "cloudfront_url_expiry"),
+)
+
+
 class StorageSettings(BaseSettings):
     """Storage settings for file uploads and media."""
 
@@ -875,6 +916,17 @@ class StorageSettings(BaseSettings):
         env_prefix="STORAGE_",
     )
 
+    @model_validator(mode="before")
+    @classmethod
+    def _coalesce_storage_env_aliases(cls, data: Any) -> Any:
+        """Map AWS_* / STORAGE_* / STORAGE__* env keys onto model fields."""
+        if not isinstance(data, dict):
+            return data
+        for env_key, field_name in _STORAGE_ENV_ALIASES:
+            if field_name not in data and env_key in data:
+                data[field_name] = data[env_key]
+        return data
+
     # Storage provider
     provider: str = Field(
         default="aws_s3", description="Storage provider (local, s3, etc.)"
@@ -884,64 +936,52 @@ class StorageSettings(BaseSettings):
     aws_access_key: str | None = Field(
         default=None,
         description="AWS S3 access key",
-        validation_alias="AWS_ACCESS_KEY",
     )
     aws_secret_key: str | None = Field(
         default=None,
         description="AWS S3 secret key",
-        validation_alias="AWS_SECRET_KEY",
     )
     aws_region: str | None = Field(
         default="us-east-1",  # Restoring default as per your previous working version
         description="AWS S3 region",
-        validation_alias="AWS_REGION",  # Ensuring explicit mapping
     )
     aws_bucket: str = Field(
         default="yarba-local",
         description="AWS S3 bucket name for storing all content",
-        validation_alias="AWS_BUCKET",
     )
     aws_use_presigned_urls: bool = Field(
         default=False,
         description="Whether to use pre-signed URLs for AWS S3",
-        validation_alias="AWS_USE_PRESIGNED_URLS",
     )
     aws_presigned_url_expiry: int = Field(
         default=3600,  # 1 hour
         description="Expiry time in seconds for pre-signed URLs",
-        validation_alias="AWS_PRESIGNED_URL_EXPIRY",
     )
 
     # CloudFront settings
     cloudfront_enabled: bool = Field(
         default=False,  # This might be re-evaluated based on the new architecture. Keeping for now.
         description="Whether to use CloudFront for distribution",
-        validation_alias="CLOUDFRONT_ENABLED",
     )
     cloudfront_distribution_id: str | None = Field(  # New field
         default=None,
         description="The ID of the single, shared CloudFront distribution for portfolios",
-        validation_alias="CLOUDFRONT_DISTRIBUTION_ID",
     )
     cloudfront_domain: str | None = Field(
         default=None,
         description="CloudFront distribution domain (can be derived or set if needed for other purposes)",
-        validation_alias="CLOUDFRONT_DOMAIN",
     )
     cloudfront_key_pair_id: str | None = Field(
         default=None,
         description="CloudFront key pair ID for signed URLs",
-        validation_alias="CLOUDFRONT_KEY_PAIR_ID",
     )
     cloudfront_private_key_path: Path | None = Field(
         default=None,
         description="Path to CloudFront private key for signed URLs",
-        validation_alias="CLOUDFRONT_PRIVATE_KEY_PATH",
     )
     cloudfront_url_expiry: int = Field(
         default=86400,  # 24 hours
         description="Expiry time in seconds for CloudFront signed URLs",
-        validation_alias="CLOUDFRONT_URL_EXPIRY",
     )
 
     # Local storage settings
