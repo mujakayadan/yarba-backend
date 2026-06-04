@@ -40,6 +40,7 @@ from core.models.portfolio import Portfolio
 from core.models.portfolio_website import PortfolioWebsite
 from core.models.profile import Profile
 from core.models.resume import Resume
+from core.models.unknown_email_sender import UnknownEmailSender
 from core.models.user import User
 from core.repositories.portfolio_repository import PortfolioRepository
 from core.repositories.profile_repository import ProfileRepository
@@ -75,6 +76,7 @@ BEANIE_DOCUMENT_MODELS = [
     Portfolio,
     PortfolioWebsite,
     InboundEmail,
+    UnknownEmailSender,
 ]
 
 _test_mongo_client: AsyncMongoMockClient | None = None

@@ -10,6 +10,7 @@ from core.exceptions.base import InternalServerException
 from core.job_extractor.extract_job import JobExtractor
 from core.models.inbound_email import InboundEmail
 from core.models.resume import Resume
+from core.models.unknown_email_sender import UnknownEmailSender
 from core.repositories.portfolio_repository import PortfolioRepository
 from core.repositories.profile_repository import ProfileRepository
 from core.repositories.resume_repository import ResumeRepository
@@ -94,6 +95,12 @@ class EmailResumeService:
             return
 
         subject = received.subject or "Job application"
+
+        user = await self.user_repository.get_by_email_insensitive(sender)
+        if not user or not user.id:
+            await self._handle_unknown_sender(sender, subject, email_id)
+            return
+
         try:
             job_description = extract_job_description(received.text, received.html)
         except ValueError:
@@ -104,20 +111,6 @@ class EmailResumeService:
                     "We could not find enough job description text in your email.\n\n"
                     "Please forward the full recruiter message (including the job "
                     "description) to resumes@yarba.app and try again."
-                ),
-            )
-            await self.mark_inbound_status(email_id, "failed")
-            return
-
-        user = await self.user_repository.get_by_email_insensitive(sender)
-        if not user or not user.id:
-            await self._send_error(
-                sender,
-                subject,
-                (
-                    f"No YARBA account found for {sender}.\n\n"
-                    f"Register at {settings.frontend_url} using this email address, "
-                    "then forward the job description again."
                 ),
             )
             await self.mark_inbound_status(email_id, "failed")
@@ -253,6 +246,50 @@ class EmailResumeService:
                 f"Failed to update resume {resume.id} with PDF key"
             )
         return updated, pdf_bytes
+
+    async def _handle_unknown_sender(
+        self, sender: str, subject: str, email_id: str
+    ) -> None:
+        """Send a one-time register CTA; ignore repeat attempts from the same sender."""
+        already_notified = await UnknownEmailSender.find_one(
+            UnknownEmailSender.sender_email == sender
+        )
+        if already_notified:
+            self.logger.info(
+                "Ignoring inbound email %s from unknown sender %s (already notified)",
+                email_id,
+                sender,
+            )
+            await self.mark_inbound_status(email_id, "unknown_sender")
+            return
+
+        await self._send_register_cta(sender, subject)
+        try:
+            await UnknownEmailSender(sender_email=sender).insert()
+        except DuplicateKeyError:
+            self.logger.info(
+                "Register CTA already recorded for unknown sender %s", sender
+            )
+        await self.mark_inbound_status(email_id, "unknown_sender")
+
+    async def _send_register_cta(self, to: str, original_subject: str) -> None:
+        register_url = f"{settings.frontend_url.rstrip('/')}/register"
+        try:
+            await self.resend_client.send_email(
+                to=to,
+                subject=f"Re: {original_subject} — Create your YARBA account",
+                text=(
+                    f"We received your forwarded job email at {to}, but there is "
+                    "no YARBA account for this address yet.\n\n"
+                    "Create a free account with the same email address, complete "
+                    "your profile and portfolio, then forward the job description "
+                    "again:\n\n"
+                    f"{register_url}\n\n"
+                    "After that, email-to-resume will work automatically."
+                ),
+            )
+        except Exception as exc:
+            self.logger.error("Failed to send register CTA email to %s: %s", to, exc)
 
     async def _send_error(self, to: str, original_subject: str, message: str) -> None:
         try:

@@ -31,6 +31,7 @@ from core.models.portfolio import Portfolio
 from core.models.portfolio_website import PortfolioWebsite
 from core.models.profile import Profile
 from core.models.resume import Resume
+from core.models.unknown_email_sender import UnknownEmailSender
 from core.models.user import User
 from utils.text import sanitize_mongodb_uri
 
@@ -78,6 +79,7 @@ async def init_db() -> AsyncMongoClientType | None:
             Portfolio,
             PortfolioWebsite,
             InboundEmail,
+            UnknownEmailSender,
         ]
 
         logger.info("Testing MongoDB connection...")
