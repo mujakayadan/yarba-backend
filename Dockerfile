@@ -55,12 +55,11 @@ RUN mkdir -p logs && chmod 755 logs
 # Copy project definition and lock file
 COPY pyproject.toml uv.lock ./
 
-# Install production dependencies into the system Python environment
-ENV UV_SYSTEM_PYTHON=1
-RUN uv sync --frozen --no-dev
+# Install production dependencies (uv always uses .venv, not system site-packages)
+RUN uv sync --frozen --no-dev \
+    && .venv/bin/python -m playwright install --with-deps
 
-# Install Playwright browsers (use -m; uv does not put console scripts on PATH)
-RUN python -m playwright install --with-deps
+ENV PATH="/app/.venv/bin:/usr/local/texlive/bin:${PATH}"
 
 # Copy the rest of the application code
 # A comprehensive .dockerignore file (updated in the previous step) is CRITICAL here.
