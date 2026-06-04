@@ -35,6 +35,7 @@ from api.main import app as fastapi_app
 from api.middleware.auth import get_current_user
 from core.database.factory import get_auth_service
 from core.models.cover_letter import CoverLetter
+from core.models.inbound_email import InboundEmail
 from core.models.portfolio import Portfolio
 from core.models.portfolio_website import PortfolioWebsite
 from core.models.profile import Profile
@@ -73,6 +74,7 @@ BEANIE_DOCUMENT_MODELS = [
     Profile,
     Portfolio,
     PortfolioWebsite,
+    InboundEmail,
 ]
 
 _test_mongo_client: AsyncMongoMockClient | None = None

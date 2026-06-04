@@ -54,6 +54,7 @@ API_TAGS_METADATA = [
     {"name": "linkedin", "description": "LinkedIn integration and job application"},
     {"name": "health", "description": "Application health checks"},
     {"name": "jobs", "description": "Job related operations"},
+    {"name": "webhooks", "description": "Inbound email webhooks"},
 ]
 
 # Configure logging
@@ -133,6 +134,7 @@ from api.routers import (
     portfolios,
     profiles,
     resumes,
+    webhooks,
 )
 
 # from api.routers import linkedin
@@ -160,6 +162,11 @@ app.include_router(
     tags=["profiles"],
 )
 app.include_router(job_router.router, prefix=f"{API_V1_PREFIX}/jobs", tags=["jobs"])
+app.include_router(
+    webhooks.router,
+    prefix=f"{API_V1_PREFIX}/webhooks",
+    tags=["webhooks"],
+)
 # app.include_router(
 #     linkedin.router,
 #     prefix=f"{API_V1_PREFIX}/linkedin",

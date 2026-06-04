@@ -1,5 +1,6 @@
 """User repository implementation."""
 
+import re
 from datetime import UTC, datetime
 
 from beanie import PydanticObjectId
@@ -30,6 +31,12 @@ class UserRepository(BeanieRepository[User]):
             Optional[User]: User if found, None otherwise
         """
         return await User.find_one({"email": email})
+
+    async def get_by_email_insensitive(self, email: str) -> User | None:
+        """Get a user by email, case-insensitive."""
+        normalized = email.strip().lower()
+        pattern = f"^{re.escape(normalized)}$"
+        return await User.find_one({"email": {"$regex": pattern, "$options": "i"}})
 
     async def get_by_username(self, username: str) -> User | None:
         """Get a user by username.

@@ -745,6 +745,51 @@ class APISettings(BaseSettings):
     )
 
 
+class ResendSettings(BaseSettings):
+    """Resend email settings for inbound webhooks and outbound delivery."""
+
+    model_config = SettingsConfigDict(
+        env_file=[".env.local", ".env"],
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+        env_prefix="RESEND__",
+    )
+
+    api_key: SecretStr = Field(
+        default=SecretStr(""),
+        description="Resend API key (re_...)",
+        validation_alias="API_KEY",
+    )
+    webhook_secret: SecretStr = Field(
+        default=SecretStr(""),
+        description="Resend webhook signing secret (whsec_...)",
+        validation_alias="WEBHOOK_SECRET",
+    )
+    from_address: str = Field(
+        default="resumes@yarba.app",
+        description="Sender address for outbound resume emails",
+        validation_alias="FROM",
+    )
+
+
+class EmailSettings(BaseSettings):
+    """Email integration settings."""
+
+    model_config = SettingsConfigDict(
+        env_file=[".env.local", ".env"],
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+        env_prefix="EMAIL__",
+    )
+
+    provider: Literal["resend"] = Field(
+        default="resend",
+        description="Outbound/inbound email provider",
+    )
+
+
 class FeatureSettings(BaseSettings):
     """Settings for application features and toggles."""
 
@@ -754,6 +799,12 @@ class FeatureSettings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
         env_prefix="FEATURE_",
+    )
+
+    enable_email_to_resume: bool = Field(
+        default=False,
+        description="Enable email-to-resume via Resend inbound webhook",
+        validation_alias="ENABLE_EMAIL_TO_RESUME",
     )
 
     enable_clearance_check: bool = Field(
@@ -1113,6 +1164,12 @@ class Settings(BaseSettings):
     )
     features: FeatureSettings = Field(
         default_factory=FeatureSettings, description="Feature toggle settings"
+    )
+    email: EmailSettings = Field(
+        default_factory=EmailSettings, description="Email integration settings"
+    )
+    resend: ResendSettings = Field(
+        default_factory=ResendSettings, description="Resend email settings"
     )
     selenium: SeleniumSettings = Field(
         default_factory=SeleniumSettings, description="Selenium settings"

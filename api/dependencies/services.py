@@ -21,6 +21,10 @@ from core.repositories.user_repository import UserRepository
 from core.services.aws_deployment_service import AWSDeploymentService
 from core.services.cover_letter_generation_service import CoverLetterGenerationService
 from core.services.cover_letter_service import CoverLetterService
+from core.services.email_resume_service import (
+    EmailResumeService,
+    build_email_resume_service,
+)
 from core.services.job_service import JobService
 from core.services.latex_service import LatexService
 from core.services.llm_service import LLMService
@@ -288,3 +292,8 @@ async def get_portfolio_website_service(
         aws_deployment_service=aws_service,
         website_generator_service=generator_service,
     )
+
+
+def get_email_resume_service() -> EmailResumeService:
+    """Get the email-to-resume orchestration service."""
+    return build_email_resume_service()

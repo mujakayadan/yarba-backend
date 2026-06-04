@@ -32,6 +32,13 @@ def setup_middlewares(app: FastAPI) -> None:
         app,
         rate_limit=settings.api.rate_limit,
         window=settings.api.rate_limit_window,
+        exclude_paths=[
+            "/docs",
+            "/redoc",
+            "/openapi.json",
+            "/",
+            "/api/v1/webhooks",
+        ],
         route_specific_limits={
             # Pattern to match: (rate_limit, window)
             "/api/v1/resumes/": (

@@ -26,6 +26,7 @@ from config.logging_config import get_logger
 from config.settings import Settings
 from core.database.types import AsyncMongoClientType
 from core.models.cover_letter import CoverLetter
+from core.models.inbound_email import InboundEmail
 from core.models.portfolio import Portfolio
 from core.models.portfolio_website import PortfolioWebsite
 from core.models.profile import Profile
@@ -76,6 +77,7 @@ async def init_db() -> AsyncMongoClientType | None:
             Profile,
             Portfolio,
             PortfolioWebsite,
+            InboundEmail,
         ]
 
         logger.info("Testing MongoDB connection...")
