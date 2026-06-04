@@ -104,7 +104,7 @@ class Resume(Document):
     portfolio: Link[Portfolio] | None = None
 
     title: str | None = "My Resume"
-    version: int | None = None
+    version: int = 1
     template_id: str | None = None
 
     # Job targeting information

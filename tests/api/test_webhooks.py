@@ -11,6 +11,13 @@ from core.models.inbound_email import InboundEmail
 
 
 @pytest.fixture
+def disable_webhook_signature(monkeypatch: pytest.MonkeyPatch) -> None:
+    from config.settings import settings
+
+    monkeypatch.setattr(settings.resend.webhook_secret, "get_secret_value", lambda: "")
+
+
+@pytest.fixture
 def enable_email_webhook(monkeypatch: pytest.MonkeyPatch) -> None:
     from config.settings import settings
 
@@ -18,7 +25,14 @@ def enable_email_webhook(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_resend_webhook_disabled_returns_404(async_client: AsyncClient):
+async def test_resend_webhook_disabled_returns_404(
+    async_client: AsyncClient,
+    disable_webhook_signature: None,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from config.settings import settings
+
+    monkeypatch.setattr(settings.features, "enable_email_to_resume", False)
     payload = {
         "type": "email.received",
         "data": {
@@ -40,6 +54,7 @@ async def test_resend_webhook_disabled_returns_404(async_client: AsyncClient):
 async def test_resend_webhook_accepts_email_received(
     async_client: AsyncClient,
     enable_email_webhook: None,
+    disable_webhook_signature: None,
     monkeypatch: pytest.MonkeyPatch,
 ):
     captured: list[str] = []
@@ -76,6 +91,7 @@ async def test_resend_webhook_accepts_email_received(
 async def test_resend_webhook_ignores_other_events(
     async_client: AsyncClient,
     enable_email_webhook: None,
+    disable_webhook_signature: None,
 ):
     payload = {"type": "email.sent", "data": {"email_id": "email-123"}}
     response = await async_client.post(

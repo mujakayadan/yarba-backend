@@ -228,6 +228,7 @@ class ResumeService:
             profile_id=profile_id,
             portfolio_id=portfolio_id,
             title=title,
+            version=1,
             template_id=template_id or "default",
             company_name=company_name or "",
             job_title=job_title or "",
