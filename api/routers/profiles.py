@@ -16,7 +16,6 @@ from api.schemas.profile import (
     PersonalInfoUpdate,
     ProfileCreate,
     ProfilePatch,
-    ProfileResponse,
     ProfileUpdate,
     PromptPreferencesUpdate,
     SignatureResponse,
@@ -891,12 +890,12 @@ async def get_my_llm_usage_summary(
         )
 
 
-@router.put("/me/preferences/prompt", response_model=ProfileResponse)
+@router.put("/me/preferences/prompt", response_model=Profile)
 async def update_my_prompt_preferences(
     preferences_data: PromptPreferencesUpdate,
     current_user: CurrentActiveUser,
     profile_service: ProfileService = Depends(get_profile_service),
-) -> ProfileResponse:
+) -> Profile:
     """Update the current user's prompt preferences.
 
     Args:
@@ -927,7 +926,7 @@ async def update_my_prompt_preferences(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Profile not found after update.",
             )  # Should not happen
-        return ProfileResponse.model_validate(updated_profile)
+        return updated_profile
 
     except NotFoundException:
         raise HTTPException(
@@ -941,12 +940,12 @@ async def update_my_prompt_preferences(
         )
 
 
-@router.put("/me/preferences/system", response_model=ProfileResponse)
+@router.put("/me/preferences/system", response_model=Profile)
 async def update_my_system_preferences(
     preferences_data: SystemPreferencesUpdate,
     current_user: CurrentActiveUser,
     profile_service: ProfileService = Depends(get_profile_service),
-) -> ProfileResponse:
+) -> Profile:
     """Update the current user's system preferences.
 
     Args:
@@ -977,7 +976,7 @@ async def update_my_system_preferences(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Profile not found after update.",
             )  # Should not happen
-        return ProfileResponse.model_validate(updated_profile)
+        return updated_profile
 
     except NotFoundException:
         raise HTTPException(
