@@ -46,4 +46,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md).
 
 ## License
 
-MIT
+[Elastic License 2.0](LICENSE)

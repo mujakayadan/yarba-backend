@@ -5,6 +5,7 @@ description = "YARBA: Yet Another Resume Builder App. A LaTeX-based resume build
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
 authors = [{ name = "Muja Kayadan", email = "mujakayadan@gmail.com" }]
+license = "Elastic-2.0"
 dependencies = [
     "beanie>=2.0.0,<3.0.0",
     "pymongo>=4.10.0,<5.0.0",
