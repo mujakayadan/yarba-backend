@@ -30,8 +30,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md).
 
 ## Deploy
 
-- **Docker:** `docker build -t yarba-backend .` — runs `uvicorn api.main:app` on port 8000.
-- **DigitalOcean App Platform:** uses root `Dockerfile`; legacy `api.py` remains for platform-specific logging if needed.
+- **Docker (local):**
+  ```bash
+  docker build -f Dockerfile.base -t yarba-base .
+  docker build --build-arg BASE_IMAGE=yarba-base -t yarba-backend .
+  ```
+- **DigitalOcean App Platform:** uses slim root `Dockerfile` on top of `ghcr.io/mucahitkayadan/yarba-backend-base`. After changing `Dockerfile.base`, `pyproject.toml`, or `uv.lock`, GitHub Actions rebuilds the base; routine app pushes only copy source (~1–2 min on DO). First-time setup: run **Actions → Build base image → Run workflow**, make the GHCR package public (or add GHCR credentials in App Platform), then deploy.
 
 ## Documentation
 
