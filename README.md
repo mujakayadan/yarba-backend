@@ -42,6 +42,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md).
 - [Extended guides (Firebase, LLM services, MongoDB notes)](docs/EXTENDED_README.md)
 - [Modernization tracker](docs/MODERNIZATION_TODO.md)
 - [Migrations](core/database/migrations/README.md)
+- [Security policy](SECURITY.md)
 
 ## License
 
