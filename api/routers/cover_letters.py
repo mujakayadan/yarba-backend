@@ -1,5 +1,6 @@
 """API router for cover letter endpoints."""
 
+import re
 from datetime import datetime
 from typing import Annotated
 
@@ -15,6 +16,7 @@ from fastapi import (
     UploadFile,
     status,
 )
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from config.logging_config import get_logger
@@ -630,6 +632,55 @@ async def get_cover_letter_pdf(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve PDF URL",
         )
+
+
+def _sanitize_download_filename(filename: str) -> str:
+    stem = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", filename.strip())
+    stem = re.sub(r"\s+", "_", stem)
+    return stem or "cover-letter"
+
+
+@router.get("/{cover_letter_id}/pdf/download")
+async def download_cover_letter_pdf(
+    cover_letter_id: Annotated[PydanticObjectId, Path(description="Cover letter ID")],
+    current_user: CurrentUser,
+    cover_letter_service: CoverLetterService = Depends(get_cover_letter_service),
+) -> Response:
+    """Download cover letter PDF bytes through the API (avoids CDN CORS in browsers)."""
+    try:
+        cover_letter = await cover_letter_service.get_cover_letter_by_id(
+            cover_letter_id=cover_letter_id,
+            user_id=current_user.id,
+        )
+
+        if not cover_letter.cover_letter_pdf_key:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="PDF not available for this cover letter. Generate PDF first.",
+            )
+
+        storage_provider = get_storage_provider()
+        pdf_bytes = await storage_provider.get_file(cover_letter.cover_letter_pdf_key)
+        filename = f"{_sanitize_download_filename(cover_letter.title)}.pdf"
+
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except NotFoundException as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Cover letter not found",
+        ) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Error downloading cover letter PDF: {str(exc)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to download PDF",
+        ) from exc
 
 
 @router.post("/{cover_letter_id}/upload-pdf", response_model=CoverLetterPDFResponse)

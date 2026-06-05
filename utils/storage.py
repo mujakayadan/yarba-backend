@@ -4,6 +4,7 @@ import os
 import time
 import uuid
 from io import BytesIO
+from typing import cast
 
 import boto3
 from botocore.exceptions import ClientError
@@ -147,6 +148,17 @@ class StorageProvider:
 
         Returns:
             Optional[str]: URL to the object or None
+        """
+        raise NotImplementedError("This method should be implemented by subclasses")
+
+    async def get_file(self, object_key: str) -> bytes:
+        """Read file bytes from storage.
+
+        Args:
+            object_key: Key/path of the object
+
+        Returns:
+            bytes: File content
         """
         raise NotImplementedError("This method should be implemented by subclasses")
 
@@ -317,6 +329,19 @@ class LocalStorageProvider(StorageProvider):
 
         # Return a URL path that will be served by the static file handler
         return f"{settings.api.api_base_url}/static/{object_key}"
+
+    async def get_file(self, object_key: str) -> bytes:
+        """Read a file from local disk."""
+        storage_path = settings.paths.base_dir / settings.storage.local_storage_path
+        file_path = storage_path / object_key
+
+        if not file_path.is_file():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="File not found in storage",
+            )
+
+        return file_path.read_bytes()
 
 
 class AWSS3StorageProvider(StorageProvider):
@@ -568,6 +593,24 @@ class AWSS3StorageProvider(StorageProvider):
 
         # Return direct S3 URL
         return f"https://{self.bucket}.s3.{settings.storage.aws_region}.amazonaws.com/{object_key}"
+
+    async def get_file(self, object_key: str) -> bytes:
+        """Read a file from AWS S3."""
+        try:
+            response = self.s3_client.get_object(Bucket=self.bucket, Key=object_key)
+            return cast(bytes, response["Body"].read())
+        except ClientError as e:
+            error_code = e.response.get("Error", {}).get("Code")
+            if error_code in {"404", "NoSuchKey"}:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="File not found in storage",
+                ) from e
+            logger.error(f"Error reading from AWS S3: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to read file from storage",
+            ) from e
 
 
 def get_storage_provider() -> StorageProvider:

@@ -1,6 +1,6 @@
 """Tests for resume endpoints."""
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from beanie import PydanticObjectId
@@ -175,3 +175,32 @@ async def test_get_resume_pdf(
 
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["pdf_url"] == "https://example.com/resume.pdf"
+
+
+@pytest.mark.asyncio
+async def test_download_resume_pdf(
+    async_client: AsyncClient,
+    auth_headers: dict,
+    test_resume: Resume,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Test resume PDF download endpoint streams bytes from storage."""
+    pdf_bytes = b"%PDF-1.4 test resume"
+    monkeypatch.setattr(
+        "api.routers.resumes.get_storage_provider",
+        lambda: MagicMock(
+            get_file=AsyncMock(return_value=pdf_bytes),
+        ),
+    )
+    test_resume.resume_pdf_key = "resumes/test.pdf"
+    await test_resume.save()
+
+    response = await async_client.get(
+        f"/api/v1/resumes/{test_resume.id}/pdf/download",
+        headers=auth_headers,
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.content == pdf_bytes
+    assert response.headers["content-type"] == "application/pdf"
+    assert "attachment" in response.headers["content-disposition"]

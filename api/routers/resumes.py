@@ -1,5 +1,6 @@
 """Resumes router."""
 
+import asyncio
 from datetime import datetime
 from typing import Annotated, Any
 
@@ -14,6 +15,7 @@ from fastapi import (
     UploadFile,
     status,
 )
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from api.dependencies.auth import CurrentActiveUser, CurrentUser
@@ -45,6 +47,7 @@ from core.services.profile_service import ProfileService
 from core.services.resume_generation_service import ResumeGenerationService
 from core.services.resume_service import ResumeService
 from core.utils.object_id import require_object_id
+from core.utils.resume_pdf_filename import build_resume_pdf_filename
 from utils.storage import get_storage_provider
 
 router = APIRouter()
@@ -698,6 +701,136 @@ async def get_resume_pdf(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate PDF: {str(e)}",
         )
+
+
+async def _load_resume_pdf_bytes(
+    resume: Resume,
+    profile: Any,
+    *,
+    timeout: int,
+    user_object_id: PydanticObjectId,
+    resume_service: ResumeService,
+    resume_generation_service: ResumeGenerationService,
+) -> bytes:
+    """Return resume PDF bytes, generating and persisting the file when needed."""
+    storage_provider = get_storage_provider()
+
+    if resume.resume_pdf_key:
+        return await storage_provider.get_file(resume.resume_pdf_key)
+
+    logger.info(f"No PDF key found for resume: {resume.id}, generating new one.")
+
+    try:
+        pdf_content = await asyncio.wait_for(
+            resume_generation_service.compile_pdf(resume, profile),
+            timeout=timeout,
+        )
+    except TimeoutError as exc:
+        logger.error(
+            f"PDF compilation timed out after {timeout} seconds for resume: {resume.id}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_408_REQUEST_TIMEOUT,
+            detail="PDF generation timed out during compilation. Please try again later.",
+        ) from exc
+    except ValueError as exc:
+        logger.error(f"PDF compilation failed for resume {resume.id}: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to compile PDF: {exc}",
+        ) from exc
+
+    if not pdf_content:
+        logger.error(f"PDF compilation returned None for resume: {resume.id}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="PDF generation failed - no content returned",
+        )
+
+    try:
+        pdf_key = await storage_provider.save_resume_pdf(pdf_content, str(resume.id))
+        update_data = ResumeUpdate(resume_pdf_key=pdf_key)
+        await resume_service.update_resume(
+            resume_id=require_object_id(resume.id),
+            user_id=user_object_id,
+            update_data=update_data.model_dump(exclude_unset=True),
+        )
+        logger.info(f"PDF saved to S3: {pdf_key}")
+    except Exception as s3_error:
+        logger.error(f"Error saving PDF to S3: {str(s3_error)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to save PDF to storage: {str(s3_error)}",
+        ) from s3_error
+
+    return pdf_content
+
+
+@router.get("/{resume_id}/pdf/download")
+async def download_resume_pdf(
+    resume_id: Annotated[PydanticObjectId, Path(description="Resume ID")],
+    current_user: CurrentUser,
+    timeout: int = Query(
+        30,
+        description="Timeout in seconds for PDF generation if needed",
+        ge=5,
+        le=60,
+    ),
+    resume_service: ResumeService = Depends(get_resume_service),
+    resume_generation_service: ResumeGenerationService = Depends(
+        get_resume_generation_service
+    ),
+) -> Response:
+    """Download resume PDF bytes through the API (avoids CDN CORS in browsers)."""
+    try:
+        logger.info(f"Downloading PDF for resume: {resume_id}")
+        user_object_id = PydanticObjectId(current_user.id)
+
+        try:
+            resume, profile, _ = await resume_generation_service.get_resume_data(
+                resume_id
+            )
+            if resume.user_id != user_object_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="User does not have permission to access this resume.",
+                )
+        except ValueError as exc:
+            logger.error(
+                f"Error fetching data for resume {resume_id} in /pdf/download: {exc}"
+            )
+            if "not found" in str(exc).lower():
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+                ) from exc
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to retrieve resume data.",
+            ) from exc
+
+        pdf_bytes = await _load_resume_pdf_bytes(
+            resume,
+            profile,
+            timeout=timeout,
+            user_object_id=user_object_id,
+            resume_service=resume_service,
+            resume_generation_service=resume_generation_service,
+        )
+        filename = build_resume_pdf_filename(resume.company_name, resume.job_title)
+
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Error downloading PDF for resume {resume_id}: {str(exc)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to download PDF: {str(exc)}",
+        ) from exc
 
 
 @router.post("/{resume_id}/regenerate", response_model=ResumeResponse)
