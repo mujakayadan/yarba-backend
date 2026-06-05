@@ -1,8 +1,19 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from beanie import PydanticObjectId
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+AppearanceMode = Literal["default", "light", "dark"]
+
+
+class FeaturePreferencesUpdate(BaseModel):
+    """Partial update for system feature preferences."""
+
+    check_clearance: bool | None = None
+    auto_save: bool | None = None
+    dark_mode: bool | None = None
+    theme_mode: AppearanceMode | None = None
 
 
 class LLMUsageResponse(BaseModel):
@@ -77,7 +88,7 @@ class PromptPreferencesUpdate(BaseModel):
 class SystemPreferencesUpdate(BaseModel):
     """Schema for updating system preferences. All fields are optional."""
 
-    features: dict[str, bool] | None = None
+    features: FeaturePreferencesUpdate | None = None
     notifications: dict[str, Any] | None = None
     privacy: dict[str, Any] | None = None
     llm: dict[str, Any] | None = None

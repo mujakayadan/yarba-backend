@@ -118,14 +118,15 @@ class PromptPreferences(BaseModel):
 class SystemPreferences(BaseModel):
     """System-related preferences for UI, features, etc."""
 
-    # Feature preferences
-    features: dict[str, bool] = Field(
+    # Feature preferences (booleans for toggles; theme_mode is a string enum)
+    features: dict[str, Any] = Field(
         default_factory=lambda: {
             "check_clearance": True,
             "auto_save": True,
             "dark_mode": False,
+            "theme_mode": "default",
         },
-        description="Feature toggle preferences",
+        description="Feature toggle and appearance preferences",
     )
 
     # Notification preferences

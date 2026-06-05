@@ -371,7 +371,21 @@ class ProfileRepository(BeanieRepository[Profile]):
                     if isinstance(section_dict, dict) and isinstance(
                         section_prefs, dict
                     ):
-                        section_dict.update(section_prefs)
+                        merged_prefs = {**section_dict, **section_prefs}
+                        if section_name == "features":
+                            if "theme_mode" in section_prefs:
+                                merged_prefs["dark_mode"] = (
+                                    section_prefs["theme_mode"] == "dark"
+                                )
+                            elif "dark_mode" in section_prefs and "theme_mode" not in (
+                                section_prefs
+                            ):
+                                merged_prefs["theme_mode"] = (
+                                    "dark"
+                                    if section_prefs["dark_mode"]
+                                    else section_dict.get("theme_mode", "default")
+                                )
+                        section_dict = merged_prefs
                         setattr(profile.system_preferences, section_name, section_dict)
                     else:
                         # Direct assignment if not a dict
