@@ -11,6 +11,7 @@ from pymongo import ASCENDING, IndexModel
 from core.database.migrations.migration_manager import Migration
 from core.database.migrations.schema_helpers import (
     ensure_collection,
+    ensure_index_models,
     ensure_indexes,
     ensure_validator,
 )
@@ -145,12 +146,13 @@ class InitialSchemaMigration(Migration):
 
         ensure_collection(self.db, "users")
         ensure_validator(self.db, "users", _USERS_VALIDATOR)
-        self.db.users.create_indexes(
+        ensure_index_models(
+            self.db.users,
             [
                 IndexModel([("username", ASCENDING)], unique=True),
                 IndexModel([("email", ASCENDING)], unique=True),
                 IndexModel([("firebase_uid", ASCENDING)]),
-            ]
+            ],
         )
 
         ensure_collection(self.db, "profiles")
@@ -176,24 +178,27 @@ class InitialSchemaMigration(Migration):
         )
 
         ensure_collection(self.db, "inbound_emails")
-        self.db.inbound_emails.create_indexes(
-            [IndexModel([("email_id", ASCENDING)], unique=True)]
+        ensure_index_models(
+            self.db.inbound_emails,
+            [IndexModel([("email_id", ASCENDING)], unique=True)],
         )
 
         ensure_collection(self.db, "unknown_email_senders")
-        self.db.unknown_email_senders.create_indexes(
-            [IndexModel([("sender_email", ASCENDING)], unique=True)]
+        ensure_index_models(
+            self.db.unknown_email_senders,
+            [IndexModel([("sender_email", ASCENDING)], unique=True)],
         )
 
         ensure_collection(self.db, "portfolio_websites")
-        self.db.portfolio_websites.create_indexes(
+        ensure_index_models(
+            self.db.portfolio_websites,
             [
                 IndexModel([("user_id", ASCENDING)]),
                 IndexModel([("portfolio_id", ASCENDING)]),
                 IndexModel([("subdomain", ASCENDING)], unique=True),
                 IndexModel([("is_published", ASCENDING)]),
                 IndexModel([("user_id", ASCENDING), ("subdomain", ASCENDING)]),
-            ]
+            ],
         )
 
     def downgrade(self) -> None:
