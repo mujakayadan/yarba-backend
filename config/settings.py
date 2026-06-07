@@ -1150,34 +1150,6 @@ class Settings(BaseSettings):
         validation_alias="FRONTEND_URL",
     )
 
-    # Testing
-    test_user_id: Any = Field(
-        default="000000000000000000000000",
-        description="Test user ID",
-        validation_alias="TEST_USER_ID",
-    )
-
-    @field_validator("test_user_id")
-    def validate_test_user_id(cls, v: str) -> Any:
-        """Convert string test_user_id to PydanticObjectId if valid."""
-        try:
-            from beanie.odm.fields import PydanticObjectId
-            from bson import ObjectId
-
-            if isinstance(v, str) and ObjectId.is_valid(v):
-                return PydanticObjectId(v)
-            else:
-                from config.logging_config import get_logger
-
-                logger = get_logger(__name__)
-                logger.warning(
-                    f"Invalid test_user_id format: {v}. Using default placeholder."
-                )
-                return PydanticObjectId("000000000000000000000000")
-        except ImportError:
-            # Handle case where bson or beanie is not available (e.g., during initial setup)
-            return v
-
     # Components
     database: DatabaseSettings = Field(
         default_factory=DatabaseSettings, description="Database settings"

@@ -8,12 +8,6 @@ from core.models.profile import PersonalInformation, Profile
 from core.models.resume import Resume
 from core.models.user import User
 
-TEST_USER_ID = PydanticObjectId("507f1f77bcf86cd799439011")
-TEST_PROFILE_ID = PydanticObjectId("507f1f77bcf86cd799439022")
-TEST_PORTFOLIO_ID = PydanticObjectId("507f1f77bcf86cd799439033")
-TEST_RESUME_ID = PydanticObjectId("507f1f77bcf86cd799439044")
-TEST_COVER_LETTER_ID = PydanticObjectId("507f1f77bcf86cd799439055")
-
 
 def make_user(
     *,
