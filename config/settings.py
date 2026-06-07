@@ -660,11 +660,8 @@ class APISettings(BaseSettings):
         default=[
             "http://localhost:3000",
             "http://localhost:5173",
-            "https://www.yarba.app",
-            "https://mujakayadan.com",
         ],
         description="List of allowed CORS origins",
-        validation_alias="CORS_ORIGINS",
     )
     cors_allow_credentials: bool = Field(
         default=True,
