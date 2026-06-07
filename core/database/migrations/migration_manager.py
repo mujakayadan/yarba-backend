@@ -295,6 +295,55 @@ class {description.title().replace(" ", "")}Migration(Migration):
         finally:
             self.disconnect()
 
+    def baseline_migrations(
+        self,
+        through_version: str | None = None,
+        exclude_versions: set[str] | None = None,
+    ) -> None:
+        """Mark migrations as applied without running upgrade().
+
+        Use when attaching migration tracking to a database that predates the
+        migrations collection (collections already exist from manual setup).
+        """
+        excluded = exclude_versions or set()
+        try:
+            self.connect()
+
+            applied = self.get_applied_migrations()
+            available = self.get_available_migrations()
+
+            versions_to_baseline = []
+            for version in sorted(available.keys()):
+                if version in applied or version in excluded:
+                    continue
+                if through_version is not None and version > through_version:
+                    continue
+                versions_to_baseline.append(version)
+
+            if not versions_to_baseline:
+                logger.info("No migrations to baseline")
+                return
+
+            logger.info(f"Baselining {len(versions_to_baseline)} migration(s)")
+
+            for version in versions_to_baseline:
+                file_path = available[version]
+                migration = self.load_migration(version, file_path)
+                if migration is None:
+                    msg = f"Failed to load migration {version} for baseline"
+                    logger.error(msg)
+                    raise RuntimeError(msg)
+
+                logger.info(
+                    f"Marking migration {version} as applied: {migration.description}"
+                )
+                self.mark_migration_applied(version, migration.description)
+
+            logger.info("Baseline complete")
+
+        finally:
+            self.disconnect()
+
     def revert_migrations(self, target_version: str | None = None) -> None:
         """Revert migrations down to the target version.
 

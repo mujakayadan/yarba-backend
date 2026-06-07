@@ -28,11 +28,15 @@ def _database_name() -> str:
     return os.environ.get("MONGODB_DATABASE") or _require_env("MONGODB_DB")
 
 
+def _mongo_uri() -> str:
+    return os.environ.get("MIGRATIONS_MONGODB_URI") or _require_env("MONGODB_URI")
+
+
 def _build_manager(
     migrations_dir: str = "core/database/migrations",
 ) -> MigrationManager:
     return MigrationManager(
-        mongo_uri=_require_env("MONGODB_URI"),
+        mongo_uri=_mongo_uri(),
         database_name=_database_name(),
         migrations_dir=migrations_dir,
     )
@@ -53,6 +57,21 @@ def main() -> None:
     migrate_parser = subparsers.add_parser("migrate", help="Run pending migrations")
     migrate_parser.add_argument("--target", help="Target migration version")
 
+    baseline_parser = subparsers.add_parser(
+        "baseline",
+        help="Mark migrations as applied without running them (existing DB bootstrap)",
+    )
+    baseline_parser.add_argument(
+        "--through",
+        help="Baseline versions up to and including this version",
+    )
+    baseline_parser.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
+        help="Version(s) to leave pending (repeatable)",
+    )
+
     revert_parser = subparsers.add_parser("revert", help="Revert migrations")
     revert_parser.add_argument("--target", help="Target migration version")
 
@@ -68,6 +87,14 @@ def main() -> None:
     elif args.command == "migrate":
         try:
             manager.run_migrations(args.target)
+        except RuntimeError:
+            sys.exit(1)
+    elif args.command == "baseline":
+        try:
+            manager.baseline_migrations(
+                through_version=args.through,
+                exclude_versions=set(args.exclude),
+            )
         except RuntimeError:
             sys.exit(1)
     elif args.command == "revert":
