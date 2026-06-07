@@ -104,10 +104,11 @@ class MigrationManager:
             return available
 
         for file_path in self.migrations_dir.glob("*.py"):
-            if (
-                file_path.name == "__init__.py"
-                or file_path.name == "migration_manager.py"
-            ):
+            if file_path.name in {
+                "__init__.py",
+                "migration_manager.py",
+                "schema_helpers.py",
+            }:
                 continue
 
             match = re.match(self.MIGRATION_PATTERN, file_path.name)
@@ -341,6 +342,24 @@ class {description.title().replace(" ", "")}Migration(Migration):
 
             logger.info("Baseline complete")
 
+        finally:
+            self.disconnect()
+
+    def prune_stale_migrations(self) -> int:
+        """Remove applied-migration records that no longer exist in the repo."""
+        try:
+            self.connect()
+            available = set(self.get_available_migrations())
+            removed = 0
+            for version in self.get_applied_migrations():
+                if version not in available:
+                    self.mark_migration_reverted(version)
+                    removed += 1
+            if removed:
+                logger.info("Pruned %s stale migration record(s)", removed)
+            else:
+                logger.info("No stale migration records to prune")
+            return removed
         finally:
             self.disconnect()
 

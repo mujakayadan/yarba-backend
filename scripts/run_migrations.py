@@ -76,6 +76,10 @@ def main() -> None:
     revert_parser.add_argument("--target", help="Target migration version")
 
     subparsers.add_parser("status", help="Show migration status")
+    subparsers.add_parser(
+        "prune",
+        help="Drop applied-migration records that are no longer in the repo",
+    )
 
     args = parser.parse_args()
     configure_logging()
@@ -99,6 +103,8 @@ def main() -> None:
             sys.exit(1)
     elif args.command == "revert":
         manager.revert_migrations(args.target)
+    elif args.command == "prune":
+        manager.prune_stale_migrations()
     elif args.command == "status":
         migrations = manager.show_status()
         print(f"{'Version':<15} {'Applied':<10} {'Description':<50}")
