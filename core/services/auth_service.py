@@ -7,14 +7,22 @@ from typing import Any
 import jwt
 from beanie import PydanticObjectId
 from fastapi import HTTPException, status
+from firebase_admin.auth import EmailAlreadyExistsError
 from jwt.exceptions import PyJWTError as JWTError
 from pydantic import EmailStr
 
 from config.logging_config import get_logger
 from config.settings import Settings
+from core.auth.error_codes import (
+    ACCOUNT_EXISTS_USE_LOGIN,
+    EMAIL_ALREADY_REGISTERED,
+    FIREBASE_REGISTRATION_FAILED,
+    INVALID_CREDENTIALS,
+)
 from core.auth.firebase import FirebaseAuth
 from core.exceptions.base import (
     BadRequestException,
+    ConflictException,
     NotFoundException,
     UnauthorizedException,
 )
@@ -37,6 +45,102 @@ class AuthService:
         self.user_repository = user_repository or UserRepository()
         self.logger = get_logger(self.__class__.__name__)
 
+    async def _resolve_unique_username(self, base_username: str) -> str:
+        """Return a username that is not already taken in MongoDB."""
+        username = base_username.lower().replace(" ", "_")
+        existing = await self.user_repository.get_by_username(username)
+        if existing:
+            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            return f"{username}_{timestamp}"
+        return username
+
+    async def _create_local_user_from_firebase(
+        self,
+        *,
+        email: EmailStr,
+        firebase_uid: str,
+        email_verified: bool,
+        auth_provider: str,
+        display_name: str | None = None,
+    ) -> User:
+        """Create a MongoDB user record for an existing Firebase account."""
+        base_username = display_name or email.split("@")[0]
+        username = await self._resolve_unique_username(base_username)
+        user = User(
+            email=email,
+            username=username,
+            is_active=True,
+            email_verified=email_verified,
+            firebase_uid=firebase_uid,
+            auth_provider=auth_provider,
+        )
+        return await self.user_repository.create(user)
+
+    def _build_registration_response(
+        self,
+        user: User,
+        *,
+        registration_resumed: bool = False,
+    ) -> dict[str, Any]:
+        """Build the register/login response payload."""
+        access_token = self.create_access_token(data={"sub": user.email})
+        return {
+            "user": {
+                "id": str(user.id),
+                "email": user.email,
+                "username": user.username,
+                "email_verified": user.email_verified,
+                "is_active": user.is_active,
+                "is_superuser": user.is_superuser,
+                "auth_provider": user.auth_provider,
+            },
+            "access_token": access_token,
+            "token_type": "bearer",
+            "is_new_user": user.is_new_user,
+            "current_setup_step": user.current_setup_step,
+            "registration_resumed": registration_resumed,
+        }
+
+    async def _sync_orphan_firebase_user(
+        self,
+        email: EmailStr,
+        password: str,
+    ) -> dict[str, Any]:
+        """Link an existing Firebase account to a new MongoDB user after password verification."""
+        try:
+            await FirebaseAuth.sign_in_with_email_password(email, password)
+        except Exception:
+            firebase_user = await FirebaseAuth.get_user_by_email(email)
+            providers = await FirebaseAuth.get_user_provider_ids(firebase_user["uid"])
+            if "password" not in providers:
+                raise ConflictException(
+                    message=(
+                        "An account with this email already exists. "
+                        "Please sign in with your social provider."
+                    ),
+                    error_code=ACCOUNT_EXISTS_USE_LOGIN,
+                ) from None
+            raise UnauthorizedException(
+                message="Incorrect password for an existing account.",
+                error_code=INVALID_CREDENTIALS,
+            ) from None
+
+        firebase_user = await FirebaseAuth.get_user_by_email(email)
+        created_user = await self._create_local_user_from_firebase(
+            email=email,
+            firebase_uid=firebase_user["uid"],
+            email_verified=firebase_user.get("email_verified", False),
+            auth_provider="firebase.password",
+            display_name=firebase_user.get("display_name"),
+        )
+        self.logger.info(
+            f"[AuthService.register] Resumed registration for Firebase orphan: {email}"
+        )
+        await self.send_verification_email(email)
+        return self._build_registration_response(
+            created_user, registration_resumed=True
+        )
+
     async def register_with_firebase(
         self,
         email: EmailStr,
@@ -54,7 +158,9 @@ class AuthService:
             Dict: User data and access token
 
         Raises:
-            BadRequestException: If user already exists or Firebase registration fails
+            ConflictException: If user already exists in MongoDB
+            UnauthorizedException: If orphan Firebase user password is wrong
+            BadRequestException: If Firebase registration fails unexpectedly
         """
         self.logger.info(
             f"[AuthService.register] Attempting to register user. Email: {email}"
@@ -65,102 +171,58 @@ class AuthService:
             self.logger.warning(
                 f"Registration failed: Email {email} already registered"
             )
-            raise BadRequestException("Email already registered")
+            raise ConflictException(
+                message="An account with this email already exists. Please sign in.",
+                error_code=EMAIL_ALREADY_REGISTERED,
+            )
+
+        firebase_display_name = email.split("@")[0]
+        registration_resumed = False
 
         try:
             self.logger.info(
                 f"[AuthService.register] About to call FirebaseAuth.create_user for email: {email}"
             )
-            firebase_display_name = email.split("@")[0]
-            self.logger.info(
-                f"[AuthService.register] Using display_name for Firebase: {firebase_display_name}"
-            )
-
             firebase_user_data = await FirebaseAuth.create_user(
                 email=email,
                 password=password,
                 display_name=firebase_display_name,
             )
-            firebase_user_uid = firebase_user_data.get("uid")
-
-            generated_internal_username = email.split("@")[0].lower().replace(" ", "_")
+        except EmailAlreadyExistsError:
             self.logger.info(
-                f"[AuthService.register] Generated base internal username: {generated_internal_username} for email: {email}"
+                f"[AuthService.register] Firebase user exists without MongoDB record: {email}"
             )
-
-            existing_username_obj = await self.user_repository.get_by_username(
-                generated_internal_username
-            )
-            if existing_username_obj:
-                timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-                final_username_for_db = f"{generated_internal_username}_{timestamp}"
-                self.logger.info(
-                    f"[AuthService.register] Generated internal username conflicted, new unique username: {final_username_for_db} for email: {email}"
-                )
-            else:
-                final_username_for_db = generated_internal_username
-
-            # Ensure username is not None before creating User model instance (should not happen)
-            if final_username_for_db is None:
-                self.logger.error(
-                    f"[AuthService.register] Critical error: final_username_for_db is None before User model creation for email: {email}"
-                )
-                raise BadRequestException(
-                    "Internal server error during username assignment."
-                )
-
-            self.logger.info(
-                f"[AuthService.register] Preparing to create local DB user. Email: {email}, Final Username: {final_username_for_db}, Firebase UID: {firebase_user_uid}"
-            )
-
-            user = User(
-                email=email,
-                username=final_username_for_db,
-                is_active=True,
-                email_verified=False,
-                firebase_uid=firebase_user_uid,
-                auth_provider="firebase.password",
-            )
-
-            created_user = await self.user_repository.create(user)
-            self.logger.info(f"User registered with Firebase: {email}")
-
-            self.logger.info(
-                f"[AuthService.register] Attempting to send verification email for: {email}"
-            )
-            await self.send_verification_email(email)
-            self.logger.info(
-                f"[AuthService.register] Verification email process completed for: {email}"
-            )
-
-            access_token = self.create_access_token(data={"sub": created_user.email})
-            self.logger.info(
-                f"[AuthService.register] Access token generated for new user: {email}"
-            )
-
-            # Return data similar to login_with_firebase response
-            return {
-                "user": {
-                    "id": str(created_user.id),
-                    "email": created_user.email,
-                    "username": created_user.username,
-                    "email_verified": created_user.email_verified,  # Will be False initially
-                    "is_active": created_user.is_active,
-                    "is_superuser": created_user.is_superuser,
-                    "auth_provider": created_user.auth_provider,
-                    # Add other fields if they are part of your User model and needed by FirebaseAuthResponse
-                },
-                "access_token": access_token,
-                "token_type": "bearer",
-                "is_new_user": created_user.is_new_user,
-                "current_setup_step": created_user.current_setup_step,
-            }
-
+            return await self._sync_orphan_firebase_user(email, password)
         except Exception as e:
             self.logger.error(
                 f"Registration process error for email {email}: {str(e)}", exc_info=True
             )
-            raise BadRequestException(f"Firebase registration failed: {str(e)}")
+            raise BadRequestException(
+                message="Registration failed. Please try again later.",
+                error_code=FIREBASE_REGISTRATION_FAILED,
+            ) from e
+
+        try:
+            created_user = await self._create_local_user_from_firebase(
+                email=email,
+                firebase_uid=firebase_user_data["uid"],
+                email_verified=False,
+                auth_provider="firebase.password",
+                display_name=firebase_display_name,
+            )
+            self.logger.info(f"User registered with Firebase: {email}")
+            await self.send_verification_email(email)
+            return self._build_registration_response(
+                created_user, registration_resumed=registration_resumed
+            )
+        except Exception as e:
+            self.logger.error(
+                f"Registration process error for email {email}: {str(e)}", exc_info=True
+            )
+            raise BadRequestException(
+                message="Registration failed. Please try again later.",
+                error_code=FIREBASE_REGISTRATION_FAILED,
+            ) from e
 
     async def login_with_firebase(self, id_token: str) -> dict[str, Any]:
         """Login with Firebase ID token.
@@ -205,16 +267,6 @@ class AuthService:
                 )
                 try:
                     firebase_user = await FirebaseAuth.get_user(uid)
-                    username = firebase_user.get("display_name") or email.split("@")[0]
-                    username = username.lower().replace(" ", "_")
-
-                    existing_user_with_username = (
-                        await self.user_repository.get_by_username(username)
-                    )
-                    if existing_user_with_username:
-                        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-                        username = f"{username}_{timestamp}"
-
                     provider_data = token_data.get("firebase", {}).get(
                         "sign_in_provider", ""
                     )
@@ -223,16 +275,13 @@ class AuthService:
                         if provider_data
                         else "firebase.password"
                     )
-
-                    user = User(
+                    user = await self._create_local_user_from_firebase(
                         email=email,
-                        username=username,
-                        is_active=True,
-                        email_verified=firebase_user.get("email_verified", False),
                         firebase_uid=uid,
+                        email_verified=firebase_user.get("email_verified", False),
                         auth_provider=auth_provider,
+                        display_name=firebase_user.get("display_name"),
                     )
-                    user = await self.user_repository.create(user)
                     self.logger.info(f"Created new user from Firebase login: {email}")
                 except Exception as user_create_error:
                     self.logger.error(

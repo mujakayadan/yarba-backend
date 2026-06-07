@@ -5,13 +5,23 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from beanie import PydanticObjectId
 
-from core.exceptions.base import BadRequestException, NotFoundException
+from core.auth.error_codes import (
+    ACCOUNT_EXISTS_USE_LOGIN,
+    EMAIL_ALREADY_REGISTERED,
+    INVALID_CREDENTIALS,
+)
+from core.exceptions.base import (
+    ConflictException,
+    NotFoundException,
+    UnauthorizedException,
+)
 from core.services.auth_service import AuthService
 from core.services.cover_letter_generation_service import CoverLetterGenerationService
 from core.services.latex_service import LatexService
 from core.services.resume_generation_service import ResumeGenerationService
 from core.services.resume_service import ResumeService
 from tests.factories import make_resume, make_user
+from tests.support.auth_mocks import make_email_already_exists_error, mock_user_record
 
 
 @pytest.fixture
@@ -35,9 +45,11 @@ def mock_resume_repository():
 
 class TestAuthService:
     @pytest.mark.asyncio
-    async def test_register_with_firebase_success(self, mock_user_repository):
+    async def test_register_with_firebase_success(
+        self, mock_user_repository, beanie_db
+    ):
         mock_user_repository.get_by_email.return_value = None
-        created = make_user(email="new@example.com", username="new")
+        created = mock_user_record(email="new@example.com", username="new")
         mock_user_repository.create.return_value = created
 
         with (
@@ -65,18 +77,152 @@ class TestAuthService:
 
         assert result["access_token"] == "jwt-token"
         assert result["user"]["email"] == "new@example.com"
+        assert result["registration_resumed"] is False
         mock_user_repository.create.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_register_with_firebase_email_exists(self, mock_user_repository):
-        mock_user_repository.get_by_email.return_value = make_user()
+    async def test_register_with_firebase_email_exists_in_mongodb(
+        self, mock_user_repository
+    ):
+        mock_user_repository.get_by_email.return_value = mock_user_record()
 
         auth_service = AuthService(user_repository=mock_user_repository)
-        with pytest.raises(BadRequestException, match="Email already registered"):
+        with pytest.raises(ConflictException) as exc_info:
             await auth_service.register_with_firebase(
                 email="test@example.com",
                 password="Password123!",
             )
+
+        assert exc_info.value.error_code == EMAIL_ALREADY_REGISTERED
+
+    @pytest.mark.asyncio
+    async def test_register_syncs_firebase_orphan(
+        self, mock_user_repository, beanie_db
+    ):
+        mock_user_repository.get_by_email.return_value = None
+        created = mock_user_record(email="orphan@example.com", username="orphan")
+        mock_user_repository.create.return_value = created
+
+        with (
+            patch(
+                "core.services.auth_service.FirebaseAuth.create_user",
+                new_callable=AsyncMock,
+                side_effect=make_email_already_exists_error,
+            ),
+            patch(
+                "core.services.auth_service.FirebaseAuth.sign_in_with_email_password",
+                new_callable=AsyncMock,
+                return_value={"idToken": "token"},
+            ),
+            patch(
+                "core.services.auth_service.FirebaseAuth.get_user_by_email",
+                new_callable=AsyncMock,
+                return_value={
+                    "uid": "firebase-orphan-uid",
+                    "email": "orphan@example.com",
+                    "display_name": "orphan",
+                    "email_verified": False,
+                },
+            ),
+            patch.object(
+                AuthService,
+                "send_verification_email",
+                new_callable=AsyncMock,
+            ),
+            patch.object(
+                AuthService,
+                "create_access_token",
+                return_value="jwt-token",
+            ),
+        ):
+            auth_service = AuthService(user_repository=mock_user_repository)
+            result = await auth_service.register_with_firebase(
+                email="orphan@example.com",
+                password="Password123!",
+            )
+
+        assert result["registration_resumed"] is True
+        assert result["is_new_user"] is True
+        assert result["access_token"] == "jwt-token"
+        mock_user_repository.create.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_register_orphan_wrong_password(self, mock_user_repository):
+        mock_user_repository.get_by_email.return_value = None
+
+        with (
+            patch(
+                "core.services.auth_service.FirebaseAuth.create_user",
+                new_callable=AsyncMock,
+                side_effect=make_email_already_exists_error,
+            ),
+            patch(
+                "core.services.auth_service.FirebaseAuth.sign_in_with_email_password",
+                new_callable=AsyncMock,
+                side_effect=Exception("INVALID_PASSWORD"),
+            ),
+            patch(
+                "core.services.auth_service.FirebaseAuth.get_user_by_email",
+                new_callable=AsyncMock,
+                return_value={
+                    "uid": "firebase-orphan-uid",
+                    "email": "orphan@example.com",
+                },
+            ),
+            patch(
+                "core.services.auth_service.FirebaseAuth.get_user_provider_ids",
+                new_callable=AsyncMock,
+                return_value=["password"],
+            ),
+        ):
+            auth_service = AuthService(user_repository=mock_user_repository)
+            with pytest.raises(UnauthorizedException) as exc_info:
+                await auth_service.register_with_firebase(
+                    email="orphan@example.com",
+                    password="WrongPass1!",
+                )
+
+        assert exc_info.value.error_code == INVALID_CREDENTIALS
+        mock_user_repository.create.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_register_orphan_social_account(self, mock_user_repository):
+        mock_user_repository.get_by_email.return_value = None
+
+        with (
+            patch(
+                "core.services.auth_service.FirebaseAuth.create_user",
+                new_callable=AsyncMock,
+                side_effect=make_email_already_exists_error,
+            ),
+            patch(
+                "core.services.auth_service.FirebaseAuth.sign_in_with_email_password",
+                new_callable=AsyncMock,
+                side_effect=Exception("INVALID_LOGIN_CREDENTIALS"),
+            ),
+            patch(
+                "core.services.auth_service.FirebaseAuth.get_user_by_email",
+                new_callable=AsyncMock,
+                return_value={
+                    "uid": "firebase-orphan-uid",
+                    "email": "orphan@example.com",
+                },
+            ),
+            patch(
+                "core.services.auth_service.FirebaseAuth.get_user_provider_ids",
+                new_callable=AsyncMock,
+                return_value=["google.com"],
+            ),
+        ):
+            auth_service = AuthService(user_repository=mock_user_repository)
+            with pytest.raises(ConflictException) as exc_info:
+                await auth_service.register_with_firebase(
+                    email="orphan@example.com",
+                    password="Password123!",
+                )
+
+        assert exc_info.value.error_code == ACCOUNT_EXISTS_USE_LOGIN
+        mock_user_repository.create.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_login_with_firebase_invalid_token(self, mock_user_repository):

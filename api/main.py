@@ -105,7 +105,10 @@ app = FastAPI(
     debug=settings.api.debug,
 )
 
-# Add CORS middleware
+# Set up application middlewares (error handler, logging, rate limit)
+setup_middlewares(app)
+
+# CORS must be outermost so error-handler JSON responses include CORS headers
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.api.cors_origins,
@@ -113,9 +116,6 @@ app.add_middleware(
     allow_methods=settings.api.cors_allow_methods,
     allow_headers=settings.api.cors_allow_headers,
 )
-
-# Set up application middlewares
-setup_middlewares(app)
 
 # Mount static files for profile pictures if using local storage
 if settings.storage.provider.lower() == "local":

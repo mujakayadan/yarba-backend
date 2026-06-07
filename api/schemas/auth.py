@@ -22,6 +22,7 @@ class FirebaseAuthResponse(BaseModel):
     token_type: str = "bearer"
     is_new_user: bool | None = None
     current_setup_step: int | None = None
+    registration_resumed: bool = False
 
 
 class LoginRequest(BaseModel):

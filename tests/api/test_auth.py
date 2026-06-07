@@ -30,8 +30,14 @@ async def test_register_duplicate_email(
     async_client_auth: AsyncClient, mock_auth_service, registered_user
 ):
     """Test registration with duplicate email."""
+    from core.auth.error_codes import EMAIL_ALREADY_REGISTERED
+    from core.exceptions.base import ConflictException
+
     mock_auth_service.register_with_firebase = AsyncMock(
-        side_effect=HTTPException(status_code=400, detail="Email already registered")
+        side_effect=ConflictException(
+            message="An account with this email already exists. Please sign in.",
+            error_code=EMAIL_ALREADY_REGISTERED,
+        )
     )
 
     response = await async_client_auth.post(
@@ -42,8 +48,11 @@ async def test_register_duplicate_email(
         },
     )
 
-    assert response.status_code == status.HTTP_400_BAD_REQUEST
-    assert "Email already registered" in response.json()["detail"]
+    assert response.status_code == status.HTTP_409_CONFLICT
+    body = response.json()
+    assert body["status"] == "error"
+    assert body["error_code"] == EMAIL_ALREADY_REGISTERED
+    assert "already exists" in body["message"]
 
 
 @pytest.mark.asyncio

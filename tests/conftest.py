@@ -456,6 +456,7 @@ async def async_client_auth(
             "token_type": "bearer",
             "is_new_user": True,
             "current_setup_step": 1,
+            "registration_resumed": False,
         }
     )
 

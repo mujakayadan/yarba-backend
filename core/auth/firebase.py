@@ -9,6 +9,7 @@ from typing import Any, cast
 
 import firebase_admin
 from firebase_admin import auth, credentials
+from firebase_admin.auth import EmailAlreadyExistsError
 from pydantic import EmailStr
 
 from config.logging_config import get_logger
@@ -181,6 +182,8 @@ class FirebaseAuth:
                 "phone_number": user.phone_number,
             }
 
+        except EmailAlreadyExistsError:
+            raise
         except Exception as e:
             logger.error(f"Failed to create Firebase user: {str(e)}")
             raise
@@ -381,6 +384,16 @@ class FirebaseAuth:
         except Exception as e:
             logger.error(f"Failed to generate password reset link: {str(e)}")
             raise
+
+    @classmethod
+    async def get_user_provider_ids(cls, uid: str) -> list[str]:
+        """Return Firebase sign-in provider IDs for a user (e.g. password, google.com)."""
+        if not cls._initialized:
+            if not cls.initialize():
+                raise Exception("Firebase could not be initialized")
+
+        user = auth.get_user(uid)
+        return [provider.provider_id for provider in user.provider_data]
 
     @classmethod
     async def get_user_by_email(cls, email: str) -> dict[str, Any]:
