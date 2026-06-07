@@ -10,6 +10,16 @@ ingress:
         prefix: /
 name: yarba-app
 region: sfo
+jobs:
+- dockerfile_path: Dockerfile
+  github:
+    branch: main
+    deploy_on_push: true
+    repo: mucahitkayadan/yarba-backend
+  instance_size_slug: apps-s-1vcpu-0.5gb
+  kind: PRE_DEPLOY
+  name: db-migrate
+  run_command: uv run python scripts/run_migrations.py migrate
 services:
 - github:
     branch: main

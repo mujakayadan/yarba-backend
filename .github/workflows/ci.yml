@@ -37,3 +37,35 @@ jobs:
           MONGODB_DATABASE: test_db
           JWT_SECRET_KEY: test_secret_key_for_jwt_signing_32chars
         run: uv run pytest
+
+  migrations:
+    runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run migrations
+        env:
+          MONGODB_URI: mongodb://localhost:27017
+          MONGODB_DATABASE: test_db
+        run: uv run python scripts/run_migrations.py migrate
+
+      - name: Show migration status
+        env:
+          MONGODB_URI: mongodb://localhost:27017
+          MONGODB_DATABASE: test_db
+        run: uv run python scripts/run_migrations.py status

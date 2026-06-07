@@ -59,8 +59,13 @@ class MigrationManager:
         self.mongo_uri = mongo_uri
         self.database_name = database_name
         self.migrations_dir = Path(migrations_dir)
-        self.client = None
-        self.db = None
+        self.client: MongoClient[Any] | None = None
+        self.db: Database[Any] | None = None
+
+    def _require_db(self) -> Database[Any]:
+        if self.db is None:
+            raise RuntimeError("MigrationManager is not connected to a database")
+        return self.db
 
     def connect(self) -> None:
         """Connect to the MongoDB database."""
@@ -81,7 +86,9 @@ class MigrationManager:
             Dict mapping migration versions to the datetime they were applied
         """
         applied = {}
-        for doc in self.db[self.MIGRATION_COLLECTION].find().sort("version", 1):
+        for doc in (
+            self._require_db()[self.MIGRATION_COLLECTION].find().sort("version", 1)
+        ):
             applied[doc["version"]] = doc["applied_at"]
         return applied
 
@@ -91,7 +98,7 @@ class MigrationManager:
         Returns:
             Dict mapping migration versions to file paths
         """
-        available = {}
+        available: dict[str, Path] = {}
         if not self.migrations_dir.exists():
             logger.warning(f"Migrations directory not found: {self.migrations_dir}")
             return available
@@ -141,7 +148,7 @@ class MigrationManager:
                     and issubclass(attr, Migration)
                     and attr is not Migration
                 ):
-                    return attr(self.db)
+                    return attr(self._require_db())
 
             logger.error(f"No Migration class found in {file_path}")
             return None
@@ -156,7 +163,7 @@ class MigrationManager:
             version: Migration version
             description: Migration description
         """
-        self.db[self.MIGRATION_COLLECTION].update_one(
+        self._require_db()[self.MIGRATION_COLLECTION].update_one(
             {"version": version},
             {
                 "$set": {
@@ -175,7 +182,7 @@ class MigrationManager:
         Args:
             version: Migration version
         """
-        self.db[self.MIGRATION_COLLECTION].delete_one({"version": version})
+        self._require_db()[self.MIGRATION_COLLECTION].delete_one({"version": version})
         logger.info(f"Marked migration {version} as reverted")
 
     def create_migration(self, description: str) -> str:
@@ -279,8 +286,9 @@ class {description.title().replace(" ", "")}Migration(Migration):
                     migration.upgrade()
                     self.mark_migration_applied(version, migration.description)
                 else:
-                    logger.error(f"Failed to load migration {version}")
-                    break
+                    msg = f"Failed to load migration {version}"
+                    logger.error(msg)
+                    raise RuntimeError(msg)
 
             logger.info("Migration complete")
 
