@@ -10,6 +10,7 @@
     --border-color: #232347;
     --shadow-color: rgba(0, 0, 0, 0.3);
     --transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+    --navbar-height: 5.5rem;
 }
 
 /* Reset and Base Styles */
@@ -21,6 +22,7 @@
 
 html {
     scroll-behavior: smooth;
+    scroll-padding-top: var(--navbar-height);
 }
 
 body {
@@ -280,6 +282,7 @@ body {
 /* Hero Section */
 .hero {
     min-height: 100vh;
+    padding-top: var(--navbar-height);
     display: flex;
     align-items: center;
     position: relative;
