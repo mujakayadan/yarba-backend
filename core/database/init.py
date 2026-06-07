@@ -28,6 +28,7 @@ from core.database.types import AsyncMongoClientType
 from core.models.cover_letter import CoverLetter
 from core.models.inbound_email import InboundEmail
 from core.models.portfolio import Portfolio
+from core.models.portfolio_site_token import PortfolioSiteToken
 from core.models.portfolio_website import PortfolioWebsite
 from core.models.profile import Profile
 from core.models.resume import Resume
@@ -77,6 +78,7 @@ async def init_db() -> AsyncMongoClientType | None:
             CoverLetter,
             Profile,
             Portfolio,
+            PortfolioSiteToken,
             PortfolioWebsite,
             InboundEmail,
             UnknownEmailSender,

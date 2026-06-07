@@ -10,6 +10,7 @@ from core.database.types import AsyncMongoDatabase
 from core.repositories import (
     CoverLetterRepository,
     PortfolioRepository,
+    PortfolioSiteTokenRepository,
     ProfileRepository,
     ResumeRepository,
     UserRepository,
@@ -61,6 +62,13 @@ async def get_portfolio_repository() -> AsyncGenerator[PortfolioRepository, None
         PortfolioRepository: Portfolio repository instance
     """
     yield PortfolioRepository()
+
+
+async def get_portfolio_site_token_repository() -> AsyncGenerator[
+    PortfolioSiteTokenRepository, None
+]:
+    """Get a portfolio site token repository."""
+    yield PortfolioSiteTokenRepository()
 
 
 async def get_resume_repository() -> AsyncGenerator[ResumeRepository, None]:

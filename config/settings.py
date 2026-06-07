@@ -657,7 +657,12 @@ class APISettings(BaseSettings):
 
     # CORS settings
     cors_origins: list[str] = Field(
-        default=["http://localhost:3000", "https://www.yarba.app"],
+        default=[
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "https://www.yarba.app",
+            "https://mujakayadan.com",
+        ],
         description="List of allowed CORS origins",
         validation_alias="CORS_ORIGINS",
     )

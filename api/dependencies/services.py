@@ -8,12 +8,16 @@ from fastapi import Depends
 from core.database.factory import (
     get_cover_letter_repository,
     get_portfolio_repository,
+    get_portfolio_site_token_repository,
     get_profile_repository,
     get_resume_repository,
     get_user_repository,
 )
 from core.job_extractor.extract_job import JobExtractor
 from core.repositories.portfolio_repository import PortfolioRepository
+from core.repositories.portfolio_site_token_repository import (
+    PortfolioSiteTokenRepository,
+)
 from core.repositories.portfolio_website_repository import PortfolioWebsiteRepository
 from core.repositories.profile_repository import ProfileRepository
 from core.repositories.resume_repository import ResumeRepository
@@ -32,9 +36,25 @@ from core.services.portfolio_service import PortfolioService
 from core.services.portfolio_website_service import PortfolioWebsiteService
 from core.services.profile_service import ProfileService
 from core.services.prompt_service import PromptService
+from core.services.public_portfolio_service import PublicPortfolioService
 from core.services.resume_generation_service import ResumeGenerationService
 from core.services.resume_service import ResumeService
 from core.services.website_generator_service import WebsiteGeneratorService
+
+
+def get_public_portfolio_service(
+    token_repo: PortfolioSiteTokenRepository = Depends(
+        get_portfolio_site_token_repository
+    ),
+    portfolio_repo: PortfolioRepository = Depends(get_portfolio_repository),
+    profile_repo: ProfileRepository = Depends(get_profile_repository),
+) -> PublicPortfolioService:
+    """Get the public portfolio content service."""
+    return PublicPortfolioService(
+        token_repository=token_repo,
+        portfolio_repository=portfolio_repo,
+        profile_repository=profile_repo,
+    )
 
 
 def get_portfolio_service(

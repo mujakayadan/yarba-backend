@@ -51,6 +51,10 @@ API_TAGS_METADATA = [
         "name": "portfolio-websites",
         "description": "Portfolio website deployment and management",
     },
+    {
+        "name": "public-portfolio",
+        "description": "Public portfolio content for external sites",
+    },
     {"name": "linkedin", "description": "LinkedIn integration and job application"},
     {"name": "health", "description": "Application health checks"},
     {"name": "jobs", "description": "Job related operations"},
@@ -133,6 +137,7 @@ from api.routers import (
     portfolio_websites,
     portfolios,
     profiles,
+    public_portfolio,
     resumes,
     webhooks,
 )
@@ -155,6 +160,11 @@ app.include_router(
     portfolio_websites.router,
     prefix=f"{API_V1_PREFIX}",
     tags=["portfolio-websites"],
+)
+app.include_router(
+    public_portfolio.router,
+    prefix=f"{API_V1_PREFIX}",
+    tags=["public-portfolio"],
 )
 app.include_router(
     profiles.router,
