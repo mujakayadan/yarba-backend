@@ -1,7 +1,5 @@
 """Password utility functions."""
 
-from typing import Any
-
 from pwdlib import PasswordHash
 from pwdlib import exceptions as pwd_exceptions
 from pwdlib.hashers.bcrypt import BcryptHasher
@@ -50,21 +48,3 @@ def get_password_hash(password: str) -> str:
         str: Hashed password
     """
     return password_hasher.hash(password)
-
-
-def reset_user_password(_user_obj: Any, new_password: str) -> str | None:
-    """Reset a user's password.
-
-    Args:
-        user_obj: User object
-        new_password: New password
-
-    Returns:
-        Optional[str]: New hashed password or None if error
-    """
-    try:
-        new_hash = get_password_hash(new_password)
-        return new_hash
-    except Exception as e:
-        logger.error(f"Error resetting password: {str(e)}")
-        return None

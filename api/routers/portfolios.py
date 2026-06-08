@@ -75,7 +75,6 @@ class PortfolioUpdate(BaseModel):
     """Portfolio update model."""
 
     profile_id: str | None = None
-    professional_title: str | None = None
     career_summary: CareerSummary | None = None
     skills: list[Skill] | None = None
     work_experience: list[WorkExperience] | None = None
@@ -87,38 +86,6 @@ class PortfolioUpdate(BaseModel):
     custom_sections: CustomSections | None = None
     is_active: bool | None = None
     version: str | None = None
-
-
-class PortfolioItemCreate(BaseModel):
-    """Schema for creating a portfolio item."""
-
-    type: str
-    url: str | None = None
-    bullet_points: list[str] | None = None
-    tags: list[str] | None = None
-    date: str | None = None
-    order: int | None = None
-    is_featured: bool | None = False
-
-    # Work experience fields
-    company: str | None = None
-    location: str | None = None
-
-
-class PortfolioItemUpdate(BaseModel):
-    """Schema for updating a portfolio item."""
-
-    type: str | None = None
-    url: str | None = None
-    bullet_points: list[str] | None = None
-    tags: list[str] | None = None
-    date: str | None = None
-    order: int | None = None
-    is_featured: bool | None = None
-
-    # Work experience fields
-    company: str | None = None
-    location: str | None = None
 
 
 class PortfolioPatchOperation(BaseModel):
@@ -137,7 +104,6 @@ class PortfolioPatchOperation(BaseModel):
     is_active: bool | None = None
     version: str | None = None
     profile_id: str | None = None
-    professional_title: str | None = None
 
 
 @router.get("/", response_model=Portfolio)
@@ -670,36 +636,6 @@ async def delete_portfolio(
             )
 
         await portfolio.delete()
-
-
-@router.delete(
-    "/{portfolio_id}/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT
-)
-async def delete_portfolio_item(
-    _portfolio_id: Annotated[str, Path(..., description="Portfolio ID")],
-    _item_id: Annotated[str, Path(..., description="Portfolio item ID")],
-    _current_user: CurrentActiveUser,
-    _portfolio_repository: PortfolioRepository = Depends(get_portfolio_repository),
-):
-    """Delete a portfolio item.
-
-    Args:
-        portfolio_id: Portfolio ID
-        item_id: Portfolio item ID
-        current_user: Current authenticated user
-        portfolio_repository: Portfolio repository
-
-    Returns:
-        None
-    """
-    # Portfolio sections are embedded on the portfolio document.
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail=(
-            "Portfolio items are embedded in portfolio sections; "
-            "use section endpoints instead."
-        ),
-    )
 
 
 @router.get("/by-profile/{profile_id}", response_model=Portfolio)

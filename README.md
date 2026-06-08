@@ -10,7 +10,7 @@
 [![Python](https://img.shields.io/badge/python-3.12-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-async%20API-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![MongoDB](https://img.shields.io/badge/MongoDB-Beanie%20ODM-47A248?logo=mongodb&logoColor=white)](https://beanie-odm.dev/)
-[![Tests](https://img.shields.io/badge/tests-121-brightgreen?logo=pytest&logoColor=white)](tests/)
+[![Tests](https://img.shields.io/badge/tests-133-brightgreen?logo=pytest&logoColor=white)](tests/)
 [![Ruff](https://img.shields.io/badge/lint-Ruff-D7FF64?logo=ruff&logoColor=black)](https://docs.astral.sh/ruff/)
 [![mypy](https://img.shields.io/badge/types-mypy-2A5DB0)](https://mypy-lang.org/)
 [![License](https://img.shields.io/badge/License-Elastic%202.0-005571)](LICENSE)
@@ -64,7 +64,7 @@ You maintain a **portfolio** — your full career dataset: every role, project, 
 | **Job-aware tailoring** | URL scraping (Playwright) + email-body parsing → job context fed into selection prompts |
 | **Email automation** | Inbound webhooks → parse job from email → generate PDF → deliver via Resend |
 | **Storage abstraction** | Local filesystem or S3 with CloudFront signed URLs; image/PDF validation |
-| **Production hygiene** | GitHub Actions CI, Ruff, mypy, 121 pytest tests, pre-commit hooks, typed Pydantic v2 settings |
+| **Production hygiene** | GitHub Actions CI, Ruff, mypy, 133 pytest tests, pre-commit hooks, typed Pydantic v2 settings |
 
 ---
 

@@ -56,16 +56,10 @@ The LaTeX module should be used through the unified `LatexService` in `core/serv
 ### Example Usage
 
 ```python
-from core.services.latex_service import get_latex_service
+from api.dependencies.services import get_latex_service
+from fastapi import Depends
 
-# Get the LaTeX service with all repositories initialized
-latex_service = get_latex_service()
-
-# Generate LaTeX for a resume
-resume_latex = await latex_service.generate_resume_latex(resume, profile)
-
-# Compile LaTeX to PDF
-pdf_bytes = await latex_service.compile_latex_to_pdf(resume_latex, is_cover_letter=False)
+# In a route, inject via Depends(get_latex_service)
 ```
 
 ### Using Section Processors Directly

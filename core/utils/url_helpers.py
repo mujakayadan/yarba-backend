@@ -35,6 +35,20 @@ def get_api_url(path: str, base_url: str | None = None) -> str:
     return full_url
 
 
+def get_frontend_url(path: str, base_url: str | None = None) -> str:
+    """Build a full frontend URL by combining the base URL and path."""
+    if not path.startswith("/"):
+        path = f"/{path}"
+
+    base_url = base_url or settings.frontend_url
+    if base_url.endswith("/"):
+        base_url = base_url[:-1]
+
+    full_url = f"{base_url}{path}"
+    logger.debug(f"Built frontend URL: {full_url}")
+    return full_url
+
+
 def get_auth_callback_url(action: str) -> str:
     """Get the URL for authentication callback actions.
 
@@ -46,7 +60,6 @@ def get_auth_callback_url(action: str) -> str:
     """
     if action == "verify-email":
         return get_api_url(settings.auth.email_verification_path)
-    elif action == "reset-password":
-        return get_api_url(settings.auth.password_reset_path)
-    else:
-        raise ValueError(f"Unknown authentication action: {action}")
+    if action == "reset-password":
+        return get_frontend_url(settings.auth.password_reset_path)
+    raise ValueError(f"Unknown authentication action: {action}")

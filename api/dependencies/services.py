@@ -248,9 +248,9 @@ def get_cover_letter_generation_service(
         portfolio_repository=portfolio_repo,
         profile_repository=profile_repo,
         resume_repository=resume_repo,
+        latex_service=latex_service,
         llm_service=llm_service,
         prompt_service=prompt_service,
-        latex_service=latex_service,
     )
 
 

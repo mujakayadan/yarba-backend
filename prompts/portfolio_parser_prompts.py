@@ -63,30 +63,3 @@ class MapDocumentToPortfolioPrompt(BasePrompt):
         if not isinstance(document_text, str):
             raise TypeError("document_text must be a str")
         return super().format(document_text=document_text)
-
-
-# Example usage (for testing this prompt class):
-# if __name__ == "__main__":
-#     sample_text_input = """
-# John Doe
-# Software Engineer
-# johndoe@email.com | (555) 123-4567 | linkedin.com/in/johndoe
-#
-# Summary
-# Highly skilled Software Engineer with 5+ years of experience...
-#
-# Experience
-# Tech Solutions Inc. - Senior Software Engineer (Jan 2020 - Present)
-# - Developed and maintained web applications using Python and Django.
-# - Led a team of 3 junior developers.
-#
-# Education
-# University of Advanced Technology - M.S. in Computer Science (2018 - 2020)
-# - GPA: 3.9/4.0
-#
-# Skills
-# Python, Django, JavaScript, React, Docker, AWS
-# """
-#     prompt_instance = MapDocumentToPortfolioPrompt()
-#     formatted_prompt = prompt_instance.format(document_text=sample_text_input)
-#     print(formatted_prompt)

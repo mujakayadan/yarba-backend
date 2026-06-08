@@ -553,7 +553,7 @@ class ProfileService:
                 return None
 
             # Get storage provider
-            from core.services.storage_service import get_storage_provider
+            from utils.storage import get_storage_provider
 
             storage_provider = get_storage_provider()
 
@@ -592,7 +592,7 @@ class ProfileService:
                 return None
 
             # Get storage provider
-            from core.services.storage_service import get_storage_provider
+            from utils.storage import get_storage_provider
 
             storage_provider = get_storage_provider()
 

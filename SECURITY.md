@@ -51,7 +51,7 @@ Out of scope:
 
 ### Network and API hardening
 
-- **CORS** is restricted via `CORS_ORIGINS`; do not set `*` in production.
+- **CORS** is restricted via `API_CORS_ORIGINS`; do not set `*` in production.
 - **Rate limiting** is enabled on API routes, with stricter limits on PDF generation endpoints.
 - Request/response body logging is disabled by default to avoid leaking sensitive data.
 - Inbound webhooks (Resend) should have `RESEND__WEBHOOK_SECRET` set so signatures are verified.

@@ -28,6 +28,7 @@ from core.exceptions.base import (
 )
 from core.models.user import User
 from core.repositories.user_repository import UserRepository
+from core.services.email_clients.resend_client import ResendClient
 from core.utils.object_id import require_object_id
 
 settings = Settings()
@@ -36,13 +37,19 @@ settings = Settings()
 class AuthService:
     """Service for Firebase authentication and user operations."""
 
-    def __init__(self, user_repository: UserRepository | None = None):
+    def __init__(
+        self,
+        user_repository: UserRepository | None = None,
+        resend_client: ResendClient | None = None,
+    ):
         """Initialize the authentication service.
 
         Args:
             user_repository: Repository for accessing user data
+            resend_client: Optional Resend client for auth-related emails
         """
         self.user_repository = user_repository or UserRepository()
+        self.resend_client = resend_client
         self.logger = get_logger(self.__class__.__name__)
 
     async def _resolve_unique_username(self, base_username: str) -> str:
@@ -384,7 +391,7 @@ class AuthService:
             raise
 
     async def send_password_reset_email(self, email: EmailStr) -> bool:
-        """Send a password reset email using Firebase.
+        """Send a password reset email using Firebase and Resend.
 
         Args:
             email: User email
@@ -395,12 +402,31 @@ class AuthService:
         Raises:
             Exception: If email sending fails
         """
+        if self.resend_client is None:
+            raise RuntimeError(
+                "Password reset email is not configured (RESEND__API_KEY missing)"
+            )
+
         try:
             reset_link = await FirebaseAuth.generate_password_reset_link(email)
-            # Here you would typically send the email with the reset_link
-            # For now, we'll just log it
-            self.logger.info(f"Password reset link for {email}: {reset_link}")
-            # In a real application, you would use an email service to send this link
+            subject = "Reset your YARBA password"
+            text = (
+                "Use the link below to reset your password:\n\n"
+                f"{reset_link}\n\n"
+                "If you did not request this, you can ignore this email."
+            )
+            html = (
+                "<p>Use the link below to reset your password:</p>"
+                f'<p><a href="{reset_link}">Reset password</a></p>'
+                "<p>If you did not request this, you can ignore this email.</p>"
+            )
+            await self.resend_client.send_email(
+                to=str(email),
+                subject=subject,
+                text=text,
+                html=html,
+            )
+            self.logger.info("Password reset email sent to %s", email)
             return True
         except Exception as e:
             self.logger.error(f"Failed to send password reset email: {str(e)}")

@@ -289,21 +289,6 @@ class LLMService:
             self.logger.error(f"Error setting model parameters: {e}")
             raise
 
-    async def get_prompt(self, prompt_name: str) -> str:
-        """Get a prompt by name.
-
-        Args:
-            prompt_name: Name of the prompt
-
-        Returns:
-            Formatted prompt text
-
-        Raises:
-            ValueError: If prompt_service is not available
-        """
-        # Removed prompt_service dependency
-        raise ValueError(f"Prompt service not available for: {prompt_name}")
-
     def model_supports_json_mode(self, model: str | None = None) -> bool:
         """Check if the model supports JSON output mode.
 

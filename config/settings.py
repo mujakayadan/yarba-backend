@@ -1040,62 +1040,6 @@ class StorageSettings(BaseSettings):
         return _ensure_directory(Path(v))
 
 
-class SeleniumSettings(BaseSettings):
-    """Selenium / Chrome WebDriver settings."""
-
-    model_config = SettingsConfigDict(
-        env_file=[".env.local", ".env"],
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-        env_prefix="SELENIUM_",
-        extra="ignore",
-    )
-
-    headless: bool = Field(default=True, description="Run Chrome in headless mode")
-    chromedriver_path: str | None = Field(
-        default=None, description="Path to chromedriver executable"
-    )
-    disable_gpu: bool = Field(default=True, description="Disable GPU in Chrome")
-    window_size: str = Field(default="1920,1080", description="Chrome window size")
-    disable_extensions: bool = Field(
-        default=True, description="Disable Chrome extensions"
-    )
-    no_sandbox: bool = Field(default=True, description="Run Chrome with --no-sandbox")
-    disable_dev_shm_usage: bool = Field(
-        default=True, description="Disable /dev/shm usage in Chrome"
-    )
-    connection_timeout: int = Field(default=30, description="Script timeout in seconds")
-    page_load_timeout: int = Field(
-        default=60, description="Page load timeout in seconds"
-    )
-    implicit_wait: int = Field(default=10, description="Implicit wait in seconds")
-    max_retries: int = Field(default=3, description="Max WebDriver init retries")
-    retry_delay: int = Field(default=2, description="Delay between retries in seconds")
-    kill_existing_processes: bool = Field(
-        default=True, description="Kill existing Chrome processes before start"
-    )
-    container_chrome_path: str = Field(
-        default="/usr/bin/google-chrome",
-        description="Chrome binary path in containerized environments",
-    )
-    chrome_profiles_base_dir: Path = Field(
-        default=Path("chrome_profiles"),
-        description="Base directory for per-user Chrome profiles",
-    )
-
-    def get_user_chrome_profile_dir(self, user_id: str) -> Path:
-        """Return the Chrome profile directory for a user."""
-        profile_dir = self.chrome_profiles_base_dir / user_id
-        profile_dir.mkdir(parents=True, exist_ok=True)
-        return profile_dir
-
-    def is_containerized(self) -> bool:
-        """Detect if the app is running in a container."""
-        return Path("/.dockerenv").exists() or os.environ.get(
-            "CONTAINER", ""
-        ).lower() in {"1", "true", "yes"}
-
-
 class PathSettings(BaseSettings):
     """Path settings."""
 
@@ -1190,16 +1134,8 @@ class Settings(BaseSettings):
     resend: ResendSettings = Field(
         default_factory=ResendSettings, description="Resend email settings"
     )
-    selenium: SeleniumSettings = Field(
-        default_factory=SeleniumSettings, description="Selenium settings"
-    )
 
     # Convenience properties
-    @property
-    def chrome_profiles_dir(self) -> Path:
-        """Get base directory for Chrome profiles."""
-        return self.selenium.chrome_profiles_base_dir
-
     @property
     def mongodb_uri(self) -> str:
         """Get MongoDB URI."""

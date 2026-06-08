@@ -14,7 +14,7 @@ from core.repositories.cover_letter_repository import CoverLetterRepository
 from core.repositories.portfolio_repository import PortfolioRepository
 from core.repositories.profile_repository import ProfileRepository
 from core.repositories.resume_repository import ResumeRepository
-from core.services.latex_service import LatexService, get_latex_service
+from core.services.latex_service import LatexService
 from core.services.llm_service import LLMService
 from core.services.prompt_service import PromptService
 from core.utils.object_id import require_object_id
@@ -31,9 +31,9 @@ class CoverLetterGenerationService:
         portfolio_repository: PortfolioRepository,
         profile_repository: ProfileRepository,
         resume_repository: ResumeRepository,
+        latex_service: LatexService,
         llm_service: LLMService | None = None,
         prompt_service: PromptService | None = None,
-        latex_service: LatexService | None = None,
     ):
         """Initialize the cover letter generation service.
 
@@ -67,7 +67,7 @@ class CoverLetterGenerationService:
         )
 
         # Initialize LaTeX service for document generation
-        self.latex_service = latex_service or get_latex_service()
+        self.latex_service = latex_service
 
         self.logger = get_logger(self.__class__.__name__)
 

@@ -15,12 +15,21 @@ from core.repositories import (
     ResumeRepository,
     UserRepository,
 )
+from core.services.email_clients.resend_client import ResendClient
 
 from ..services.auth_service import AuthService
 from .connection import get_async_database_connection
 from .unit_of_work import AsyncMongoUnitOfWork
 
 settings = Settings()
+
+
+def _build_resend_client() -> ResendClient | None:
+    """Return a Resend client when outbound email is configured."""
+    api_key = settings.resend.api_key.get_secret_value()
+    if not api_key:
+        return None
+    return ResendClient(api_key=api_key, from_address=settings.resend.from_address)
 
 
 async def get_database() -> AsyncGenerator[AsyncMongoDatabase, None]:
@@ -107,4 +116,4 @@ async def get_auth_service() -> AsyncGenerator[AuthService, None]:
     Yields:
         AuthService: Authentication service instance
     """
-    yield AuthService()
+    yield AuthService(resend_client=_build_resend_client())

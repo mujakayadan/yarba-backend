@@ -2,7 +2,7 @@
 
 import re
 from datetime import UTC, datetime
-from typing import Any, cast
+from typing import Any
 
 from config.logging_config import get_logger
 from config.settings import Settings
@@ -463,34 +463,3 @@ class LatexService:
 
             self.logger.error(f"Traceback: {traceback.format_exc()}")
             raise InternalServerException(f"Failed to compile LaTeX to PDF: {str(e)}")
-
-
-def get_latex_service() -> LatexService:
-    """Get a new instance of LatexService.
-
-    Returns:
-        LatexService: A new instance of LatexService
-    """
-    # Placeholder: Replace with actual PortfolioService injection
-
-    # Example of manual instantiation (adjust based on your project structure)
-    # db = await get_database() # Assuming async setup if needed elsewhere
-    # user_repo = UserRepository(database=db)
-    # portfolio_repo = PortfolioRepository(database=db)
-    # portfolio_service = PortfolioService(portfolio_repository=portfolio_repo, user_repository=user_repo)
-    # This is likely incorrect and needs proper dependency setup:
-    portfolio_service = None  # <-- Needs real PortfolioService instance!
-    if not portfolio_service:
-        logger.critical(
-            "PortfolioService not injected into get_latex_service! LaTeX generation may fail."
-        )
-
-        # Depending on your DI framework, you might raise an error here or handle it differently
-        # For now, creating a dummy to avoid immediate crash, but this is WRONG:
-        class DummyPortfolioService:
-            async def get_portfolio_by_user_id(self, _user_id):
-                return None
-
-        portfolio_service = DummyPortfolioService()
-
-    return LatexService(portfolio_service=cast(PortfolioService, portfolio_service))
