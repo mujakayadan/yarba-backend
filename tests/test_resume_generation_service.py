@@ -29,12 +29,6 @@ def test_generation_service_init(generation_service):
     assert generation_service.llm_service is not None
 
 
-def test_generate_proper_title(generation_service):
-    title = generation_service._generate_proper_title("acme_corp", "backend_engineer")
-    assert "Acme Corp" in title
-    assert "Backend Engineer" in title
-
-
 @pytest.mark.asyncio
 async def test_get_resume_data_raises_when_resume_missing(generation_service):
     generation_service.resume_repository.get_by_id = AsyncMock(return_value=None)

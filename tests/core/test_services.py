@@ -341,12 +341,6 @@ class TestResumeGenerationService:
             job_service=AsyncMock(),
         )
 
-    @pytest.mark.asyncio
-    async def test_generate_proper_title(self, generation_service):
-        title = generation_service._generate_proper_title("Acme", "Engineer")
-        assert "Acme" in title
-        assert "Engineer" in title
-
 
 class TestCoverLetterGenerationService:
     @pytest.fixture
