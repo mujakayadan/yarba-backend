@@ -8,7 +8,7 @@ resolution-markers = [
 
 [manifest]
 overrides = [
-    { name = "litellm", specifier = ">=1.83.7,<1.87.0" },
+    { name = "litellm", specifier = ">=1.89.0,<1.90.0" },
     { name = "lxml", specifier = ">=6.1.0" },
     { name = "starlette", specifier = ">=0.49.1,<0.51.0" },
 ]
@@ -1380,7 +1380,7 @@ wheels = [
 
 [[package]]
 name = "litellm"
-version = "1.86.3"
+version = "1.89.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -1396,9 +1396,9 @@ dependencies = [
     { name = "tiktoken" },
     { name = "tokenizers" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/95/f0/365958cc375dce88a5b65fb5ada2b957649ffaad2a4b9b295e65b406170b/litellm-1.86.3.tar.gz", hash = "sha256:d3e73394ec25cd80d63dea609179e0c680f3bf34843e967a6aaeaac33bf158c9", size = 15383118, upload-time = "2026-06-03T01:21:24.02Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/86/4b/15d4cb75f054933c1f19bcfd5683e139cdf792099b995ae55916b26094dc/litellm-1.89.0.tar.gz", hash = "sha256:eb1910a23497044b4375a0500c65f4c60d291a575d7b679c7566a5df9b9a5fcb", size = 14062606, upload-time = "2026-06-13T23:45:53.723Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/72/65/1336b928007931fae7e65da43134172e6fd5cdd12dbd162edd278eed458b/litellm-1.86.3-py3-none-any.whl", hash = "sha256:7ddc20e64933d6b5a2f6ce40a3c5f7306d95ad44cc9f3f06d2f6caaa90ecb95f", size = 17016510, upload-time = "2026-06-03T01:21:17.019Z" },
+    { url = "https://files.pythonhosted.org/packages/eb/86/49cf94af8c51cacc15fd9bff1e6f9de1fb07ab10b8bb09961675ab389af4/litellm-1.89.0-py3-none-any.whl", hash = "sha256:63b33e2de386ab2a83fed7ed852c755e59d461a21b16c79fc17993f1b8c3d154", size = 15475805, upload-time = "2026-06-13T23:45:46.037Z" },
 ]
 
 [[package]]
@@ -3142,7 +3142,7 @@ requires-dist = [
     { name = "h11", specifier = "==0.16.0" },
     { name = "jinja2", specifier = ">=3.1.3,<4.0.0" },
     { name = "json-repair", specifier = ">=0.60.1,<0.61.0" },
-    { name = "litellm", specifier = ">=1.83.7,<1.87.0" },
+    { name = "litellm", specifier = ">=1.89.0,<1.90.0" },
     { name = "markdownify", specifier = ">=0.14.1,<0.17.0" },
     { name = "pdfminer-six", specifier = ">=20221105" },
     { name = "pillow", specifier = ">=12.2.0,<13.0.0" },
