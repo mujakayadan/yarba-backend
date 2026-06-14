@@ -14,6 +14,7 @@ from ..models.resume import Resume, ResumeSelectionProjection
 from ..repositories.resume_repository import ResumeRepository
 from ..repositories.user_repository import UserRepository
 from ..services.job_service import JobService
+from ..utils.resume_title import generate_resume_title
 
 logger = get_logger(__name__)
 
@@ -81,39 +82,6 @@ class ResumeService:
             raise ValueError(f"Invalid sort direction: {direction_part} in {sort_by}")
 
         return db_field, direction
-
-    def _generate_proper_title(self, company_name: str, job_title: str) -> str:
-        """Generate a properly formatted title from company_name and job_title.
-
-        Args:
-            company_name: Company name with lowercase and underscores
-            job_title: Job title with lowercase and underscores
-
-        Returns:
-            Properly formatted title
-        """
-        if not company_name and not job_title:
-            return "My Resume"
-
-        # Convert underscores to spaces and capitalize words
-        formatted_company = (
-            " ".join(word.capitalize() for word in company_name.split("_"))
-            if company_name
-            else ""
-        )
-        formatted_job = (
-            " ".join(word.capitalize() for word in job_title.split("_"))
-            if job_title
-            else ""
-        )
-
-        # Combine them with a space if both exist
-        if formatted_company and formatted_job:
-            return f"{formatted_company} {formatted_job}"
-        elif formatted_company:
-            return formatted_company
-        else:
-            return formatted_job
 
     async def get_resume_by_id(
         self, resume_id: PydanticObjectId, user_id: PydanticObjectId
@@ -220,7 +188,7 @@ class ResumeService:
                 # Continue even if extraction fails
 
         # Always generate title from company_name and job_title
-        title = self._generate_proper_title(company_name or "", job_title or "")
+        title = generate_resume_title(company_name or "", job_title or "")
 
         # Create a new resume with required fields
         resume = Resume(
@@ -262,67 +230,46 @@ class ResumeService:
         """
         resume = await self.get_resume_by_id(resume_id, user_id)
 
-        explicit_title = update_data.pop("title", None)
-
-        # Flag to check if any actual update happened that needs saving
         updated_fields = False
+        handled_fields = {
+            "title",
+            "company_name",
+            "job_title",
+            "id",
+            "user_id",
+            "profile_id",
+            "portfolio_id",
+            "created_at",
+            "updated_at",
+        }
 
-        # Check if company_name or job_title are being updated to regenerate title
-        new_company_name = update_data.get("company_name")
-        new_job_title = update_data.get("job_title")
-
-        # Ensure current_company_name and current_job_title have defaults if None
-        current_company_name = resume.company_name or ""
-        current_job_title = resume.job_title or ""
-
-        title_needs_update = False
-        if new_company_name is not None and new_company_name != current_company_name:
-            resume.company_name = new_company_name
-            current_company_name = new_company_name  # update for title generation
-            updated_fields = True
-            title_needs_update = True
-        if new_job_title is not None and new_job_title != current_job_title:
-            resume.job_title = new_job_title
-            current_job_title = new_job_title  # update for title generation
-            updated_fields = True
-            title_needs_update = True
-
-        if title_needs_update:
-            new_title = self._generate_proper_title(
-                current_company_name, current_job_title
-            )
-            if resume.title != new_title:
+        if "title" in update_data:
+            new_title = update_data.pop("title")
+            if new_title is not None and resume.title != new_title:
                 resume.title = new_title
-                self.logger.info(f"Updated title to: {new_title}")
                 updated_fields = True
-        elif explicit_title is not None and resume.title != explicit_title:
-            resume.title = explicit_title
-            self.logger.info(f"Updated title to: {explicit_title}")
-            updated_fields = True
+                self.logger.info(f"Updated title to: {new_title}")
+
+        for field in ("company_name", "job_title"):
+            if field not in update_data:
+                continue
+            new_value = update_data.pop(field)
+            if new_value is not None and getattr(resume, field) != new_value:
+                setattr(resume, field, new_value)
+                updated_fields = True
 
         # Update other resume fields from update_data
         for key, value in update_data.items():
-            # Fields that are handled separately or are protected
-            protected_or_handled_fields = [
-                "company_name",  # Handled above for title generation
-                "job_title",  # Handled above for title generation
-                "id",
-                "user_id",
-                "profile_id",
-                "portfolio_id",
-                "created_at",
-                "updated_at",  # This will be set explicitly if updated_fields is true
-                "title",  # Regenerated, not set directly
-            ]
-            if key not in protected_or_handled_fields:
-                if hasattr(resume, key):
-                    if getattr(resume, key) != value:
-                        setattr(resume, key, value)
-                        updated_fields = True
-                else:
-                    self.logger.warning(
-                        f"Attempted to update non-existent field '{key}' on resume {resume_id}"
-                    )
+            if key in handled_fields:
+                continue
+            if hasattr(resume, key):
+                if getattr(resume, key) != value:
+                    setattr(resume, key, value)
+                    updated_fields = True
+            else:
+                self.logger.warning(
+                    f"Attempted to update non-existent field '{key}' on resume {resume_id}"
+                )
 
         if updated_fields:
             # Explicitly update updated_at timestamp

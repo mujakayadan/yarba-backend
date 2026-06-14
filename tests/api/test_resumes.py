@@ -91,6 +91,7 @@ async def test_update_resume(
     assert body["id"] == str(test_resume.id)
     assert body["job_title"] == "Staff Engineer"
     assert body["company_name"] == "Acme Corp"
+    assert body["title"] == test_resume.title
 
 
 @pytest.mark.asyncio

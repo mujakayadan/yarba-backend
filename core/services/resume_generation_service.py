@@ -78,39 +78,6 @@ class ResumeGenerationService:
 
         self.logger = get_logger(self.__class__.__name__)
 
-    def _generate_proper_title(self, company_name: str, job_title: str) -> str:
-        """Generate a properly formatted title from company_name and job_title.
-
-        Args:
-            company_name: Company name with lowercase and underscores
-            job_title: Job title with lowercase and underscores
-
-        Returns:
-            Properly formatted title
-        """
-        if not company_name and not job_title:
-            return "My Resume"
-
-        # Convert underscores to spaces and capitalize words
-        formatted_company = (
-            " ".join(word.capitalize() for word in company_name.split("_"))
-            if company_name
-            else ""
-        )
-        formatted_job = (
-            " ".join(word.capitalize() for word in job_title.split("_"))
-            if job_title
-            else ""
-        )
-
-        # Combine them with a space if both exist
-        if formatted_company and formatted_job:
-            return f"{formatted_company} {formatted_job}"
-        elif formatted_company:
-            return formatted_company
-        else:
-            return formatted_job
-
     async def configure_for_user(self, user_id: PydanticObjectId) -> None:
         """Configure the service for a specific user.
 
