@@ -262,10 +262,7 @@ class ResumeService:
         """
         resume = await self.get_resume_by_id(resume_id, user_id)
 
-        # Remove title from update_data if present - title should never be directly set
-        # and is handled by company_name/job_title changes.
-        if "title" in update_data:
-            del update_data["title"]
+        explicit_title = update_data.pop("title", None)
 
         # Flag to check if any actual update happened that needs saving
         updated_fields = False
@@ -298,6 +295,10 @@ class ResumeService:
                 resume.title = new_title
                 self.logger.info(f"Updated title to: {new_title}")
                 updated_fields = True
+        elif explicit_title is not None and resume.title != explicit_title:
+            resume.title = explicit_title
+            self.logger.info(f"Updated title to: {explicit_title}")
+            updated_fields = True
 
         # Update other resume fields from update_data
         for key, value in update_data.items():

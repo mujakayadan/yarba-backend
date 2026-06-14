@@ -41,6 +41,7 @@ class ResumeCreate(BaseModel):
 class ResumeUpdate(BaseModel):
     """Schema for resume update."""
 
+    title: str | None = Field(None, description="Resume title")
     job_title: str | None = Field(None, description="Job title")
     company_name: str | None = Field(None, description="Company name")
     job_description: str | None = Field(None, description="Job description")

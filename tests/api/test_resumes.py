@@ -94,6 +94,25 @@ async def test_update_resume(
 
 
 @pytest.mark.asyncio
+async def test_update_resume_title_only(
+    async_client: AsyncClient, auth_headers: dict, test_resume: Resume
+):
+    """Test updating only the resume title without changing company or job title."""
+    new_title = "MBN Industrial Applied Ai Computer Vision Engineer"
+    response = await async_client.put(
+        f"/api/v1/resumes/{test_resume.id}",
+        json={"title": new_title},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    body = response.json()
+    assert body["title"] == new_title
+    assert body["job_title"] == test_resume.job_title
+    assert body["company_name"] == test_resume.company_name
+
+
+@pytest.mark.asyncio
 async def test_update_resume_not_found(async_client: AsyncClient, auth_headers: dict):
     """Test updating a non-existent resume."""
     missing_id = PydanticObjectId()
