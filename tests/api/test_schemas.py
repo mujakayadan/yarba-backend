@@ -83,12 +83,14 @@ def test_resume_create_valid():
 
 def test_resume_update_valid():
     request = ResumeUpdate(
+        title="Acme Corp Software Engineer",
         job_title="Software Engineer",
         company_name="Tech Company",
         job_description="A job description",
         content={"summary": "Experienced developer"},
     )
 
+    assert request.title == "Acme Corp Software Engineer"
     assert request.job_title == "Software Engineer"
     assert request.company_name == "Tech Company"
     assert request.job_description == "A job description"
