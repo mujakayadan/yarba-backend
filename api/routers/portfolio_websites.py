@@ -117,8 +117,7 @@ async def get_portfolio_website(
     )
 
     if not website:
-        # Cache for longer when no website exists
-        response.headers["Cache-Control"] = "private, max-age=60"
+        response.headers["Cache-Control"] = "private, no-store"
         return None
 
     # Add caching headers based on deployment status
