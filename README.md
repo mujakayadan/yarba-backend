@@ -6,7 +6,7 @@
 
 *Portfolio-first resume generation — the LLM selects from your real experience, it never invents it.*
 
-[![CI](https://github.com/mucahitkayadan/yarba-backend/actions/workflows/ci.yml/badge.svg)](https://github.com/mucahitkayadan/yarba-backend/actions/workflows/ci.yml)
+[![CI](https://github.com/mujakayadan/yarba-backend/actions/workflows/ci.yml/badge.svg)](https://github.com/mujakayadan/yarba-backend/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.12-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-async%20API-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![MongoDB](https://img.shields.io/badge/MongoDB-Beanie%20ODM-47A248?logo=mongodb&logoColor=white)](https://beanie-odm.dev/)
@@ -198,7 +198,7 @@ docker build -f Dockerfile.base -t yarba-base .
 docker build --build-arg BASE_IMAGE=yarba-base -t yarba-backend .
 ```
 
-**DigitalOcean App Platform** uses the slim root `Dockerfile` on top of `ghcr.io/mucahitkayadan/yarba-backend-base`. After changing `Dockerfile.base`, `pyproject.toml`, or `uv.lock`, GitHub Actions rebuilds the base image; routine app pushes only copy source (~1–2 min). First-time setup: run **Actions → Build base image → Run workflow**, make the GHCR package public (or add GHCR credentials in App Platform), then deploy.
+**DigitalOcean App Platform** uses the slim root `Dockerfile` on top of `ghcr.io/mujakayadan/yarba-backend-base`. After changing `Dockerfile.base`, `pyproject.toml`, or `uv.lock`, GitHub Actions rebuilds the base image; routine app pushes only copy source (~1–2 min). First-time setup: run **Actions → Build base image → Run workflow**, make the GHCR package public (or add GHCR credentials in App Platform), then deploy.
 
 ---
 
@@ -219,6 +219,6 @@ Source is available under the [Elastic License 2.0](LICENSE). You may use, modif
 
 <div align="center">
 
-Built by [Muja Kayadan](https://github.com/mucahitkayadan)
+Built by [Muja Kayadan](https://github.com/mujakayadan)
 
 </div>

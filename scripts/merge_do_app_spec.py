@@ -13,7 +13,7 @@ JOBS_BLOCK = """jobs:
   github:
     branch: main
     deploy_on_push: true
-    repo: mucahitkayadan/yarba-backend
+    repo: mujakayadan/yarba-backend
   instance_size_slug: apps-s-1vcpu-0.5gb
   kind: PRE_DEPLOY
   name: db-migrate

@@ -7,7 +7,7 @@
 #
 # DigitalOcean pulls the published base from GHCR (public package, or add GHCR credentials in App settings).
 
-ARG BASE_IMAGE=ghcr.io/mucahitkayadan/yarba-backend-base:latest
+ARG BASE_IMAGE=ghcr.io/mujakayadan/yarba-backend-base:latest
 FROM ${BASE_IMAGE}
 
 WORKDIR /app
