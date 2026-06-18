@@ -5,9 +5,11 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, HttpUrl
 
+from api.dependencies.auth import require_scopes
 from api.dependencies.services import get_job_service
 from config.logging_config import get_logger
 from core.models.job_extractor import JobDetails
+from core.models.user import AuthenticatedUser
 from core.services.job_service import JobService
 
 router = APIRouter(
@@ -29,6 +31,9 @@ class JobExtractionRequest(BaseModel):
 async def extract_job_details(
     url: Annotated[
         HttpUrl, Query(description="URL of the job posting to extract details from.")
+    ],
+    _current_user: Annotated[
+        AuthenticatedUser, Depends(require_scopes("jobs:extract"))
     ],
     job_service: JobService = Depends(get_job_service),
 ):

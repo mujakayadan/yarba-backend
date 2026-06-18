@@ -256,6 +256,20 @@ class GenericExtractor(BaseExtractor):
                     )
             else:
                 logger.info(f"Skipping network idle wait for {job_url} (domain config)")
+                if "myworkdayjobs.com" in job_url:
+                    try:
+                        await page.wait_for_selector(
+                            '[data-automation-id="jobPostingDescription"]',
+                            timeout=navigation_timeout,
+                            state="visible",
+                        )
+                        await page.wait_for_timeout(2000)
+                    except Exception as e:
+                        logger.warning(
+                            "Workday posting description wait timed out for %s: %s",
+                            job_url,
+                            e,
+                        )
 
             # First handle cookie consent
             await self.handle_cookie_consent(page)

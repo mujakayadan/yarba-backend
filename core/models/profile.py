@@ -12,6 +12,7 @@ from core.models.document_config import (
     DOCUMENT_MODEL_CONFIG,
     NESTED_MODEL_CONFIG,
 )
+from core.schemas.application_preferences import ApplicationPreferences
 
 from .user import User
 
@@ -273,6 +274,19 @@ class Profile(Document):
     system_preferences: SystemPreferences = Field(
         default_factory=SystemPreferences,
         description="System-related preferences for UI, features, etc.",
+    )
+
+    application_preferences: ApplicationPreferences = Field(
+        default_factory=ApplicationPreferences,
+        description="Job application eligibility, logistics, and consent settings",
+    )
+    demographics_encrypted: str | None = Field(
+        default=None,
+        description="Fernet ciphertext of Demographics JSON; special-category PII",
+    )
+    apply_credentials_encrypted: str | None = Field(
+        default=None,
+        description="Fernet ciphertext of careers-site login password for apply automation",
     )
 
     # LLM usage tracking

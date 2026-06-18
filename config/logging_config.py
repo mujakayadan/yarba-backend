@@ -51,6 +51,14 @@ def configure_logging() -> None:
     logging.getLogger("boto3").setLevel(logging.WARNING)
     logging.getLogger("botocore").setLevel(logging.WARNING)
     logging.getLogger("botocore.hooks").setLevel(logging.WARNING)
+    for noisy_logger in (
+        "LiteLLM",
+        "litellm",
+        "litellm.utils",
+        "httpx",
+        "httpcore",
+    ):
+        logging.getLogger(noisy_logger).setLevel(logging.WARNING)
 
     # Set DEBUG level for LaTeX-related operations
     logging.getLogger("core.latex").setLevel(logging.DEBUG)

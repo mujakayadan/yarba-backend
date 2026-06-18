@@ -6,6 +6,7 @@ from core.models.job_extractor import JobDetails
 from .extractors.crawl4ai_extractor import Crawl4AIExtractor
 from .extractors.generic_extractor import GenericExtractor
 from .extractors.linkedin_extractor import LinkedInExtractor
+from .url_utils import job_posting_url_for_extraction
 
 # Configure basic logging
 logging.basicConfig(
@@ -65,20 +66,29 @@ class ExtractorManager:
         """
         parsed_url = urlparse(job_url)
         domain = parsed_url.netloc.lower()
+        extraction_url = job_posting_url_for_extraction(job_url)
+        if extraction_url != job_url:
+            logger.info("Normalized extraction URL: %s -> %s", job_url, extraction_url)
 
         logger.info(f"Received job URL: {job_url} (Domain: {domain})")
 
         # LinkedIn gets special handling due to its specific requirements
         if "linkedin.com" in domain:
             logger.info("LinkedIn URL detected. Using LinkedInExtractor...")
-            return await self.linkedin_extractor.scrape_job_posting(job_url)
+            result = await self.linkedin_extractor.scrape_job_posting(job_url)
+            if result and result.description:
+                return result
+            logger.warning(
+                "LinkedInExtractor failed for %s; trying GenericExtractor fallback...",
+                job_url,
+            )
 
         # For all other domains, use GenericExtractor as the primary extractor
         logger.info(
             f"Using GenericExtractor as primary extractor for domain: {domain}..."
         )
         try:
-            result = await self.generic_extractor.scrape_job_posting(job_url)
+            result = await self.generic_extractor.scrape_job_posting(extraction_url)
             if result:
                 logger.info(f"GenericExtractor successfully extracted from {domain}")
                 return result
@@ -92,7 +102,9 @@ class ExtractorManager:
         if self.use_crawl4ai_fallback:
             logger.info(f"Using Crawl4AIExtractor as fallback for domain: {domain}...")
             try:
-                result = await self.crawl4ai_extractor.scrape_job_posting(job_url)
+                result = await self.crawl4ai_extractor.scrape_job_posting(
+                    extraction_url
+                )
                 if result:
                     logger.info(
                         f"Crawl4AIExtractor successfully extracted from {domain} as fallback"

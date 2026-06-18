@@ -7,6 +7,7 @@ from fastapi import Depends
 
 from core.database.factory import (
     get_cover_letter_repository,
+    get_job_application_repository,
     get_portfolio_repository,
     get_portfolio_site_token_repository,
     get_profile_repository,
@@ -14,6 +15,8 @@ from core.database.factory import (
     get_user_repository,
 )
 from core.job_extractor.extract_job import JobExtractor
+from core.repositories.cover_letter_repository import CoverLetterRepository
+from core.repositories.job_application_repository import JobApplicationRepository
 from core.repositories.portfolio_repository import PortfolioRepository
 from core.repositories.portfolio_site_token_repository import (
     PortfolioSiteTokenRepository,
@@ -22,6 +25,7 @@ from core.repositories.portfolio_website_repository import PortfolioWebsiteRepos
 from core.repositories.profile_repository import ProfileRepository
 from core.repositories.resume_repository import ResumeRepository
 from core.repositories.user_repository import UserRepository
+from core.services.application_profile_service import ApplicationProfileService
 from core.services.aws_deployment_service import AWSDeploymentService
 from core.services.cover_letter_generation_service import CoverLetterGenerationService
 from core.services.cover_letter_service import CoverLetterService
@@ -29,6 +33,7 @@ from core.services.email_resume_service import (
     EmailResumeService,
     build_email_resume_service,
 )
+from core.services.job_application_service import JobApplicationService
 from core.services.job_service import JobService
 from core.services.latex_service import LatexService
 from core.services.llm_service import LLMService
@@ -317,3 +322,49 @@ async def get_portfolio_website_service(
 def get_email_resume_service() -> EmailResumeService:
     """Get the email-to-resume orchestration service."""
     return build_email_resume_service()
+
+
+def get_application_profile_service(
+    resume_repo: ResumeRepository = Depends(get_resume_repository),
+    profile_repo: ProfileRepository = Depends(get_profile_repository),
+    cover_letter_repo: CoverLetterRepository = Depends(get_cover_letter_repository),
+) -> ApplicationProfileService:
+    """Get the application profile assembly service."""
+    return ApplicationProfileService(
+        resume_repository=resume_repo,
+        profile_repository=profile_repo,
+        cover_letter_repository=cover_letter_repo,
+    )
+
+
+def get_job_application_service(
+    application_repo: JobApplicationRepository = Depends(
+        get_job_application_repository
+    ),
+    application_profile_service: ApplicationProfileService = Depends(
+        get_application_profile_service
+    ),
+    profile_repo: ProfileRepository = Depends(get_profile_repository),
+    portfolio_repo: PortfolioRepository = Depends(get_portfolio_repository),
+    resume_service: ResumeService = Depends(get_resume_service),
+    resume_generation_service: ResumeGenerationService = Depends(
+        get_resume_generation_service
+    ),
+    job_service: JobService = Depends(get_job_service),
+    cover_letter_service: CoverLetterService = Depends(get_cover_letter_service),
+    cover_letter_generation_service: CoverLetterGenerationService = Depends(
+        get_cover_letter_generation_service
+    ),
+) -> JobApplicationService:
+    """Get the job application service."""
+    return JobApplicationService(
+        application_repository=application_repo,
+        application_profile_service=application_profile_service,
+        profile_repository=profile_repo,
+        portfolio_repository=portfolio_repo,
+        resume_service=resume_service,
+        resume_generation_service=resume_generation_service,
+        job_service=job_service,
+        cover_letter_service=cover_letter_service,
+        cover_letter_generation_service=cover_letter_generation_service,
+    )

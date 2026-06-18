@@ -25,8 +25,10 @@ from pymongo import AsyncMongoClient
 from config.logging_config import get_logger
 from config.settings import Settings
 from core.database.types import AsyncMongoClientType
+from core.models.agent_access_token import AgentAccessToken
 from core.models.cover_letter import CoverLetter
 from core.models.inbound_email import InboundEmail
+from core.models.job_application import JobApplication
 from core.models.portfolio import Portfolio
 from core.models.portfolio_site_token import PortfolioSiteToken
 from core.models.portfolio_website import PortfolioWebsite
@@ -79,6 +81,8 @@ async def init_db() -> AsyncMongoClientType | None:
             Profile,
             Portfolio,
             PortfolioSiteToken,
+            AgentAccessToken,
+            JobApplication,
             PortfolioWebsite,
             InboundEmail,
             UnknownEmailSender,

@@ -90,14 +90,14 @@ class Crawl4AIExtractor(BaseExtractor):
         # Configure browser for Crawl4AI
         browser_config = BrowserConfig(
             headless=self.headless,
-            verbose=True,
+            verbose=False,
             browser_type="chromium",
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
         )
 
         # Get the extraction schema
         schema = self._get_job_description_schema(url)
-        extraction_strategy = JsonCssExtractionStrategy(schema, verbose=True)
+        extraction_strategy = JsonCssExtractionStrategy(schema, verbose=False)
 
         # Configure wait condition based on domain
         wait_for_condition = (

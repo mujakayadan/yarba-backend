@@ -1,6 +1,6 @@
 """Authentication middleware for FastAPI."""
 
-from datetime import UTC
+from datetime import UTC, datetime
 from typing import Annotated, cast
 
 import jwt
@@ -13,7 +13,10 @@ from config import get_logger, settings
 from core.auth.firebase import FirebaseAuth
 from core.database.factory import get_user_repository
 from core.models.user import AuthenticatedUser, User
+from core.repositories.agent_access_token_repository import AgentAccessTokenRepository
 from core.repositories.user_repository import UserRepository
+from core.utils.agent_access_token import TOKEN_PREFIX
+from core.utils.object_id import require_object_id
 
 logger = get_logger(__name__)
 security = HTTPBearer(auto_error=False)
@@ -46,6 +49,37 @@ async def verify_token(
 
     token = credentials.credentials
 
+    if token.startswith(TOKEN_PREFIX):
+        repo = AgentAccessTokenRepository()
+        record = await repo.get_active_by_raw_token(token)
+        if record is None:
+            logger.warning(f"Invalid agent token used for {request.url.path}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid agent token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        if record.expires_at is not None:
+            expires_at = record.expires_at
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=UTC)
+            if expires_at < datetime.now(UTC):
+                logger.warning(f"Expired agent token used for {request.url.path}")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Expired agent token",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+        await repo.touch_last_used(require_object_id(record.id))
+        request.state.auth_token_type = "pat"
+        request.state.auth_scopes = record.scopes
+        logger.debug(f"Agent token verified for user {record.user_id}")
+        return {
+            "token_type": "pat",
+            "user_id": str(record.user_id),
+            "scopes": record.scopes,
+        }
+
     # Try to determine the token type
     try:
         # First, attempt to process as a regular JWT
@@ -57,6 +91,8 @@ async def verify_token(
 
         # If successful, it's a JWT
         payload["token_type"] = "jwt"
+        request.state.auth_token_type = "jwt"
+        request.state.auth_scopes = None
         logger.debug(f"JWT token verified for user {payload.get('sub')}")
         return dict(payload)
 
@@ -68,6 +104,8 @@ async def verify_token(
 
             # Add a type field to distinguish in the current_user dependency
             firebase_payload["token_type"] = "firebase"
+            request.state.auth_token_type = "firebase"
+            request.state.auth_scopes = None
 
             # Log successful token verification
             logger.debug(
@@ -135,8 +173,24 @@ async def get_current_user(
             return cast(AuthenticatedUser, test_user)
 
     # Normal authentication flow
-    # Handle different token types
     token_type = payload.get("token_type", "jwt")
+
+    if token_type == "pat":
+        user_id = payload.get("user_id")
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid agent token payload",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        user = await user_repo.get_by_id(user_id)
+        if user is None or not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found or inactive",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return cast(AuthenticatedUser, user)
 
     if token_type == "firebase":
         # Extract user email from Firebase token
@@ -247,6 +301,28 @@ async def get_current_active_superuser(
         )
 
     return current_user
+
+
+def require_scopes(*required: str):
+    """Dependency factory: enforce PAT scopes. Human JWT/Firebase = full access."""
+
+    async def _dep(
+        request: Request,
+        user: AuthenticatedUser = Depends(get_current_user),
+    ) -> AuthenticatedUser:
+        token_type = getattr(request.state, "auth_token_type", "jwt")
+        if token_type != "pat":
+            return user
+        granted = set(getattr(request.state, "auth_scopes", []) or [])
+        missing = set(required) - granted
+        if missing:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Token missing required scopes: {sorted(missing)}",
+            )
+        return user
+
+    return _dep
 
 
 # Type aliases for dependency injection

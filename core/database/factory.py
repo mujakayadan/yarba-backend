@@ -8,7 +8,9 @@ from collections.abc import AsyncGenerator
 from config.settings import Settings
 from core.database.types import AsyncMongoDatabase
 from core.repositories import (
+    AgentAccessTokenRepository,
     CoverLetterRepository,
+    JobApplicationRepository,
     PortfolioRepository,
     PortfolioSiteTokenRepository,
     ProfileRepository,
@@ -78,6 +80,20 @@ async def get_portfolio_site_token_repository() -> AsyncGenerator[
 ]:
     """Get a portfolio site token repository."""
     yield PortfolioSiteTokenRepository()
+
+
+async def get_agent_access_token_repository() -> AsyncGenerator[
+    AgentAccessTokenRepository, None
+]:
+    """Get an agent access token repository."""
+    yield AgentAccessTokenRepository()
+
+
+async def get_job_application_repository() -> AsyncGenerator[
+    JobApplicationRepository, None
+]:
+    """Get a job application repository."""
+    yield JobApplicationRepository()
 
 
 async def get_resume_repository() -> AsyncGenerator[ResumeRepository, None]:

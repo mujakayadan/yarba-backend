@@ -1,11 +1,12 @@
 """Profile router for the API."""
 
+from datetime import UTC, datetime
 from typing import Annotated
 
 from beanie import PydanticObjectId
 from bson import ObjectId
 from fastapi import APIRouter, Depends, File, HTTPException, Path, UploadFile, status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from api.dependencies.auth import CurrentActiveUser
 from api.dependencies.services import get_profile_service
@@ -28,6 +29,13 @@ from core.models.profile import (
     Profile,
     PromptPreferences,
     SystemPreferences,
+)
+from core.schemas.application_preferences import (
+    ApplicationPreferences,
+    DemographicConsent,
+    Demographics,
+    LogisticsPreferences,
+    WorkEligibility,
 )
 from core.services.profile_service import ProfileService
 from core.utils.object_id import require_object_id
@@ -988,3 +996,217 @@ async def update_my_system_preferences(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update system preferences: {str(e)}",
         )
+
+
+class ApplicationPreferencesUpdate(BaseModel):
+    """Update eligibility and logistics preferences."""
+
+    work_eligibility: WorkEligibility | None = None
+    logistics: LogisticsPreferences | None = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class DemographicConsentUpdate(BaseModel):
+    consented: bool
+
+    model_config = ConfigDict(extra="forbid")
+
+
+@router.get("/me/application-preferences", response_model=ApplicationPreferences)
+async def get_application_preferences(
+    current_user: CurrentActiveUser,
+    profile_service: ProfileService = Depends(get_profile_service),
+) -> ApplicationPreferences:
+    profile = await profile_service.get_profile_by_user_id(current_user.id)
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found"
+        )
+    return profile.application_preferences
+
+
+@router.put("/me/application-preferences", response_model=ApplicationPreferences)
+async def update_application_preferences(
+    body: ApplicationPreferencesUpdate,
+    current_user: CurrentActiveUser,
+    profile_service: ProfileService = Depends(get_profile_service),
+) -> ApplicationPreferences:
+    profile = await profile_service.get_profile_by_user_id(current_user.id)
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found"
+        )
+    prefs = profile.application_preferences
+    if body.work_eligibility is not None:
+        prefs.work_eligibility = body.work_eligibility
+    if body.logistics is not None:
+        prefs.logistics = body.logistics
+    profile.application_preferences = prefs
+    profile.updated_at = datetime.now(UTC)
+    await profile.save()
+    return profile.application_preferences
+
+
+@router.put(
+    "/me/application-preferences/consent", response_model=ApplicationPreferences
+)
+async def update_demographic_consent(
+    body: DemographicConsentUpdate,
+    current_user: CurrentActiveUser,
+    profile_service: ProfileService = Depends(get_profile_service),
+) -> ApplicationPreferences:
+    profile = await profile_service.get_profile_by_user_id(current_user.id)
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found"
+        )
+    consent = profile.application_preferences.demographic_consent
+    consent.consented = body.consented
+    consent.consented_at = datetime.now(UTC) if body.consented else None
+    profile.application_preferences.demographic_consent = consent
+    profile.updated_at = datetime.now(UTC)
+    await profile.save()
+    return profile.application_preferences
+
+
+@router.put("/me/application-preferences/demographics", response_model=Demographics)
+async def update_demographics(
+    body: Demographics,
+    current_user: CurrentActiveUser,
+    profile_service: ProfileService = Depends(get_profile_service),
+) -> Demographics:
+    from core.utils.field_encryption import FieldEncryptionError, encrypt_json
+
+    profile = await profile_service.get_profile_by_user_id(current_user.id)
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found"
+        )
+    if not profile.application_preferences.demographic_consent.consented:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Demographic consent is required before storing EEO data",
+        )
+    try:
+        profile.demographics_encrypted = encrypt_json(body.model_dump(mode="json"))
+    except FieldEncryptionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    profile.updated_at = datetime.now(UTC)
+    await profile.save()
+    return body
+
+
+@router.get("/me/application-preferences/demographics", response_model=Demographics)
+async def get_demographics(
+    current_user: CurrentActiveUser,
+    profile_service: ProfileService = Depends(get_profile_service),
+) -> Demographics:
+    from core.utils.field_encryption import decrypt_json
+
+    profile = await profile_service.get_profile_by_user_id(current_user.id)
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found"
+        )
+    if not profile.demographics_encrypted:
+        return Demographics()
+    data = decrypt_json(profile.demographics_encrypted)
+    return Demographics.model_validate(data)
+
+
+@router.delete(
+    "/me/application-preferences/demographics",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_demographics(
+    current_user: CurrentActiveUser,
+    profile_service: ProfileService = Depends(get_profile_service),
+) -> None:
+    profile = await profile_service.get_profile_by_user_id(current_user.id)
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found"
+        )
+    profile.demographics_encrypted = None
+    profile.application_preferences.demographic_consent = DemographicConsent()
+    profile.updated_at = datetime.now(UTC)
+    await profile.save()
+
+
+class ApplyCredentialsUpdate(BaseModel):
+    """Store a careers-site password for automated apply flows."""
+
+    password: str = Field(..., min_length=8, max_length=128)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ApplyCredentialsStatus(BaseModel):
+    configured: bool
+
+    model_config = ConfigDict(extra="forbid")
+
+
+@router.get(
+    "/me/application-preferences/apply-credentials",
+    response_model=ApplyCredentialsStatus,
+)
+async def get_apply_credentials_status(
+    current_user: CurrentActiveUser,
+    profile_service: ProfileService = Depends(get_profile_service),
+) -> ApplyCredentialsStatus:
+    profile = await profile_service.get_profile_by_user_id(current_user.id)
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found"
+        )
+    return ApplyCredentialsStatus(configured=bool(profile.apply_credentials_encrypted))
+
+
+@router.put(
+    "/me/application-preferences/apply-credentials",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def update_apply_credentials(
+    body: ApplyCredentialsUpdate,
+    current_user: CurrentActiveUser,
+    profile_service: ProfileService = Depends(get_profile_service),
+) -> None:
+    from core.utils.field_encryption import FieldEncryptionError, encrypt_json
+
+    profile = await profile_service.get_profile_by_user_id(current_user.id)
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found"
+        )
+    try:
+        profile.apply_credentials_encrypted = encrypt_json({"password": body.password})
+    except FieldEncryptionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    profile.updated_at = datetime.now(UTC)
+    await profile.save()
+
+
+@router.delete(
+    "/me/application-preferences/apply-credentials",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_apply_credentials(
+    current_user: CurrentActiveUser,
+    profile_service: ProfileService = Depends(get_profile_service),
+) -> None:
+    profile = await profile_service.get_profile_by_user_id(current_user.id)
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found"
+        )
+    profile.apply_credentials_encrypted = None
+    profile.updated_at = datetime.now(UTC)
+    await profile.save()

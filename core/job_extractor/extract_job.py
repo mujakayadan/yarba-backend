@@ -26,7 +26,11 @@ class JobExtractor:
             headless: Whether to run the browser in headless mode.
             fast_mode: Whether to use faster scraping with shorter timeouts (applies to GenericExtractor).
         """
-        self.manager = ExtractorManager(headless=headless, fast_mode=fast_mode)
+        self.manager = ExtractorManager(
+            headless=headless,
+            fast_mode=fast_mode,
+            use_crawl4ai_fallback=True,
+        )
 
     async def extract_from_url(self, url: str) -> JobDetails | None:
         """Extract job details from a URL.

@@ -184,6 +184,18 @@ DOMAIN_CONFIGS: dict[str, DomainSelectorConfig] = {
         wait_for_network_idle=True,
         requires_javascript=True,
     ),
+    # Workday (Intel, etc.)
+    "myworkdayjobs.com": DomainSelectorConfig(
+        selectors=[
+            '[data-automation-id="jobPostingDescription"]',
+            '[data-automation-id="jobPostingPage"]',
+            "div[data-automation-id='jobPostingDescription']",
+            '[data-automation-id="jobDescriptionText"]',
+        ],
+        timeout_seconds=30,
+        wait_for_network_idle=False,
+        requires_javascript=True,
+    ),
 }
 
 # Generic fallback selectors (used when domain is not recognized)

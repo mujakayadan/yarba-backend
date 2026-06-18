@@ -9,6 +9,7 @@ from core.models.user import AuthenticatedUser
 from ..middleware.auth import (
     get_current_active_user,
     get_current_user,
+    require_scopes,
 )
 
 # Type annotations for dependency injection
@@ -21,4 +22,5 @@ __all__ = [
     "CurrentUser",
     "get_current_active_user",
     "get_current_user",
+    "require_scopes",
 ]

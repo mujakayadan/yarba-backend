@@ -3,10 +3,8 @@
 from beanie import PydanticObjectId
 from pymongo.errors import DuplicateKeyError
 
-from api.schemas.resume import ResumeUpdate
 from config.logging_config import get_logger
 from config.settings import settings
-from core.exceptions.base import InternalServerException
 from core.job_extractor.extract_job import JobExtractor
 from core.models.inbound_email import InboundEmail
 from core.models.resume import Resume
@@ -30,7 +28,6 @@ from core.services.resume_service import ResumeService
 from core.utils.email_body_parser import extract_job_description
 from core.utils.object_id import require_object_id
 from core.utils.resume_pdf_filename import build_resume_pdf_filename
-from utils.storage import get_storage_provider
 
 logger = get_logger(__name__)
 
@@ -208,44 +205,19 @@ class EmailResumeService:
         job_description: str,
         profile,
     ) -> tuple[Resume, bytes]:
-        resume = await self.resume_service.create_resume(
+        from core.services.resume_with_pdf_orchestrator import create_resume_with_pdf
+
+        resume, pdf_bytes = await create_resume_with_pdf(
             user_id=user_id,
             profile_id=profile_id,
             portfolio_id=portfolio_id,
             job_description=job_description,
+            job_description_url=None,
+            profile=profile,
+            resume_service=self.resume_service,
+            resume_generation_service=self.resume_generation_service,
         )
-        await self.resume_generation_service.generate_resume_textual_content(
-            resume_id=require_object_id(resume.id)
-        )
-        resume_with_content = await self.resume_service.get_resume_by_id(
-            require_object_id(resume.id), user_id
-        )
-        if not resume_with_content or not resume_with_content.content:
-            raise InternalServerException(
-                f"Failed to populate resume content for {resume.id}"
-            )
-
-        pdf_bytes = await self.resume_generation_service.compile_pdf(
-            resume_with_content, profile
-        )
-        if not pdf_bytes:
-            raise InternalServerException(
-                f"Failed to compile PDF for resume {resume.id}"
-            )
-
-        storage_provider = get_storage_provider()
-        pdf_key = await storage_provider.save_resume_pdf(pdf_bytes, str(resume.id))
-        update_data = ResumeUpdate(resume_pdf_key=pdf_key)
-        updated = await self.resume_service.update_resume(
-            resume_id=require_object_id(resume.id),
-            user_id=user_id,
-            update_data=update_data.model_dump(exclude_unset=True),
-        )
-        if not updated:
-            raise InternalServerException(
-                f"Failed to update resume {resume.id} with PDF key"
-            )
-        return updated, pdf_bytes
+        return resume, pdf_bytes
 
     async def _handle_unknown_sender(
         self, sender: str, subject: str, email_id: str

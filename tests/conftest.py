@@ -34,8 +34,10 @@ from api.dependencies.services import (
 from api.main import app as fastapi_app
 from api.middleware.auth import get_current_user
 from core.database.factory import get_auth_service
+from core.models.agent_access_token import AgentAccessToken
 from core.models.cover_letter import CoverLetter
 from core.models.inbound_email import InboundEmail
+from core.models.job_application import JobApplication
 from core.models.portfolio import Portfolio
 from core.models.portfolio_site_token import PortfolioSiteToken
 from core.models.portfolio_website import PortfolioWebsite
@@ -76,6 +78,8 @@ BEANIE_DOCUMENT_MODELS = [
     Profile,
     Portfolio,
     PortfolioSiteToken,
+    AgentAccessToken,
+    JobApplication,
     PortfolioWebsite,
     InboundEmail,
     UnknownEmailSender,
@@ -98,6 +102,19 @@ def mock_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("MONGODB_DB", "test_db")
     monkeypatch.setenv("JWT_SECRET_KEY", "test_secret_key_for_jwt_signing_32chars")
     monkeypatch.setenv("JWT_ALGORITHM", "HS256")
+    monkeypatch.setenv(
+        "APPLICATION_DATA_ENCRYPTION_KEY",
+        "TgZeYVef4KUoP8PcgdoEnEOD1O7G-OhprF7S_GPksx0=",
+    )
+    from pydantic import SecretStr
+
+    from config.settings import settings
+
+    monkeypatch.setattr(
+        settings.auth,
+        "application_data_encryption_key",
+        SecretStr("TgZeYVef4KUoP8PcgdoEnEOD1O7G-OhprF7S_GPksx0="),
+    )
     monkeypatch.setenv("AWS_BUCKET", "yarba-local")
 
 

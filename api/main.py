@@ -55,7 +55,14 @@ API_TAGS_METADATA = [
         "name": "public-portfolio",
         "description": "Public portfolio content for external sites",
     },
-    {"name": "linkedin", "description": "LinkedIn integration and job application"},
+    {
+        "name": "agent-tokens",
+        "description": "Personal access tokens for apply automation agents",
+    },
+    {
+        "name": "applications",
+        "description": "Job application tracking and autofill payloads",
+    },
     {"name": "health", "description": "Application health checks"},
     {"name": "jobs", "description": "Job related operations"},
     {"name": "webhooks", "description": "Inbound email webhooks"},
@@ -131,6 +138,8 @@ if settings.storage.provider.lower() == "local":
 
 # Import and include routers
 from api.routers import (
+    agent_tokens,
+    applications,
     auth,
     cover_letters,
     job_router,
@@ -142,9 +151,12 @@ from api.routers import (
     webhooks,
 )
 
-# from api.routers import linkedin
-
 app.include_router(auth.router, prefix=f"{API_V1_PREFIX}/auth", tags=["auth"])
+app.include_router(
+    agent_tokens.router,
+    prefix=f"{API_V1_PREFIX}/auth/agent-tokens",
+    tags=["agent-tokens"],
+)
 app.include_router(resumes.router, prefix=f"{API_V1_PREFIX}/resumes", tags=["resumes"])
 app.include_router(
     cover_letters.router,
@@ -173,15 +185,15 @@ app.include_router(
 )
 app.include_router(job_router.router, prefix=f"{API_V1_PREFIX}/jobs", tags=["jobs"])
 app.include_router(
+    applications.router,
+    prefix=f"{API_V1_PREFIX}/applications",
+    tags=["applications"],
+)
+app.include_router(
     webhooks.router,
     prefix=f"{API_V1_PREFIX}/webhooks",
     tags=["webhooks"],
 )
-# app.include_router(
-#     linkedin.router,
-#     prefix=f"{API_V1_PREFIX}/linkedin",
-#     tags=["linkedin"],
-# )
 
 
 @app.get("/", tags=["health"])

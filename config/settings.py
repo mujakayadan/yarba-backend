@@ -104,6 +104,11 @@ class AuthSettings(BaseSettings):
         description="Access token expiration time in minutes",
         validation_alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES",
     )
+    application_data_encryption_key: SecretStr = Field(
+        default=SecretStr(""),
+        description="Fernet key for encrypting special-category PII (EEO demographics)",
+        validation_alias="APPLICATION_DATA_ENCRYPTION_KEY",
+    )
 
     # API URLs
     api_base_url: str = Field(
@@ -365,34 +370,6 @@ class LLMSettings(BaseSettings):
     model_pricing: dict[str, dict[str, float]] = Field(
         default_factory=dict,
         description="Custom price overrides for LLM models not in LiteLLM's model cost map",
-    )
-
-
-class LinkedInSettings(BaseSettings):
-    """LinkedIn settings for job scraping.
-
-    Note: These settings are user-specific and should not be used globally.
-    Credentials should be stored in the user's profile in the database.
-    These settings are provided as fallbacks or for testing purposes only.
-    """
-
-    model_config = SettingsConfigDict(
-        env_file=[".env.local", ".env"],
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-        extra="ignore",
-        env_prefix="LINKEDIN_",
-    )
-
-    email: str | None = Field(
-        default=None,
-        description="LinkedIn email for authentication (user-specific)",
-        validation_alias="EMAIL",
-    )
-    password: str | None = Field(
-        default=None,
-        description="LinkedIn password for authentication (user-specific)",
-        validation_alias="PASSWORD",
     )
 
 
@@ -1104,10 +1081,6 @@ class Settings(BaseSettings):
         default_factory=AuthSettings, description="Auth settings"
     )
     llm: LLMSettings = Field(default_factory=LLMSettings, description="LLM settings")
-    linkedin: LinkedInSettings = Field(
-        default_factory=LinkedInSettings,
-        description="LinkedIn settings (user-specific)",
-    )
     latex: LatexSettings = Field(
         default_factory=LatexSettings, description="LaTeX settings"
     )
@@ -1165,16 +1138,6 @@ class Settings(BaseSettings):
     def cors_origins(self) -> list[str]:
         """Get CORS origins."""
         return self.api.cors_origins
-
-    @property
-    def linkedin_email(self) -> str | None:
-        """Get LinkedIn email."""
-        return self.linkedin.email
-
-    @property
-    def linkedin_password(self) -> str | None:
-        """Get LinkedIn password."""
-        return self.linkedin.password
 
 
 # Create settings instance
