@@ -676,6 +676,126 @@ class LLMService:
             self.logger.error(f"Prompt start: {truncated_prompt}")
             raise
 
+    async def get_chat_completion(
+        self,
+        messages: list[dict[str, str]],
+        model: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        user_id: str | None = None,
+        tags: list[str] | None = None,
+    ) -> dict[str, str]:
+        """Get a multi-turn chat completion from the LLM.
+
+        Args:
+            messages: OpenAI-style messages including system/history/user turns
+            model: Optional model override
+            temperature: Optional temperature override
+            max_tokens: Optional max tokens override
+            user_id: Optional user ID for usage tracking
+            tags: Optional tags for cost tracking
+
+        Returns:
+            Dict with llm_output key containing assistant reply text
+        """
+        try:
+            if user_id and settings.llm.enable_cost_tracking:
+                limits = await self.check_usage_limits(user_id)
+                if not limits.get("can_use", True):
+                    reason = "usage limit exceeded"
+                    if limits.get("monthly_quota_exceeded"):
+                        reason = "monthly token quota exceeded"
+                    elif limits.get("monthly_cost_exceeded"):
+                        reason = "monthly cost limit exceeded"
+                    raise ValueError(
+                        f"LLM usage limit exceeded for user {user_id}: {reason}"
+                    )
+
+            model = model or self.model
+            temperature = temperature if temperature is not None else self.temperature
+            max_tokens = max_tokens or self.max_tokens
+            provider = self._get_provider_from_model(model)
+
+            completion_kwargs: dict[str, Any] = {
+                "model": model,
+                "messages": messages,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            }
+
+            if provider:
+                completion_kwargs["api_base"] = None
+                completion_kwargs["api_key"] = self.api_keys.get(provider)
+
+            if user_id:
+                completion_kwargs["user"] = user_id
+
+            completion_kwargs["metadata"] = {
+                "tags": tags,
+                "user_id": str(user_id) if user_id else None,
+            }
+
+            max_retries = 2
+            retry_delay = 2
+
+            for attempt in range(max_retries + 1):
+                try:
+                    response = await acompletion(**completion_kwargs)
+                    completion_text = response.choices[0].message.content or ""
+
+                    if hasattr(response, "usage") and hasattr(
+                        response.usage, "completion_tokens"
+                    ):
+                        input_tokens = getattr(response.usage, "prompt_tokens", 0)
+                        output_tokens = getattr(response.usage, "completion_tokens", 0)
+                        total_tokens = getattr(
+                            response.usage, "total_tokens", input_tokens + output_tokens
+                        )
+
+                        from litellm import completion_cost
+
+                        cost = getattr(response, "cost", None)
+                        if cost is None and settings.llm.enable_cost_tracking:
+                            try:
+                                cost = completion_cost(completion_response=response)
+                            except Exception as cost_e:
+                                self.logger.warning(
+                                    f"Error calculating completion cost: {cost_e}"
+                                )
+
+                        if (
+                            user_id
+                            and settings.llm.enable_cost_tracking
+                            and cost is not None
+                        ):
+                            await self._track_usage(
+                                user_id=user_id,
+                                model=model,
+                                input_tokens=input_tokens,
+                                output_tokens=output_tokens,
+                                total_tokens=total_tokens,
+                                cost=float(cost),
+                                operation_type=tags if tags else "chat_completion",
+                            )
+
+                    return {"llm_output": completion_text}
+
+                except Exception as e:
+                    if attempt < max_retries:
+                        self.logger.warning(
+                            f"Chat LLM attempt {attempt + 1} failed: {e}. Retrying..."
+                        )
+                        await asyncio.sleep(retry_delay)
+                        retry_delay *= 2
+                    else:
+                        raise
+
+            raise RuntimeError("Chat LLM completion failed after retries")
+
+        except Exception as e:
+            self.logger.error(f"Error getting chat LLM completion: {e}")
+            raise
+
     async def get_structured_completion(
         self,
         prompt: str,

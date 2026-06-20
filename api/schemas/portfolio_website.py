@@ -39,6 +39,10 @@ class PortfolioWebsiteConfig(BaseModel):
     # Contact Configuration
     contact_form_enabled: bool = Field(default=True)
 
+    # Chatbot Configuration
+    chatbot_enabled: bool = Field(default=False)
+    chatbot_welcome_message: str | None = None
+
     model_config = NESTED_MODEL_CONFIG
 
 

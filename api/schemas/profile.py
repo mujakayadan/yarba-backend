@@ -58,6 +58,7 @@ class PersonalInfoCreate(BaseModel):
     linkedin: str | None = None
     github: str | None = None
     website: str | None = None
+    calendly_url: str | None = None
 
 
 class PersonalInfoUpdate(BaseModel):
@@ -70,6 +71,7 @@ class PersonalInfoUpdate(BaseModel):
     linkedin: str | None = None
     github: str | None = None
     website: str | None = None
+    calendly_url: str | None = None
 
 
 class PromptPreferencesUpdate(BaseModel):

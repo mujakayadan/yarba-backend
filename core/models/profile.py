@@ -168,6 +168,7 @@ class PersonalInformation(BaseModel):
     linkedin: str | None = None
     github: str | None = None
     website: str | None = None
+    calendly_url: str | None = None
 
     model_config = NESTED_MODEL_CONFIG
 

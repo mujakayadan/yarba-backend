@@ -41,6 +41,7 @@ def setup_middlewares(app: FastAPI) -> None:
         ],
         route_specific_limits={
             # Pattern to match: (rate_limit, window)
+            "/api/v1/public/portfolio/chat": (10, 60),
             "/api/v1/resumes/": (
                 settings.api.rate_limit,
                 settings.api.rate_limit_window,

@@ -37,6 +37,7 @@ from core.services.job_application_service import JobApplicationService
 from core.services.job_service import JobService
 from core.services.latex_service import LatexService
 from core.services.llm_service import LLMService
+from core.services.portfolio_chat_service import PortfolioChatService
 from core.services.portfolio_service import PortfolioService
 from core.services.portfolio_website_service import PortfolioWebsiteService
 from core.services.profile_service import ProfileService
@@ -284,6 +285,23 @@ async def get_website_generator_service() -> WebsiteGeneratorService:
         WebsiteGeneratorService: Website generator service
     """
     return WebsiteGeneratorService()
+
+
+def get_portfolio_chat_service(
+    website_repo: PortfolioWebsiteRepository = Depends(
+        get_portfolio_website_repository
+    ),
+    portfolio_repo: PortfolioRepository = Depends(get_portfolio_repository),
+    profile_repo: ProfileRepository = Depends(get_profile_repository),
+    llm_service: LLMService = Depends(get_llm_service),
+) -> PortfolioChatService:
+    """Get the portfolio website chatbot service."""
+    return PortfolioChatService(
+        website_repository=website_repo,
+        portfolio_repository=portfolio_repo,
+        profile_repository=profile_repo,
+        llm_service=llm_service,
+    )
 
 
 async def get_portfolio_website_service(

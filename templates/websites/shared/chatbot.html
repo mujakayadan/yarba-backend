@@ -1,0 +1,44 @@
+{% if chat.enabled %}
+<link rel="stylesheet" href="chatbot.css">
+<div id="yarba-chat-root" class="yarba-chat-root" aria-live="polite">
+  <div id="yarba-chat-welcome" class="yarba-chat-welcome yarba-hidden" role="status">
+    <button type="button" id="yarba-chat-welcome-close" class="yarba-chat-welcome-close" aria-label="Dismiss">&times;</button>
+    <p id="yarba-chat-welcome-text"></p>
+    <div class="yarba-chat-welcome-tail"></div>
+  </div>
+
+  <button type="button" id="yarba-chat-toggle" class="yarba-chat-toggle chat-button-pulse" aria-expanded="false" aria-label="Open chat">
+    <img id="yarba-chat-avatar" class="yarba-chat-avatar" src="{{ chat.avatar_url or 'favicon.webp' }}" alt="">
+    <span class="yarba-chat-badge"><i class="fas fa-comment"></i></span>
+  </button>
+
+  <div id="yarba-chat-panel" class="yarba-chat-panel yarba-hidden" role="dialog" aria-label="Portfolio chat">
+    <div class="yarba-chat-header">
+      <button type="button" id="yarba-chat-expand" class="yarba-chat-icon-btn" title="Expand window" aria-label="Expand window">
+        <i class="fas fa-expand"></i>
+      </button>
+      <h3 id="yarba-chat-title" class="yarba-chat-title"></h3>
+      <button type="button" id="yarba-chat-close" class="yarba-chat-icon-btn" aria-label="Close chat">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div id="yarba-chat-messages" class="yarba-chat-messages" role="log" aria-live="polite"></div>
+    <form id="yarba-chat-form" class="yarba-chat-form">
+      <textarea id="yarba-chat-input" rows="1" placeholder="Type your message..." aria-label="Message"></textarea>
+      <button type="submit" id="yarba-chat-send" disabled>Send</button>
+    </form>
+  </div>
+</div>
+<script>
+  window.YARBA_CHAT = {
+    apiUrl: {{ chat.api_url | tojson }},
+    subdomain: {{ chat.subdomain | tojson }},
+    fullName: {{ chat.full_name | tojson }},
+    avatarUrl: {{ chat.avatar_url | tojson }},
+    welcomeMessage: {{ chat.welcome_message | tojson }},
+    primaryColor: {{ chat.primary_color | tojson }},
+    secondaryColor: {{ chat.secondary_color | tojson }}
+  };
+</script>
+<script src="chatbot.js" defer></script>
+{% endif %}

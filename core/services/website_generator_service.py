@@ -80,6 +80,9 @@ class WebsiteGeneratorService:
         # Copy all static assets from the theme directory (excluding processed templates)
         files.update(await self._copy_theme_assets(config))
 
+        if config.chatbot_enabled:
+            files.update(self._copy_chatbot_assets())
+
         self.logger.info(f"Generated {len(files)} files for portfolio website")
         return files
 
@@ -227,10 +230,12 @@ class WebsiteGeneratorService:
                 "section_order": config.section_order,
                 "social_media_enabled": config.social_media_enabled,
                 "contact_form_enabled": config.contact_form_enabled,
+                "chatbot_enabled": config.chatbot_enabled,
                 "meta_title": config.meta_title,
                 "meta_description": config.meta_description,
                 "meta_keywords": config.meta_keywords,
             },
+            "chat": self._build_chat_context(config, personal_info, subdomain),
             "site_info": {
                 "title": config.meta_title
                 or (
@@ -242,9 +247,52 @@ class WebsiteGeneratorService:
                 or "Professional portfolio website",
                 "keywords": config.meta_keywords,
                 "url": f"https://{subdomain}.{os.getenv('VERCEL_DOMAIN_NAME', 'yarba.app')}",
+                "subdomain": subdomain,
                 "owner_id": str(user.id) if user and user.id else None,
             },
         }
+
+    def _build_chat_context(
+        self,
+        config: WebsiteConfig,
+        personal_info: dict[str, Any] | None,
+        subdomain: str,
+    ) -> dict[str, Any]:
+        """Build chatbot widget configuration for templates."""
+        full_name = (
+            personal_info.get("full_name", "Portfolio Owner")
+            if personal_info
+            else "Portfolio Owner"
+        )
+        default_welcome = (
+            f"Hi! I'm {full_name}'s AI assistant. "
+            "Feel free to ask me anything about my experience, skills, or projects!"
+        )
+        api_base = self.settings.api.api_base_url.rstrip("/")
+        return {
+            "enabled": config.chatbot_enabled,
+            "api_url": f"{api_base}/api/v1/public/portfolio/chat",
+            "subdomain": subdomain,
+            "full_name": full_name,
+            "avatar_url": personal_info.get("profile_picture_key")
+            if personal_info
+            else None,
+            "welcome_message": config.chatbot_welcome_message or default_welcome,
+            "primary_color": config.primary_color,
+            "secondary_color": config.secondary_color,
+        }
+
+    def _copy_chatbot_assets(self) -> dict[str, str]:
+        """Copy shared chatbot static assets into the deploy bundle."""
+        assets: dict[str, str] = {}
+        shared_dir = self.templates_dir / "shared"
+
+        for filename in ("chatbot.css", "chatbot.js"):
+            file_path = shared_dir / filename
+            if file_path.exists():
+                assets[filename] = file_path.read_text(encoding="utf-8")
+
+        return assets
 
     async def _generate_html_files(
         self, context: dict, config: WebsiteConfig

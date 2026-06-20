@@ -123,6 +123,7 @@ setup_middlewares(app)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.api.cors_origins,
+    allow_origin_regex=r"https://[\w-]+\.yarba\.app",
     allow_credentials=settings.api.cors_allow_credentials,
     allow_methods=settings.api.cors_allow_methods,
     allow_headers=settings.api.cors_allow_headers,

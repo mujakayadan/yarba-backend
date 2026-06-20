@@ -44,6 +44,16 @@ class WebsiteConfig(BaseModel):
     # Contact Configuration
     contact_form_enabled: bool = Field(default=True)
 
+    # Chatbot Configuration
+    chatbot_enabled: bool = Field(
+        default=False,
+        description="Whether the portfolio chatbot widget is shown on the site",
+    )
+    chatbot_welcome_message: str | None = Field(
+        default=None,
+        description="Optional custom welcome message for the chatbot",
+    )
+
     model_config = NESTED_MODEL_CONFIG
 
 

@@ -229,7 +229,10 @@ class PortfolioWebsiteService:
         if not portfolio:
             raise NotFoundException("Portfolio not found")
 
-        current_hash = self._calculate_portfolio_hash(portfolio, website.config)
+        profile = await self.profile_repository.get_by_user_id(user_id)
+        current_hash = self._calculate_portfolio_hash(
+            portfolio, website.config, profile=profile
+        )
 
         # Clean deploy always forces rebuild
         if (
@@ -345,7 +348,8 @@ class PortfolioWebsiteService:
             updated_website.is_published = True
             updated_website.last_build_hash = self._calculate_portfolio_hash(
                 portfolio,
-                updated_website.config,  # Use config from the fresh object
+                updated_website.config,
+                profile=profile,
             )
             updated_website.last_deployed_at = completed_time
             await updated_website.save()
@@ -472,7 +476,8 @@ class PortfolioWebsiteService:
             updated_website.is_published = True
             updated_website.last_build_hash = self._calculate_portfolio_hash(
                 portfolio,
-                updated_website.config,  # Use config from the fresh object
+                updated_website.config,
+                profile=profile,
             )
             updated_website.last_deployed_at = completed_time
             await updated_website.save()
@@ -655,26 +660,26 @@ class PortfolioWebsiteService:
         return True
 
     def _calculate_portfolio_hash(
-        self, portfolio: Portfolio, config: WebsiteConfig
+        self,
+        portfolio: Portfolio,
+        config: WebsiteConfig,
+        profile: Profile | None = None,
     ) -> str:
-        """Calculate a hash of the portfolio and config for change detection.
-
-        Args:
-            portfolio: Portfolio object
-            config: Website configuration
-
-        Returns:
-            str: Hash string
-        """
-        # Create a dictionary with relevant data
+        """Calculate a hash of the portfolio, config, and profile chat fields."""
+        personal = profile.personal_information if profile else None
         data = {
             "portfolio": portfolio.model_dump(
                 exclude={"id", "created_at", "updated_at"}
             ),
             "config": config.model_dump(),
+            "profile_chat": {
+                "life_story": profile.life_story if profile else None,
+                "profile_picture_key": profile.profile_picture_key if profile else None,
+                "calendly_url": personal.calendly_url if personal else None,
+                "full_name": personal.full_name if personal else None,
+            },
         }
 
-        # Convert to JSON and hash
         json_str = json.dumps(data, sort_keys=True, default=str)
         return hashlib.sha256(json_str.encode()).hexdigest()
 
@@ -697,6 +702,8 @@ class PortfolioWebsiteService:
             "secondary_color",
             "enabled_sections",
             "section_order",
+            "chatbot_enabled",
+            "chatbot_welcome_message",
         ]
 
         for field in significant_fields:
