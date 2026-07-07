@@ -1,0 +1,32 @@
+﻿alerts:
+- rule: DEPLOYMENT_FAILED
+- rule: DOMAIN_FAILED
+ingress:
+  rules:
+  - component:
+      name: yarba-backend
+    match:
+      path:
+        prefix: /
+name: yarba-app
+region: sfo
+jobs:
+- dockerfile_path: Dockerfile
+  github:
+    branch: main
+    deploy_on_push: true
+    repo: mujakayadan/yarba-backend
+  instance_size_slug: apps-s-1vcpu-0.5gb
+  kind: PRE_DEPLOY
+  name: db-migrate
+  run_command: uv run python scripts/run_migrations.py migrate
+services:
+- github:
+    branch: main
+    deploy_on_push: true
+    repo: mujakayadan/yarba-backend
+  http_port: 8000
+  instance_count: 1
+  instance_size_slug: apps-s-1vcpu-0.5gb
+  name: yarba-backend
+  dockerfile_path: Dockerfile

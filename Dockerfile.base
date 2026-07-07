@@ -1,0 +1,71 @@
+# Heavy runtime dependencies: TeXLive, Python venv, Playwright/Chromium.
+# Rebuild and push when pyproject.toml, uv.lock, or this file changes.
+# See .github/workflows/build-base-image.yml
+
+FROM texlive/texlive:latest-small AS latex_env
+
+# Default mirror in texlive/texlive is latex.us; it often times out on GitHub Actions.
+ARG TEXLIVE_REPOSITORY=https://mirror.math.princeton.edu/pub/CTAN/systems/texlive/tlnet
+
+RUN set -eux; \
+    tlmgr option repository "${TEXLIVE_REPOSITORY}"; \
+    for attempt in 1 2 3; do \
+        tlmgr update --self && \
+        tlmgr install \
+            collection-latexrecommended \
+            collection-fontsrecommended \
+            titlesec \
+            marvosym \
+            enumitem \
+            hyphenat \
+            fontawesome5 \
+            seqsplit \
+            collection-latexextra && \
+        exit 0; \
+        echo "tlmgr attempt ${attempt} failed, retrying..." >&2; \
+        sleep 20; \
+    done; \
+    exit 1
+
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY --from=latex_env /usr/local/texlive/ /usr/local/texlive/
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    git \
+    ca-certificates \
+    && apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN set -eux; \
+    TEXLIVE_YEAR="$(ls -1 /usr/local/texlive | grep -E '^[0-9]{4}$' | sort -n | tail -1)"; \
+    case "$(uname -m)" in \
+        x86_64) TEXLIVE_ARCH=x86_64-linux ;; \
+        aarch64) TEXLIVE_ARCH=aarch64-linux ;; \
+        *) echo "Unsupported architecture: $(uname -m)"; exit 1 ;; \
+    esac; \
+    TEXLIVE_BIN_DIR="/usr/local/texlive/${TEXLIVE_YEAR}/bin/${TEXLIVE_ARCH}"; \
+    test -x "${TEXLIVE_BIN_DIR}/kpsewhich"; \
+    ln -sfn "${TEXLIVE_BIN_DIR}" /usr/local/texlive/bin; \
+    /usr/local/texlive/bin/mktexlsr
+
+ENV PATH=/usr/local/texlive/bin:${PATH}
+
+COPY --from=ghcr.io/astral-sh/uv:0.7 /uv /uvx /bin/
+
+RUN mkdir -p logs && chmod 755 logs
+
+COPY pyproject.toml uv.lock ./
+
+RUN uv sync --frozen --no-dev \
+    && .venv/bin/python -m playwright install --with-deps
+
+ENV PATH="/app/.venv/bin:/usr/local/texlive/bin:${PATH}"
+ENV PYTHONUNBUFFERED=1
+ENV PYTHON_PATH=/app
+ENV PORT=8000
+ENV LOG_LEVEL=INFO
