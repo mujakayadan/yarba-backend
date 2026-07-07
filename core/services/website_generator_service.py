@@ -2,13 +2,16 @@
 
 import json
 import os
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from PIL import Image, ImageDraw, ImageFont
 
 from config.logging_config import get_logger
 from config.settings import Settings
+from utils.storage import get_storage_provider
 
 from ..models.portfolio import Portfolio
 from ..models.portfolio_website import WebsiteConfig
@@ -79,6 +82,8 @@ class WebsiteGeneratorService:
 
         # Copy all static assets from the theme directory (excluding processed templates)
         files.update(await self._copy_theme_assets(config))
+
+        files.update(await self._generate_favicon_files(profile, config))
 
         if config.chatbot_enabled:
             files.update(self._copy_chatbot_assets())
@@ -404,13 +409,131 @@ Allow: /
                 "theme_color": config.primary_color,
                 "background_color": "#ffffff",
                 "icons": [
-                    {"src": "/favicon.ico", "sizes": "any", "type": "image/x-icon"}
+                    {
+                        "src": "/favicon.webp",
+                        "sizes": "32x32",
+                        "type": "image/webp",
+                    },
+                    {
+                        "src": "/apple-touch-icon.webp",
+                        "sizes": "180x180",
+                        "type": "image/webp",
+                    },
                 ],
             },
             indent=2,
         )
 
         return files
+
+    async def _generate_favicon_files(
+        self,
+        profile: Profile | None,
+        config: WebsiteConfig,
+    ) -> dict[str, Any]:
+        """Build favicon assets from the profile picture or a themed initial."""
+        full_name = (
+            profile.personal_information.full_name
+            if profile
+            and profile.personal_information
+            and profile.personal_information.full_name
+            else "Portfolio"
+        )
+        initial = full_name.strip()[:1].upper() or "P"
+        background = self._parse_hex_color(config.primary_color)
+
+        source_image: Image.Image | None = None
+        if profile and profile.profile_picture_key:
+            try:
+                storage = get_storage_provider()
+                image_bytes = await storage.get_file(profile.profile_picture_key)
+                source_image = Image.open(BytesIO(image_bytes))
+                source_image.load()
+            except Exception as exc:
+                self.logger.warning(
+                    "Failed to load profile picture for favicon generation: %s",
+                    exc,
+                )
+
+        favicon_bytes = self._build_favicon_image(
+            source_image,
+            initial=initial,
+            background=background,
+            size=32,
+        )
+        apple_touch_bytes = self._build_favicon_image(
+            source_image,
+            initial=initial,
+            background=background,
+            size=180,
+        )
+
+        return {
+            "favicon.webp": {"content": favicon_bytes, "binary": True},
+            "apple-touch-icon.webp": {"content": apple_touch_bytes, "binary": True},
+        }
+
+    @staticmethod
+    def _parse_hex_color(color: str) -> tuple[int, int, int]:
+        """Parse a hex color string into an RGB tuple."""
+        normalized = color.strip().lstrip("#")
+        if len(normalized) == 3:
+            normalized = "".join(ch * 2 for ch in normalized)
+        if len(normalized) != 6:
+            return (145, 94, 255)
+        try:
+            return (
+                int(normalized[0:2], 16),
+                int(normalized[2:4], 16),
+                int(normalized[4:6], 16),
+            )
+        except ValueError:
+            return (145, 94, 255)
+
+    @staticmethod
+    def _square_crop(image: Image.Image) -> Image.Image:
+        """Crop an image to a centered square."""
+        width, height = image.size
+        side = min(width, height)
+        left = (width - side) // 2
+        top = (height - side) // 2
+        return image.crop((left, top, left + side, top + side))
+
+    def _build_favicon_image(
+        self,
+        source_image: Image.Image | None,
+        *,
+        initial: str,
+        background: tuple[int, int, int],
+        size: int,
+    ) -> bytes:
+        """Create a square favicon image as WebP bytes."""
+        if source_image is not None:
+            image = source_image.convert("RGBA")
+            image = self._square_crop(image)
+            image = image.resize((size, size), Image.Resampling.LANCZOS)
+        else:
+            image = Image.new("RGBA", (size, size), (*background, 255))
+            draw = ImageDraw.Draw(image)
+            font_size = max(size // 2, 12)
+            font: ImageFont.FreeTypeFont | ImageFont.ImageFont
+            try:
+                font = ImageFont.truetype("arial.ttf", font_size)
+            except OSError:
+                font = ImageFont.load_default()
+            bbox = draw.textbbox((0, 0), initial, font=font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+            draw.text(
+                ((size - text_width) / 2 - bbox[0], (size - text_height) / 2 - bbox[1]),
+                initial,
+                fill=(255, 255, 255, 255),
+                font=font,
+            )
+
+        buffer = BytesIO()
+        image.save(buffer, format="WEBP", quality=85)
+        return buffer.getvalue()
 
     async def _copy_theme_assets(self, config: WebsiteConfig) -> dict[str, Any]:
         """Copy all static assets from the theme directory, excluding processed template files."""
@@ -489,6 +612,8 @@ Allow: /
     <title>{site_info.get("title", "Portfolio")}</title>
     <meta name="description" content="{site_info.get("description", "")}">
     <meta name="keywords" content="{", ".join(site_info.get("keywords", []))}">
+    <link rel="icon" type="image/webp" href="favicon.webp">
+    <link rel="apple-touch-icon" type="image/webp" href="apple-touch-icon.webp">
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
 </head>

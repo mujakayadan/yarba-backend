@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ site_info.title }}</title>
+    <meta name="description" content="{{ site_info.description }}">
+    <meta name="keywords" content="{{ ', '.join(site_info.keywords) if site_info.keywords else '' }}">
+
+    <link rel="icon" type="image/webp" href="favicon.webp">
+    <link rel="apple-touch-icon" type="image/webp" href="apple-touch-icon.webp">
+
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ site_info.url or '' }}">
+    <meta property="og:title" content="{{ site_info.title }}">
+    <meta property="og:description" content="{{ site_info.description }}">
+    <meta property="og:image" content="{{ personal_info.profile_picture_key if personal_info and personal_info.profile_picture_key else 'favicon.webp' }}">
+
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="{{ site_info.url or '' }}">
+    <meta property="twitter:title" content="{{ site_info.title }}">
+    <meta property="twitter:description" content="{{ site_info.description }}">
+
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="grid-bg" aria-hidden="true"></div>
+    <div class="glow glow-a" aria-hidden="true"></div>
+    <div class="glow glow-b" aria-hidden="true"></div>
+
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="#home" class="nav-logo">
+                <span class="logo-bracket">&lt;</span>{{ (personal_info.full_name.split(' ')[0] if personal_info and personal_info.full_name else site_info.title) }}<span class="logo-bracket">/&gt;</span>
+            </a>
+            <ul class="nav-menu" id="nav-menu">
+                {% for section in config.section_order %}
+                    {% if section in config.enabled_sections %}
+                    <li class="nav-item">
+                        <a href="#{{ section if section != 'about' else 'home' }}" class="nav-link">
+                            {{ section.replace('_', ' ').title() }}
+                        </a>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+            </ul>
+            <button class="nav-toggle" id="mobile-menu" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <section id="home" class="hero">
+        <div class="container hero-grid">
+            <div class="hero-copy scan-in">
+                <p class="terminal-line">// initializing portfolio.sys</p>
+                <h1>
+                    <span class="glitch" data-text="{{ personal_info.full_name if personal_info else site_info.title }}">
+                        {{ personal_info.full_name if personal_info else site_info.title }}
+                    </span>
+                </h1>
+                {% if sections.about %}
+                <p class="hero-role">{{ sections.about.job_title }}</p>
+                {% if sections.about.career_summary %}
+                <p class="hero-summary">{{ sections.about.career_summary }}</p>
+                {% endif %}
+                {% endif %}
+                <div class="hero-actions">
+                    {% if 'contact' in config.enabled_sections %}
+                    <a href="#contact" class="btn btn-neon">Transmit message</a>
+                    {% endif %}
+                    {% if 'projects' in config.enabled_sections %}
+                    <a href="#projects" class="btn btn-outline">Browse builds</a>
+                    {% endif %}
+                </div>
+                {% if config.social_media_enabled and personal_info %}
+                <div class="social-row">
+                    {% if personal_info.linkedin %}
+                    <a href="{{ personal_info.linkedin }}" target="_blank" aria-label="LinkedIn"><i class="fab fa-linkedin"></i></a>
+                    {% endif %}
+                    {% if personal_info.github %}
+                    <a href="{{ personal_info.github }}" target="_blank" aria-label="GitHub"><i class="fab fa-github"></i></a>
+                    {% endif %}
+                    {% if personal_info.email %}
+                    <a href="mailto:{{ personal_info.email }}" aria-label="Email"><i class="fas fa-envelope"></i></a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="hero-panel scan-in">
+                {% if personal_info and personal_info.profile_picture_key %}
+                <div class="avatar-frame">
+                    <img src="{{ personal_info.profile_picture_key }}" alt="Profile photo">
+                </div>
+                {% else %}
+                <div class="avatar-frame avatar-placeholder">
+                    <span>{{ (personal_info.full_name if personal_info else site_info.title)[:1] }}</span>
+                </div>
+                {% endif %}
+                {% if sections.about and sections.about.years_experience %}
+                <div class="stat-chip">
+                    <span class="stat-label">EXP</span>
+                    <span class="stat-value">{{ sections.about.years_experience }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+
+    <main>
+        {% for section_name in config.section_order %}
+            {% if section_name in config.enabled_sections and section_name != 'about' %}
+
+                {% if section_name == 'experience' and sections.experience %}
+                <section id="experience" class="section">
+                    <div class="container">
+                        <header class="section-head scan-in">
+                            <p class="section-code">01 // experience</p>
+                            <h2>Work Log</h2>
+                        </header>
+                        <div class="neon-stack">
+                            {% for exp in sections.experience %}
+                            <article class="neon-card scan-in">
+                                <div class="card-header">
+                                    <h3>{{ exp.job_title }}</h3>
+                                    <span class="chip">{{ exp.time }}</span>
+                                </div>
+                                <p class="meta">{{ exp.company }} · {{ exp.location }}</p>
+                                {% if exp.responsibilities %}
+                                <ul>
+                                    {% for resp in exp.responsibilities %}
+                                    <li>{{ resp }}</li>
+                                    {% endfor %}
+                                </ul>
+                                {% endif %}
+                            </article>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </section>
+                {% endif %}
+
+                {% if section_name == 'skills' and sections.skills %}
+                <section id="skills" class="section">
+                    <div class="container">
+                        <header class="section-head scan-in">
+                            <p class="section-code">02 // skills</p>
+                            <h2>Tech Stack</h2>
+                        </header>
+                        <div class="skills-grid">
+                            {% for skill_category in sections.skills %}
+                            <article class="neon-card scan-in">
+                                <h3>&lt;{{ skill_category.category }}&gt;</h3>
+                                <div class="skill-tags">
+                                    {% for skill in skill_category.skills %}
+                                    <span class="skill-tag">{{ skill }}</span>
+                                    {% endfor %}
+                                </div>
+                            </article>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </section>
+                {% endif %}
+
+                {% if section_name == 'projects' and sections.projects %}
+                <section id="projects" class="section">
+                    <div class="container">
+                        <header class="section-head scan-in">
+                            <p class="section-code">03 // projects</p>
+                            <h2>Deployments</h2>
+                        </header>
+                        <div class="projects-grid">
+                            {% for project in sections.projects %}
+                            <article class="neon-card scan-in">
+                                <div class="card-header">
+                                    <h3>{{ project.name }}</h3>
+                                    {% if project.date %}<span class="chip">{{ project.date }}</span>{% endif %}
+                                </div>
+                                {% if project.bullet_points %}
+                                <ul>
+                                    {% for bullet in project.bullet_points %}
+                                    <li>{{ bullet }}</li>
+                                    {% endfor %}
+                                </ul>
+                                {% endif %}
+                                {% if project.link %}
+                                <a href="{{ project.link }}" target="_blank" class="text-link">Open repo <i class="fas fa-arrow-up-right-from-square"></i></a>
+                                {% endif %}
+                            </article>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </section>
+                {% endif %}
+
+                {% if section_name == 'education' and sections.education %}
+                <section id="education" class="section">
+                    <div class="container">
+                        <header class="section-head scan-in">
+                            <p class="section-code">04 // education</p>
+                            <h2>Training</h2>
+                        </header>
+                        <div class="projects-grid">
+                            {% for edu in sections.education %}
+                            <article class="neon-card scan-in">
+                                <h3>{{ edu.degree }}{% if edu.degree_type %} · {{ edu.degree_type }}{% endif %}</h3>
+                                <p class="meta">{{ edu.university_name }}</p>
+                                <p class="meta">{{ edu.location }} · {{ edu.time }}</p>
+                                {% if edu.gpa %}<p class="highlight">GPA {{ edu.gpa }}</p>{% endif %}
+                            </article>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </section>
+                {% endif %}
+
+                {% if section_name == 'awards' and sections.awards %}
+                <section id="awards" class="section">
+                    <div class="container">
+                        <header class="section-head scan-in">
+                            <p class="section-code">05 // awards</p>
+                            <h2>Highlights</h2>
+                        </header>
+                        <div class="projects-grid">
+                            {% for award in sections.awards %}
+                            <article class="neon-card scan-in">
+                                <h3>{{ award.name }}</h3>
+                                {% if award.explanation %}<p>{{ award.explanation }}</p>{% endif %}
+                            </article>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </section>
+                {% endif %}
+
+                {% if section_name == 'publications' and sections.publications %}
+                <section id="publications" class="section">
+                    <div class="container">
+                        <header class="section-head scan-in">
+                            <p class="section-code">06 // publications</p>
+                            <h2>Transmissions</h2>
+                        </header>
+                        <div class="projects-grid">
+                            {% for pub in sections.publications %}
+                            <article class="neon-card scan-in">
+                                <h3>{{ pub.name }}</h3>
+                                <p class="meta">{{ pub.publisher }}{% if pub.time %} · {{ pub.time }}{% endif %}</p>
+                                {% if pub.link %}
+                                <a href="{{ pub.link }}" target="_blank" class="text-link">Read <i class="fas fa-arrow-up-right-from-square"></i></a>
+                                {% endif %}
+                            </article>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </section>
+                {% endif %}
+
+                {% if section_name == 'contact' and personal_info %}
+                <section id="contact" class="section">
+                    <div class="container contact-grid">
+                        <article class="neon-card scan-in">
+                            <header class="section-head">
+                                <p class="section-code">07 // contact</p>
+                                <h2>Open channel</h2>
+                            </header>
+                            <p class="meta">Ready for collaborations, roles, or a quick sync.</p>
+                            <div class="contact-list">
+                                {% if personal_info.email %}
+                                <a href="mailto:{{ personal_info.email }}"><i class="fas fa-envelope"></i> {{ personal_info.email }}</a>
+                                {% endif %}
+                                {% if personal_info.phone %}
+                                <p><i class="fas fa-phone"></i> {{ personal_info.phone }}</p>
+                                {% endif %}
+                                {% if personal_info.address %}
+                                <p><i class="fas fa-map-marker-alt"></i> {{ personal_info.address }}</p>
+                                {% endif %}
+                            </div>
+                        </article>
+
+                        {% if config.contact_form_enabled %}
+                        <article class="neon-card scan-in">
+                            <form class="contact-form" id="contact-form">
+                                <div class="form-row">
+                                    <label for="name">Name</label>
+                                    <input type="text" id="name" name="name" required>
+                                </div>
+                                <div class="form-row">
+                                    <label for="email">Email</label>
+                                    <input type="email" id="email" name="email" required>
+                                </div>
+                                <div class="form-row">
+                                    <label for="message">Message</label>
+                                    <textarea id="message" name="message" rows="5" required></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-neon">Send transmission</button>
+                            </form>
+                        </article>
+                        {% endif %}
+                    </div>
+                </section>
+                {% endif %}
+
+            {% endif %}
+        {% endfor %}
+    </main>
+
+    <footer class="footer">
+        <div class="container footer-inner">
+            <p>&copy; <span id="current-year"></span> {{ personal_info.full_name if personal_info else site_info.title }}</p>
+            <p>Powered by <a href="https://yarba.app" target="_blank">Yarba</a></p>
+        </div>
+    </footer>
+
+    {% include 'shared/chatbot.html' %}
+    <script src="script.js"></script>
+</body>
+</html>
