@@ -33,6 +33,7 @@ from api.dependencies.services import (
 )
 from api.main import app as fastapi_app
 from api.middleware.auth import get_current_user
+from api.middleware.rate_limit import RATE_LIMIT_STORE
 from core.database.factory import get_auth_service
 from core.models.agent_access_token import AgentAccessToken
 from core.models.cover_letter import CoverLetter
@@ -118,6 +119,14 @@ def mock_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
         SecretStr("TgZeYVef4KUoP8PcgdoEnEOD1O7G-OhprF7S_GPksx0="),
     )
     monkeypatch.setenv("AWS_BUCKET", "yarba-local")
+
+
+@pytest.fixture(autouse=True)
+def clear_rate_limit_store() -> None:
+    """Rate limit counters are process-global; reset them between tests."""
+    RATE_LIMIT_STORE.clear()
+    yield
+    RATE_LIMIT_STORE.clear()
 
 
 @pytest.fixture

@@ -150,23 +150,19 @@ async def test_chat_does_not_persist_when_storage_disabled(
 
 @pytest.mark.anyio
 async def test_list_chat_conversations_authenticated(
-    async_client: AsyncClient,
+    chat_client: AsyncClient,
     published_chatbot_website_with_storage: PortfolioWebsite,
-    mock_chat_llm_service: AsyncMock,
 ):
-    fastapi_app.dependency_overrides[get_llm_service] = lambda: mock_chat_llm_service
-    try:
-        await async_client.post(
-            CHAT_URL,
-            json={
-                "subdomain": published_chatbot_website_with_storage.subdomain,
-                "message": "Are you open to contract work?",
-            },
-        )
+    chat_response = await chat_client.post(
+        CHAT_URL,
+        json={
+            "subdomain": published_chatbot_website_with_storage.subdomain,
+            "message": "Are you open to contract work?",
+        },
+    )
+    assert chat_response.status_code == 200
 
-        response = await async_client.get(LIST_URL)
-    finally:
-        fastapi_app.dependency_overrides.pop(get_llm_service, None)
+    response = await chat_client.get(LIST_URL)
 
     assert response.status_code == 200
     body = response.json()
@@ -178,24 +174,20 @@ async def test_list_chat_conversations_authenticated(
 
 @pytest.mark.anyio
 async def test_get_chat_conversation_detail(
-    async_client: AsyncClient,
+    chat_client: AsyncClient,
     published_chatbot_website_with_storage: PortfolioWebsite,
-    mock_chat_llm_service: AsyncMock,
 ):
-    fastapi_app.dependency_overrides[get_llm_service] = lambda: mock_chat_llm_service
-    try:
-        chat_response = await async_client.post(
-            CHAT_URL,
-            json={
-                "subdomain": published_chatbot_website_with_storage.subdomain,
-                "message": "What stack do you use?",
-            },
-        )
-        conversation_id = chat_response.json()["conversation_id"]
+    chat_response = await chat_client.post(
+        CHAT_URL,
+        json={
+            "subdomain": published_chatbot_website_with_storage.subdomain,
+            "message": "What stack do you use?",
+        },
+    )
+    assert chat_response.status_code == 200
+    conversation_id = chat_response.json()["conversation_id"]
 
-        response = await async_client.get(f"{LIST_URL}/{conversation_id}")
-    finally:
-        fastapi_app.dependency_overrides.pop(get_llm_service, None)
+    response = await chat_client.get(f"{LIST_URL}/{conversation_id}")
 
     assert response.status_code == 200
     body = response.json()
