@@ -23,7 +23,7 @@ class User(Document):
     )
     current_setup_step: int = Field(
         default=1,
-        description="Tracks the current step the user is on in the setup process (1-indexed).",
+        description="Tracks the current setup step (1-indexed); 0 means setup is complete.",
     )
 
     # Firebase auth fields (required for authentication)

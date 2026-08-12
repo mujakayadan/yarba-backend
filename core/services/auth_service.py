@@ -641,8 +641,7 @@ class AuthService:
             )  # if setup_completed is True, is_new_user becomes False
             update_data["is_new_user"] = user.is_new_user
             if setup_completed:
-                # Optionally, if setup is completed, we can set step to a final/non-relevant value like 0 or max_step + 1
-                user.current_setup_step = 0  # Or some other indicator of completion
+                user.current_setup_step = 0
                 update_data["current_setup_step"] = 0
 
         if not update_data:
