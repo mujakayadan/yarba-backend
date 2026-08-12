@@ -53,7 +53,9 @@ dev = [
 
 [tool.uv]
 package = false
-# crawl4ai declares unclecode-litellm; uv.lock maps it to PyPI litellm (see crawl4ai deps there).
+# Crawl4AI's LiteLLM fork installs the same `litellm` modules as the official
+# package, so exclude the fork to prevent a mixed, unimportable installation.
+exclude-dependencies = ["unclecode-litellm"]
 override-dependencies = [
     "starlette>=1.0.1,<2.0.0",
     "lxml>=6.1.0",
