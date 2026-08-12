@@ -85,14 +85,14 @@ interface Portfolio {
     items: string[];
   }[];
   work_experience: {
+    job_title: string;
     company: string;
-    position: string;
     location?: string;
     start_date: string; // Format: "YYYY-MM"
     end_date?: string; // Format: "YYYY-MM"
     current: boolean;
-    description?: string;
-    achievements: string[];
+    time: string; // Derived display range, e.g. "Jan 2023 - Present"
+    responsibilities: string[];
   }[];
   education: {
     institution: string;

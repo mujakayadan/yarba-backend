@@ -42,8 +42,10 @@ If information for a specific field is not found in the document, omit that fiel
 (e.g., an empty list `[]` for list-based fields, an empty string `""` for optional string fields, or `null` if appropriate by the schema)
 as defined by the Portfolio model structure.
 
-Pay attention to dates and try to parse them into a consistent format if possible (e.g., YYYY-MM-DD or YYYY-MM).
-For work experience and education, correctly associate descriptions, responsibilities, and achievements with the respective entries.
+For every work experience, put the employment months in `start_date` and `end_date`
+using `YYYY-MM`. Set `current` to true and `end_date` to null only when the role is ongoing.
+Do not infer missing months. Correctly associate descriptions, responsibilities, and achievements
+with the respective entries.
 Be mindful of context when extracting information. The same text might mean different things in different sections.
 Output ONLY the JSON object representing the Portfolio.
 """

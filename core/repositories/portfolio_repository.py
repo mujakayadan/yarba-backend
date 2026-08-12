@@ -16,6 +16,7 @@ from ..models.portfolio import (
     Publication,
     Skill,
     WorkExperience,
+    sort_work_experience,
 )
 from ..models.user import User
 from .base_repository import BeanieRepository
@@ -121,7 +122,7 @@ class PortfolioRepository(BeanieRepository[Portfolio]):
         if not result:
             return False
 
-        result.work_experience = work_experience
+        result.work_experience = sort_work_experience(work_experience)
         result.updated_at = datetime.now(UTC)
         await result.save()
         return True

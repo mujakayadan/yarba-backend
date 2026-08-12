@@ -15,7 +15,7 @@ from api.schemas.public_portfolio import (
 )
 from config.settings import settings
 from core.exceptions.base import NotFoundException, UnauthorizedException
-from core.models.portfolio import Portfolio
+from core.models.portfolio import Portfolio, sort_work_experience
 from core.models.profile import Profile
 from core.repositories.portfolio_repository import PortfolioRepository
 from core.repositories.portfolio_site_token_repository import (
@@ -114,9 +114,12 @@ class PublicPortfolioService:
                     company=exp.company,
                     location=exp.location,
                     time=exp.time,
+                    start_date=exp.start_date,
+                    end_date=exp.end_date,
+                    current=exp.current,
                     responsibilities=exp.responsibilities,
                 )
-                for exp in portfolio.work_experience
+                for exp in sort_work_experience(portfolio.work_experience)
             ],
             education=[
                 PublicEducation(

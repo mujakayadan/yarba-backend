@@ -20,6 +20,7 @@ from core.models.portfolio import (
     Publication,
     Skill,
     WorkExperience,
+    sort_work_experience,
 )
 from core.repositories.portfolio_repository import PortfolioRepository
 from core.repositories.profile_repository import ProfileRepository
@@ -256,6 +257,10 @@ async def update_portfolio(
     # Update portfolio fields
     for field, value in portfolio_data.model_dump(exclude_unset=True).items():
         if field != "career_summary":  # Skip career summary as it's handled above
+            if field == "work_experience":
+                value = sort_work_experience(
+                    [WorkExperience.model_validate(item) for item in value]
+                )
             setattr(portfolio, field, value)
 
     await portfolio.save()
@@ -305,6 +310,10 @@ async def patch_portfolio(
 
     # Update remaining portfolio fields
     for field, value in patch_data.items():
+        if field == "work_experience":
+            value = sort_work_experience(
+                [WorkExperience.model_validate(item) for item in value]
+            )
         setattr(portfolio, field, value)
 
     # Update the timestamp

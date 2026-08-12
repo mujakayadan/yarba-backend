@@ -1,14 +1,74 @@
 """Portfolio models for the RBT database."""
 
+import re
 from datetime import UTC, datetime
 from typing import Any
 
 from beanie import Document, Link, PydanticObjectId
-from pydantic import BaseModel, Field, HttpUrl, model_validator
+from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator
 
 from core.models.document_config import BSON_DATETIME_ENCODERS, NESTED_MODEL_CONFIG
 from core.models.profile import Profile
 from core.models.user import User
+
+MONTH_VALUE_PATTERN = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
+DATE_RANGE_SEPARATOR_PATTERN = re.compile(r"\s+(?:-|–|—|to)\s+", re.IGNORECASE)
+PRESENT_TERMS = ("present", "current", "now")
+
+
+def _parse_month_value(value: str | None, *, range_end: bool = False) -> int:
+    """Convert supported portfolio month text to a sortable YYYYMM integer."""
+    if not value:
+        return 0
+
+    normalized = value.strip()
+    if not normalized:
+        return 0
+
+    if any(term in normalized.lower() for term in PRESENT_TERMS):
+        return 999_912
+
+    formats = (
+        "%Y-%m",
+        "%m/%Y",
+        "%m-%Y",
+        "%m/%y",
+        "%m-%y",
+        "%b %Y",
+        "%B %Y",
+    )
+    for date_format in formats:
+        try:
+            parsed = datetime.strptime(normalized, date_format)
+            return parsed.year * 100 + parsed.month
+        except ValueError:
+            continue
+
+    if re.fullmatch(r"\d{4}", normalized):
+        return int(normalized) * 100 + (12 if range_end else 1)
+
+    return 0
+
+
+def _parse_time_range(value: str) -> tuple[int, int, bool]:
+    """Return the start, end, and current status from a legacy time string."""
+    if not value.strip():
+        return 0, 0, False
+
+    is_current = any(term in value.lower() for term in PRESENT_TERMS)
+    parts = DATE_RANGE_SEPARATOR_PATTERN.split(value.strip(), maxsplit=1)
+    start = _parse_month_value(parts[0])
+    if is_current:
+        return start, 999_912, True
+    if len(parts) == 2:
+        return start, _parse_month_value(parts[1], range_end=True), False
+
+    parsed = _parse_month_value(value, range_end=True)
+    return parsed, parsed, False
+
+
+def _format_month_value(value: str) -> str:
+    return datetime.strptime(value, "%Y-%m").strftime("%b %Y")
 
 
 class CareerSummary(BaseModel):
@@ -47,9 +107,80 @@ class WorkExperience(BaseModel):
     company: str = Field(default="")
     location: str = Field(default="")
     time: str = Field(default="")
+    start_date: str | None = Field(
+        default=None,
+        description="Employment start month in YYYY-MM format.",
+    )
+    end_date: str | None = Field(
+        default=None,
+        description="Employment end month in YYYY-MM format.",
+    )
+    current: bool = Field(default=False)
     responsibilities: list[str] = Field(default=[])
 
     model_config = NESTED_MODEL_CONFIG
+
+    @field_validator("start_date", "end_date", mode="before")
+    @classmethod
+    def validate_month_value(cls, value: object) -> object:
+        """Require structured employment dates to use HTML month input format."""
+        if value in (None, ""):
+            return None
+        if not isinstance(value, str) or not MONTH_VALUE_PATTERN.fullmatch(value):
+            raise ValueError("must use YYYY-MM format")
+        return value
+
+    @model_validator(mode="after")
+    def validate_date_range(self) -> "WorkExperience":
+        """Validate structured dates and keep the display period consistent."""
+        has_structured_date = bool(self.start_date or self.end_date or self.current)
+        if not has_structured_date:
+            return self
+
+        if not self.start_date:
+            raise ValueError("start_date is required")
+        if self.current and self.end_date:
+            raise ValueError("end_date must be empty for a current job")
+        if not self.current and not self.end_date:
+            raise ValueError("end_date is required unless this is a current job")
+        if self.end_date and self.end_date < self.start_date:
+            raise ValueError("end_date must not be before start_date")
+        current_month = datetime.now(UTC).strftime("%Y-%m")
+        if self.start_date > current_month:
+            raise ValueError("start_date must not be in the future")
+        if self.end_date and self.end_date > current_month:
+            raise ValueError("end_date must not be in the future")
+
+        start_label = _format_month_value(self.start_date)
+        end_label = (
+            "Present" if self.current else _format_month_value(self.end_date or "")
+        )
+        object.__setattr__(self, "time", f"{start_label} - {end_label}")
+        return self
+
+    def date_sort_key(self) -> tuple[int, int, int]:
+        """Return a deterministic newest-first sort key."""
+        legacy_start, legacy_end, legacy_current = _parse_time_range(self.time)
+        start = _parse_month_value(self.start_date) or legacy_start
+        end = (
+            999_912
+            if self.current
+            else _parse_month_value(self.end_date, range_end=True)
+            or legacy_end
+            or start
+        )
+        return int(self.current or legacy_current), end, start
+
+
+def sort_work_experience(
+    work_experience: list[WorkExperience],
+) -> list[WorkExperience]:
+    """Sort jobs from current/newest to oldest without mutating the input list."""
+    return sorted(
+        work_experience,
+        key=WorkExperience.date_sort_key,
+        reverse=True,
+    )
 
 
 class Education(BaseModel):
@@ -178,3 +309,9 @@ class Portfolio(Document):
         use_state_management = True
         indexes = ["user_id", "profile_id"]
         bson_encoders = BSON_DATETIME_ENCODERS
+
+    @model_validator(mode="after")
+    def sort_dated_sections(self) -> "Portfolio":
+        """Keep work history in the canonical newest-to-oldest order."""
+        self.work_experience = sort_work_experience(self.work_experience)
+        return self

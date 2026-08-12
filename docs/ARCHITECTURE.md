@@ -157,7 +157,11 @@ erDiagram
     }
 ```
 
-**Portfolio** is the canonical career dataset. Each `WorkExperience` entry carries a `responsibilities` list (multiple bullet points). The LLM chooses which bullets to include — it does not author new ones from scratch.
+**Portfolio** is the canonical career dataset. Each `WorkExperience` entry carries
+month-level `start_date` / `end_date` fields, a `current` flag, and a
+`responsibilities` list. Date ranges are validated and work history is normalized
+newest-to-oldest. The LLM chooses which responsibility bullets to include — it
+does not author new ones from scratch.
 
 **Resume** is a job-specific artifact: it references a portfolio and profile, stores the job description, holds LLM-generated structured content, and tracks per-generation LLM usage/cost.
 

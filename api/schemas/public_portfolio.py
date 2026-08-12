@@ -25,6 +25,9 @@ class PublicWorkExperience(BaseModel):
     company: str = ""
     location: str = ""
     time: str = ""
+    start_date: str | None = None
+    end_date: str | None = None
+    current: bool = False
     responsibilities: list[str] = Field(default_factory=list)
 
 

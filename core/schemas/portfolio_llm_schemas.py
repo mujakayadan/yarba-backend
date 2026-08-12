@@ -24,6 +24,15 @@ class WorkExperienceLLMSchema(BaseModel):
     company: str
     location: str | None = None
     time: str | None = None
+    start_date: str | None = Field(
+        default=None,
+        description="Employment start month in YYYY-MM format.",
+    )
+    end_date: str | None = Field(
+        default=None,
+        description="Employment end month in YYYY-MM format; null for current jobs.",
+    )
+    current: bool = False
     responsibilities: list[str] = Field(default_factory=list)
 
     model_config = ConfigDict(extra="forbid")

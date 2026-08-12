@@ -13,7 +13,7 @@ from config.logging_config import get_logger
 from config.settings import Settings
 from utils.storage import get_storage_provider
 
-from ..models.portfolio import Portfolio
+from ..models.portfolio import Portfolio, sort_work_experience
 from ..models.portfolio_website import WebsiteConfig
 from ..models.profile import Profile
 from ..models.user import User
@@ -167,9 +167,12 @@ class WebsiteGeneratorService:
                     "company": exp.company,
                     "location": exp.location,
                     "time": exp.time,
+                    "start_date": exp.start_date,
+                    "end_date": exp.end_date,
+                    "current": exp.current,
                     "responsibilities": exp.responsibilities,
                 }
-                for exp in portfolio.work_experience
+                for exp in sort_work_experience(portfolio.work_experience)
             ]
 
         if "education" in config.enabled_sections:
