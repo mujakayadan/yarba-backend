@@ -5,6 +5,7 @@ import re
 import uuid
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlparse
 
 from api.schemas.portfolio_chat import (
     MAX_CHAT_HISTORY,
@@ -32,6 +33,8 @@ from core.utils.object_id import require_object_id
 from prompts.portfolio_chat_prompts import PortfolioChatSystemPrompt
 
 _SUBDOMAIN_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$")
+_URL_PATTERN = re.compile(r"https?://[^\s<>()]+", re.IGNORECASE)
+_TRAILING_URL_PUNCTUATION = ".,;:!?)]}\"'"
 _SCHEDULING_KEYWORDS = (
     "calendly",
     "schedule",
@@ -241,10 +244,25 @@ class PortfolioChatService:
         )
 
     @staticmethod
+    def _normalized_response_urls(response: str) -> set[str]:
+        urls: set[str] = set()
+        for match in _URL_PATTERN.finditer(response):
+            candidate = match.group(0).rstrip(_TRAILING_URL_PUNCTUATION)
+            try:
+                if urlparse(candidate).hostname:
+                    urls.add(candidate.rstrip("/").lower())
+            except ValueError:
+                continue
+        return urls
+
+    @staticmethod
     def _mentions_scheduling(assistant_response: str, calendly_url: str | None) -> bool:
         lowered = assistant_response.lower()
         if calendly_url:
             normalized = calendly_url.lower().rstrip("/")
-            if normalized in lowered or "calendly.com" in lowered:
+            response_urls = PortfolioChatService._normalized_response_urls(
+                assistant_response
+            )
+            if normalized in response_urls:
                 return True
         return any(keyword in lowered for keyword in _SCHEDULING_KEYWORDS)

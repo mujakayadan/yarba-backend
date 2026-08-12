@@ -9,6 +9,7 @@ from config.logging_config import get_logger
 from core.job_extractor.extractors.generic_extractor import GenericExtractor
 from core.job_extractor.url_utils import job_posting_url_for_extraction
 from core.job_extractor.utils.html_parser import html_to_markdown
+from core.utils.url import url_has_domain
 
 logger = get_logger(__name__)
 
@@ -19,7 +20,7 @@ async def extract_description_from_page(page: Page, job_url: str) -> str | None:
     """Scrape a job description from the current browser page."""
     posting_url = job_posting_url_for_extraction(job_url)
 
-    if "myworkdayjobs.com" in posting_url:
+    if url_has_domain(posting_url, "myworkdayjobs.com"):
         try:
             await page.wait_for_selector(
                 WORKDAY_DESCRIPTION_SELECTOR,
