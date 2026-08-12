@@ -1,4 +1,4 @@
-"""Common utilities for the Resume Builder application."""
+"""Common utilities for YARBA."""
 
 from utils.file import (
     ensure_directory_exists,

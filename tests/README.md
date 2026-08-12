@@ -1,6 +1,6 @@
-# Tests for Resume Builder API
+# Tests for the YARBA API
 
-This directory contains tests for the Resume Builder API. The tests are organized by module and use pytest as the testing framework.
+This directory contains tests for the YARBA API. The tests are organized by module and use pytest as the testing framework.
 
 ## Test Structure
 

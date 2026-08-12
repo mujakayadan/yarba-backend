@@ -1,6 +1,6 @@
-# ResumeBuilderTeX API Documentation
+# YARBA API Documentation
 
-This document provides an overview of all available API endpoints for the ResumeBuilderTeX application.
+This document provides an overview of all available API endpoints for YARBA.
 
 ## Base URL
 

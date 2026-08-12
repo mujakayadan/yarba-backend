@@ -1,4 +1,4 @@
-"""File upload utilities for the Resume Builder application."""
+"""File upload utilities for YARBA."""
 
 import os
 import uuid

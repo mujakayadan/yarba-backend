@@ -1,4 +1,4 @@
-"""File handling utilities for the Resume Builder application."""
+"""File handling utilities for YARBA."""
 
 import pathlib
 

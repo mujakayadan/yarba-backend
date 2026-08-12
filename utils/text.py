@@ -1,4 +1,4 @@
-"""Text processing utilities for the Resume Builder application."""
+"""Text processing utilities for YARBA."""
 
 import re
 

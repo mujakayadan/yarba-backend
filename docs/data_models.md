@@ -1,6 +1,6 @@
-# ResumeBuilderTeX Data Models
+# YARBA Data Models
 
-This document outlines the core data models used in the ResumeBuilderTeX application. Understanding these models is important for developing both frontend and backend components.
+This document outlines the core data models used in YARBA. Understanding these models is important for developing both frontend and backend components.
 
 ## User
 

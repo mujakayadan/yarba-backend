@@ -688,7 +688,7 @@ class APISettings(BaseSettings):
         description="URL for OpenAPI schema",
     )
     title: str = Field(
-        default="Resume Builder API",
+        default="YARBA API",
         description="API title",
     )
     description: str = Field(
@@ -1060,8 +1060,8 @@ class Settings(BaseSettings):
     debug: bool = Field(default=True, description="Debug mode")
 
     # Application
-    app_name: str = Field(default="Resume Builder", description="Application name")
-    version: str = Field(default="1.0.0", description="Application version")
+    app_name: str = Field(default="YARBA", description="Application name")
+    version: str = Field(default="0.1.0", description="Application version")
     frontend_url: str = Field(
         default="https://www.yarba.app",
         description="Public web app URL for links in emails and user-facing messages",
