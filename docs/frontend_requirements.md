@@ -1,10 +1,10 @@
-# ResumeBuilderTeX Frontend Requirements
+# YARBA Frontend Requirements
 
-This document outlines the necessary functionality for developing the frontend application for ResumeBuilderTeX.
+This document outlines the necessary functionality for developing the YARBA frontend application.
 
 ## Overview
 
-The frontend application should provide a user-friendly interface for resume and cover letter creation, editing, and PDF generation. The application will interact with the ResumeBuilderTeX API to perform these actions.
+The frontend application should provide a user-friendly interface for resume and cover letter creation, editing, and PDF generation. The application will interact with the YARBA API to perform these actions.
 
 ## Core Functionality
 

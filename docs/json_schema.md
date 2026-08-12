@@ -1,10 +1,10 @@
 # JSON Schema Output for LLM Responses
 
-This document describes how to use the JSON schema output feature in the Resume Builder application.
+This document describes how to use the JSON schema output feature in YARBA.
 
 ## Overview
 
-The Resume Builder now supports structured JSON output from LLM models, which provides several advantages:
+YARBA supports structured JSON output from LLM models, which provides several advantages:
 
 1. **Structured Data**: Instead of receiving LaTeX-formatted text that needs further processing, you get structured data objects
 2. **Schema Validation**: Responses are validated against Pydantic models to ensure data integrity

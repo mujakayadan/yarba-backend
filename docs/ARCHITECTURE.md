@@ -368,7 +368,7 @@ OpenAPI documentation is auto-generated at `/docs` and `/redoc`.
 | LLM format | `tests/test_resume_llm_format.py` | Schema validation without live API calls |
 | Fixtures | `tests/conftest.py` | Shared mocks, mongomock for async MongoDB |
 
-CI (`.github/workflows/ci.yml`) runs Ruff, mypy, and pytest on every push and pull request. **121 tests** as of the last collection run.
+CI (`.github/workflows/ci.yml`) runs Ruff, mypy, and pytest on every push and pull request. **187 tests** as of the last collection run.
 
 ---
 
@@ -378,7 +378,7 @@ CI (`.github/workflows/ci.yml`) runs Ruff, mypy, and pytest on every push and pu
 
 Two-stage build:
 
-1. **`Dockerfile.base`** — Python 3.12, uv, system deps (LaTeX, Playwright browsers). Published to `ghcr.io/mucahitkayadan/yarba-backend-base`.
+1. **`Dockerfile.base`** — Python 3.12, uv, system deps (LaTeX, Playwright browsers). Published to `ghcr.io/mujakayadan/yarba-backend-base`.
 2. **`Dockerfile`** — Slim image; copies application source on top of the base. Rebuilds in ~1–2 minutes for code-only changes.
 
 GitHub Actions workflow `build-base-image.yml` rebuilds the base when `Dockerfile.base`, `pyproject.toml`, or `uv.lock` change.

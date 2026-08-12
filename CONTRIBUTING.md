@@ -10,6 +10,7 @@
 ```bash
 uv python pin 3.12
 uv sync
+uv run playwright install chromium
 cp .env.example .env
 # edit .env
 ```
@@ -50,3 +51,12 @@ uv run python scripts/run_migrations.py migrate
 ```
 
 See [core/database/migrations/README.md](core/database/migrations/README.md).
+
+## Community and security
+
+By participating, you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md);
+do not open a public issue for security-sensitive findings.
+
+Contributions are accepted under the repository's
+[Elastic License 2.0](LICENSE).

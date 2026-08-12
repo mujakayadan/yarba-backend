@@ -44,7 +44,7 @@ This document outlines the technical architecture for hosting multi-tenant portf
 *   **Wildcard CNAME Record**:
     *   **Type**: `CNAME`
     *   **Name/Host**: `*`
-    *   **Value/Points to**: Your CloudFront distribution's domain name (e.g., `d3ui32qjmbshbu.cloudfront.net`).
+    *   **Value/Points to**: Your CloudFront distribution's domain name (e.g., `d111111abcdef8.cloudfront.net`).
 *   **CAA Records**: To allow AWS Certificate Manager to issue certificates.
     *   `0 issue "amazon.com"`
     *   `0 issue "amazonaws.com"`
@@ -56,9 +56,9 @@ This document outlines the technical architecture for hosting multi-tenant portf
 *   A **wildcard SSL certificate** for `*.yarba.app`.
 *   **Region**: Must be `us-east-1` (N. Virginia) for use with CloudFront.
 *   **Status**: "Issued" and associated with the CloudFront distribution.
-    *   Example Certificate ID (for reference): `fe6627d4-8470-449e-940c-b2d3fe222400`
+    *   Record the certificate ID securely in your infrastructure configuration.
 
-### 3. CloudFront Distribution (`ESEUSPPBKGYJR`)
+### 3. CloudFront Distribution
 
 *   **General Settings**:
     *   **Price Class**: "Use all edge locations (best performance)".
@@ -66,14 +66,14 @@ This document outlines the technical architecture for hosting multi-tenant portf
     *   **Custom SSL Certificate**: The `*.yarba.app` ACM certificate.
     *   **Supported HTTP Versions**: HTTP/2, HTTP/1.1, HTTP/1.0.
     *   **Default Root Object**: `index.html`.
-*   **Origin Settings (`s3-yarba-portfolios-origin`)**:
-    *   **Origin Domain**: S3 bucket endpoint (e.g., `yarba-app-bucket.s3.us-east-1.amazonaws.com`).
+*   **Origin Settings (`s3-portfolios-origin`)**:
+    *   **Origin Domain**: S3 bucket endpoint (e.g., `your-portfolio-bucket.s3.us-east-1.amazonaws.com`).
     *   **Origin Path**: **Must be empty.**
     *   **Origin Access**:
         *   Selected: `Origin access control settings (recommended)`.
-        *   Origin Access Control (OAC) entity selected: `yarba-app-bucket-oac` (ID: `E3NJSV1ND6P31R`).
+        *   Origin Access Control (OAC) entity selected: `portfolio-bucket-oac`.
 *   **Behavior Settings (Default `*` Path Pattern)**:
-    *   **Origin and origin groups**: `s3-yarba-portfolios-origin`.
+    *   **Origin and origin groups**: `s3-portfolios-origin`.
     *   **Viewer Protocol Policy**: "Redirect HTTP to HTTPS" or "HTTPS only".
     *   **Allowed HTTP Methods**: "GET, HEAD" (or "GET, HEAD, OPTIONS" if needed).
     *   **Compress objects automatically**: "Yes".
@@ -108,20 +108,23 @@ This document outlines the technical architecture for hosting multi-tenant portf
              }
         }
 
-        request.uri = newUri.replace(/\/\/g, '/'); // Prevent double slashes
+        request.uri = newUri.replace(/\/\//g, '/'); // Prevent double slashes
 
         return request;
     }
     ```
 
-### 5. S3 Bucket (`yarba-app-bucket`)
+### 5. S3 Bucket
 
 *   **Content Structure**: Static website files are organized as follows:
-    `s3://yarba-app-bucket/portfolios/<subdomain_name>/index.html`
-    `s3://yarba-app-bucket/portfolios/<subdomain_name>/style.css`
-    `s3://yarba-app-bucket/portfolios/<subdomain_name>/images/image.jpg`
+    `s3://your-portfolio-bucket/portfolios/<subdomain_name>/index.html`
+    `s3://your-portfolio-bucket/portfolios/<subdomain_name>/style.css`
+    `s3://your-portfolio-bucket/portfolios/<subdomain_name>/images/image.jpg`
     Other folders like `profile-pictures/` and `resumes/` exist for different application purposes and are not directly served by this CloudFront distribution setup.
 *   **Bucket Policy**:
+    The second statement is optional and only needed when CloudFront access
+    logging is enabled.
+
     ```json
     {
         "Version": "2012-10-17",
@@ -133,22 +136,21 @@ This document outlines the technical architecture for hosting multi-tenant portf
                     "Service": "cloudfront.amazonaws.com"
                 },
                 "Action": "s3:GetObject",
-                "Resource": "arn:aws:s3:::yarba-app-bucket/portfolios/*",
+                "Resource": "arn:aws:s3:::your-portfolio-bucket/portfolios/*",
                 "Condition": {
                     "StringEquals": {
                         "AWS:SourceArn": "arn:aws:cloudfront::YOUR_AWS_ACCOUNT_ID:distribution/YOUR_CLOUDFRONT_DISTRIBUTION_ID"
-                        // Replace YOUR_AWS_ACCOUNT_ID (223144408636) and YOUR_CLOUDFRONT_DISTRIBUTION_ID (ESEUSPPBKGYJR)
                     }
                 }
             },
-            { // Example Logging Policy (if used)
+            {
                 "Sid": "AWSLogDeliveryWrite1",
                 "Effect": "Allow",
                 "Principal": {
                     "Service": "delivery.logs.amazonaws.com"
                 },
                 "Action": "s3:PutObject",
-                "Resource": "arn:aws:s3:::yarba-app-bucket/AWSLogs/YOUR_AWS_ACCOUNT_ID/CloudFront/*",
+                "Resource": "arn:aws:s3:::your-portfolio-bucket/AWSLogs/YOUR_AWS_ACCOUNT_ID/CloudFront/*",
                 "Condition": {
                     "StringEquals": {
                         "aws:SourceAccount": "YOUR_AWS_ACCOUNT_ID",
@@ -162,13 +164,13 @@ This document outlines the technical architecture for hosting multi-tenant portf
         ]
     }
     ```
-    *(Note: Ensure `YOUR_AWS_ACCOUNT_ID` and `YOUR_CLOUDFRONT_DISTRIBUTION_ID` are correctly substituted in the policy above. For this setup, it's account `223144408636` and distribution `ESEUSPPBKGYJR`.)*
+    Replace `YOUR_AWS_ACCOUNT_ID` and `YOUR_CLOUDFRONT_DISTRIBUTION_ID` with values from your own AWS account.
 
-### 6. Application Logic (Yarba Backend)
+### 6. Application Logic (YARBA Backend)
 
 *   The `PortfolioWebsiteService` is responsible for creating the website data.
 *   The `WebsiteGeneratorService` generates the static HTML, CSS, and JS files.
-*   The `AWSDeploymentService` uploads these generated files to the correct S3 path: `s3://yarba-app-bucket/portfolios/<subdomain>/`.
+*   The `AWSDeploymentService` uploads these generated files to the correct S3 path: `s3://your-portfolio-bucket/portfolios/<subdomain>/`.
 *   `AWSDeploymentService` also triggers a CloudFront cache invalidation for `/portfolios/<subdomain>/*` after successful deployment to ensure users see the latest version.
 
 ## Key Considerations & Troubleshooting

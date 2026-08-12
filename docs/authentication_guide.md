@@ -1,10 +1,10 @@
-# ResumeBuilderTeX Authentication Guide
+# YARBA Authentication Guide
 
-This document provides information on implementing authentication in the frontend application for ResumeBuilderTeX.
+This document provides information on implementing authentication in the YARBA frontend application.
 
 ## Authentication Flow
 
-ResumeBuilderTeX uses Firebase for authentication with JWT tokens for API access. Here's the workflow:
+YARBA uses Firebase for authentication with JWT tokens for API access. Here's the workflow:
 
 1. **Registration**: User creates an account using Firebase Authentication
 2. **Login**: User logs in with Firebase and receives an ID token

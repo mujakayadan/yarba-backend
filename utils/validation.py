@@ -1,4 +1,4 @@
-"""Validation utilities for the Resume Builder application."""
+"""Validation utilities for YARBA."""
 
 import pathlib
 

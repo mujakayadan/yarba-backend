@@ -10,7 +10,7 @@
 [![Python](https://img.shields.io/badge/python-3.12-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-async%20API-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![MongoDB](https://img.shields.io/badge/MongoDB-Beanie%20ODM-47A248?logo=mongodb&logoColor=white)](https://beanie-odm.dev/)
-[![Tests](https://img.shields.io/badge/tests-172-brightgreen?logo=pytest&logoColor=white)](tests/)
+[![Tests](https://img.shields.io/badge/tests-187-brightgreen?logo=pytest&logoColor=white)](tests/)
 [![Ruff](https://img.shields.io/badge/lint-Ruff-D7FF64?logo=ruff&logoColor=black)](https://docs.astral.sh/ruff/)
 [![mypy](https://img.shields.io/badge/types-mypy-2A5DB0)](https://mypy-lang.org/)
 [![License](https://img.shields.io/badge/License-Elastic%202.0-005571)](LICENSE)
@@ -68,7 +68,7 @@ You maintain a **portfolio** — your full career dataset: every role, project, 
 | **Application tracking** | Job applications API — prepare autofill payloads, track status, PAT-scoped agent access |
 | **Email automation** | Inbound webhooks → parse job from email → generate PDF → deliver via Resend |
 | **Storage abstraction** | Local filesystem or S3 with CloudFront signed URLs; image/PDF validation |
-| **Production hygiene** | GitHub Actions CI, Ruff, mypy, 172 pytest tests, pre-commit hooks, typed Pydantic v2 settings |
+| **Production hygiene** | GitHub Actions CI, Ruff, mypy, 187 pytest tests, pre-commit hooks, typed Pydantic v2 settings |
 
 ---
 
@@ -192,11 +192,15 @@ templates/    # LaTeX and portfolio website themes
 
 ## Quick start
 
-**Prerequisites:** Python 3.12, [uv](https://docs.astral.sh/uv/), MongoDB, LaTeX (for PDF generation).
+**Prerequisites:** Python 3.12, [uv](https://docs.astral.sh/uv/), MongoDB, a
+[Firebase project](docs/firebase_setup.md), and a LaTeX distribution such as
+[TeX Live](https://tug.org/texlive/) or [MiKTeX](https://miktex.org/) for PDF
+generation.
 
 ```bash
 uv python pin 3.12
 uv sync
+uv run playwright install chromium   # required for job scraping and auto-apply
 cp .env.example .env   # edit values — see .env.example for Firebase, LLM keys, storage
 uv run uvicorn api.main:app --reload --reload-dir api --reload-dir config --reload-dir core --reload-dir utils
 ```
@@ -236,11 +240,15 @@ docker build --build-arg BASE_IMAGE=yarba-base -t yarba-backend .
 
 ## Documentation
 
+- [Architecture overview](docs/ARCHITECTURE.md)
+- [Backend API reference](docs/api_documentation.md)
+- [Firebase authentication setup](docs/firebase_setup.md)
+- [Portfolio hosting architecture](docs/portfolio_hosting_architecture.md)
 - [Agent guide & apply CLI](AGENTS.md) — local auto-apply, PATs, human-in-the-loop rules
 - [Database migrations](core/database/migrations/README.md)
 - [LaTeX safety utilities](core/latex/utils/README.md)
 - [Security policy](SECURITY.md)
-- Frontend API reference — [yarba-frontend/docs/api_documentation.md](https://github.com/mujakayadan/yarba-frontend/blob/main/docs/api_documentation.md)
+- [Frontend integration reference](https://github.com/mujakayadan/yarba-frontend/blob/main/docs/api_documentation.md)
 
 ---
 

@@ -4,7 +4,7 @@ This document provides guidance on implementing PDF generation and preview funct
 
 ## Overview
 
-The ResumeBuilderTeX application uses LaTeX to generate professional-quality PDF documents for resumes and cover letters. The frontend needs to interface with the backend API to request PDF generation and then display or download the resulting files.
+YARBA uses LaTeX to generate professional-quality PDF documents for resumes and cover letters. The frontend needs to interface with the backend API to request PDF generation and then display or download the resulting files.
 
 ## PDF Generation Flow
 

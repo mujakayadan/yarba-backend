@@ -1,4 +1,4 @@
-"""Storage utilities for the Resume Builder application."""
+"""Storage utilities for YARBA."""
 
 import os
 import time
