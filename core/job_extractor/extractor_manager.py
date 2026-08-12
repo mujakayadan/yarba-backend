@@ -2,6 +2,7 @@ import logging
 from urllib.parse import urlparse
 
 from core.models.job_extractor import JobDetails
+from core.utils.url import url_has_domain
 
 from .extractors.crawl4ai_extractor import Crawl4AIExtractor
 from .extractors.generic_extractor import GenericExtractor
@@ -65,7 +66,7 @@ class ExtractorManager:
             JobDetails object with extracted content, or None if extraction fails.
         """
         parsed_url = urlparse(job_url)
-        domain = parsed_url.netloc.lower()
+        domain = (parsed_url.hostname or "").lower()
         extraction_url = job_posting_url_for_extraction(job_url)
         if extraction_url != job_url:
             logger.info("Normalized extraction URL: %s -> %s", job_url, extraction_url)
@@ -73,7 +74,7 @@ class ExtractorManager:
         logger.info(f"Received job URL: {job_url} (Domain: {domain})")
 
         # LinkedIn gets special handling due to its specific requirements
-        if "linkedin.com" in domain:
+        if url_has_domain(job_url, "linkedin.com"):
             logger.info("LinkedIn URL detected. Using LinkedInExtractor...")
             result = await self.linkedin_extractor.scrape_job_posting(job_url)
             if result and result.description:

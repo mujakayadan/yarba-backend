@@ -3,6 +3,7 @@ from playwright.async_api import Page
 import config.logging_config as logging_config
 from core.job_extractor.utils.html_parser import html_to_markdown
 from core.models.job_extractor import JobDetails
+from core.utils.url import url_has_domain
 
 from .base_extractor import BaseExtractor
 from .domain_selectors import (
@@ -256,7 +257,7 @@ class GenericExtractor(BaseExtractor):
                     )
             else:
                 logger.info(f"Skipping network idle wait for {job_url} (domain config)")
-                if "myworkdayjobs.com" in job_url:
+                if url_has_domain(job_url, "myworkdayjobs.com"):
                     try:
                         await page.wait_for_selector(
                             '[data-automation-id="jobPostingDescription"]',

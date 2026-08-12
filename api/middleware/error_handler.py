@@ -1,6 +1,5 @@
 """Error handling middleware for FastAPI."""
 
-import traceback
 from typing import Any
 
 from fastapi import FastAPI, Request, Response, status
@@ -65,16 +64,19 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
             JSONResponse: Error response
         """
         logger.warning(
-            f"Application exception: {type(exc).__name__} - {str(exc)} - "
+            f"Application exception: {type(exc).__name__} - {exc.message} - "
             f"{request.method} {request.url.path}"
         )
 
+        is_server_error = exc.status_code >= status.HTTP_500_INTERNAL_SERVER_ERROR
         return JSONResponse(
             status_code=exc.status_code,
             content=self._format_error_response(
-                message=str(exc),
+                message=(
+                    "An unexpected error occurred" if is_server_error else exc.message
+                ),
                 error_code=exc.error_code,
-                details=exc.details,
+                details=None if is_server_error else exc.details,
             ),
         )
 
@@ -90,31 +92,18 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
         Returns:
             JSONResponse: Error response
         """
-        # Log the exception with traceback
-        logger.error(
-            f"Unexpected exception: {type(exc).__name__} - {str(exc)} - "
-            f"{request.method} {request.url.path}"
+        logger.exception(
+            "Unexpected exception: %s - %s %s",
+            type(exc).__name__,
+            request.method,
+            request.url.path,
         )
-        logger.error(traceback.format_exc())
-
-        # Prepare error response
-        status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-        message = "An unexpected error occurred"
-
-        # Include exception details in debug mode
-        details = None
-        if self.debug:
-            details = {
-                "exception": str(exc),
-                "traceback": traceback.format_exc().split("\n"),
-            }
 
         return JSONResponse(
-            status_code=status_code,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content=self._format_error_response(
-                message=message,
+                message="An unexpected error occurred",
                 error_code="internal_server_error",
-                details=details,
             ),
         )
 

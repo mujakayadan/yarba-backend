@@ -10,6 +10,7 @@ from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 from config.logging_config import get_logger
 from core.job_extractor.page_extract import WORKDAY_DESCRIPTION_SELECTOR
 from core.job_extractor.url_utils import job_posting_url_for_extraction
+from core.utils.url import url_has_domain
 
 logger = get_logger(__name__)
 
@@ -26,7 +27,7 @@ async def wait_for_posting_ready(
     """Wait until the posting looks ready, or the user continues manually."""
     posting_url = job_posting_url_for_extraction(job_url)
 
-    if "myworkdayjobs.com" in posting_url:
+    if url_has_domain(posting_url, "myworkdayjobs.com"):
         await _auto_wait_workday(page, manual_continue)
         return
 

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from urllib.parse import urlparse, urlunparse
 
+from core.utils.url import url_has_domain
+
 
 def job_posting_url_for_extraction(job_url: str) -> str:
     """Return a URL suitable for scraping the job description.
@@ -12,10 +14,9 @@ def job_posting_url_for_extraction(job_url: str) -> str:
     Extraction needs the posting page instead.
     """
     parsed = urlparse(job_url)
-    domain = parsed.netloc.lower()
     path = parsed.path.rstrip("/")
 
-    if "myworkdayjobs.com" in domain and path.endswith("/apply"):
+    if url_has_domain(job_url, "myworkdayjobs.com") and path.endswith("/apply"):
         path = path[: -len("/apply")]
         return urlunparse((parsed.scheme, parsed.netloc, path, "", "", ""))
 

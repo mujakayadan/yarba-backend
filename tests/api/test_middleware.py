@@ -7,6 +7,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from api.middleware.error_handler import add_error_handler_middleware
 from api.middleware.logging import add_logging_middleware
 from api.middleware.rate_limit import RATE_LIMIT_STORE, add_rate_limit_middleware
+from core.exceptions.base import InternalServerException
 
 
 def test_error_handler_middleware():
@@ -25,7 +26,24 @@ def test_error_handler_middleware():
     assert body["status"] == "error"
     assert body["message"] == "An unexpected error occurred"
     assert body["error_code"] == "internal_server_error"
-    assert "details" in body
+    assert "details" not in body
+    assert "Test error" not in response.text
+
+
+def test_error_handler_hides_internal_app_exception_details():
+    app = FastAPI()
+
+    @app.get("/test-app-error")
+    async def test_app_error():
+        raise InternalServerException(message="database password was exposed")
+
+    add_error_handler_middleware(app, debug=True)
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.get("/test-app-error")
+
+    assert response.status_code == 500
+    assert response.json()["message"] == "An unexpected error occurred"
+    assert "database password was exposed" not in response.text
 
 
 def test_logging_middleware():
