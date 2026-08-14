@@ -220,8 +220,9 @@ class FirebaseAuth:
             except Exception as decode_error:
                 logger.warning(f"Failed to decode token header: {str(decode_error)}")
 
-            # Now verify with Firebase
-            decoded_token = auth.verify_id_token(id_token)
+            # Now verify with Firebase. A small skew covers local NTP/Windows
+            # clocks that lag the token `iat` by a second.
+            decoded_token = auth.verify_id_token(id_token, clock_skew_seconds=10)
             logger.debug(
                 f"Successfully verified token for user: {decoded_token.get('uid')}"
             )

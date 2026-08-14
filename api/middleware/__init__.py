@@ -41,6 +41,18 @@ def setup_middlewares(app: FastAPI) -> None:
         ],
         route_specific_limits={
             # Pattern to match: (rate_limit, window)
+            r"/api/v1/auth/password/(login|register)$": (10, 60),
+            r"/api/v1/auth/password/(forgot-password|request-verification)$": (
+                5,
+                300,
+            ),
+            r"/api/v1/auth/password/(reset-password|confirm-verification|change-password)$": (
+                10,
+                300,
+            ),
+            r"/api/v1/auth/password/refresh$": (30, 60),
+            r"/api/v1/auth/oauth/(google|apple)$": (20, 60),
+            r"/api/v1/auth/oauth/nonce/(google|apple)$": (10, 60),
             "/api/v1/public/portfolio/chat": (10, 60),
             "/api/v1/resumes/": (
                 settings.api.rate_limit,

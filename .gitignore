@@ -93,6 +93,8 @@ temp/
 # Generated files
 generated/
 output/
+# Sensitive migration and reconciliation audit reports
+artifacts/
 
 .cursorrules
 

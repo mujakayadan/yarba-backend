@@ -144,6 +144,8 @@ from api.routers import (
     auth,
     cover_letters,
     job_router,
+    oauth_auth,
+    password_auth,
     portfolio_websites,
     portfolios,
     profiles,
@@ -153,6 +155,16 @@ from api.routers import (
 )
 
 app.include_router(auth.router, prefix=f"{API_V1_PREFIX}/auth", tags=["auth"])
+app.include_router(
+    password_auth.router,
+    prefix=f"{API_V1_PREFIX}/auth/password",
+    tags=["auth"],
+)
+app.include_router(
+    oauth_auth.router,
+    prefix=f"{API_V1_PREFIX}/auth/oauth",
+    tags=["auth"],
+)
 app.include_router(
     agent_tokens.router,
     prefix=f"{API_V1_PREFIX}/auth/agent-tokens",

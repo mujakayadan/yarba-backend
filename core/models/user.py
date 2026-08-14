@@ -6,6 +6,7 @@ from typing import Annotated
 from beanie import Document, Indexed, PydanticObjectId
 from pydantic import EmailStr, Field
 
+from core.auth.types import AuthMigrationState
 from core.models.document_config import BSON_DATETIME_ENCODERS, DOCUMENT_MODEL_CONFIG
 
 
@@ -26,8 +27,9 @@ class User(Document):
         description="Tracks the current setup step (1-indexed); 0 means setup is complete.",
     )
 
-    # Firebase auth fields (required for authentication)
-    firebase_uid: Annotated[str, Indexed()]
+    # Firebase remains populated for existing Firebase users, while native-only
+    # accounts can omit it during the dual-auth rollout.
+    firebase_uid: Annotated[str | None, Indexed()] = None
 
     # Firebase supports multiple authentication providers
     auth_provider: str = Field(
@@ -36,7 +38,10 @@ class User(Document):
         "firebase.password, firebase.google, firebase.facebook, firebase.twitter, etc.",
     )
 
-    # Authentication fields
+    # Transition-safe native authentication fields. These remain optional so legacy
+    # Firebase records load without a data backfill.
+    password_hash: str | None = Field(default=None, repr=False)
+    auth_migration_state: AuthMigrationState = AuthMigrationState.FIREBASE_ONLY
     last_login: datetime | None = None
 
     # Subscription fields

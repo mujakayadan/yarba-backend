@@ -1,18 +1,29 @@
 # YARBA Authentication Guide
 
-This document provides information on implementing authentication in the YARBA frontend application.
+YARBA is transitioning from Firebase-only authentication to backend-owned
+password, Google, Apple, access-token, and rotating refresh-session flows.
+Firebase remains available as a compatibility path during the staged rollout.
+For deployment order, identity reconciliation, flags, rollback, and Firebase
+shutdown criteria, follow the
+[Firebase retirement runbook](firebase_retirement_runbook.md).
 
-## Authentication Flow
+## Current authentication architecture
 
-YARBA uses Firebase for authentication with JWT tokens for API access. Here's the workflow:
+Two paths coexist while native authentication is feature-gated:
 
-1. **Registration**: User creates an account using Firebase Authentication
-2. **Login**: User logs in with Firebase and receives an ID token
-3. **Backend Authentication**: Firebase ID token is sent to backend to get a JWT token
-4. **Authorization**: JWT token is sent with each API request
-5. **Token Expiration**: Token expires after a set time (30 minutes by default)
+1. **Compatibility Firebase path**: Existing Firebase routes verify Firebase ID
+   tokens and issue Yarba API JWTs.
+2. **Native password path**: Backend password routes issue a 15-minute Yarba
+   access JWT and an HttpOnly rotating refresh cookie.
+3. **Direct OAuth path**: Google and Apple ID tokens are verified directly
+   against provider JWKS after a backend-issued, cookie-bound nonce exchange.
+4. **Identity mapping**: `AuthIdentity` links stable provider subjects to the
+   immutable Mongo user ID. Email is never used to auto-link accounts.
 
-## Implementation Guide
+The Firebase examples below document the legacy compatibility path and should
+not be used as the design source for new native integrations.
+
+## Legacy Firebase implementation guide
 
 ### JWT Token Storage
 

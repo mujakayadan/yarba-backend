@@ -1,10 +1,11 @@
 """Authentication schemas."""
 
-import re
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, SecretStr, field_validator
+
+from core.auth.password import validate_password_policy
 
 
 class TokenResponse(BaseModel):
@@ -12,6 +13,57 @@ class TokenResponse(BaseModel):
 
     access_token: str
     token_type: str = "bearer"
+
+
+class NativeAuthUser(BaseModel):
+    """User fields returned by native authentication routes."""
+
+    id: str
+    email: EmailStr
+    username: str
+    email_verified: bool
+    is_active: bool
+    is_superuser: bool
+    auth_provider: str
+
+
+class NativeAuthResponse(TokenResponse):
+    """Password authentication response with refresh token kept in a cookie."""
+
+    user: NativeAuthUser
+    access_token_expires_in: int = Field(gt=0)
+    is_new_user: bool
+    current_setup_step: int
+    registration_resumed: bool = False
+
+
+class GoogleOAuthRequest(BaseModel):
+    """Google ID token presented by a first-party client."""
+
+    id_token: SecretStr
+
+
+class AppleOAuthRequest(BaseModel):
+    """Apple ID token and optional one-time native profile fields.
+
+    The mobile client must give Apple SHA-256(raw backend nonce), lowercase hex.
+    """
+
+    id_token: SecretStr
+    display_name: str | None = Field(default=None, min_length=1, max_length=255)
+
+
+class OAuthNonceResponse(BaseModel):
+    """Raw provider nonce returned once for first-party SDK configuration."""
+
+    nonce: str
+    expires_in: int = Field(ge=300, le=600)
+
+
+class MessageResponse(BaseModel):
+    """Generic non-enumerating authentication response."""
+
+    message: str
 
 
 class FirebaseAuthResponse(BaseModel):
@@ -83,12 +135,32 @@ class RegisterRequest(BaseModel):
         Raises:
             ValueError: If password doesn't meet complexity requirements
         """
-        if not re.match(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d.@$!%*?&#]{8,}$", v):
-            raise ValueError(
-                "Password must contain at least one uppercase letter, "
-                "one lowercase letter, and one number"
-            )
-        return v
+        return validate_password_policy(v)
+
+
+class PasswordLoginRequest(BaseModel):
+    """Native password login request."""
+
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=64)
+
+
+class PasswordResetConfirmRequest(BaseModel):
+    """Consume a reset token and set a native password."""
+
+    token: SecretStr
+    new_password: str = Field(min_length=8, max_length=64)
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, value: str) -> str:
+        return validate_password_policy(value)
+
+
+class ActionTokenConfirmRequest(BaseModel):
+    """Consume a single-use email verification token."""
+
+    token: SecretStr
 
 
 class PasswordResetRequest(BaseModel):
@@ -127,12 +199,7 @@ class ChangePasswordRequest(BaseModel):
         Raises:
             ValueError: If password doesn't meet complexity requirements
         """
-        if not re.match(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d.@$!%*?&#]{8,}$", v):
-            raise ValueError(
-                "Password must contain at least one uppercase letter, "
-                "one lowercase letter, and one number"
-            )
-        return v
+        return validate_password_policy(v)
 
 
 class UserResponse(BaseModel):

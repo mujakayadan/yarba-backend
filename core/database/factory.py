@@ -5,25 +5,45 @@ This module provides factory functions for creating database-related dependencie
 
 from collections.abc import AsyncGenerator
 
-from config.settings import Settings
+from config.settings import settings
+from core.auth.oauth import AiohttpJwksFetcher, JwksCache, OAuthIdTokenVerifier
 from core.database.types import AsyncMongoDatabase
 from core.repositories import (
     AgentAccessTokenRepository,
+    AuthActionTokenRepository,
+    AuthIdentityRepository,
     CoverLetterRepository,
     JobApplicationRepository,
+    OAuthNonceRepository,
     PortfolioRepository,
     PortfolioSiteTokenRepository,
     ProfileRepository,
+    RefreshTokenSessionRepository,
     ResumeRepository,
     UserRepository,
 )
 from core.services.email_clients.resend_client import ResendClient
+from core.services.native_auth_service import NativeAuthService
+from core.services.oauth_nonce_service import OAuthNonceService
+from core.services.refresh_token_service import RefreshTokenService
 
 from ..services.auth_service import AuthService
 from .connection import get_async_database_connection
 from .unit_of_work import AsyncMongoUnitOfWork
 
-settings = Settings()
+_oauth_jwks_cache = JwksCache(
+    AiohttpJwksFetcher(),
+    ttl_seconds=settings.auth.oauth_jwks_cache_ttl_seconds,
+)
+_oauth_id_token_verifier = OAuthIdTokenVerifier(
+    cache=_oauth_jwks_cache,
+    google_jwks_url=settings.auth.oauth_google_jwks_url,
+    apple_jwks_url=settings.auth.oauth_apple_jwks_url,
+    google_issuers=settings.auth.google_oauth_issuer_allowlist,
+    apple_issuer=settings.auth.oauth_apple_issuer,
+    google_audiences=settings.auth.google_oauth_audience_allowlist,
+    apple_audiences=settings.auth.apple_oauth_audience_allowlist,
+)
 
 
 def _build_resend_client() -> ResendClient | None:
@@ -133,3 +153,31 @@ async def get_auth_service() -> AsyncGenerator[AuthService, None]:
         AuthService: Authentication service instance
     """
     yield AuthService(resend_client=_build_resend_client())
+
+
+async def get_native_auth_service() -> AsyncGenerator[NativeAuthService, None]:
+    """Yield the composed backend-owned authentication service."""
+    resend_client = _build_resend_client()
+    auth_service = AuthService(resend_client=resend_client)
+    yield NativeAuthService(
+        user_repository=UserRepository(),
+        identity_repository=AuthIdentityRepository(),
+        action_token_repository=AuthActionTokenRepository(),
+        refresh_token_service=RefreshTokenService(RefreshTokenSessionRepository()),
+        auth_service=auth_service,
+        resend_client=resend_client,
+    )
+
+
+def get_oauth_id_token_verifier() -> OAuthIdTokenVerifier:
+    """Return the process-wide verifier and bounded JWKS cache."""
+    return _oauth_id_token_verifier
+
+
+def get_oauth_nonce_service() -> OAuthNonceService:
+    """Return the backend-issued OAuth nonce service."""
+    return OAuthNonceService(
+        OAuthNonceRepository(),
+        signing_key=settings.auth.jwt_secret_key.get_secret_value(),
+        lifetime_seconds=settings.auth.oauth_nonce_cookie_max_age_seconds,
+    )

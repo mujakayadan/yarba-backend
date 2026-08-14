@@ -569,10 +569,13 @@ class AuthService:
             firebase_update_payload["email_verified"] = update_data["email_verified"]
 
         if firebase_update_payload:
-            try:
-                await FirebaseAuth.update_user(
-                    user.firebase_uid, **firebase_update_payload
+            firebase_uid = user.firebase_uid
+            if firebase_uid is None:
+                raise BadRequestException(
+                    "Firebase account updates are unavailable for native-only users"
                 )
+            try:
+                await FirebaseAuth.update_user(firebase_uid, **firebase_update_payload)
                 self.logger.info(f"Successfully updated user {user.email} in Firebase.")
             except Exception as e:
                 self.logger.error(

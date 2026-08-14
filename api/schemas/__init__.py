@@ -1,6 +1,20 @@
 """API schema models package."""
 
-from .auth import LoginRequest, RegisterRequest, TokenResponse, UserResponse
+from .auth import (
+    ActionTokenConfirmRequest,
+    AppleOAuthRequest,
+    GoogleOAuthRequest,
+    LoginRequest,
+    MessageResponse,
+    NativeAuthResponse,
+    NativeAuthUser,
+    OAuthNonceResponse,
+    PasswordLoginRequest,
+    PasswordResetConfirmRequest,
+    RegisterRequest,
+    TokenResponse,
+    UserResponse,
+)
 from .cover_letter import (
     CoverLetterCreate,
     CoverLetterFilter,
@@ -21,7 +35,16 @@ from .resume import (
 
 __all__ = [
     # Auth schemas
+    "ActionTokenConfirmRequest",
+    "AppleOAuthRequest",
+    "GoogleOAuthRequest",
     "LoginRequest",
+    "MessageResponse",
+    "NativeAuthResponse",
+    "NativeAuthUser",
+    "OAuthNonceResponse",
+    "PasswordLoginRequest",
+    "PasswordResetConfirmRequest",
     "RegisterRequest",
     "TokenResponse",
     "UserResponse",

@@ -1,5 +1,7 @@
 """Password utility functions."""
 
+import re
+
 from pwdlib import PasswordHash
 from pwdlib import exceptions as pwd_exceptions
 from pwdlib.hashers.bcrypt import BcryptHasher
@@ -10,6 +12,9 @@ logger = get_logger(__name__)
 
 # Bcrypt-only: verifies legacy passlib-generated $2b$ hashes in the database.
 password_hasher = PasswordHash((BcryptHasher(),))
+PASSWORD_PATTERN = re.compile(
+    r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d.@$!%*?&#]{8,64}$"
+)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -48,3 +53,13 @@ def get_password_hash(password: str) -> str:
         str: Hashed password
     """
     return password_hasher.hash(password)
+
+
+def validate_password_policy(password: str) -> str:
+    """Validate the shared native and Firebase password policy."""
+    if not PASSWORD_PATTERN.fullmatch(password):
+        raise ValueError(
+            "Password must be 8-64 characters and contain at least one uppercase "
+            "letter, one lowercase letter, and one number"
+        )
+    return password

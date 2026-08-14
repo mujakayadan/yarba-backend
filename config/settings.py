@@ -20,6 +20,13 @@ def _ensure_directory(path: Path) -> Path:
     return path
 
 
+def _comma_separated_values(*values: str) -> frozenset[str]:
+    """Normalize comma-separated configuration into a non-empty allowlist."""
+    return frozenset(
+        item.strip() for value in values for item in value.split(",") if item.strip()
+    )
+
+
 class DatabaseSettings(BaseSettings):
     """Database connection settings."""
 
@@ -101,14 +108,136 @@ class AuthSettings(BaseSettings):
     )
     jwt_access_token_expire_minutes: int = Field(
         default=1440,  # Set to 24 hours (1440 minutes) for debug purposes
-        description="Access token expiration time in minutes",
+        gt=0,
+        description="Legacy Firebase access token expiration time in minutes",
         validation_alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES",
+    )
+    jwt_native_access_token_expire_minutes: int = Field(
+        default=15,
+        gt=0,
+        description="Native authentication access token lifetime in minutes",
+        validation_alias="JWT_NATIVE_ACCESS_TOKEN_EXPIRE_MINUTES",
+    )
+    jwt_refresh_token_expire_days: int = Field(
+        default=30,
+        gt=0,
+        description="Refresh token session lifetime in days",
+        validation_alias="JWT_REFRESH_TOKEN_EXPIRE_DAYS",
+    )
+    password_reset_token_expire_minutes: int = Field(
+        default=60,
+        gt=0,
+        validation_alias="PASSWORD_RESET_TOKEN_EXPIRE_MINUTES",
+    )
+    email_verification_token_expire_minutes: int = Field(
+        default=1440,
+        gt=0,
+        validation_alias="EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES",
+    )
+    refresh_cookie_name: str = Field(
+        default="yarba_refresh",
+        validation_alias="REFRESH_COOKIE_NAME",
+    )
+    refresh_cookie_domain: str | None = Field(
+        default=None,
+        validation_alias="REFRESH_COOKIE_DOMAIN",
+    )
+    refresh_cookie_secure: bool = Field(
+        default=True,
+        validation_alias="REFRESH_COOKIE_SECURE",
+    )
+    refresh_cookie_samesite: Literal["lax", "strict", "none"] = Field(
+        default="lax",
+        validation_alias="REFRESH_COOKIE_SAMESITE",
+    )
+    refresh_cookie_path: str = Field(
+        default="/api/v1/auth/password",
+        validation_alias="REFRESH_COOKIE_PATH",
+    )
+    oauth_nonce_cookie_name: str = Field(
+        default="yarba_oauth_nonce",
+        min_length=1,
+        validation_alias="OAUTH_NONCE_COOKIE_NAME",
+    )
+    oauth_nonce_cookie_secure: bool = Field(
+        default=True,
+        validation_alias="OAUTH_NONCE_COOKIE_SECURE",
+    )
+    oauth_nonce_cookie_samesite: Literal["lax"] = Field(
+        default="lax",
+        validation_alias="OAUTH_NONCE_COOKIE_SAMESITE",
+    )
+    oauth_nonce_cookie_path: str = Field(
+        default="/api/v1/auth/oauth",
+        validation_alias="OAUTH_NONCE_COOKIE_PATH",
+    )
+    oauth_nonce_cookie_max_age_seconds: int = Field(
+        default=600,
+        ge=300,
+        le=600,
+        validation_alias="OAUTH_NONCE_COOKIE_MAX_AGE_SECONDS",
+    )
+    oauth_google_web_audiences: str = Field(
+        default="",
+        validation_alias="OAUTH_GOOGLE_WEB_AUDIENCES",
+    )
+    oauth_google_ios_audiences: str = Field(
+        default="",
+        validation_alias="OAUTH_GOOGLE_IOS_AUDIENCES",
+    )
+    oauth_google_android_audiences: str = Field(
+        default="",
+        validation_alias="OAUTH_GOOGLE_ANDROID_AUDIENCES",
+    )
+    oauth_apple_audiences: str = Field(
+        default="",
+        validation_alias="OAUTH_APPLE_AUDIENCES",
+    )
+    oauth_google_jwks_url: str = Field(
+        default="https://www.googleapis.com/oauth2/v3/certs",
+        validation_alias="OAUTH_GOOGLE_JWKS_URL",
+    )
+    oauth_apple_jwks_url: str = Field(
+        default="https://appleid.apple.com/auth/keys",
+        validation_alias="OAUTH_APPLE_JWKS_URL",
+    )
+    oauth_google_issuers: str = Field(
+        default="https://accounts.google.com,accounts.google.com",
+        validation_alias="OAUTH_GOOGLE_ISSUERS",
+    )
+    oauth_apple_issuer: str = Field(
+        default="https://appleid.apple.com",
+        validation_alias="OAUTH_APPLE_ISSUER",
+    )
+    oauth_jwks_cache_ttl_seconds: int = Field(
+        default=3600,
+        gt=0,
+        validation_alias="OAUTH_JWKS_CACHE_TTL_SECONDS",
     )
     application_data_encryption_key: SecretStr = Field(
         default=SecretStr(""),
         description="Fernet key for encrypting special-category PII (EEO demographics)",
         validation_alias="APPLICATION_DATA_ENCRYPTION_KEY",
     )
+
+    @property
+    def google_oauth_audience_allowlist(self) -> frozenset[str]:
+        """Combine configured Google web, iOS, and Android client IDs."""
+        return _comma_separated_values(
+            self.oauth_google_web_audiences,
+            self.oauth_google_ios_audiences,
+            self.oauth_google_android_audiences,
+        )
+
+    @property
+    def apple_oauth_audience_allowlist(self) -> frozenset[str]:
+        """Return configured Apple service and app identifiers."""
+        return _comma_separated_values(self.oauth_apple_audiences)
+
+    @property
+    def google_oauth_issuer_allowlist(self) -> frozenset[str]:
+        """Return configured official Google issuers."""
+        return _comma_separated_values(self.oauth_google_issuers)
 
     # API URLs
     api_base_url: str = Field(
@@ -193,6 +322,22 @@ class AuthSettings(BaseSettings):
         description="Firebase private key encoded in base64",
         validation_alias="FIREBASE_PRIVATE_KEY_BASE64",
     )
+
+    @model_validator(mode="after")
+    def validate_refresh_cookie_security(self) -> Self:
+        """Require Secure cookies when SameSite=None permits cross-site use."""
+        if self.refresh_cookie_samesite == "none" and not self.refresh_cookie_secure:
+            raise ValueError(
+                "REFRESH_COOKIE_SECURE must be true when "
+                "REFRESH_COOKIE_SAMESITE is none"
+            )
+        if self.oauth_nonce_cookie_path != "/api/v1/auth/oauth":
+            raise ValueError("OAUTH_NONCE_COOKIE_PATH must be /api/v1/auth/oauth")
+        if self.oauth_nonce_cookie_name == self.refresh_cookie_name:
+            raise ValueError(
+                "OAUTH_NONCE_COOKIE_NAME must differ from REFRESH_COOKIE_NAME"
+            )
+        return self
 
     @model_validator(mode="after")
     def decode_firebase_base64_key(self) -> Self:
@@ -775,6 +920,16 @@ class FeatureSettings(BaseSettings):
         env_prefix="FEATURE_",
     )
 
+    enable_firebase_auth: bool = Field(
+        default=True,
+        description="Keep the existing Firebase authentication flow enabled",
+        validation_alias="ENABLE_FIREBASE_AUTH",
+    )
+    enable_native_auth: bool = Field(
+        default=False,
+        description="Enable native password and provider authentication flows",
+        validation_alias="ENABLE_NATIVE_AUTH",
+    )
     enable_email_to_resume: bool = Field(
         default=False,
         description="Enable email-to-resume via Resend inbound webhook",
