@@ -25,6 +25,18 @@ from core.utils.object_id import require_object_id
 
 PASSWORD = "NativePassword123"
 NEW_PASSWORD = "ChangedPassword123"
+LEGAL_ACCEPTANCE = {
+    "terms_version": "2026-08-19",
+    "acceptable_use_version": "2026-08-19",
+    "privacy_version": "2026-08-19",
+    "ai_data_use_version": "2026-08-19",
+    "terms_accepted": True,
+    "acceptable_use_accepted": True,
+    "privacy_acknowledged": True,
+    "ai_data_use_acknowledged": True,
+    "minimum_age_confirmed": True,
+    "acceptance_surface": "password_registration",
+}
 
 
 @pytest.fixture
@@ -44,12 +56,19 @@ def native_service_override(native_auth_enabled: None) -> NativeAuthService:
 async def _register(client: AsyncClient, email: str = "native@example.com"):
     return await client.post(
         "/api/v1/auth/password/register",
-        json={"email": email, "password": PASSWORD},
+        json={
+            "email": email,
+            "password": PASSWORD,
+            "legal_acceptance": LEGAL_ACCEPTANCE,
+        },
     )
 
 
 @pytest.mark.asyncio
-async def test_native_routes_are_disabled_by_default(async_client: AsyncClient) -> None:
+async def test_native_routes_are_disabled_by_default(
+    async_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings.features, "enable_native_auth", False)
     response = await _register(async_client)
     assert response.status_code == status.HTTP_404_NOT_FOUND
 

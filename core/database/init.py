@@ -29,8 +29,10 @@ from core.models.agent_access_token import AgentAccessToken
 from core.models.auth_action_token import AuthActionToken
 from core.models.auth_identity import AuthIdentity
 from core.models.cover_letter import CoverLetter
+from core.models.data_rights import AccountDeletionRequest, AccountExportRequest
 from core.models.inbound_email import InboundEmail
 from core.models.job_application import JobApplication
+from core.models.legal import LegalAcceptance, LegalDocumentVersion
 from core.models.oauth_nonce import OAuthNonce
 from core.models.portfolio import Portfolio
 from core.models.portfolio_chat_conversation import PortfolioChatConversation
@@ -39,6 +41,7 @@ from core.models.portfolio_website import PortfolioWebsite
 from core.models.profile import Profile
 from core.models.refresh_token_session import RefreshTokenSession
 from core.models.resume import Resume
+from core.models.safety import AbuseReport, ModerationAuditEvent
 from core.models.unknown_email_sender import UnknownEmailSender
 from core.models.user import User
 from utils.text import sanitize_mongodb_uri
@@ -96,6 +99,12 @@ async def init_db() -> AsyncMongoClientType | None:
             PortfolioChatConversation,
             InboundEmail,
             UnknownEmailSender,
+            LegalDocumentVersion,
+            LegalAcceptance,
+            AbuseReport,
+            ModerationAuditEvent,
+            AccountExportRequest,
+            AccountDeletionRequest,
         ]
 
         logger.info("Testing MongoDB connection...")

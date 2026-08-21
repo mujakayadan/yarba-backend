@@ -129,6 +129,10 @@ class StorageProvider:
         """
         raise NotImplementedError("This method should be implemented by subclasses")
 
+    async def save_account_export(self, archive: bytes, request_id: str) -> str:
+        """Save a private account export archive and return its object key."""
+        raise NotImplementedError("This method should be implemented by subclasses")
+
     async def delete_file(self, object_key: str) -> bool:
         """Delete a file from storage.
 
@@ -288,6 +292,18 @@ class LocalStorageProvider(StorageProvider):
 
         # Return the relative path for the object key
         return f"{settings.storage.cover_letters_path}/{filename}"
+
+    async def save_account_export(self, archive: bytes, request_id: str) -> str:
+        """Save a private account export archive to local storage."""
+        storage_path = (
+            settings.paths.base_dir
+            / settings.storage.local_storage_path
+            / "account-exports"
+        )
+        os.makedirs(storage_path, exist_ok=True)
+        filename = f"{request_id}-{uuid.uuid4()}.zip"
+        (storage_path / filename).write_bytes(archive)
+        return f"account-exports/{filename}"
 
     async def delete_file(self, object_key: str) -> bool:
         """Delete a file from local disk."""
@@ -541,6 +557,25 @@ class AWSS3StorageProvider(StorageProvider):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to upload PDF: {str(e)}",
             )
+
+    async def save_account_export(self, archive: bytes, request_id: str) -> str:
+        """Upload a private account export archive to S3."""
+        object_key = f"account-exports/{request_id}-{uuid.uuid4()}.zip"
+        try:
+            self.s3_client.put_object(
+                Bucket=self.bucket,
+                Key=object_key,
+                Body=archive,
+                ContentType="application/zip",
+                ServerSideEncryption="AES256",
+            )
+            return object_key
+        except Exception as exc:
+            logger.error("Failed to upload account export: %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to store account export",
+            ) from exc
 
     async def delete_file(self, object_key: str) -> bool:
         """Delete a file from AWS S3."""

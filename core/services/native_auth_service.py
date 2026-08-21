@@ -9,6 +9,7 @@ from beanie import PydanticObjectId
 from pydantic import EmailStr, SecretStr
 from pymongo.errors import DuplicateKeyError
 
+from api.schemas.legal import LegalAcceptanceRequest
 from config.settings import settings
 from core.auth.oauth import VerifiedProviderIdentity
 from core.auth.password import get_password_hash, verify_password
@@ -26,6 +27,7 @@ from core.repositories.auth_identity_repository import AuthIdentityRepository
 from core.repositories.user_repository import UserRepository
 from core.services.auth_service import AuthService
 from core.services.email_clients.resend_client import ResendClient
+from core.services.legal_service import LegalService
 from core.services.refresh_token_service import IssuedRefreshToken, RefreshTokenService
 from core.utils.auth_action_token import (
     generate_auth_action_token,
@@ -58,6 +60,7 @@ class NativeAuthService:
         refresh_token_service: RefreshTokenService | None = None,
         auth_service: AuthService | None = None,
         resend_client: ResendClient | None = None,
+        legal_service: LegalService | None = None,
     ) -> None:
         self.users = user_repository or UserRepository()
         self.identities = identity_repository or AuthIdentityRepository()
@@ -65,9 +68,17 @@ class NativeAuthService:
         self.refresh_tokens = refresh_token_service or RefreshTokenService()
         self.auth_service = auth_service or AuthService()
         self.resend_client = resend_client
+        self.legal = legal_service or LegalService()
 
-    async def register(self, email: EmailStr, password: str) -> NativeAuthResult:
+    async def register(
+        self,
+        email: EmailStr,
+        password: str,
+        legal_acceptance: LegalAcceptanceRequest | None = None,
+    ) -> NativeAuthResult:
         """Create a native-only user without claiming an existing email."""
+        if legal_acceptance is not None:
+            await self.legal.validate(legal_acceptance)
         canonical_email = _canonicalize_email(email)
         if await self.users.get_by_email_insensitive(canonical_email) is not None:
             raise ConflictException("Registration is unavailable for these credentials")
@@ -100,6 +111,8 @@ class NativeAuthService:
                 provider_email=_canonicalize_email(user.email),
             )
         )
+        if legal_acceptance is not None:
+            await self.legal.accept(user_id, legal_acceptance)
         await self._send_verification_if_configured(user)
         return await self._issue_auth_result(user)
 
@@ -126,6 +139,7 @@ class NativeAuthService:
     async def oauth_login(
         self,
         verified: VerifiedProviderIdentity,
+        legal_acceptance: LegalAcceptanceRequest | None = None,
     ) -> NativeAuthResult:
         """Resolve or create a provider identity without linking by email."""
         identity = await self.identities.get_by_provider_subject(
@@ -145,6 +159,12 @@ class NativeAuthService:
                 "Provider profile is incomplete; retry sign-in with email sharing",
                 error_code="provider_profile_incomplete",
             )
+        if legal_acceptance is None:
+            raise BadRequestException(
+                "Legal acceptance is required for first-time provider sign-in",
+                error_code="legal_acceptance_required",
+            )
+        await self.legal.validate(legal_acceptance)
         canonical_email = _canonicalize_email(verified.email)
         if await self.users.get_by_email_insensitive(canonical_email) is not None:
             raise ConflictException(
@@ -193,6 +213,7 @@ class NativeAuthService:
         except Exception:
             await self.users.delete(user_id)
             raise
+        await self.legal.accept(user_id, legal_acceptance)
         return await self._issue_auth_result(user)
 
     async def refresh(self, raw_token: str) -> NativeAuthResult:

@@ -8,12 +8,14 @@ from api.dependencies.services import (
 )
 from api.schemas.portfolio_chat import PortfolioChatRequest, PortfolioChatResponse
 from api.schemas.public_portfolio import PublicPortfolioContent
+from api.schemas.safety import AbuseReportRequest, AbuseReportResponse
 from core.exceptions.base import (
     BadRequestException,
     ForbiddenException,
     NotFoundException,
     UnauthorizedException,
 )
+from core.services.moderation_service import ModerationService
 from core.services.portfolio_chat_service import (
     ChatVisitorMetadata,
     PortfolioChatService,
@@ -23,6 +25,25 @@ from core.services.public_portfolio_service import PublicPortfolioService
 router = APIRouter(prefix="/public/portfolio", tags=["public-portfolio"])
 
 PORTFOLIO_SITE_TOKEN_HEADER = "X-Portfolio-Site-Token"
+
+
+def get_moderation_service() -> ModerationService:
+    return ModerationService()
+
+
+@router.post("/reports", response_model=AbuseReportResponse, status_code=202)
+async def submit_abuse_report(
+    body: AbuseReportRequest,
+    request: Request,
+    service: ModerationService = Depends(get_moderation_service),
+) -> AbuseReportResponse:
+    forwarded = request.headers.get("x-forwarded-for")
+    client_ip = (
+        forwarded.split(",", 1)[0].strip()
+        if forwarded
+        else (request.client.host if request.client else "unknown")
+    )
+    return await service.submit_report(body, client_ip)
 
 
 @router.get(

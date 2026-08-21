@@ -5,6 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, EmailStr, Field, SecretStr, field_validator
 
+from api.schemas.legal import LegalAcceptanceRequest
 from core.auth.password import validate_password_policy
 
 
@@ -41,6 +42,7 @@ class GoogleOAuthRequest(BaseModel):
     """Google ID token presented by a first-party client."""
 
     id_token: SecretStr
+    legal_acceptance: LegalAcceptanceRequest | None = None
 
 
 class AppleOAuthRequest(BaseModel):
@@ -51,6 +53,7 @@ class AppleOAuthRequest(BaseModel):
 
     id_token: SecretStr
     display_name: str | None = Field(default=None, min_length=1, max_length=255)
+    legal_acceptance: LegalAcceptanceRequest | None = None
 
 
 class OAuthNonceResponse(BaseModel):
@@ -88,6 +91,7 @@ class FirebaseLoginRequest(BaseModel):
     """Firebase token login request schema."""
 
     id_token: str = Field(..., description="Firebase ID token")
+    legal_acceptance: LegalAcceptanceRequest | None = None
 
 
 class UpdateSetupProgressRequest(BaseModel):
@@ -121,6 +125,7 @@ class RegisterRequest(BaseModel):
         max_length=64,
         description="Password must be between 8 and 64 characters and contain at least one uppercase letter, one lowercase letter, and one number",
     )
+    legal_acceptance: LegalAcceptanceRequest
 
     @field_validator("password")
     def validate_password(cls, v: str) -> str:

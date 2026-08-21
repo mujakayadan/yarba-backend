@@ -102,7 +102,11 @@ async def register_password(
     service: NativeAuthService = Depends(get_native_auth_service),
 ) -> NativeAuthResponse:
     """Register a native-only account and establish a refresh session."""
-    result = await service.register(request.email, request.password)
+    result = await service.register(
+        request.email,
+        request.password,
+        request.legal_acceptance,
+    )
     _set_refresh_cookie(response, result)
     return _response_payload(result)
 

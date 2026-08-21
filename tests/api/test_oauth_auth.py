@@ -13,6 +13,7 @@ from fastapi import status
 from httpx import AsyncClient
 
 from api.main import app as fastapi_app
+from api.schemas.legal import LegalAcceptanceRequest
 from config.settings import settings
 from core.auth.oauth import (
     JwksCache,
@@ -45,6 +46,25 @@ APPLE_ISSUER = "https://appleid.apple.com"
 GOOGLE_URL = "https://google.test/jwks"
 APPLE_URL = "https://apple.test/jwks"
 KID = "test-key"
+GOOGLE_LEGAL_ACCEPTANCE = {
+    "terms_version": "2026-08-19",
+    "acceptable_use_version": "2026-08-19",
+    "privacy_version": "2026-08-19",
+    "ai_data_use_version": "2026-08-19",
+    "terms_accepted": True,
+    "acceptable_use_accepted": True,
+    "privacy_acknowledged": True,
+    "ai_data_use_acknowledged": True,
+    "minimum_age_confirmed": True,
+    "acceptance_surface": "google_oauth",
+}
+APPLE_LEGAL_ACCEPTANCE = {
+    **GOOGLE_LEGAL_ACCEPTANCE,
+    "acceptance_surface": "apple_oauth",
+}
+GOOGLE_LEGAL_ACCEPTANCE_REQUEST = LegalAcceptanceRequest.model_validate(
+    GOOGLE_LEGAL_ACCEPTANCE
+)
 
 
 def _nonce_hash(nonce: str) -> str:
@@ -332,6 +352,7 @@ async def test_google_endpoint_sets_session_cookie_and_canonical_identity(
                 subject="google-new-user",
                 nonce=nonce,
             ),
+            "legal_acceptance": GOOGLE_LEGAL_ACCEPTANCE,
         },
     )
 
@@ -373,6 +394,7 @@ async def test_apple_first_and_later_login_without_profile(
                 nonce=_nonce_hash(first_nonce),
             ),
             "display_name": "Apple Person",
+            "legal_acceptance": APPLE_LEGAL_ACCEPTANCE,
         },
     )
     later_nonce = await _issue_nonce(async_client, "apple")
@@ -517,7 +539,10 @@ async def test_expired_and_replayed_nonce_cookies(
     )
     success = await async_client.post(
         "/api/v1/auth/oauth/google",
-        json={"id_token": token},
+        json={
+            "id_token": token,
+            "legal_acceptance": GOOGLE_LEGAL_ACCEPTANCE,
+        },
     )
     assert success.status_code == status.HTTP_200_OK
     assert "Max-Age=0" in success.headers["set-cookie"]
@@ -630,7 +655,8 @@ async def test_apple_requires_hashed_nonce_and_verified_email(
                 subject="apple-hashed-nonce",
                 email="apple.verified@example.com",
                 nonce=_nonce_hash(verified_nonce),
-            )
+            ),
+            "legal_acceptance": APPLE_LEGAL_ACCEPTANCE,
         },
     )
     assert verified.status_code == status.HTTP_200_OK
@@ -682,7 +708,8 @@ async def test_unknown_identity_does_not_auto_link_existing_email(
                 provider=IdentityProvider.GOOGLE,
                 subject="new-google-subject",
                 email=str(test_user.email).upper(),
-            )
+            ),
+            GOOGLE_LEGAL_ACCEPTANCE_REQUEST,
         )
     assert conflict.value.error_code == "account_linking_required"
     assert (
@@ -700,8 +727,8 @@ async def test_concurrent_provider_requests_resolve_one_user(beanie_db) -> None:
     )
 
     first, second = await asyncio.gather(
-        service.oauth_login(verified),
-        service.oauth_login(verified),
+        service.oauth_login(verified, GOOGLE_LEGAL_ACCEPTANCE_REQUEST),
+        service.oauth_login(verified, GOOGLE_LEGAL_ACCEPTANCE_REQUEST),
     )
     assert first.user.id == second.user.id
     assert await User.find({"email": "concurrent.oauth@example.com"}).count() == 1
@@ -713,7 +740,9 @@ async def test_concurrent_provider_requests_resolve_one_user(beanie_db) -> None:
 @pytest.mark.asyncio
 async def test_oauth_routes_are_disabled_by_default(
     async_client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(settings.features, "enable_native_auth", False)
     nonce_response = await async_client.post("/api/v1/auth/oauth/nonce/google")
     response = await async_client.post(
         "/api/v1/auth/oauth/google",

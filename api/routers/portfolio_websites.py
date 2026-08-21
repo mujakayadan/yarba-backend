@@ -29,6 +29,7 @@ from core.exceptions.base import (
     ValidationException,
 )
 from core.models.portfolio_website import PortfolioWebsite, WebsiteConfig
+from core.services.legal_service import LegalService
 from core.services.portfolio_chat_conversation_service import (
     PortfolioChatConversationService,
 )
@@ -36,6 +37,10 @@ from core.services.portfolio_website_service import PortfolioWebsiteService
 from core.utils.object_id import require_object_id
 
 router = APIRouter(prefix="/portfolio-websites", tags=["Portfolio Websites"])
+
+
+def _get_legal_service() -> LegalService:
+    return LegalService()
 
 
 def _to_website_config(config: PortfolioWebsiteConfig) -> WebsiteConfig:
@@ -78,6 +83,9 @@ def _build_portfolio_website_response(
         deployment_status=_build_deployment_status(website),
         config=config or _to_portfolio_website_config(website.config),
         last_updated=website.updated_at,
+        moderation_status=website.moderation_status.value,
+        moderation_message=website.moderation_message,
+        suspended_at=website.suspended_at,
     )
 
 
@@ -93,9 +101,16 @@ async def create_portfolio_website(
     current_user: CurrentUser,
     custom_subdomain: str | None = None,
     website_service: PortfolioWebsiteService = Depends(get_portfolio_website_service),
+    legal_service: LegalService = Depends(_get_legal_service),
 ):
     """Create a new portfolio website."""
     try:
+        acknowledgement = request.publication_acknowledgement
+        if acknowledgement is None:
+            raise ValidationException("Publishing policy acknowledgement is required")
+        await legal_service.validate_publication_acknowledgement(
+            acknowledgement.acceptable_use_version
+        )
         website = await website_service.create_portfolio_website(
             user_id=require_object_id(current_user.id),
             config=_to_website_config(request.config),
@@ -245,7 +260,11 @@ async def get_public_website(
     """Get public portfolio website by subdomain."""
     website = await website_service.get_website_by_subdomain(subdomain)
 
-    if not website or not website.is_published:
+    if (
+        not website
+        or not website.is_published
+        or website.moderation_status.value != "active"
+    ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Portfolio website not found or not published",

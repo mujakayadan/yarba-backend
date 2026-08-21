@@ -35,15 +35,19 @@ _oauth_jwks_cache = JwksCache(
     AiohttpJwksFetcher(),
     ttl_seconds=settings.auth.oauth_jwks_cache_ttl_seconds,
 )
-_oauth_id_token_verifier = OAuthIdTokenVerifier(
-    cache=_oauth_jwks_cache,
-    google_jwks_url=settings.auth.oauth_google_jwks_url,
-    apple_jwks_url=settings.auth.oauth_apple_jwks_url,
-    google_issuers=settings.auth.google_oauth_issuer_allowlist,
-    apple_issuer=settings.auth.oauth_apple_issuer,
-    google_audiences=settings.auth.google_oauth_audience_allowlist,
-    apple_audiences=settings.auth.apple_oauth_audience_allowlist,
-)
+
+
+def _build_oauth_id_token_verifier() -> OAuthIdTokenVerifier:
+    """Build a verifier from the current process settings."""
+    return OAuthIdTokenVerifier(
+        cache=_oauth_jwks_cache,
+        google_jwks_url=settings.auth.oauth_google_jwks_url,
+        apple_jwks_url=settings.auth.oauth_apple_jwks_url,
+        google_issuers=settings.auth.google_oauth_issuer_allowlist,
+        apple_issuer=settings.auth.oauth_apple_issuer,
+        google_audiences=settings.auth.google_oauth_audience_allowlist,
+        apple_audiences=settings.auth.apple_oauth_audience_allowlist,
+    )
 
 
 def _build_resend_client() -> ResendClient | None:
@@ -170,8 +174,8 @@ async def get_native_auth_service() -> AsyncGenerator[NativeAuthService, None]:
 
 
 def get_oauth_id_token_verifier() -> OAuthIdTokenVerifier:
-    """Return the process-wide verifier and bounded JWKS cache."""
-    return _oauth_id_token_verifier
+    """Return a verifier that reads the current Google/Apple audience allowlists."""
+    return _build_oauth_id_token_verifier()
 
 
 def get_oauth_nonce_service() -> OAuthNonceService:

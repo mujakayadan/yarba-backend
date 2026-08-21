@@ -1,6 +1,7 @@
 """Portfolio website schemas for deployment and management."""
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
@@ -82,6 +83,14 @@ class PortfolioWebsiteRequest(BaseModel):
     force_rebuild: bool = Field(
         default=False, description="Force rebuild even if no changes"
     )
+    publication_acknowledgement: "WebsitePublicationAcknowledgement | None" = None
+
+
+class WebsitePublicationAcknowledgement(BaseModel):
+    """Evidence that a user confirmed public-content publication requirements."""
+
+    acceptable_use_version: str
+    rights_confirmed: Literal[True]
 
 
 class PortfolioWebsiteResponse(BaseModel):
@@ -92,6 +101,9 @@ class PortfolioWebsiteResponse(BaseModel):
     deployment_status: DeploymentStatus
     config: PortfolioWebsiteConfig
     last_updated: datetime
+    moderation_status: str
+    moderation_message: str | None = None
+    suspended_at: datetime | None = None
 
 
 class SubdomainAvailabilityResponse(BaseModel):

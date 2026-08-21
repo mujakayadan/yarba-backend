@@ -58,6 +58,7 @@ async def register(
         registration_result = await auth_service.register_with_firebase(
             email=request.email,
             password=request.password,
+            legal_acceptance=request.legal_acceptance,
             # full_name and username are no longer passed from here
         )
         logger.info(
@@ -104,7 +105,9 @@ async def login(
         logger.debug(f"Received Firebase login request with token: {token_preview}")
 
         # Verify and process Firebase token
-        result = await auth_service.login_with_firebase(request.id_token)
+        result = await auth_service.login_with_firebase(
+            request.id_token, request.legal_acceptance
+        )
         logger.info(
             f"Firebase login successful for user: {result.get('user', {}).get('email')}"
         )

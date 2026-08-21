@@ -2,6 +2,7 @@
 
 import os
 from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Annotated
 
 from beanie import Document, Indexed, Link, PydanticObjectId
@@ -10,6 +11,12 @@ from pydantic import BaseModel, Field, HttpUrl
 from core.models.document_config import BSON_DATETIME_ENCODERS, NESTED_MODEL_CONFIG
 from core.models.portfolio import Portfolio
 from core.models.user import User
+
+
+class ModerationStatus(StrEnum):
+    ACTIVE = "active"
+    UNDER_REVIEW = "under_review"
+    SUSPENDED = "suspended"
 
 
 class WebsiteConfig(BaseModel):
@@ -151,6 +158,11 @@ class PortfolioWebsite(Document):
     is_indexable: bool = Field(
         default=True, description="Whether search engines can index this website"
     )
+    moderation_status: ModerationStatus = ModerationStatus.ACTIVE
+    moderation_message: str | None = None
+    suspended_at: datetime | None = None
+    suspension_reason: str | None = None
+    clean_redeploy_required: bool = False
 
     # Cache information
     last_build_hash: str | None = Field(

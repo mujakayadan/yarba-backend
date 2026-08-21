@@ -27,11 +27,15 @@ def _comma_separated_values(*values: str) -> frozenset[str]:
     )
 
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+ENV_FILES = (PROJECT_ROOT / ".env.local", PROJECT_ROOT / ".env")
+
+
 class DatabaseSettings(BaseSettings):
     """Database connection settings."""
 
     model_config = SettingsConfigDict(
-        env_file=[".env.local", ".env"],
+        env_file=ENV_FILES,
         env_file_encoding="utf-8",
         case_sensitive=False,
         env_prefix="MONGODB_",
@@ -88,7 +92,7 @@ class AuthSettings(BaseSettings):
     """Authentication settings."""
 
     model_config = SettingsConfigDict(
-        env_file=[".env.local", ".env"],
+        env_file=ENV_FILES,
         env_file_encoding="utf-8",
         case_sensitive=False,
         env_prefix="",  # No prefix for auth settings to maintain backward compatibility
@@ -246,12 +250,12 @@ class AuthSettings(BaseSettings):
         validation_alias="API_BASE_URL",
     )
     email_verification_path: str = Field(
-        default="/auth/verify-email",
+        default="/verify-email",
         description="Path for email verification",
         validation_alias="EMAIL_VERIFICATION_PATH",
     )
     password_reset_path: str = Field(
-        default="/auth/reset-password",
+        default="/reset-password",
         description="Path for password reset",
         validation_alias="PASSWORD_RESET_PATH",
     )
@@ -436,7 +440,7 @@ class LLMSettings(BaseSettings):
     """LLM configuration settings."""
 
     model_config = SettingsConfigDict(
-        env_file=[".env.local", ".env"],
+        env_file=ENV_FILES,
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -462,6 +466,11 @@ class LLMSettings(BaseSettings):
         default=0.1, description="Default temperature for LLM responses"
     )
     max_tokens: int = Field(default=4000, description="Maximum tokens in LLM responses")
+    moderation_model: str = Field(
+        default="omni-moderation-latest",
+        description="Service-owned moderation model",
+        validation_alias="MODERATION_MODEL",
+    )
     ollama_uri: str = Field(
         default="http://localhost:11434", description="URI for Ollama API"
     )
@@ -770,7 +779,7 @@ class APISettings(BaseSettings):
     """API settings."""
 
     model_config = SettingsConfigDict(
-        env_file=[".env.local", ".env"],
+        env_file=ENV_FILES,
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -868,7 +877,7 @@ class ResendSettings(BaseSettings):
     """Resend email settings for inbound webhooks and outbound delivery."""
 
     model_config = SettingsConfigDict(
-        env_file=[".env.local", ".env"],
+        env_file=ENV_FILES,
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -896,7 +905,7 @@ class EmailSettings(BaseSettings):
     """Email integration settings."""
 
     model_config = SettingsConfigDict(
-        env_file=[".env.local", ".env"],
+        env_file=ENV_FILES,
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -913,7 +922,7 @@ class FeatureSettings(BaseSettings):
     """Settings for application features and toggles."""
 
     model_config = SettingsConfigDict(
-        env_file=[".env.local", ".env"],
+        env_file=ENV_FILES,
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -1038,7 +1047,7 @@ class StorageSettings(BaseSettings):
     """Storage settings for file uploads and media."""
 
     model_config = SettingsConfigDict(
-        env_file=[".env.local", ".env"],
+        env_file=ENV_FILES,
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -1200,7 +1209,7 @@ class Settings(BaseSettings):
     """Application settings."""
 
     model_config = SettingsConfigDict(
-        env_file=[".env.local", ".env"],
+        env_file=ENV_FILES,
         env_file_encoding="utf-8",
         env_nested_delimiter="__",
         case_sensitive=False,

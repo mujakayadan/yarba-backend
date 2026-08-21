@@ -333,6 +333,15 @@ class WebsiteGeneratorService:
             # Fallback to default template
             files["index.html"] = self._generate_default_html(context)
 
+        policy_links = (
+            '<footer aria-label="Yarba policies" style="padding:1rem;text-align:center">'
+            '<a href="https://yarba.app/report-abuse">Report abuse</a> · '
+            '<a href="https://yarba.app/acceptable-use">Acceptable use</a> · '
+            '<a href="https://yarba.app/site-privacy">Visitor privacy</a>'
+            "</footer>"
+        )
+        for filename, html in files.items():
+            files[filename] = html.replace("</body>", f"{policy_links}</body>")
         return files
 
     async def _generate_css_files(

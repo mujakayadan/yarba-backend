@@ -18,11 +18,25 @@ from api.schemas import (
     TokenResponse,
 )
 
+LEGAL_ACCEPTANCE = {
+    "terms_version": "2026-08-19",
+    "acceptable_use_version": "2026-08-19",
+    "privacy_version": "2026-08-19",
+    "ai_data_use_version": "2026-08-19",
+    "terms_accepted": True,
+    "acceptable_use_accepted": True,
+    "privacy_acknowledged": True,
+    "ai_data_use_acknowledged": True,
+    "minimum_age_confirmed": True,
+    "acceptance_surface": "password_registration",
+}
+
 
 def test_register_request_valid():
     request = RegisterRequest(
         email="test@example.com",
         password="Password123!",
+        legal_acceptance=LEGAL_ACCEPTANCE,
     )
 
     assert request.email == "test@example.com"

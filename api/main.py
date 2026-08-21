@@ -6,15 +6,15 @@ from pathlib import Path
 # Load environment variables before importing any application modules
 from dotenv import load_dotenv
 
-# Explicitly load .env.local first, then fall back to .env
-env_local_path = Path().absolute() / ".env.local"
-env_path = Path().absolute() / ".env"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+env_local_path = PROJECT_ROOT / ".env.local"
+env_path = PROJECT_ROOT / ".env"
 
 if env_local_path.exists():
-    load_dotenv(dotenv_path=env_local_path)
+    load_dotenv(dotenv_path=env_local_path, override=True)
     print(f"Loaded environment variables from {env_local_path}")
 elif env_path.exists():
-    load_dotenv(dotenv_path=env_path)
+    load_dotenv(dotenv_path=env_path, override=True)
     print(f"Loaded environment variables from {env_path}")
 
 from fastapi import FastAPI
@@ -29,6 +29,7 @@ from config.logging_config import configure_logging, get_logger
 from config.settings import settings
 from core.auth.firebase import FirebaseAuth
 from core.database.init import init_db
+from core.services.legal_service import LegalService
 
 # Storage directory setup - only needed for local storage
 if settings.storage.provider.lower() == "local":
@@ -88,6 +89,7 @@ async def lifespan(_app: FastAPI):
     if not client:
         logger.error("Failed to initialize database connection")
         raise RuntimeError("Failed to initialize database connection")
+    await LegalService().ensure_documents_seeded()
 
     # Initialize Firebase
     logger.info("Initializing Firebase Authentication")
@@ -95,6 +97,10 @@ async def lifespan(_app: FastAPI):
     if not firebase_initialized:
         logger.warning("Failed to initialize Firebase. Authentication may be limited.")
 
+    logger.info(
+        "Native Google OAuth audiences configured: %s",
+        len(settings.auth.google_oauth_audience_allowlist),
+    )
     logger.info("Application startup complete")
 
     yield
@@ -139,11 +145,14 @@ if settings.storage.provider.lower() == "local":
 
 # Import and include routers
 from api.routers import (
+    account,
     agent_tokens,
     applications,
     auth,
     cover_letters,
     job_router,
+    legal,
+    moderation,
     oauth_auth,
     password_auth,
     portfolio_websites,
@@ -207,6 +216,9 @@ app.include_router(
     prefix=f"{API_V1_PREFIX}/webhooks",
     tags=["webhooks"],
 )
+app.include_router(legal.router, prefix=API_V1_PREFIX)
+app.include_router(moderation.router, prefix=API_V1_PREFIX)
+app.include_router(account.router, prefix=API_V1_PREFIX)
 
 
 @app.get("/", tags=["health"])

@@ -21,6 +21,7 @@ from core.repositories.portfolio_repository import PortfolioRepository
 from core.repositories.portfolio_site_token_repository import (
     PortfolioSiteTokenRepository,
 )
+from core.repositories.portfolio_website_repository import PortfolioWebsiteRepository
 from core.repositories.profile_repository import ProfileRepository
 from core.utils.object_id import require_object_id
 
@@ -33,10 +34,12 @@ class PublicPortfolioService:
         token_repository: PortfolioSiteTokenRepository,
         portfolio_repository: PortfolioRepository,
         profile_repository: ProfileRepository,
+        website_repository: PortfolioWebsiteRepository | None = None,
     ) -> None:
         self.token_repository = token_repository
         self.portfolio_repository = portfolio_repository
         self.profile_repository = profile_repository
+        self.website_repository = website_repository or PortfolioWebsiteRepository()
 
     async def get_content_by_token(self, raw_token: str) -> PublicPortfolioContent:
         """Validate token and return public portfolio content."""
@@ -53,6 +56,9 @@ class PublicPortfolioService:
 
         if "portfolio:read" not in token_record.scopes:
             raise UnauthorizedException(message="Token lacks portfolio:read scope")
+        website = await self.website_repository.get_by_user_id(token_record.user_id)
+        if website and website.moderation_status.value != "active":
+            raise UnauthorizedException(message="Portfolio publication is unavailable")
 
         portfolio = await self._resolve_portfolio(
             token_record.user_id, token_record.portfolio_id

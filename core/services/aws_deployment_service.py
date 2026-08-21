@@ -163,6 +163,33 @@ class AWSDeploymentService:
             self.logger.error(f"Deletion of {subdomain} failed: {e}")
             return False
 
+    async def deploy_suspension_page(self, subdomain: str) -> None:
+        """Replace a suspended site with a non-indexable safety notice."""
+        prefix = f"portfolios/{subdomain}"
+        await self._delete_s3_objects_with_prefix(self.main_bucket_name, prefix)
+        await self._upload_files_to_s3(
+            self.main_bucket_name,
+            prefix,
+            {
+                "index.html": (
+                    '<!doctype html><html><head><meta name="robots" '
+                    'content="noindex,nofollow"><title>Site unavailable</title>'
+                    "</head><body><main><h1>Site unavailable</h1>"
+                    "<p>This site is unavailable following a safety review.</p>"
+                    '<p><a href="https://yarba.app/report-abuse">Report abuse</a> · '
+                    '<a href="https://yarba.app/terms">Terms</a> · '
+                    '<a href="https://yarba.app/site-privacy">Privacy</a></p>'
+                    "</main></body></html>"
+                ),
+                "robots.txt": "User-agent: *\nDisallow: /\n",
+            },
+        )
+        if settings.storage.cloudfront_distribution_id:
+            await self._create_cloudfront_invalidation(
+                settings.storage.cloudfront_distribution_id,
+                [f"/{prefix}/*"],
+            )
+
     async def _upload_files_to_s3(
         self, bucket_name: str, s3_path_prefix: str, files: dict[str, Any]
     ) -> None:

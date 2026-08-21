@@ -28,6 +28,7 @@ from core.repositories.portfolio_chat_conversation_repository import (
 from core.repositories.portfolio_repository import PortfolioRepository
 from core.repositories.portfolio_website_repository import PortfolioWebsiteRepository
 from core.repositories.profile_repository import ProfileRepository
+from core.services.content_policy_service import ContentPolicyService, PolicyDecision
 from core.services.llm_service import LLMService
 from core.utils.object_id import require_object_id
 from prompts.portfolio_chat_prompts import PortfolioChatSystemPrompt
@@ -63,12 +64,14 @@ class PortfolioChatService:
         profile_repository: ProfileRepository,
         conversation_repository: PortfolioChatConversationRepository,
         llm_service: LLMService,
+        content_policy_service: ContentPolicyService | None = None,
     ) -> None:
         self.website_repository = website_repository
         self.portfolio_repository = portfolio_repository
         self.profile_repository = profile_repository
         self.conversation_repository = conversation_repository
         self.llm_service = llm_service
+        self.content_policy = content_policy_service or ContentPolicyService()
         self.logger = get_logger(self.__class__.__name__)
 
     async def chat(
@@ -81,11 +84,20 @@ class PortfolioChatService:
         self._validate_subdomain(subdomain)
 
         website = await self.website_repository.get_by_subdomain(subdomain)
-        if not website or not website.is_published:
+        if (
+            not website
+            or not website.is_published
+            or website.moderation_status.value != "active"
+        ):
             raise NotFoundException(message="Portfolio website not found")
 
         if not website.config.chatbot_enabled:
             raise ForbiddenException(message="Chatbot is not enabled for this website")
+        input_policy = await self.content_policy.review_text(
+            request.message, publication=True
+        )
+        if input_policy.decision != PolicyDecision.ALLOW:
+            raise ForbiddenException(message="Message cannot be processed safely")
 
         portfolio = await self.portfolio_repository.get_by_id(website.portfolio_id)
         if not portfolio:
@@ -111,6 +123,11 @@ class PortfolioChatService:
             temperature=0.7,
         )
         assistant_response = result["llm_output"]
+        output_policy = await self.content_policy.review_text(
+            assistant_response, publication=True
+        )
+        if output_policy.decision != PolicyDecision.ALLOW:
+            raise ForbiddenException(message="Response is pending safety review")
 
         if store_conversations:
             calendly_url = (

@@ -43,6 +43,9 @@ class User(Document):
     password_hash: str | None = Field(default=None, repr=False)
     auth_migration_state: AuthMigrationState = AuthMigrationState.FIREBASE_ONLY
     last_login: datetime | None = None
+    moderation_strike_count: int = 0
+    copyright_strike_count: int = 0
+    repeat_infringer: bool = False
 
     # Subscription fields
     subscription_status: str = "free"  # free, basic, premium

@@ -27,6 +27,7 @@ PDF_RATE_LIMIT_WINDOW = 60  # seconds
 ROUTE_SPECIFIC_LIMITS = {
     # Pattern to match: (rate_limit, window)
     # More specific patterns should come before general ones
+    "/api/v1/public/portfolio/reports": (5, 3600),
     "/api/v1/public/portfolio/chat": (10, 60),
     "/api/v1/resumes/.*/pdf": (
         3,

@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 from importlib import import_module
+from pathlib import Path
 from uuid import uuid4
 
 import mongomock
@@ -10,7 +11,7 @@ from beanie import PydanticObjectId
 from pydantic import ValidationError
 from pymongo.errors import DuplicateKeyError
 
-from config.settings import AuthSettings, FeatureSettings
+from config.settings import ENV_FILES, AuthSettings, FeatureSettings
 from core.auth.types import AuthMigrationState, IdentityProvider
 from core.models.auth_identity import AuthIdentity
 from core.models.oauth_nonce import OAuthNonce
@@ -230,14 +231,18 @@ def test_auth_configuration_preserves_firebase_compatibility_defaults() -> None:
     assert AuthSettings.model_fields["refresh_cookie_path"].default == (
         "/api/v1/auth/password"
     )
-    oauth_defaults = AuthSettings(_env_file=None)
-    assert oauth_defaults.google_oauth_audience_allowlist == frozenset()
-    assert oauth_defaults.apple_oauth_audience_allowlist == frozenset()
-    assert oauth_defaults.oauth_jwks_cache_ttl_seconds == 3600
-    assert oauth_defaults.oauth_nonce_cookie_secure is True
-    assert oauth_defaults.oauth_nonce_cookie_samesite == "lax"
-    assert oauth_defaults.oauth_nonce_cookie_path == "/api/v1/auth/oauth"
-    assert oauth_defaults.oauth_nonce_cookie_max_age_seconds == 600
+    assert AuthSettings.model_fields["oauth_jwks_cache_ttl_seconds"].default == 3600
+    assert AuthSettings.model_fields["oauth_nonce_cookie_secure"].default is True
+    assert AuthSettings.model_fields["oauth_nonce_cookie_samesite"].default == "lax"
+    assert AuthSettings.model_fields["oauth_nonce_cookie_path"].default == (
+        "/api/v1/auth/oauth"
+    )
+    assert (
+        AuthSettings.model_fields["oauth_nonce_cookie_max_age_seconds"].default == 600
+    )
+    assert AuthSettings.model_fields["oauth_google_web_audiences"].default == ""
+    assert AuthSettings.model_config["env_file"] == ENV_FILES
+    assert all(Path(env_file).is_absolute() for env_file in ENV_FILES)
     configured_oauth = AuthSettings(
         OAUTH_GOOGLE_WEB_AUDIENCES="web-a, web-b",
         OAUTH_GOOGLE_IOS_AUDIENCES="ios-a",

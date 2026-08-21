@@ -16,6 +16,7 @@ from api.schemas.auth import (
     NativeAuthResponse,
     OAuthNonceResponse,
 )
+from config.logging_config import get_logger
 from config.settings import settings
 from core.auth.oauth import OAuthIdTokenVerifier, OAuthVerificationException
 from core.auth.types import IdentityProvider
@@ -31,6 +32,7 @@ from core.services.oauth_nonce_service import (
     OAuthNonceService,
 )
 
+logger = get_logger(__name__)
 router = APIRouter(dependencies=[Depends(require_native_auth_enabled)])
 OAuthNonceCookie = Annotated[
     str | None,
@@ -125,12 +127,13 @@ async def authenticate_google(
             request.id_token.get_secret_value(),
             expected_nonce_hash=nonce_hash,
         )
-        result = await service.oauth_login(verified)
+        result = await service.oauth_login(verified, request.legal_acceptance)
     except (InvalidOAuthNonceException, OAuthVerificationException):
         return _oauth_error_response(InvalidOAuthNonceException())
     except AppException as exc:
         return _oauth_error_response(exc)
     except Exception:
+        logger.exception("Native Google sign-in failed")
         return _oauth_internal_error_response()
     _clear_nonce_cookie(response)
     _set_refresh_cookie(response, result)
@@ -157,12 +160,13 @@ async def authenticate_apple(
             expected_nonce_hash=nonce_hash,
             display_name=request.display_name,
         )
-        result = await service.oauth_login(verified)
+        result = await service.oauth_login(verified, request.legal_acceptance)
     except (InvalidOAuthNonceException, OAuthVerificationException):
         return _oauth_error_response(InvalidOAuthNonceException())
     except AppException as exc:
         return _oauth_error_response(exc)
     except Exception:
+        logger.exception("Native Apple sign-in failed")
         return _oauth_internal_error_response()
     _clear_nonce_cookie(response)
     _set_refresh_cookie(response, result)

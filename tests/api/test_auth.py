@@ -9,13 +9,30 @@ from httpx import AsyncClient
 from api.main import app as fastapi_app
 from core.database.factory import get_auth_service
 
+LEGAL_ACCEPTANCE = {
+    "terms_version": "2026-08-19",
+    "acceptable_use_version": "2026-08-19",
+    "privacy_version": "2026-08-19",
+    "ai_data_use_version": "2026-08-19",
+    "terms_accepted": True,
+    "acceptable_use_accepted": True,
+    "privacy_acknowledged": True,
+    "ai_data_use_acknowledged": True,
+    "minimum_age_confirmed": True,
+    "acceptance_surface": "firebase_registration",
+}
+
 
 @pytest.mark.asyncio
 async def test_register_success(async_client_auth: AsyncClient):
     """Test successful user registration."""
     response = await async_client_auth.post(
         "/api/v1/auth/register",
-        json={"email": "newuser@example.com", "password": "Password123!"},
+        json={
+            "email": "newuser@example.com",
+            "password": "Password123!",
+            "legal_acceptance": LEGAL_ACCEPTANCE,
+        },
     )
 
     assert response.status_code == status.HTTP_201_CREATED
@@ -45,6 +62,7 @@ async def test_register_duplicate_email(
         json={
             "email": registered_user["email"],
             "password": "Password123!",
+            "legal_acceptance": LEGAL_ACCEPTANCE,
         },
     )
 

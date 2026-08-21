@@ -11,6 +11,7 @@ from firebase_admin.auth import EmailAlreadyExistsError
 from jwt.exceptions import PyJWTError as JWTError
 from pydantic import EmailStr
 
+from api.schemas.legal import LegalAcceptanceRequest
 from config.logging_config import get_logger
 from config.settings import Settings
 from core.auth.error_codes import (
@@ -29,6 +30,7 @@ from core.exceptions.base import (
 from core.models.user import User
 from core.repositories.user_repository import UserRepository
 from core.services.email_clients.resend_client import ResendClient
+from core.services.legal_service import LegalService
 from core.utils.object_id import require_object_id
 
 settings = Settings()
@@ -41,6 +43,7 @@ class AuthService:
         self,
         user_repository: UserRepository | None = None,
         resend_client: ResendClient | None = None,
+        legal_service: LegalService | None = None,
     ):
         """Initialize the authentication service.
 
@@ -50,6 +53,7 @@ class AuthService:
         """
         self.user_repository = user_repository or UserRepository()
         self.resend_client = resend_client
+        self.legal_service = legal_service or LegalService()
         self.logger = get_logger(self.__class__.__name__)
 
     async def _resolve_unique_username(self, base_username: str) -> str:
@@ -112,6 +116,7 @@ class AuthService:
         self,
         email: EmailStr,
         password: str,
+        legal_acceptance: LegalAcceptanceRequest | None = None,
     ) -> dict[str, Any]:
         """Link an existing Firebase account to a new MongoDB user after password verification."""
         try:
@@ -140,6 +145,10 @@ class AuthService:
             auth_provider="firebase.password",
             display_name=firebase_user.get("display_name"),
         )
+        if legal_acceptance is not None:
+            await self.legal_service.accept(
+                require_object_id(created_user.id), legal_acceptance
+            )
         self.logger.info(
             f"[AuthService.register] Resumed registration for Firebase orphan: {email}"
         )
@@ -152,6 +161,7 @@ class AuthService:
         self,
         email: EmailStr,
         password: str,
+        legal_acceptance: LegalAcceptanceRequest | None = None,
     ) -> dict[str, Any]:
         """Register a new user with Firebase Authentication and return data for login.
         Username will be auto-generated from email.
@@ -169,6 +179,8 @@ class AuthService:
             UnauthorizedException: If orphan Firebase user password is wrong
             BadRequestException: If Firebase registration fails unexpectedly
         """
+        if legal_acceptance is not None:
+            await self.legal_service.validate(legal_acceptance)
         self.logger.info(
             f"[AuthService.register] Attempting to register user. Email: {email}"
         )
@@ -199,7 +211,9 @@ class AuthService:
             self.logger.info(
                 f"[AuthService.register] Firebase user exists without MongoDB record: {email}"
             )
-            return await self._sync_orphan_firebase_user(email, password)
+            return await self._sync_orphan_firebase_user(
+                email, password, legal_acceptance
+            )
         except Exception as e:
             self.logger.error(
                 f"Registration process error for email {email}: {str(e)}", exc_info=True
@@ -217,6 +231,10 @@ class AuthService:
                 auth_provider="firebase.password",
                 display_name=firebase_display_name,
             )
+            if legal_acceptance is not None:
+                await self.legal_service.accept(
+                    require_object_id(created_user.id), legal_acceptance
+                )
             self.logger.info(f"User registered with Firebase: {email}")
             await self.send_verification_email(email)
             return self._build_registration_response(
@@ -231,7 +249,11 @@ class AuthService:
                 error_code=FIREBASE_REGISTRATION_FAILED,
             ) from e
 
-    async def login_with_firebase(self, id_token: str) -> dict[str, Any]:
+    async def login_with_firebase(
+        self,
+        id_token: str,
+        legal_acceptance: LegalAcceptanceRequest | None = None,
+    ) -> dict[str, Any]:
         """Login with Firebase ID token.
 
         Args:
@@ -269,6 +291,12 @@ class AuthService:
             user = await self.user_repository.get_by_email(email)
 
             if not user:
+                if legal_acceptance is None:
+                    raise BadRequestException(
+                        "Legal acceptance is required for first-time sign-in",
+                        error_code="legal_acceptance_required",
+                    )
+                await self.legal_service.validate(legal_acceptance)
                 self.logger.info(
                     f"First-time Firebase login for {email}, creating user record"
                 )
@@ -288,6 +316,9 @@ class AuthService:
                         email_verified=firebase_user.get("email_verified", False),
                         auth_provider=auth_provider,
                         display_name=firebase_user.get("display_name"),
+                    )
+                    await self.legal_service.accept(
+                        require_object_id(user.id), legal_acceptance
                     )
                     self.logger.info(f"Created new user from Firebase login: {email}")
                 except Exception as user_create_error:
@@ -330,6 +361,8 @@ class AuthService:
                 "current_setup_step": user.current_setup_step,
             }
 
+        except (BadRequestException, UnauthorizedException):
+            raise
         except Exception as e:
             self.logger.error(f"Firebase login error: {str(e)}", exc_info=True)
             raise UnauthorizedException(f"Firebase authentication failed: {str(e)}")

@@ -17,7 +17,7 @@ from ..exceptions.base import (
     ValidationException,
 )
 from ..models.portfolio import Portfolio
-from ..models.portfolio_website import PortfolioWebsite, WebsiteConfig
+from ..models.portfolio_website import ModerationStatus, PortfolioWebsite, WebsiteConfig
 from ..models.profile import Profile
 from ..models.user import User
 from ..repositories.portfolio_chat_conversation_repository import (
@@ -29,6 +29,7 @@ from ..repositories.profile_repository import ProfileRepository
 from ..repositories.user_repository import UserRepository
 from ..utils.object_id import require_object_id
 from .aws_deployment_service import AWSDeploymentService
+from .content_policy_service import ContentPolicyService, PolicyDecision
 from .website_generator_service import WebsiteGeneratorService
 
 
@@ -43,6 +44,7 @@ class PortfolioWebsiteService:
         profile_repository: ProfileRepository,
         aws_deployment_service: AWSDeploymentService,
         website_generator_service: WebsiteGeneratorService,
+        content_policy_service: ContentPolicyService | None = None,
     ):
         """Initialize the service."""
         self.website_repository = website_repository
@@ -51,6 +53,7 @@ class PortfolioWebsiteService:
         self.profile_repository = profile_repository
         self.aws_deployment_service = aws_deployment_service
         self.website_generator_service = website_generator_service
+        self.content_policy_service = content_policy_service or ContentPolicyService()
         self.logger = get_logger(self.__class__.__name__)
 
     async def create_portfolio_website(
@@ -116,6 +119,9 @@ class PortfolioWebsiteService:
         self.logger.info(
             f"Created portfolio website record for user {user_id} with subdomain: {subdomain}. ID: {website.id}"
         )
+
+        if not await self._allow_publication(website, portfolio, profile):
+            return website
 
         # Trigger initial deployment asynchronously
         # _deploy_website_async will handle updating the website object with deployment details (URL, status etc.)
@@ -198,7 +204,9 @@ class PortfolioWebsiteService:
         website = updated_website
 
         # Trigger rebuild if forced or significant changes detected
-        if force_rebuild or self._config_requires_rebuild(old_config, website_config):
+        if website.moderation_status.value == "active" and (
+            force_rebuild or self._config_requires_rebuild(old_config, website_config)
+        ):
             asyncio.create_task(self._deploy_website_async(website_id))
 
         return website
@@ -226,6 +234,10 @@ class PortfolioWebsiteService:
         website = await self.website_repository.get_by_user_id(user_id)
         if not website:
             raise NotFoundException("Portfolio website not found")
+        if website.moderation_status.value != "active":
+            raise ValidationException(
+                "Portfolio publication is unavailable while moderation review is active"
+            )
 
         # Check if rebuild is needed
         portfolio = await self.portfolio_repository.get_by_id(website.portfolio_id)
@@ -233,6 +245,9 @@ class PortfolioWebsiteService:
             raise NotFoundException("Portfolio not found")
 
         profile = await self.profile_repository.get_by_user_id(user_id)
+        if not await self._allow_publication(website, portfolio, profile):
+            return website
+        clean_deploy = clean_deploy or website.clean_redeploy_required
         current_hash = self._calculate_portfolio_hash(
             portfolio, website.config, profile=profile
         )
@@ -264,6 +279,43 @@ class PortfolioWebsiteService:
             raise DeploymentException(error_msg)
 
         return updated_website
+
+    async def _allow_publication(
+        self,
+        website: PortfolioWebsite,
+        portfolio: Portfolio,
+        profile: Profile | None,
+    ) -> bool:
+        review_payload = {
+            "portfolio": portfolio.model_dump(mode="json"),
+            "profile": (
+                {
+                    "personal_information": profile.personal_information.model_dump(
+                        mode="json"
+                    ),
+                    "life_story": profile.life_story,
+                }
+                if profile is not None
+                else None
+            ),
+            "website_config": website.config.model_dump(mode="json"),
+        }
+        result = await self.content_policy_service.review_text(
+            json.dumps(review_payload, ensure_ascii=False),
+            publication=True,
+        )
+        if result.decision == PolicyDecision.ALLOW:
+            return True
+        website.moderation_status = ModerationStatus.UNDER_REVIEW
+        website.moderation_message = (
+            "This site is unavailable while a content safety review is completed."
+        )
+        website.is_published = False
+        website.is_indexable = False
+        website.updated_at = datetime.now(UTC)
+        await website.save()
+        await self.aws_deployment_service.deploy_suspension_page(website.subdomain)
+        return False
 
     async def _deploy_website_async(self, website_id: PydanticObjectId) -> None:
         """Asynchronously deploy a portfolio website.
@@ -349,6 +401,8 @@ class PortfolioWebsiteService:
 
             # Use the fresh website object for subsequent updates
             updated_website.is_published = True
+            updated_website.is_indexable = True
+            updated_website.clean_redeploy_required = False
             updated_website.last_build_hash = self._calculate_portfolio_hash(
                 portfolio,
                 updated_website.config,
@@ -477,6 +531,8 @@ class PortfolioWebsiteService:
 
             # Update website as published and set build hash using the fresh object
             updated_website.is_published = True
+            updated_website.is_indexable = True
+            updated_website.clean_redeploy_required = False
             updated_website.last_build_hash = self._calculate_portfolio_hash(
                 portfolio,
                 updated_website.config,
