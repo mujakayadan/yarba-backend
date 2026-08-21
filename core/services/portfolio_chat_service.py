@@ -94,9 +94,9 @@ class PortfolioChatService:
         if not website.config.chatbot_enabled:
             raise ForbiddenException(message="Chatbot is not enabled for this website")
         input_policy = await self.content_policy.review_text(
-            request.message, publication=True
+            request.message, publication=False
         )
-        if input_policy.decision != PolicyDecision.ALLOW:
+        if input_policy.decision == PolicyDecision.REJECT:
             raise ForbiddenException(message="Message cannot be processed safely")
 
         portfolio = await self.portfolio_repository.get_by_id(website.portfolio_id)
@@ -124,9 +124,9 @@ class PortfolioChatService:
         )
         assistant_response = result["llm_output"]
         output_policy = await self.content_policy.review_text(
-            assistant_response, publication=True
+            assistant_response, publication=False
         )
-        if output_policy.decision != PolicyDecision.ALLOW:
+        if output_policy.decision == PolicyDecision.REJECT:
             raise ForbiddenException(message="Response is pending safety review")
 
         if store_conversations:

@@ -5,6 +5,7 @@ import pytest
 from api.main import app
 from api.schemas.portfolio_website import PortfolioWebsiteRequest
 from api.schemas.safety import AbuseReportCategory, AbuseReportRequest
+from config.settings import settings
 from core.services.content_policy_service import ContentPolicyService, PolicyDecision
 
 
@@ -70,3 +71,18 @@ async def test_local_content_policy_rejects_illegal_and_explicit_content() -> No
     assert "illegal_content" in illegal.categories
     assert explicit.decision == PolicyDecision.REJECT
     assert "sexual_content" in explicit.categories
+
+
+@pytest.mark.asyncio
+async def test_missing_moderation_provider_blocks_publication_not_chat(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings.llm, "openai_api_key", None)
+    service = ContentPolicyService()
+    message = "What are your main skills?"
+
+    chat = await service.review_text(message, publication=False)
+    publication = await service.review_text(message, publication=True)
+
+    assert chat.decision == PolicyDecision.ALLOW
+    assert publication.decision == PolicyDecision.UNDER_REVIEW

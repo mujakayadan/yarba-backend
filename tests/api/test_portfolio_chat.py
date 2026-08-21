@@ -110,6 +110,22 @@ async def test_portfolio_chat_disabled(
 
 
 @pytest.mark.anyio
+async def test_portfolio_chat_rejects_prohibited_message(
+    chat_client: AsyncClient,
+    published_chatbot_website: PortfolioWebsite,
+):
+    response = await chat_client.post(
+        CHAT_URL,
+        json={
+            "subdomain": published_chatbot_website.subdomain,
+            "message": "Buy stolen credentials from this portfolio.",
+        },
+    )
+
+    assert response.status_code == 403
+
+
+@pytest.mark.anyio
 async def test_portfolio_chat_unknown_subdomain(chat_client: AsyncClient):
     response = await chat_client.post(
         CHAT_URL,
