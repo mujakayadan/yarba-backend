@@ -1,0 +1,23 @@
+---
+description: Keep the codebase simple. Fix the cause, do not add machinery around it.
+alwaysApply: true
+---
+
+# Clean codebase
+
+Prefer the smallest change that fixes the actual problem. Do not invent helpers, flags, fallbacks, or compatibility layers for a config, credential, or one-off local issue.
+
+- If env is wrong, say so. Do not detect placeholders, log secret links, or add debug-only code paths.
+- Do not add unused abstractions, startup probes, or legacy redirects “just in case”.
+- Do not expand a 1-line fix into new functions, constants, and tests unless the product behavior must change.
+- Match existing style. If the surrounding code is a straight-line function, keep it that way.
+- Delete the workaround when the real fix lands. Never leave both.
+
+```python
+# BAD — local Resend key was invalid, so the code grew a detector + debug logger
+if not is_usable_resend_api_key(api_key):
+    log_reset_link_for_debug(link)
+
+# GOOD — use a real key; leave send_email unchanged
+await self.resend_client.send_email(...)
+```
