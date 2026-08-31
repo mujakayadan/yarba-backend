@@ -29,6 +29,7 @@ from core.exceptions.base import (
 )
 from core.models.user import User
 from core.repositories.user_repository import UserRepository
+from core.services.email_clients.email_template import render_action_button
 from core.services.email_clients.resend_client import ResendClient
 from core.services.legal_service import LegalService
 from core.utils.object_id import require_object_id
@@ -444,14 +445,25 @@ class AuthService:
             reset_link = await FirebaseAuth.generate_password_reset_link(email)
             subject = "Reset your YARBA password"
             text = (
-                "Use the link below to reset your password:\n\n"
-                f"{reset_link}\n\n"
-                "If you did not request this, you can ignore this email."
+                "Hi,\n\n"
+                "We received a request to reset the password for your YARBA "
+                f"account ({email}).\n\n"
+                f"Reset password: {reset_link}\n\n"
+                "If you did not request this reset, no changes have been made "
+                "to your account and you can safely ignore this email.\n\n"
+                "For your security, do not forward this email or share this link."
             )
             html = (
-                "<p>Use the link below to reset your password:</p>"
-                f'<p><a href="{reset_link}">Reset password</a></p>'
-                "<p>If you did not request this, you can ignore this email.</p>"
+                '<h1 style="margin:0 0 18px;font-size:26px;color:#112D4E;">'
+                "Reset your password</h1>"
+                "<p>Hi,</p>"
+                "<p>We received a request to reset the password for your "
+                f"YARBA account ({email}).</p>"
+                f"{render_action_button(label='Reset password', url=reset_link)}"
+                "<p>If you did not request this reset, no changes have been made "
+                "to your account and you can safely ignore this email.</p>"
+                '<p style="color:#718096;font-size:14px;">For your security, do not '
+                "forward this email or share this link.</p>"
             )
             await self.resend_client.send_email(
                 to=str(email),

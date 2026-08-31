@@ -30,6 +30,9 @@ async def test_send_password_reset_email_uses_firebase_and_resend():
     call_kwargs = resend_client.send_email.await_args.kwargs
     assert call_kwargs["to"] == "user@example.com"
     assert "https://example.com/reset" in call_kwargs["text"]
+    assert "no changes have been made" in call_kwargs["text"]
+    assert "Reset your password" in call_kwargs["html"]
+    assert "background:#3F72AF" in call_kwargs["html"]
 
 
 @pytest.mark.asyncio

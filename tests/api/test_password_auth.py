@@ -274,6 +274,29 @@ async def test_reset_token_is_hashed_single_use_and_supports_migration(
 
 
 @pytest.mark.asyncio
+async def test_password_reset_email_explains_request_and_expiration(
+    beanie_db,
+    test_user: User,
+) -> None:
+    resend = AsyncMock(spec=ResendClient)
+    service = NativeAuthService(resend_client=resend)
+
+    await service.request_password_reset(test_user.email)
+
+    resend.send_email.assert_awaited_once()
+    message = resend.send_email.await_args.kwargs
+    assert str(test_user.email) in message["text"]
+    assert (
+        f"expires in {settings.auth.password_reset_token_expire_minutes} minutes"
+        in message["text"]
+    )
+    assert "can only be used once" in message["text"]
+    assert "no changes have been made" in message["text"]
+    assert "Reset your YARBA password" in message["html"]
+    assert "background:#3F72AF" in message["html"]
+
+
+@pytest.mark.asyncio
 async def test_action_token_expiry_and_email_verification(
     beanie_db,
     test_user: User,

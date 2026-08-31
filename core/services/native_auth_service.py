@@ -3,6 +3,7 @@
 import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from html import escape
 from urllib.parse import urlencode
 
 from beanie import PydanticObjectId
@@ -26,6 +27,7 @@ from core.repositories.auth_action_token_repository import AuthActionTokenReposi
 from core.repositories.auth_identity_repository import AuthIdentityRepository
 from core.repositories.user_repository import UserRepository
 from core.services.auth_service import AuthService
+from core.services.email_clients.email_template import render_action_button
 from core.services.email_clients.resend_client import ResendClient
 from core.services.legal_service import LegalService
 from core.services.refresh_token_service import IssuedRefreshToken, RefreshTokenService
@@ -257,6 +259,15 @@ class NativeAuthService:
             path=settings.auth.password_reset_path,
             subject="Reset your YARBA password",
             action_label="Reset password",
+            message=(
+                "We received a request to reset the password for your "
+                f"YARBA account ({user.email})."
+            ),
+            expiration_minutes=settings.auth.password_reset_token_expire_minutes,
+            ignore_message=(
+                "If you did not request this reset, no changes have been made "
+                "to your account and you can safely ignore this email."
+            ),
         )
 
     async def reset_password(self, raw_token: str, new_password: str) -> User:
@@ -296,6 +307,15 @@ class NativeAuthService:
             path=settings.auth.email_verification_path,
             subject="Verify your YARBA email",
             action_label="Verify email",
+            message=(
+                "Confirm this email address to finish securing your YARBA "
+                f"account ({user.email})."
+            ),
+            expiration_minutes=settings.auth.email_verification_token_expire_minutes,
+            ignore_message=(
+                "If you did not create this YARBA account, you can safely "
+                "ignore this email."
+            ),
         )
 
     async def confirm_verification(self, raw_token: str) -> User:
@@ -475,15 +495,35 @@ class NativeAuthService:
         path: str,
         subject: str,
         action_label: str,
+        message: str,
+        expiration_minutes: int,
+        ignore_message: str,
     ) -> None:
         if self.resend_client is None:
             return
         query = urlencode({"token": raw_token.get_secret_value()})
         link = f"{settings.frontend_url.rstrip('/')}{path}?{query}"
-        text = f"{action_label}: {link}\n\nIf you did not request this, ignore it."
+        text = (
+            f"Hi,\n\n{message}\n\n"
+            f"{action_label}: {link}\n\n"
+            f"This secure link expires in {expiration_minutes} minutes and "
+            "can only be used once.\n\n"
+            f"{ignore_message}\n\n"
+            "For your security, do not forward this email or share this link."
+        )
         html = (
-            f'<p><a href="{link}">{action_label}</a></p>'
-            "<p>If you did not request this, ignore it.</p>"
+            f'<h1 style="margin:0 0 18px;font-size:26px;color:#112D4E;">'
+            f"{escape(subject)}</h1>"
+            "<p>Hi,</p>"
+            f"<p>{escape(message)}</p>"
+            f"{render_action_button(label=action_label, url=link)}"
+            '<p style="padding:14px 16px;background:#F7FAFC;border-left:4px '
+            'solid #3F72AF;border-radius:4px;">'
+            f"This secure link expires in {expiration_minutes} minutes and "
+            "can only be used once.</p>"
+            f"<p>{escape(ignore_message)}</p>"
+            '<p style="color:#718096;font-size:14px;">For your security, do not '
+            "forward this email or share this link.</p>"
         )
         await self.resend_client.send_email(
             to=str(user.email),
