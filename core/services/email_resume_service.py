@@ -13,7 +13,7 @@ from core.repositories.portfolio_repository import PortfolioRepository
 from core.repositories.profile_repository import ProfileRepository
 from core.repositories.resume_repository import ResumeRepository
 from core.repositories.user_repository import UserRepository
-from core.services.email_clients.resend_client import ResendClient
+from core.services.email_clients.resend_client import ResendClient, get_resend_client
 from core.services.job_service import JobService
 from core.services.latex_service import LatexService
 from core.services.llm_service import LLMService
@@ -25,6 +25,7 @@ from core.services.resume_generation_service import (
     ResumeGenerationService,
 )
 from core.services.resume_service import ResumeService
+from core.services.resume_with_pdf_orchestrator import create_resume_with_pdf
 from core.utils.email_body_parser import extract_job_description
 from core.utils.object_id import require_object_id
 from core.utils.resume_pdf_filename import build_resume_pdf_filename
@@ -107,7 +108,7 @@ class EmailResumeService:
                 (
                     "We could not find enough job description text in your email.\n\n"
                     "Please forward the full recruiter message (including the job "
-                    "description) to resumes@yarba.app and try again."
+                    f"description) to {settings.resend.resume_from_address} and try again."
                 ),
             )
             await self.mark_inbound_status(email_id, "failed")
@@ -205,8 +206,6 @@ class EmailResumeService:
         job_description: str,
         profile,
     ) -> tuple[Resume, bytes]:
-        from core.services.resume_with_pdf_orchestrator import create_resume_with_pdf
-
         resume, pdf_bytes = await create_resume_with_pdf(
             user_id=user_id,
             profile_id=profile_id,
@@ -276,8 +275,6 @@ class EmailResumeService:
 
 def build_email_resume_service() -> EmailResumeService:
     """Construct EmailResumeService with default dependencies (for background tasks)."""
-    from core.services.email_clients.resend_client import get_resend_client
-
     user_repo = UserRepository()
     profile_repo = ProfileRepository()
     portfolio_repo = PortfolioRepository()
@@ -314,5 +311,5 @@ def build_email_resume_service() -> EmailResumeService:
         portfolio_service=portfolio_service,
         resume_service=resume_service,
         resume_generation_service=resume_generation_service,
-        resend_client=get_resend_client(),
+        resend_client=get_resend_client(settings.resend.resume_from_address),
     )

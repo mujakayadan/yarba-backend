@@ -895,9 +895,14 @@ class ResendSettings(BaseSettings):
         validation_alias="WEBHOOK_SECRET",
     )
     from_address: str = Field(
-        default="resumes@yarba.app",
-        description="Sender address for outbound resume emails",
+        default="noreply@yarba.app",
+        description="Sender address for transactional account emails",
         validation_alias="FROM",
+    )
+    resume_from_address: str = Field(
+        default="resumes@yarba.app",
+        description="Sender address for outbound email-to-resume messages",
+        validation_alias="RESUME_FROM",
     )
 
 

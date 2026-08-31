@@ -8,6 +8,11 @@ import aiohttp
 from config.logging_config import get_logger
 from config.settings import settings
 from core.schemas.resend_schemas import ResendReceivedEmail
+from core.services.email_clients.email_template import (
+    append_email_footer,
+    plaintext_to_html,
+    render_email_html,
+)
 
 logger = get_logger(__name__)
 
@@ -49,14 +54,14 @@ class ResendClient:
         attachments: list[dict[str, str]] | None = None,
     ) -> None:
         """Send an outbound email, optionally with attachments."""
+        content_html = html or plaintext_to_html(text)
         payload: dict[str, Any] = {
             "from": self.from_address,
             "to": [to],
             "subject": subject,
-            "text": text,
+            "text": append_email_footer(text),
+            "html": render_email_html(subject=subject, content_html=content_html),
         }
-        if html:
-            payload["html"] = html
         if attachments:
             payload["attachments"] = attachments
 
@@ -93,9 +98,12 @@ class ResendClient:
         )
 
 
-def get_resend_client() -> ResendClient:
+def get_resend_client(from_address: str | None = None) -> ResendClient:
     """Build a Resend client from application settings."""
     api_key = settings.resend.api_key.get_secret_value()
     if not api_key:
         raise RuntimeError("RESEND_API_KEY is not configured")
-    return ResendClient(api_key=api_key, from_address=settings.resend.from_address)
+    return ResendClient(
+        api_key=api_key,
+        from_address=from_address or settings.resend.from_address,
+    )
