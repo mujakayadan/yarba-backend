@@ -297,6 +297,24 @@ async def test_password_reset_email_explains_request_and_expiration(
 
 
 @pytest.mark.asyncio
+async def test_password_migration_email_uses_durable_request_link() -> None:
+    resend = AsyncMock(spec=ResendClient)
+    service = NativeAuthService(resend_client=resend)
+
+    await service.send_password_migration_invitation("legacy@example.com")
+
+    resend.send_email.assert_awaited_once()
+    message = resend.send_email.await_args.kwargs
+    assert message["to"] == "legacy@example.com"
+    assert message["subject"] == "Action required: set your YARBA password"
+    assert f"{settings.frontend_url.rstrip('/')}/forgot-password" in message["text"]
+    assert "This invitation does not expire" in message["text"]
+    assert "?token=" not in message["text"]
+    assert "github.com/mujakayadan/yarba-backend/commits/main" in message["text"]
+    assert "Set your YARBA password" in message["html"]
+
+
+@pytest.mark.asyncio
 async def test_action_token_expiry_and_email_verification(
     beanie_db,
     test_user: User,

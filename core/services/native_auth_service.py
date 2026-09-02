@@ -38,6 +38,7 @@ from core.utils.auth_action_token import (
 from core.utils.object_id import require_object_id
 
 _DUMMY_PASSWORD_HASH = get_password_hash("YarbaDummyPassword123")
+_AUTH_SOURCE_URL = "https://github.com/mujakayadan/yarba-backend/commits/main"
 
 
 @dataclass(frozen=True, slots=True)
@@ -268,6 +269,52 @@ class NativeAuthService:
                 "If you did not request this reset, no changes have been made "
                 "to your account and you can safely ignore this email."
             ),
+        )
+
+    async def send_password_migration_invitation(self, email: EmailStr) -> None:
+        """Invite a Firebase password user to request a fresh native reset link."""
+        if self.resend_client is None:
+            raise RuntimeError("Resend is not configured")
+        subject = "Action required: set your YARBA password"
+        request_link = f"{settings.frontend_url.rstrip('/')}/forgot-password"
+        text = (
+            "Hi,\n\n"
+            "YARBA is moving account authentication from Firebase to YARBA's "
+            "own sign-in system.\n\n"
+            "To keep using your existing account, request a fresh password reset "
+            f"email using the address that received this message:\n{request_link}\n\n"
+            "This invitation does not expire. The secure, single-use link in the "
+            f"reset email expires in "
+            f"{settings.auth.password_reset_token_expire_minutes} minutes.\n\n"
+            "Your existing YARBA data remains attached to your account. If you "
+            "have already set your YARBA password, no action is needed.\n\n"
+            f"See the authentication changes on GitHub:\n{_AUTH_SOURCE_URL}"
+        )
+        html = (
+            f'<h1 style="margin:0 0 18px;font-size:26px;color:#112D4E;">'
+            f"{escape(subject)}</h1>"
+            "<p>Hi,</p>"
+            "<p>YARBA is moving account authentication from Firebase to YARBA's "
+            "own sign-in system.</p>"
+            "<p>To keep using your existing account, request a fresh password "
+            "reset email using the address that received this message.</p>"
+            f"{render_action_button(label='Set your YARBA password', url=request_link)}"
+            '<p style="padding:14px 16px;background:#F7FAFC;border-left:4px '
+            'solid #3F72AF;border-radius:4px;">This invitation does not expire. '
+            "The secure, single-use link in the reset email expires in "
+            f"{settings.auth.password_reset_token_expire_minutes} minutes.</p>"
+            "<p>Your existing YARBA data remains attached to your account. If you "
+            "have already set your YARBA password, no action is needed.</p>"
+            f'<p style="color:#718096;font-size:14px;">'
+            f'<a href="{escape(_AUTH_SOURCE_URL, quote=True)}" '
+            'style="color:#3F72AF;">See the authentication changes on GitHub</a>'
+            "</p>"
+        )
+        await self.resend_client.send_email(
+            to=str(email),
+            subject=subject,
+            text=text,
+            html=html,
         )
 
     async def reset_password(self, raw_token: str, new_password: str) -> User:

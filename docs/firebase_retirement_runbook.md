@@ -21,7 +21,7 @@ responsibility.
 - Existing Mongo user IDs and application data are preserved.
 - Firebase password hashes are never exported, converted, or imported.
 - The CLI is dry-run unless `--apply` is present.
-- Reset email delivery additionally requires `--send-reset-emails`.
+- Migration email delivery additionally requires `--send-migration-emails`.
 - Any preflight conflict blocks all planned database mutations.
 - Do not run two apply jobs concurrently.
 
@@ -127,26 +127,28 @@ uv run python scripts/reconcile_firebase_identities.py \
 If a unique-index race is reported, stop concurrent jobs, rerun dry-run, and
 investigate before continuing.
 
-## Phase 4: password reset campaign
+## Phase 4: password migration campaign
 
 Firebase password users set a new native password through Yarba's backend reset
-flow. Password hashes are not migrated.
+flow. Password hashes are not migrated. The campaign sends a durable invitation
+to `/forgot-password`, not an expiring reset token. Each user requests a fresh,
+single-use reset link when they are ready to act.
 
 First review the password-only section from the apply report. Confirm Resend,
 frontend reset URL, API base URL, and sender domain are configured. Then:
 
 ```bash
 uv run python scripts/reconcile_firebase_identities.py \
-  --report ./artifacts/firebase-reconcile-reset-campaign.json \
+  --report ./artifacts/firebase-reconcile-migration-campaign.json \
   --apply \
-  --send-reset-emails
+  --send-migration-emails
 ```
 
 If missing records were explicitly accepted during apply and remain in the
 reconciliation input, include `--allow-missing-records` again for the campaign.
 
-`--send-reset-emails` without `--apply` is rejected. The report never includes
-raw reset tokens. Identity migrations remain applied if individual email
+`--send-migration-emails` without `--apply` is rejected. The report never
+includes raw reset tokens. Identity migrations remain applied if individual email
 delivery fails; each failure is recorded by exception type and causes a nonzero
 exit. Because email delivery is an external side effect, do not rerun the
 campaign flag blindly: review the prior report first. A normal `--apply` rerun

@@ -86,10 +86,10 @@ def write_report(report: MigrationAuditReport, path: Path) -> None:
     temporary.replace(path)
 
 
-def _build_reset_sender() -> NativeAuthService:
+def _build_migration_email_sender() -> NativeAuthService:
     api_key = settings.resend.api_key.get_secret_value()
     if not api_key:
-        raise ValueError("Resend is not configured; reset emails cannot be sent")
+        raise ValueError("Resend is not configured; migration emails cannot be sent")
     resend_client = ResendClient(
         api_key=api_key,
         from_address=settings.resend.from_address,
@@ -101,12 +101,12 @@ async def run(
     *,
     report_path: Path,
     apply: bool,
-    send_reset_emails: bool,
+    send_migration_emails: bool,
     allow_missing_records: bool,
 ) -> int:
     """Execute reconciliation and return a process exit code."""
-    if send_reset_emails and not apply:
-        raise ValueError("--send-reset-emails requires --apply")
+    if send_migration_emails and not apply:
+        raise ValueError("--send-migration-emails requires --apply")
     if allow_missing_records and not apply:
         raise ValueError("--allow-missing-records requires --apply")
     client = await init_db()
@@ -115,13 +115,17 @@ async def run(
     if not FirebaseAuth.initialize():
         raise RuntimeError("Firebase Admin initialization failed")
 
-    reset_sender = _build_reset_sender() if send_reset_emails else None
+    migration_email_sender = (
+        _build_migration_email_sender() if send_migration_emails else None
+    )
     firebase_users = await read_firebase_users()
-    service = FirebaseIdentityMigrationService(reset_sender=reset_sender)
+    service = FirebaseIdentityMigrationService(
+        migration_email_sender=migration_email_sender
+    )
     report = await service.reconcile(
         firebase_users,
         apply=apply,
-        send_reset_emails=send_reset_emails,
+        send_migration_emails=send_migration_emails,
         allow_missing_records=allow_missing_records,
     )
     write_report(report, report_path)
@@ -135,7 +139,7 @@ async def run(
         f"{summary} {len(report.entries)} records, "
         f"{report.conflict_count} conflicts, "
         f"{report.review_required_count} review-required missing records, "
-        f"{report.reset_failure_count} reset email failures."
+        f"{report.migration_email_failure_count} migration email failures."
     )
     print(f"Sensitive audit report written to: {report_path}")
     return 1 if report.has_failures else 0
@@ -159,9 +163,9 @@ def parse_args() -> argparse.Namespace:
         help="Apply a conflict-free reconciliation plan",
     )
     parser.add_argument(
-        "--send-reset-emails",
+        "--send-migration-emails",
         action="store_true",
-        help="Send native reset links after apply; requires --apply",
+        help="Send durable password migration invitations; requires --apply",
     )
     parser.add_argument(
         "--allow-missing-records",
@@ -172,8 +176,8 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     args = parser.parse_args()
-    if args.send_reset_emails and not args.apply:
-        parser.error("--send-reset-emails requires --apply")
+    if args.send_migration_emails and not args.apply:
+        parser.error("--send-migration-emails requires --apply")
     if args.allow_missing_records and not args.apply:
         parser.error("--allow-missing-records requires --apply")
     return args
@@ -186,7 +190,7 @@ def main() -> None:
             run(
                 report_path=args.report,
                 apply=args.apply,
-                send_reset_emails=args.send_reset_emails,
+                send_migration_emails=args.send_migration_emails,
                 allow_missing_records=args.allow_missing_records,
             )
         )

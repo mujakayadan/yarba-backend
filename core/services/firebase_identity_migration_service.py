@@ -46,8 +46,8 @@ class MigrationDisposition(StrEnum):
     MISSING_FIREBASE_RECORD = "missing_firebase_record"
 
 
-class ResetEmailStatus(StrEnum):
-    """Password reset campaign result."""
+class MigrationEmailStatus(StrEnum):
+    """Password migration invitation result."""
 
     NOT_REQUESTED = "not_requested"
     SENT = "sent"
@@ -66,8 +66,8 @@ class MigrationAuditEntry:
     conflicts: list[str] = field(default_factory=list)
     password_reset_required: bool = False
     password_only_firebase_user: bool = False
-    reset_email_status: ResetEmailStatus = ResetEmailStatus.NOT_REQUESTED
-    reset_email_error: str | None = None
+    migration_email_status: MigrationEmailStatus = MigrationEmailStatus.NOT_REQUESTED
+    migration_email_error: str | None = None
 
     def to_dict(self) -> dict[str, object]:
         """Serialize only operator-safe audit fields."""
@@ -80,8 +80,8 @@ class MigrationAuditEntry:
             "conflicts": self.conflicts,
             "password_reset_required": self.password_reset_required,
             "password_only_firebase_user": self.password_only_firebase_user,
-            "reset_email_status": self.reset_email_status.value,
-            "reset_email_error": self.reset_email_error,
+            "migration_email_status": self.migration_email_status.value,
+            "migration_email_error": self.migration_email_error,
         }
 
 
@@ -102,9 +102,9 @@ class MigrationAuditReport:
         return sum(bool(entry.conflicts) for entry in self.entries)
 
     @property
-    def reset_failure_count(self) -> int:
+    def migration_email_failure_count(self) -> int:
         return sum(
-            entry.reset_email_status is ResetEmailStatus.FAILED
+            entry.migration_email_status is MigrationEmailStatus.FAILED
             for entry in self.entries
         )
 
@@ -125,7 +125,7 @@ class MigrationAuditReport:
             return "dry_run_review_required" if self.has_failures else "dry_run_clean"
         if self.apply_blocked:
             return "apply_blocked"
-        if self.conflict_count or self.reset_failure_count:
+        if self.conflict_count or self.migration_email_failure_count:
             return "applied_with_failures"
         return "applied"
 
@@ -136,7 +136,7 @@ class MigrationAuditReport:
         )
         return (
             self.conflict_count > 0
-            or self.reset_failure_count > 0
+            or self.migration_email_failure_count > 0
             or self.apply_blocked
             or missing_unaccepted
         )
@@ -147,7 +147,7 @@ class MigrationAuditReport:
             {
                 "mongo_user_id": entry.mongo_user_id,
                 "email": entry.email,
-                "reset_email_status": entry.reset_email_status.value,
+                "migration_email_status": entry.migration_email_status.value,
             }
             for entry in self.entries
             if entry.password_reset_required
@@ -156,7 +156,7 @@ class MigrationAuditReport:
             {
                 "mongo_user_id": entry.mongo_user_id,
                 "email": entry.email,
-                "reset_email_status": entry.reset_email_status.value,
+                "migration_email_status": entry.migration_email_status.value,
             }
             for entry in self.entries
             if entry.password_only_firebase_user
@@ -177,7 +177,7 @@ class MigrationAuditReport:
                 "total": len(self.entries),
                 "conflicts": self.conflict_count,
                 "review_required_missing_records": self.review_required_count,
-                "reset_email_failures": self.reset_failure_count,
+                "migration_email_failures": self.migration_email_failure_count,
                 "by_disposition": dict(sorted(counts.items())),
                 "password_reset_required": len(reset_candidates),
             },
@@ -187,11 +187,11 @@ class MigrationAuditReport:
         }
 
 
-class PasswordResetSender(Protocol):
-    """Subset of NativeAuthService used by an optional reset campaign."""
+class PasswordMigrationEmailSender(Protocol):
+    """Subset of NativeAuthService used by the migration campaign."""
 
-    async def request_password_reset(self, email: EmailStr) -> None:
-        """Issue and send one native password reset email."""
+    async def send_password_migration_invitation(self, email: EmailStr) -> None:
+        """Send a durable invitation to request a native password reset."""
 
 
 @dataclass(slots=True)
@@ -212,27 +212,27 @@ class FirebaseIdentityMigrationService:
         *,
         user_repository: UserRepository | None = None,
         identity_repository: AuthIdentityRepository | None = None,
-        reset_sender: PasswordResetSender | None = None,
+        migration_email_sender: PasswordMigrationEmailSender | None = None,
     ) -> None:
         self.users = user_repository or UserRepository()
         self.identities = identity_repository or AuthIdentityRepository()
-        self.reset_sender = reset_sender
+        self.migration_email_sender = migration_email_sender
 
     async def reconcile(
         self,
         firebase_users: list[FirebaseUserRecord],
         *,
         apply: bool = False,
-        send_reset_emails: bool = False,
+        send_migration_emails: bool = False,
         allow_missing_records: bool = False,
     ) -> MigrationAuditReport:
         """Preflight all records, then optionally apply only a conflict-free plan."""
-        if send_reset_emails and not apply:
-            raise ValueError("--send-reset-emails requires --apply")
+        if send_migration_emails and not apply:
+            raise ValueError("--send-migration-emails requires --apply")
         if allow_missing_records and not apply:
             raise ValueError("--allow-missing-records requires --apply")
-        if send_reset_emails and self.reset_sender is None:
-            raise ValueError("Password reset email delivery is not configured")
+        if send_migration_emails and self.migration_email_sender is None:
+            raise ValueError("Password migration email delivery is not configured")
 
         planned, entries = await self._preflight(firebase_users)
         report = MigrationAuditReport(
@@ -255,8 +255,8 @@ class FirebaseIdentityMigrationService:
 
         for item in planned:
             await self._apply_user(item)
-        if send_reset_emails:
-            await self._send_reset_campaign(planned)
+        if send_migration_emails:
+            await self._send_migration_campaign(planned)
         return report
 
     async def _preflight(
@@ -495,18 +495,20 @@ class FirebaseIdentityMigrationService:
             else MigrationDisposition.UNCHANGED
         )
 
-    async def _send_reset_campaign(self, planned: list[_PlannedUser]) -> None:
-        if self.reset_sender is None:
-            raise ValueError("Password reset email delivery is not configured")
+    async def _send_migration_campaign(self, planned: list[_PlannedUser]) -> None:
+        if self.migration_email_sender is None:
+            raise ValueError("Password migration email delivery is not configured")
         for item in planned:
             if not item.audit.password_reset_required or item.audit.conflicts:
                 continue
             try:
-                await self.reset_sender.request_password_reset(item.user.email)
-                item.audit.reset_email_status = ResetEmailStatus.SENT
+                await self.migration_email_sender.send_password_migration_invitation(
+                    item.user.email
+                )
+                item.audit.migration_email_status = MigrationEmailStatus.SENT
             except Exception as exc:
-                item.audit.reset_email_status = ResetEmailStatus.FAILED
-                item.audit.reset_email_error = type(exc).__name__
+                item.audit.migration_email_status = MigrationEmailStatus.FAILED
+                item.audit.migration_email_error = type(exc).__name__
 
 
 def _canonical_email(email: str | None) -> str | None:

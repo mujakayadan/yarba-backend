@@ -14,7 +14,7 @@ from core.services.firebase_identity_migration_service import (
     FirebaseIdentityMigrationService,
     FirebaseUserRecord,
     MigrationDisposition,
-    ResetEmailStatus,
+    MigrationEmailStatus,
 )
 from core.utils.object_id import require_object_id
 from scripts.reconcile_firebase_identities import parse_args, read_firebase_users
@@ -26,12 +26,12 @@ class FakeProvider:
     uid: str
 
 
-class FakeResetSender:
+class FakeMigrationEmailSender:
     def __init__(self, failing_email: str | None = None) -> None:
         self.failing_email = failing_email
         self.sent: list[str] = []
 
-    async def request_password_reset(self, email) -> None:
+    async def send_password_migration_invitation(self, email) -> None:
         value = str(email)
         if value == self.failing_email:
             raise RuntimeError("simulated delivery failure")
@@ -89,7 +89,7 @@ def test_cli_defaults_to_dry_run_and_gates_email_send(
     )
     args = parse_args()
     assert args.apply is False
-    assert args.send_reset_emails is False
+    assert args.send_migration_emails is False
     assert args.allow_missing_records is False
 
     monkeypatch.setattr(
@@ -99,7 +99,7 @@ def test_cli_defaults_to_dry_run_and_gates_email_send(
             "reconcile_firebase_identities.py",
             "--report",
             str(report_path),
-            "--send-reset-emails",
+            "--send-migration-emails",
         ],
     )
     with pytest.raises(SystemExit) as invalid:
@@ -318,7 +318,7 @@ async def test_password_classification_and_state_transitions(beanie_db) -> None:
         {
             "mongo_user_id": str(password_only.id),
             "email": "password-only@example.com",
-            "reset_email_status": "not_requested",
+            "migration_email_status": "not_requested",
         }
     ]
 
@@ -435,7 +435,7 @@ async def test_duplicate_and_missing_uid_conflicts_prevent_apply(beanie_db) -> N
 
 
 @pytest.mark.asyncio
-async def test_reset_email_gates_and_failure_reporting(beanie_db) -> None:
+async def test_migration_email_gates_and_failure_reporting(beanie_db) -> None:
     successful = await _legacy_user(
         username="reset-success",
         email="reset-success@example.com",
@@ -461,7 +461,7 @@ async def test_reset_email_gates_and_failure_reporting(beanie_db) -> None:
     with pytest.raises(ValueError, match="requires --apply"):
         await FirebaseIdentityMigrationService().reconcile(
             records,
-            send_reset_emails=True,
+            send_migration_emails=True,
         )
     with pytest.raises(ValueError, match="allow-missing-records requires --apply"):
         await FirebaseIdentityMigrationService().reconcile(
@@ -472,21 +472,19 @@ async def test_reset_email_gates_and_failure_reporting(beanie_db) -> None:
         await FirebaseIdentityMigrationService().reconcile(
             records,
             apply=True,
-            send_reset_emails=True,
+            send_migration_emails=True,
         )
 
-    sender = FakeResetSender(failing_email="reset-failure@example.com")
-    report = await FirebaseIdentityMigrationService(reset_sender=sender).reconcile(
-        records,
-        apply=True,
-        send_reset_emails=True,
-    )
+    sender = FakeMigrationEmailSender(failing_email="reset-failure@example.com")
+    report = await FirebaseIdentityMigrationService(
+        migration_email_sender=sender
+    ).reconcile(records, apply=True, send_migration_emails=True)
 
     assert sender.sent == ["reset-success@example.com"]
-    assert report.reset_failure_count == 1
-    statuses = {entry.email: entry.reset_email_status for entry in report.entries}
-    assert statuses["reset-success@example.com"] is ResetEmailStatus.SENT
-    assert statuses["reset-failure@example.com"] is ResetEmailStatus.FAILED
+    assert report.migration_email_failure_count == 1
+    statuses = {entry.email: entry.migration_email_status for entry in report.entries}
+    assert statuses["reset-success@example.com"] is MigrationEmailStatus.SENT
+    assert statuses["reset-failure@example.com"] is MigrationEmailStatus.FAILED
     assert await AuthIdentity.find_one({"user_id": successful.id}) is not None
     assert await AuthIdentity.find_one({"user_id": failing.id}) is not None
     serialized = str(report.to_dict())
