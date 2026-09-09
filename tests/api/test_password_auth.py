@@ -12,6 +12,7 @@ from httpx import AsyncClient
 from api.main import app as fastapi_app
 from config.settings import settings
 from core.auth.types import AuthMigrationState, IdentityProvider
+from core.constants.legal_documents import LEGAL_VERSION
 from core.database.factory import get_native_auth_service
 from core.exceptions.base import BadRequestException
 from core.models.auth_action_token import AuthActionPurpose, AuthActionToken
@@ -26,10 +27,10 @@ from core.utils.object_id import require_object_id
 PASSWORD = "NativePassword123"
 NEW_PASSWORD = "ChangedPassword123"
 LEGAL_ACCEPTANCE = {
-    "terms_version": "2026-08-19",
-    "acceptable_use_version": "2026-08-19",
-    "privacy_version": "2026-08-19",
-    "ai_data_use_version": "2026-08-19",
+    "terms_version": LEGAL_VERSION,
+    "acceptable_use_version": LEGAL_VERSION,
+    "privacy_version": LEGAL_VERSION,
+    "ai_data_use_version": LEGAL_VERSION,
     "terms_accepted": True,
     "acceptable_use_accepted": True,
     "privacy_acknowledged": True,

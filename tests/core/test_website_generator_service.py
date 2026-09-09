@@ -150,6 +150,8 @@ async def test_generator_renders_creative_themes(theme_id, beanie_db):
     assert 'href="favicon.webp"' in files["index.html"]
     assert "YARBA_CHAT" in files["index.html"]
     assert "chatbot.css" in files["index.html"]
+    assert "/report" in files["index.html"]
+    assert "report-abuse" not in files["index.html"]
 
 
 @pytest.mark.anyio

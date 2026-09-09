@@ -1,4 +1,4 @@
-"""Merge PRE_DEPLOY migration job into a DigitalOcean app spec YAML file."""
+"""Merge migration and data-retention jobs into a DigitalOcean app spec YAML file."""
 
 from __future__ import annotations
 
@@ -8,7 +8,20 @@ from pathlib import Path
 APP_ID = "3c7ee72f-a17a-4084-9007-24901071ac3f"
 OUTPUT = Path(".do/app-spec.live.yaml")
 
-JOBS_BLOCK = """jobs:
+RETENTION_JOB = """- dockerfile_path: Dockerfile
+  github:
+    branch: main
+    deploy_on_push: true
+    repo: mujakayadan/yarba-backend
+  instance_size_slug: apps-s-1vcpu-0.5gb
+  kind: SCHEDULED
+  name: data-retention
+  run_command: uv run python scripts/process_data_retention.py
+  schedule: "0 7 * * *"
+  source_dir: /
+"""
+
+JOBS_BLOCK = f"""jobs:
 - dockerfile_path: Dockerfile
   github:
     branch: main
@@ -19,7 +32,7 @@ JOBS_BLOCK = """jobs:
   name: db-migrate
   run_command: uv run python scripts/run_migrations.py migrate
   source_dir: /
-"""
+{RETENTION_JOB}"""
 
 
 def main() -> None:
@@ -34,6 +47,11 @@ def main() -> None:
         if needle not in text:
             raise SystemExit("Could not find insertion point in app spec")
         text = text.replace(needle, f"region: sfo\n{JOBS_BLOCK}services:", 1)
+    elif "name: data-retention" not in text:
+        needle = "\nservices:"
+        if needle not in text:
+            raise SystemExit("Could not find insertion point for data-retention job")
+        text = text.replace(needle, f"\n{RETENTION_JOB}services:", 1)
 
     OUTPUT.write_text(text, encoding="utf-8", newline="\n")
     bad = [

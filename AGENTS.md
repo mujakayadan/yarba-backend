@@ -61,11 +61,12 @@ Fill **Profile → Application Settings** before running so eligibility answers 
 | Script | Purpose |
 |--------|---------|
 | `run_migrations.py` | Database migrations (also used in CI and DigitalOcean pre-deploy) |
+| `process_data_retention.py` | Process due account deletions and expire export archives (DigitalOcean scheduled job `data-retention`, daily 07:00 UTC) |
 | `apply.py` | Browser auto-apply CLI (see **Apply CLI** above) |
 | `create_portfolio_site_token.py` | Issue a read-only token for an external portfolio SPA |
 | `setup_s3_bucket.py` | One-time AWS S3 bucket setup for storage |
 | `setup_cloudfront.py` | One-time CloudFront distribution setup for S3 |
-| `merge_do_app_spec.py` | Merge migration job into a DigitalOcean app spec (requires `doctl`) |
+| `merge_do_app_spec.py` | Merge migration and data-retention jobs into a DigitalOcean app spec (requires `doctl`) |
 | `apply_do_app_spec.py` | Push merged spec to DigitalOcean (requires `doctl`) |
 
 ## Conventions
