@@ -7,13 +7,14 @@ from fastapi import HTTPException, status
 from httpx import AsyncClient
 
 from api.main import app as fastapi_app
+from core.constants.legal_documents import LEGAL_VERSION
 from core.database.factory import get_auth_service
 
 LEGAL_ACCEPTANCE = {
-    "terms_version": "2026-08-19",
-    "acceptable_use_version": "2026-08-19",
-    "privacy_version": "2026-08-19",
-    "ai_data_use_version": "2026-08-19",
+    "terms_version": LEGAL_VERSION,
+    "acceptable_use_version": LEGAL_VERSION,
+    "privacy_version": LEGAL_VERSION,
+    "ai_data_use_version": LEGAL_VERSION,
     "terms_accepted": True,
     "acceptable_use_accepted": True,
     "privacy_acknowledged": True,

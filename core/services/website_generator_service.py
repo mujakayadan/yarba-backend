@@ -333,11 +333,12 @@ class WebsiteGeneratorService:
             # Fallback to default template
             files["index.html"] = self._generate_default_html(context)
 
+        policy_base = self.settings.frontend_url.rstrip("/")
         policy_links = (
             '<footer aria-label="Yarba policies" style="padding:1rem;text-align:center">'
-            '<a href="https://yarba.app/report-abuse">Report abuse</a> · '
-            '<a href="https://yarba.app/acceptable-use">Acceptable use</a> · '
-            '<a href="https://yarba.app/site-privacy">Visitor privacy</a>'
+            f'<a href="{policy_base}/report">Report abuse</a> · '
+            f'<a href="{policy_base}/acceptable-use">Acceptable use</a> · '
+            f'<a href="{policy_base}/site-privacy">Visitor privacy</a>'
             "</footer>"
         )
         for filename, html in files.items():

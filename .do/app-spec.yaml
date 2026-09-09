@@ -20,6 +20,16 @@ jobs:
   kind: PRE_DEPLOY
   name: db-migrate
   run_command: uv run python scripts/run_migrations.py migrate
+- dockerfile_path: Dockerfile
+  github:
+    branch: main
+    deploy_on_push: true
+    repo: mujakayadan/yarba-backend
+  instance_size_slug: apps-s-1vcpu-0.5gb
+  kind: SCHEDULED
+  name: data-retention
+  run_command: uv run python scripts/process_data_retention.py
+  schedule: "0 7 * * *"
 services:
 - github:
     branch: main

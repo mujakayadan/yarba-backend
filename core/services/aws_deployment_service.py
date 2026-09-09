@@ -176,9 +176,9 @@ class AWSDeploymentService:
                     'content="noindex,nofollow"><title>Site unavailable</title>'
                     "</head><body><main><h1>Site unavailable</h1>"
                     "<p>This site is unavailable following a safety review.</p>"
-                    '<p><a href="https://yarba.app/report-abuse">Report abuse</a> · '
-                    '<a href="https://yarba.app/terms">Terms</a> · '
-                    '<a href="https://yarba.app/site-privacy">Privacy</a></p>'
+                    f'<p><a href="{settings.frontend_url.rstrip("/")}/report">Report abuse</a> · '
+                    f'<a href="{settings.frontend_url.rstrip("/")}/terms">Terms</a> · '
+                    f'<a href="{settings.frontend_url.rstrip("/")}/site-privacy">Privacy</a></p>'
                     "</main></body></html>"
                 ),
                 "robots.txt": "User-agent: *\nDisallow: /\n",

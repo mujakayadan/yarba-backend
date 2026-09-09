@@ -3,6 +3,7 @@
 import json
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
+from pathlib import Path
 from typing import Any
 from zipfile import ZIP_DEFLATED, ZipFile
 
@@ -52,6 +53,13 @@ def _as_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
+
+
+def _archive_filename(
+    stem: str, object_key: str | None, default_suffix: str = ""
+) -> str:
+    suffix = Path(object_key or "").suffix or default_suffix
+    return f"{stem}{suffix}"
 
 
 class AccountDataService:
@@ -254,12 +262,16 @@ class AccountDataService:
                     profile.demographics_encrypted
                 )
 
+        resumes = await Resume.find({"user_id": user_id}).to_list()
+        cover_letters = await CoverLetter.find({"user_id": user_id}).to_list()
         payloads: dict[str, Any] = {
             "account": user_data,
             "profile": profile_data,
             "portfolio": await self._documents(Portfolio, user_id),
-            "resumes": await self._documents(Resume, user_id),
-            "cover_letters": await self._documents(CoverLetter, user_id),
+            "resumes": [document.model_dump(mode="json") for document in resumes],
+            "cover_letters": [
+                document.model_dump(mode="json") for document in cover_letters
+            ],
             "applications": await self._documents(JobApplication, user_id),
             "portfolio_websites": await self._documents(PortfolioWebsite, user_id),
             "portfolio_chats": await self._documents(
@@ -274,7 +286,71 @@ class AccountDataService:
                     f"{name}.json",
                     json.dumps(payload, indent=2, ensure_ascii=False),
                 )
+            await self._add_stored_files(
+                archive,
+                profile=profile,
+                resumes=resumes,
+                cover_letters=cover_letters,
+            )
         return output.getvalue()
+
+    async def _add_stored_files(
+        self,
+        archive: ZipFile,
+        *,
+        profile: Profile | None,
+        resumes: list[Resume],
+        cover_letters: list[CoverLetter],
+    ) -> None:
+        candidates: list[tuple[str, str | None, str]] = []
+        if profile is not None:
+            candidates.extend(
+                (
+                    (
+                        _archive_filename(
+                            "files/profile-picture", profile.profile_picture_key
+                        ),
+                        profile.profile_picture_key,
+                        "profile_picture",
+                    ),
+                    (
+                        _archive_filename("files/signature", profile.signature_key),
+                        profile.signature_key,
+                        "signature",
+                    ),
+                )
+            )
+        candidates.extend(
+            (
+                _archive_filename(f"files/resumes/{resume.id}", resume.resume_pdf_key),
+                resume.resume_pdf_key,
+                "resume_pdf",
+            )
+            for resume in resumes
+        )
+        candidates.extend(
+            (
+                _archive_filename(
+                    f"files/cover-letters/{letter.id}", letter.cover_letter_pdf_key
+                ),
+                letter.cover_letter_pdf_key,
+                "cover_letter_pdf",
+            )
+            for letter in cover_letters
+        )
+        manifest: list[dict[str, Any]] = []
+        for archive_name, object_key, kind in candidates:
+            if not object_key:
+                continue
+            try:
+                archive.writestr(archive_name, await self.storage.get_file(object_key))
+                manifest.append({"kind": kind, "path": archive_name, "included": True})
+            except Exception:
+                manifest.append({"kind": kind, "path": archive_name, "included": False})
+        archive.writestr(
+            "files/manifest.json",
+            json.dumps(manifest, indent=2, ensure_ascii=False),
+        )
 
     async def _documents(
         self, model: type[Document], user_id: PydanticObjectId

@@ -29,8 +29,22 @@ class MemoryStorage:
 @pytest.mark.asyncio
 async def test_account_export_is_ready_and_downloadable(
     test_user: User,
+    test_profile,
+    test_resume,
+    test_cover_letter,
 ) -> None:
     storage = MemoryStorage()
+    test_profile.profile_picture_key = "profile_pictures/user.png"
+    test_profile.signature_key = "signatures/user.png"
+    await test_profile.save()
+    test_resume.resume_pdf_key = "resumes/resume.pdf"
+    await test_resume.save()
+    test_cover_letter.cover_letter_pdf_key = "cover-letters/letter.pdf"
+    await test_cover_letter.save()
+    storage.files["profile_pictures/user.png"] = b"profile-bytes"
+    storage.files["signatures/user.png"] = b"signature-bytes"
+    storage.files["resumes/resume.pdf"] = b"%PDF-resume"
+    storage.files["cover-letters/letter.pdf"] = b"%PDF-letter"
     service = AccountDataService(storage=storage)  # type: ignore[arg-type]
 
     export = await service.request_export(test_user)
@@ -41,8 +55,17 @@ async def test_account_export_is_ready_and_downloadable(
     assert export.status == ExportStatus.READY
     assert filename.startswith("yarba-export-")
     with ZipFile(BytesIO(archive)) as bundle:
-        assert "account.json" in bundle.namelist()
+        names = bundle.namelist()
+        assert "account.json" in names
         assert b"password_hash" not in bundle.read("account.json")
+        assert bundle.read("files/profile-picture.png") == b"profile-bytes"
+        assert bundle.read(f"files/resumes/{test_resume.id}.pdf") == b"%PDF-resume"
+        assert (
+            bundle.read(f"files/cover-letters/{test_cover_letter.id}.pdf")
+            == b"%PDF-letter"
+        )
+        manifest = bundle.read("files/manifest.json")
+        assert b'"included": true' in manifest
 
 
 @pytest.mark.asyncio
