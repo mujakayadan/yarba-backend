@@ -314,7 +314,7 @@ To add support for new job boards:
 ## Dependencies
 
 The Crawl4AI extractor requires these additional packages:
-- `crawl4ai>=0.5.0` - Main extraction engine
+- `crawl4ai>=0.9.4` - Main extraction engine
 - `playwright` - Browser automation (auto-installed)
 
 These are automatically installed when you add Crawl4AI to the project dependencies.
