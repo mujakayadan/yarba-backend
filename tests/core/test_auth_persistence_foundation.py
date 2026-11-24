@@ -1,4 +1,4 @@
-"""Focused tests for the Firebase-retirement persistence foundation."""
+"""Tests for auth persistence: identities, refresh sessions, and user fields."""
 
 from datetime import UTC, datetime, timedelta
 from importlib import import_module
@@ -11,7 +11,7 @@ from beanie import PydanticObjectId
 from pydantic import ValidationError
 from pymongo.errors import DuplicateKeyError
 
-from config.settings import ENV_FILES, AuthSettings, FeatureSettings
+from config.settings import ENV_FILES, AuthSettings
 from core.auth.types import AuthMigrationState, IdentityProvider
 from core.models.auth_identity import AuthIdentity
 from core.models.oauth_nonce import OAuthNonce
@@ -56,7 +56,7 @@ async def test_auth_models_validate_provider_and_hash_shapes(beanie_db) -> None:
 
 
 @pytest.mark.asyncio
-async def test_existing_firebase_user_loads_without_new_fields_or_backfill(
+async def test_user_document_with_firebase_uid_loads(
     beanie_db,
 ) -> None:
     user_id = PydanticObjectId()
@@ -210,9 +210,7 @@ async def test_expired_refresh_token_cannot_rotate(
         )
 
 
-def test_auth_configuration_preserves_firebase_compatibility_defaults() -> None:
-    assert FeatureSettings.model_fields["enable_firebase_auth"].default is True
-    assert FeatureSettings.model_fields["enable_native_auth"].default is False
+def test_auth_configuration_defaults() -> None:
     assert AuthSettings.model_fields["jwt_access_token_expire_minutes"].default == 1440
     assert (
         AuthSettings.model_fields["jwt_native_access_token_expire_minutes"].default
@@ -283,14 +281,6 @@ def test_auth_configuration_preserves_firebase_compatibility_defaults() -> None:
             OAUTH_NONCE_COOKIE_MAX_AGE_SECONDS=601,
             _env_file=None,
         )
-
-    enabled_native = FeatureSettings(
-        ENABLE_FIREBASE_AUTH=False,
-        ENABLE_NATIVE_AUTH=True,
-        _env_file=None,
-    )
-    assert enabled_native.enable_firebase_auth is False
-    assert enabled_native.enable_native_auth is True
 
 
 def test_auth_migration_keeps_users_unchanged_and_creates_unique_indexes(

@@ -30,7 +30,7 @@ The following are in scope for this policy:
 
 Out of scope:
 
-- Third-party services (Firebase, MongoDB Atlas, AWS, Resend, LLM providers, Vercel)
+- Third-party services (MongoDB Atlas, AWS, Resend, Google, Apple, LLM providers, Vercel)
 - Social engineering or physical attacks
 - Denial-of-service testing against production without prior agreement
 
@@ -38,14 +38,14 @@ Out of scope:
 
 ### Authentication and authorization
 
-- API routes require a valid **Bearer** token (Firebase ID token or server-issued JWT).
+- API routes require a valid **Bearer** token (Yarba JWT or agent personal access token).
 - Resources are scoped to the authenticated user; cross-user access returns `403 Forbidden`.
-- Firebase tokens are verified server-side via the Firebase Admin SDK.
 - JWTs are signed with `JWT_SECRET_KEY` (HS256). Use a long, random secret in production.
+- Password and OAuth refresh sessions use an HttpOnly cookie. Google and Apple ID tokens are verified against provider JWKS.
 
 ### Secrets and configuration
 
-- Never commit `.env`, `.env.local`, Firebase service account JSON, or API keys.
+- Never commit `.env`, `.env.local`, or API keys.
 - Use `.env.example` as a template only; rotate any credential that was ever committed.
 - Production secrets belong in your hosting provider's secret store (e.g. DigitalOcean App Platform env vars).
 
@@ -63,7 +63,6 @@ Out of scope:
 
 ### Development
 
-- The Firebase test-mode bypass in auth middleware is only active when `ENV=development` and `DEBUG=true`. Never enable this in production.
 - Do not run the API with default `JWT_SECRET_KEY` outside local development.
 
 ## Safe disclosure

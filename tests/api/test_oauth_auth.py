@@ -301,7 +301,6 @@ def oauth_api(
     monkeypatch: pytest.MonkeyPatch,
     verifier: OAuthIdTokenVerifier,
 ):
-    monkeypatch.setattr(settings.features, "enable_native_auth", True)
     monkeypatch.setattr(settings.auth, "refresh_cookie_secure", False)
     monkeypatch.setattr(settings.auth, "oauth_nonce_cookie_secure", False)
     service = NativeAuthService(resend_client=None)
@@ -736,18 +735,3 @@ async def test_concurrent_provider_requests_resolve_one_user(beanie_db) -> None:
     assert (
         await AuthIdentity.find({"provider_subject": "concurrent-google"}).count() == 1
     )
-
-
-@pytest.mark.asyncio
-async def test_oauth_routes_are_disabled_by_default(
-    async_client: AsyncClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(settings.features, "enable_native_auth", False)
-    nonce_response = await async_client.post("/api/v1/auth/oauth/nonce/google")
-    response = await async_client.post(
-        "/api/v1/auth/oauth/google",
-        json={"id_token": "not-used"},
-    )
-    assert nonce_response.status_code == status.HTTP_404_NOT_FOUND
-    assert response.status_code == status.HTTP_404_NOT_FOUND

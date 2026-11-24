@@ -18,7 +18,6 @@
 <br/>
 
 ![LiteLLM](https://img.shields.io/badge/LiteLLM-OpenAI%20%7C%20Anthropic%20%7C%20Gemini-black)
-![Firebase](https://img.shields.io/badge/Firebase-Auth-FFCA28?logo=firebase&logoColor=black)
 ![AWS](https://img.shields.io/badge/AWS-S3%20%26%20CloudFront-232F3E?logo=amazonaws&logoColor=white)
 ![Playwright](https://img.shields.io/badge/Playwright-job%20scraping-2EAD33?logo=playwright&logoColor=white)
 ![LaTeX](https://img.shields.io/badge/LaTeX-PDF%20pipeline-008080?logo=latex&logoColor=white)
@@ -105,7 +104,6 @@ flowchart TB
 
     subgraph data [Data & integrations]
         Mongo[(MongoDB / Beanie)]
-        Firebase[Firebase Auth]
         S3[AWS S3 / CloudFront]
         Providers[LLM providers]
     end
@@ -126,7 +124,6 @@ flowchart TB
     LLM --> Providers
     LaTeX --> PDF[PDF output]
     Storage --> S3
-    Routers --> Firebase
 ```
 
 ---
@@ -166,7 +163,7 @@ flowchart TB
 | **Runtime** | Python 3.12, [uv](https://docs.astral.sh/uv/) |
 | **API** | FastAPI, Uvicorn, Pydantic v2, python-multipart |
 | **Database** | MongoDB, Beanie ODM, custom migration runner |
-| **Auth** | Firebase Admin, PyJWT |
+| **Auth** | PyJWT, password sessions, Google and Apple OAuth |
 | **AI** | LiteLLM, structured JSON output, Jinja2 prompts |
 | **Documents** | LaTeX, pdfminer-six, python-docx, Pillow |
 | **Scraping** | Playwright, BeautifulSoup, Crawl4AI (optional fallback) |
@@ -192,8 +189,8 @@ templates/    # LaTeX and portfolio website themes
 
 ## Quick start
 
-**Prerequisites:** Python 3.12, [uv](https://docs.astral.sh/uv/), MongoDB, a
-[Firebase project](docs/firebase_setup.md), and a LaTeX distribution such as
+**Prerequisites:** Python 3.12, [uv](https://docs.astral.sh/uv/), MongoDB, and a
+LaTeX distribution such as
 [TeX Live](https://tug.org/texlive/) or [MiKTeX](https://miktex.org/) for PDF
 generation.
 
@@ -201,7 +198,7 @@ generation.
 uv python pin 3.12
 uv sync
 uv run playwright install chromium   # required for job scraping and auto-apply
-cp .env.example .env   # edit values — see .env.example for Firebase, LLM keys, storage
+cp .env.example .env   # edit values — see .env.example for JWT, OAuth, LLM keys, storage
 uv run uvicorn api.main:app --reload --reload-dir api --reload-dir config --reload-dir core --reload-dir utils
 ```
 
@@ -242,7 +239,7 @@ docker build --build-arg BASE_IMAGE=yarba-base -t yarba-backend .
 
 - [Architecture overview](docs/ARCHITECTURE.md)
 - [Backend API reference](docs/api_documentation.md)
-- [Firebase authentication setup](docs/firebase_setup.md)
+- [Authentication guide](docs/authentication_guide.md)
 - [Portfolio hosting architecture](docs/portfolio_hosting_architecture.md)
 - [Agent guide & apply CLI](AGENTS.md) — local auto-apply, PATs, human-in-the-loop rules
 - [Database migrations](core/database/migrations/README.md)

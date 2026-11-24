@@ -34,7 +34,6 @@ from api.dependencies.services import (
 from api.main import app as fastapi_app
 from api.middleware.auth import get_current_user
 from api.middleware.rate_limit import RATE_LIMIT_STORE
-from core.database.factory import get_auth_service
 from core.models.agent_access_token import AgentAccessToken
 from core.models.auth_action_token import AuthActionToken
 from core.models.auth_identity import AuthIdentity
@@ -58,7 +57,6 @@ from core.repositories.portfolio_repository import PortfolioRepository
 from core.repositories.profile_repository import ProfileRepository
 from core.repositories.resume_repository import ResumeRepository
 from core.repositories.user_repository import UserRepository
-from core.services.auth_service import AuthService
 from core.services.latex_service import LatexService
 from core.services.legal_service import LegalService
 from core.services.llm_service import LLMService
@@ -279,17 +277,6 @@ def mock_resume_repository() -> AsyncMock:
 
 
 @pytest.fixture
-def mock_auth_service(mock_user_repository: AsyncMock) -> AsyncMock:
-    service = AsyncMock(spec=AuthService)
-    service.register_with_firebase = AsyncMock()
-    service.login_with_firebase = AsyncMock()
-    service.create_access_token = AsyncMock()
-    service.verify_token = AsyncMock()
-    service.user_repository = mock_user_repository
-    return service
-
-
-@pytest.fixture
 def mock_resume_service(mock_resume_repository: AsyncMock) -> AsyncMock:
     service = AsyncMock(spec=ResumeService)
     service.create_resume = AsyncMock()
@@ -406,7 +393,6 @@ async def async_client(
 
     monkeypatch.setattr("api.main.init_db", _mock_init_db)
     monkeypatch.setattr("core.database.init.init_db", _mock_init_db)
-    monkeypatch.setattr("core.auth.firebase.FirebaseAuth.initialize", lambda: True)
 
     async def override_active_user() -> User:
         return test_user
@@ -479,52 +465,3 @@ def client(app_with_mocked_dependencies) -> TestClient:
 @pytest.fixture
 def client_with_mocked_dependencies(app_with_mocked_dependencies) -> TestClient:
     return TestClient(app_with_mocked_dependencies)
-
-
-@pytest.fixture
-def registered_user() -> dict[str, str]:
-    return {
-        "email": "registered@example.com",
-        "password": "Password123!",
-    }
-
-
-@pytest.fixture
-async def async_client_auth(
-    async_client: AsyncClient, mock_auth_service: AsyncMock
-) -> AsyncIterator[AsyncClient]:
-    """Async client with mocked Firebase auth service."""
-    mock_auth_service.register_with_firebase = AsyncMock(
-        return_value={
-            "user": {
-                "id": "507f1f77bcf86cd799439011",
-                "email": "newuser@example.com",
-                "username": "newuser",
-            },
-            "access_token": "test-access-token",
-            "token_type": "bearer",
-            "is_new_user": True,
-            "current_setup_step": 1,
-            "registration_resumed": False,
-        }
-    )
-
-    async def duplicate_register(*_args, **_kwargs):
-        from fastapi import HTTPException
-
-        raise HTTPException(status_code=400, detail="Email already registered")
-
-    mock_auth_service.login_with_firebase = AsyncMock(
-        return_value={
-            "user": {
-                "id": "507f1f77bcf86cd799439011",
-                "email": "registered@example.com",
-            },
-            "access_token": "test-access-token",
-            "token_type": "bearer",
-        }
-    )
-
-    fastapi_app.dependency_overrides[get_auth_service] = lambda: mock_auth_service
-    yield async_client
-    fastapi_app.dependency_overrides.pop(get_auth_service, None)

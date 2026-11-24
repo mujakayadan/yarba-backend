@@ -68,7 +68,7 @@ from core.utils.schema_mapping import (
     map_awards,
     map_projects,
     map_schema_to_portfolio,
-    ensure_profile_has_personal_info
+    ensure_profile_has_personal_info,
 )
 ```
 
@@ -98,9 +98,16 @@ JSON schema support can be configured in the settings:
 
 ```python
 # .env file
-ENABLE_JSON_SCHEMA=True
-JSON_SCHEMA_VALIDATION=True
-JSON_COMPATIBLE_MODELS=["gpt-4", "gpt-4-turbo", "gpt-4o", "claude-3-opus", "claude-3-sonnet", "gemini-1.5-pro"]
+ENABLE_JSON_SCHEMA = True
+JSON_SCHEMA_VALIDATION = True
+JSON_COMPATIBLE_MODELS = [
+    "gpt-4",
+    "gpt-4-turbo",
+    "gpt-4o",
+    "claude-3-opus",
+    "claude-3-sonnet",
+    "gemini-1.5-pro",
+]
 ```
 
 Or in code:
@@ -116,7 +123,7 @@ settings.llm.json_schema_validation = True
 llm_service = LLMService(
     profile_repository=profile_repo,
     prompt_service=prompt_service,
-    enable_json_validation=True
+    enable_json_validation=True,
 )
 ```
 
@@ -126,14 +133,17 @@ llm_service = LLMService(
 
 ```python
 from core.schemas import PersonalInformationSchema
-from core.utils.schema_mapping import map_personal_info, ensure_profile_has_personal_info
+from core.utils.schema_mapping import (
+    map_personal_info,
+    ensure_profile_has_personal_info,
+)
 
 # Generate personal information
 personal_information = await llm_service.get_structured_completion(
     prompt="Generate personal information for John Smith...",
     schema_model=PersonalInformationSchema,
     system_prompt="You are a helpful assistant that outputs structured data.",
-    fallback_to_text=True
+    fallback_to_text=True,
 )
 
 # Map to profile model with default handling
@@ -144,9 +154,7 @@ preferences = Preferences(**settings.preference_settings.model_dump())
 
 # Create or update a profile
 profile = Profile(
-    user_id=user_id,
-    personal_information=profile_personal_info,
-    preferences=preferences
+    user_id=user_id, personal_information=profile_personal_info, preferences=preferences
 )
 
 # Ensure profile has all required fields
@@ -166,7 +174,7 @@ result = await llm_service.generate_section(
     context=awards_context,
     job_description=job_description,
     use_json_schema=True,
-    schema_model=AwardsListSchema
+    schema_model=AwardsListSchema,
 )
 
 # Map schema to portfolio with a single call
@@ -184,7 +192,7 @@ structured_result = await llm_service.get_structured_completion(
     prompt="Extract the work experience information...",
     schema_model=WorkExperienceListSchema,
     system_prompt="You are a helpful assistant that outputs data in JSON format.",
-    fallback_to_text=True
+    fallback_to_text=True,
 )
 
 # Map with default handling for missing values
@@ -257,6 +265,7 @@ Always get preferences from settings rather than generating them with LLM:
 from config.settings import settings
 from core.models.profile import Preferences
 
+
 def create_preferences_from_settings():
     # Get the default preference settings
     pref_settings = settings.preference_settings
@@ -265,7 +274,7 @@ def create_preferences_from_settings():
     preferences = Preferences(
         project_details={
             "max_projects": pref_settings.project_max_projects,
-            "bullet_points_per_project": pref_settings.project_bullet_points_per_project
+            "bullet_points_per_project": pref_settings.project_bullet_points_per_project,
         },
         # ... other preference fields
     )
@@ -283,7 +292,7 @@ result = await llm_service.generate_section(
     context=context,
     job_description=job_description,
     use_json_schema=True,
-    schema_model=ProjectsListSchema
+    schema_model=ProjectsListSchema,
 )
 
 if isinstance(result, ProjectsListSchema):
@@ -304,7 +313,7 @@ try:
     result = await llm_service.get_structured_completion(
         prompt=prompt,
         schema_model=EducationListSchema,
-        fallback_to_text=False  # Will raise error if schema validation fails
+        fallback_to_text=False,  # Will raise error if schema validation fails
     )
     # Process result
 except ValueError as e:

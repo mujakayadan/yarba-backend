@@ -10,9 +10,8 @@ from jwt.exceptions import ExpiredSignatureError
 from jwt.exceptions import PyJWTError as JWTError
 
 from config import get_logger, settings
-from core.auth.firebase import FirebaseAuth
 from core.database.factory import get_user_repository
-from core.models.user import AuthenticatedUser, User
+from core.models.user import AuthenticatedUser
 from core.repositories.agent_access_token_repository import AgentAccessTokenRepository
 from core.repositories.user_repository import UserRepository
 from core.utils.agent_access_token import TOKEN_PREFIX
@@ -26,11 +25,11 @@ async def verify_token(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
 ) -> dict:
-    """Verify JWT token and return payload.
+    """Verify a Yarba JWT or agent personal access token.
 
     Args:
         request: FastAPI request object
-        credentials: HTTP Authorization credentials containing the JWT token
+        credentials: HTTP Authorization credentials containing the bearer token
 
     Returns:
         Dict: Token payload containing user information
@@ -38,7 +37,6 @@ async def verify_token(
     Raises:
         HTTPException: If token is invalid or expired
     """
-    # Check if credentials are provided
     if credentials is None:
         logger.warning(f"Missing authentication token for {request.url.path}")
         raise HTTPException(
@@ -80,49 +78,24 @@ async def verify_token(
             "scopes": record.scopes,
         }
 
-    # Try to determine the token type
     try:
-        # First, attempt to process as a regular JWT
         payload = jwt.decode(
             token,
             settings.auth.jwt_secret_key.get_secret_value(),
             algorithms=[settings.auth.jwt_algorithm],
         )
-
-        # If successful, it's a JWT
         payload["token_type"] = "jwt"
         request.state.auth_token_type = "jwt"
         request.state.auth_scopes = None
         logger.debug(f"JWT token verified for user {payload.get('sub')}")
         return dict(payload)
-
     except (JWTError, ExpiredSignatureError) as jwt_error:
-        # If not a valid JWT, try as Firebase token
-        try:
-            # Verify Firebase token
-            firebase_payload = await FirebaseAuth.verify_token(token)
-
-            # Add a type field to distinguish in the current_user dependency
-            firebase_payload["token_type"] = "firebase"
-            request.state.auth_token_type = "firebase"
-            request.state.auth_scopes = None
-
-            # Log successful token verification
-            logger.debug(
-                f"Firebase token verified for user {firebase_payload.get('email')}"
-            )
-            return firebase_payload
-
-        except Exception as e:
-            # If failed as both JWT and Firebase token, log and raise error
-            logger.warning(
-                f"Invalid token used for {request.url.path}: JWT error: {str(jwt_error)}, Firebase error: {str(e)}"
-            )
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication token",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+        logger.warning(f"Invalid token used for {request.url.path}: {str(jwt_error)}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 
 async def get_current_user(
@@ -132,7 +105,7 @@ async def get_current_user(
     """Get the current authenticated user.
 
     Args:
-        payload: JWT token payload
+        payload: JWT or agent-token payload
         user_repo: User repository
 
     Returns:
@@ -141,38 +114,6 @@ async def get_current_user(
     Raises:
         HTTPException: If user not found or inactive
     """
-    # Development mode bypass for Firebase testing
-    if (
-        settings.env == "development"
-        and settings.debug
-        and payload.get("token_type") == "firebase"
-    ):
-        # Check if this is a development test token
-        if payload.get("test_mode") is True:
-            test_email = payload.get("email", "test@example.com")
-            logger.warning(
-                f"DEVELOPMENT MODE: Using test Firebase authentication for {test_email}"
-            )
-
-            # Get or create a test user
-            test_user = await user_repo.get_by_email(test_email)
-            if not test_user:
-                logger.info(f"Creating test user for {test_email}")
-                from datetime import datetime
-
-                test_user = User(
-                    email=test_email,
-                    username=f"test_user_{datetime.now(UTC).timestamp()}",
-                    is_active=True,
-                    email_verified=True,
-                    firebase_uid="test-firebase-uid",
-                    auth_provider="firebase.password",
-                )
-                test_user = await user_repo.create(test_user)
-
-            return cast(AuthenticatedUser, test_user)
-
-    # Normal authentication flow
     token_type = payload.get("token_type", "jwt")
 
     if token_type == "pat":
@@ -192,62 +133,23 @@ async def get_current_user(
             )
         return cast(AuthenticatedUser, user)
 
-    if token_type == "firebase":
-        # Extract user email from Firebase token
-        email = payload.get("email")
-        uid = payload.get("uid")
+    email = payload.get("sub")
+    if email is None:
+        logger.warning("JWT token payload missing 'sub' claim")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
-        if not email or not uid:
-            logger.warning("Firebase token missing email or UID")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid Firebase token payload",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
-        # Get user from database by email
-        user = await user_repo.get_by_email(email)
-
-        if user is None:
-            # User doesn't exist in our database yet
-            # In a production app, you might want to create the user here
-            logger.warning(
-                f"Firebase authenticated user with email {email} not found in database"
-            )
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found in application database",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
-        # Ensure the Firebase UID matches
-        if user.firebase_uid != uid:
-            logger.warning(f"Firebase UID mismatch for user {email}")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid user credentials",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-    else:
-        # Extract user email from JWT token
-        email = payload.get("sub")
-        if email is None:
-            logger.warning("JWT token payload missing 'sub' claim")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token payload",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
-        # Get user from database using email
-        user = await user_repo.get_by_email(email)
-        if user is None:
-            logger.warning(f"User with email {email} not found")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+    user = await user_repo.get_by_email(email)
+    if user is None:
+        logger.warning(f"User with email {email} not found")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     return cast(AuthenticatedUser, user)
 
@@ -304,7 +206,7 @@ async def get_current_active_superuser(
 
 
 def require_scopes(*required: str):
-    """Dependency factory: enforce PAT scopes. Human JWT/Firebase = full access."""
+    """Dependency factory: enforce PAT scopes. A human JWT has full access."""
 
     async def _dep(
         request: Request,
@@ -325,7 +227,6 @@ def require_scopes(*required: str):
     return _dep
 
 
-# Type aliases for dependency injection
 CurrentUser = Annotated[AuthenticatedUser, Depends(get_current_user)]
 CurrentActiveUser = Annotated[AuthenticatedUser, Depends(get_current_active_user)]
 CurrentSuperuser = Annotated[AuthenticatedUser, Depends(get_current_active_superuser)]

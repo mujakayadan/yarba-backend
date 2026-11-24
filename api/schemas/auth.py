@@ -1,7 +1,6 @@
 """Authentication schemas."""
 
 from datetime import datetime
-from typing import Any
 
 from pydantic import BaseModel, EmailStr, Field, SecretStr, field_validator
 
@@ -67,31 +66,6 @@ class MessageResponse(BaseModel):
     """Generic non-enumerating authentication response."""
 
     message: str
-
-
-class FirebaseAuthResponse(BaseModel):
-    """Firebase authentication response schema."""
-
-    user: dict[str, Any]
-    access_token: str
-    token_type: str = "bearer"
-    is_new_user: bool | None = None
-    current_setup_step: int | None = None
-    registration_resumed: bool = False
-
-
-class LoginRequest(BaseModel):
-    """Login request schema."""
-
-    email: EmailStr = Field(..., description="User's email address")
-    password: str = Field(..., min_length=8, description="User's password")
-
-
-class FirebaseLoginRequest(BaseModel):
-    """Firebase token login request schema."""
-
-    id_token: str = Field(..., description="Firebase ID token")
-    legal_acceptance: LegalAcceptanceRequest | None = None
 
 
 class UpdateSetupProgressRequest(BaseModel):
@@ -170,12 +144,6 @@ class ActionTokenConfirmRequest(BaseModel):
 
 class PasswordResetRequest(BaseModel):
     """Password reset request schema."""
-
-    email: EmailStr = Field(..., description="User's email address")
-
-
-class EmailVerificationRequest(BaseModel):
-    """Email verification request schema."""
 
     email: EmailStr = Field(..., description="User's email address")
 

@@ -1,6 +1,6 @@
 """Tests for API dependencies."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -34,14 +34,7 @@ def test_verify_token_invalid_token():
 
     client = TestClient(app)
 
-    with (
-        patch("api.middleware.auth.jwt.decode", side_effect=JWTError("invalid jwt")),
-        patch(
-            "api.middleware.auth.FirebaseAuth.verify_token",
-            new_callable=AsyncMock,
-            side_effect=Exception("invalid firebase"),
-        ),
-    ):
+    with patch("api.middleware.auth.jwt.decode", side_effect=JWTError("invalid jwt")):
         response = client.get(
             "/test",
             headers={"Authorization": "Bearer invalid_token"},

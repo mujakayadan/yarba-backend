@@ -8,7 +8,6 @@ from fastapi.responses import JSONResponse
 from api.routers.password_auth import (
     _response_payload,
     _set_refresh_cookie,
-    require_native_auth_enabled,
 )
 from api.schemas.auth import (
     AppleOAuthRequest,
@@ -33,7 +32,7 @@ from core.services.oauth_nonce_service import (
 )
 
 logger = get_logger(__name__)
-router = APIRouter(dependencies=[Depends(require_native_auth_enabled)])
+router = APIRouter()
 OAuthNonceCookie = Annotated[
     str | None,
     Cookie(alias=settings.auth.oauth_nonce_cookie_name),

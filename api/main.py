@@ -27,7 +27,6 @@ from api.middleware import setup_middlewares
 # Fix imports - use explicit imports from config modules
 from config.logging_config import configure_logging, get_logger
 from config.settings import settings
-from core.auth.firebase import FirebaseAuth
 from core.database.init import init_db
 from core.services.legal_service import LegalService
 
@@ -90,12 +89,6 @@ async def lifespan(_app: FastAPI):
         logger.error("Failed to initialize database connection")
         raise RuntimeError("Failed to initialize database connection")
     await LegalService().ensure_documents_seeded()
-
-    # Initialize Firebase
-    logger.info("Initializing Firebase Authentication")
-    firebase_initialized = FirebaseAuth.initialize()
-    if not firebase_initialized:
-        logger.warning("Failed to initialize Firebase. Authentication may be limited.")
 
     logger.info(
         "Native Google OAuth audiences configured: %s",
