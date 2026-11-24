@@ -26,7 +26,7 @@ class BasePrompt:
         Returns:
             The formatted prompt string
         """
-        return self._jinja_template.render(**kwargs)
+        return str(self._jinja_template.render(**kwargs))
 
     def __str__(self) -> str:
         """Return the prompt template as a string."""

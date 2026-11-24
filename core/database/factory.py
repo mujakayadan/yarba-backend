@@ -149,20 +149,18 @@ async def get_unit_of_work() -> AsyncGenerator[AsyncMongoUnitOfWork, None]:
 
 
 async def get_auth_service() -> AsyncGenerator[AuthService, None]:
-    """Get authentication service instance.
-
-    This service handles all authentication operations using Firebase.
+    """Yield user lookup and Yarba JWT helpers.
 
     Yields:
         AuthService: Authentication service instance
     """
-    yield AuthService(resend_client=_build_resend_client())
+    yield AuthService()
 
 
 async def get_native_auth_service() -> AsyncGenerator[NativeAuthService, None]:
-    """Yield the composed backend-owned authentication service."""
+    """Yield the password and OAuth authentication service."""
     resend_client = _build_resend_client()
-    auth_service = AuthService(resend_client=resend_client)
+    auth_service = AuthService()
     yield NativeAuthService(
         user_repository=UserRepository(),
         identity_repository=AuthIdentityRepository(),

@@ -9,7 +9,7 @@ from pydantic import ValidationError
 from api.schemas import (
     CoverLetterCreate,
     CoverLetterResponse,
-    LoginRequest,
+    PasswordLoginRequest,
     RegisterRequest,
     ResumeCreate,
     ResumeFilter,
@@ -66,7 +66,7 @@ def test_register_request_invalid_password():
 
 
 def test_login_request_valid():
-    request = LoginRequest(
+    request = PasswordLoginRequest(
         email="test@example.com",
         password="Password123!",
     )

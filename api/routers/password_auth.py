@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, Response, status
 from fastapi.responses import JSONResponse
 
 from api.middleware.auth import CurrentActiveUser
@@ -27,14 +27,7 @@ from core.utils.object_id import require_object_id
 
 logger = get_logger(__name__)
 
-
-def require_native_auth_enabled() -> None:
-    """Hide native routes until the rollout feature is enabled."""
-    if not settings.features.enable_native_auth:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
-
-
-router = APIRouter(dependencies=[Depends(require_native_auth_enabled)])
+router = APIRouter()
 RefreshCookie = Annotated[str | None, Cookie(alias=settings.auth.refresh_cookie_name)]
 
 

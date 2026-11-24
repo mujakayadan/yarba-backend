@@ -56,7 +56,7 @@ def get_password_hash(password: str) -> str:
 
 
 def validate_password_policy(password: str) -> str:
-    """Validate the shared native and Firebase password policy."""
+    """Validate the password policy."""
     if not PASSWORD_PATTERN.fullmatch(password):
         raise ValueError(
             "Password must be 8-64 characters and contain at least one uppercase "

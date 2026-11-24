@@ -34,7 +34,7 @@ flowchart TB
         EH[Error handler]
         LOG[Request logging]
         RL[Rate limiting]
-        AUTH[Firebase JWT auth]
+        AUTH[Yarba JWT and agent tokens]
     end
 
     subgraph services [Domain services]
@@ -96,7 +96,7 @@ Routers stay thin: validate input, resolve dependencies, call a service, map the
 1. **Environment** — loads `.env.local` (preferred) or `.env` via `python-dotenv`.
 2. **Lifespan** — on startup:
    - `init_db()` connects to MongoDB and registers Beanie document models (`User`, `Resume`, `CoverLetter`, `Profile`, `Portfolio`, `PortfolioWebsite`, `InboundEmail`, `UnknownEmailSender`).
-   - `FirebaseAuth.initialize()` sets up Firebase Admin for JWT verification.
+   - Startup logs how many Google OAuth audiences are configured.
 3. **Middleware** — error handling, logging, rate limiting (see below).
 4. **Routers** — mounted under `/api/v1` with OpenAPI tag metadata.
 
@@ -108,8 +108,8 @@ Static profile pictures are served from `/static/...` when `storage.provider` is
 
 | Concern | Implementation |
 |---------|----------------|
-| Identity provider | Firebase Authentication |
-| Token verification | `api/middleware/auth.py` — validates Firebase JWT on protected routes |
+| Identity | Password hashes and direct Google and Apple ID tokens |
+| Token verification | `api/middleware/auth.py` — Yarba JWT or agent personal access token |
 | User resolution | `AuthenticatedUser` model linked to MongoDB `User` document |
 | Dependency injection | `CurrentUser` / `CurrentActiveUser` annotations in `api/dependencies/auth.py` |
 

@@ -65,7 +65,7 @@ If a required form field has **no** matching value in `application_profile`, the
 
 ### Auth
 
-- **Web UI:** Firebase JWT (full access).
+- **Web UI:** Yarba JWT (full access).
 - **Apply CLI / agents:** `Authorization: Bearer yarba_pat_...`
 
 Recommended PAT scopes for apply:

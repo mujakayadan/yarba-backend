@@ -12,7 +12,6 @@ from beanie import Document, PydanticObjectId
 from jwt.exceptions import PyJWTError
 
 from config.settings import settings
-from core.auth.firebase import FirebaseAuth
 from core.auth.password import verify_password
 from core.exceptions.base import (
     ConflictException,
@@ -384,8 +383,6 @@ class AccountDataService:
                 await self.storage.delete_file(object_key)
         if website is not None and settings.storage.aws_bucket:
             await AWSDeploymentService().delete_website(website.subdomain)
-        if user is not None and user.firebase_uid:
-            await FirebaseAuth.delete_user(user.firebase_uid)
 
         for model in (
             AuthActionToken,

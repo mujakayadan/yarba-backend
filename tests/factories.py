@@ -13,14 +13,15 @@ def make_user(
     *,
     email: str = "test@example.com",
     username: str = "testuser",
-    firebase_uid: str = "firebase-test-uid",
+    firebase_uid: str | None = None,
+    auth_provider: str = "password",
     **kwargs,
 ) -> User:
     return User(
         email=email,
         username=username,
         firebase_uid=firebase_uid,
-        auth_provider="firebase.password",
+        auth_provider=auth_provider,
         is_active=True,
         email_verified=True,
         **kwargs,

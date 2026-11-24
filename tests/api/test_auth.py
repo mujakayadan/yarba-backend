@@ -1,139 +1,57 @@
-"""Tests for authentication endpoints."""
-
-from unittest.mock import AsyncMock
+"""Tests for the remaining session user endpoints."""
 
 import pytest
-from fastapi import HTTPException, status
+from fastapi import status
 from httpx import AsyncClient
 
-from api.main import app as fastapi_app
-from core.constants.legal_documents import LEGAL_VERSION
-from core.database.factory import get_auth_service
-
-LEGAL_ACCEPTANCE = {
-    "terms_version": LEGAL_VERSION,
-    "acceptable_use_version": LEGAL_VERSION,
-    "privacy_version": LEGAL_VERSION,
-    "ai_data_use_version": LEGAL_VERSION,
-    "terms_accepted": True,
-    "acceptable_use_accepted": True,
-    "privacy_acknowledged": True,
-    "ai_data_use_acknowledged": True,
-    "minimum_age_confirmed": True,
-    "acceptance_surface": "firebase_registration",
-}
+from core.models.user import User
 
 
 @pytest.mark.asyncio
-async def test_register_success(async_client_auth: AsyncClient):
-    """Test successful user registration."""
-    response = await async_client_auth.post(
-        "/api/v1/auth/register",
-        json={
-            "email": "newuser@example.com",
-            "password": "Password123!",
-            "legal_acceptance": LEGAL_ACCEPTANCE,
-        },
-    )
+async def test_get_current_user(async_client: AsyncClient, test_user: User) -> None:
+    response = await async_client.get("/api/v1/auth/me")
 
-    assert response.status_code == status.HTTP_201_CREATED
+    assert response.status_code == status.HTTP_200_OK
     body = response.json()
-    assert body["access_token"] == "test-access-token"
-    assert body["token_type"] == "bearer"
-    assert body["user"]["email"] == "newuser@example.com"
+    assert body["email"] == test_user.email
+    assert body["username"] == test_user.username
+    assert body["auth_provider"] == "password"
+    assert body["is_active"] is True
 
 
 @pytest.mark.asyncio
-async def test_register_duplicate_email(
-    async_client_auth: AsyncClient, mock_auth_service, registered_user
-):
-    """Test registration with duplicate email."""
-    from core.auth.error_codes import EMAIL_ALREADY_REGISTERED
-    from core.exceptions.base import ConflictException
-
-    mock_auth_service.register_with_firebase = AsyncMock(
-        side_effect=ConflictException(
-            message="An account with this email already exists. Please sign in.",
-            error_code=EMAIL_ALREADY_REGISTERED,
-        )
-    )
-
-    response = await async_client_auth.post(
-        "/api/v1/auth/register",
-        json={
-            "email": registered_user["email"],
-            "password": "Password123!",
-            "legal_acceptance": LEGAL_ACCEPTANCE,
-        },
-    )
-
-    assert response.status_code == status.HTTP_409_CONFLICT
-    body = response.json()
-    assert body["status"] == "error"
-    assert body["error_code"] == EMAIL_ALREADY_REGISTERED
-    assert "already exists" in body["message"]
-
-
-@pytest.mark.asyncio
-async def test_register_invalid_email(async_client: AsyncClient):
-    """Test registration with invalid email format."""
-    response = await async_client.post(
-        "/api/v1/auth/register",
-        json={"email": "invalid-email", "password": "Password123!"},
-    )
-
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
-    assert "email" in response.json()["detail"][0]["loc"]
-
-
-@pytest.mark.asyncio
-async def test_register_weak_password(async_client: AsyncClient):
-    """Test registration with weak password."""
-    response = await async_client.post(
-        "/api/v1/auth/register",
-        json={"email": "weakpass@example.com", "password": "weak"},
-    )
-
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
-    assert "password" in str(response.json()["detail"]).lower()
-
-
-@pytest.mark.asyncio
-async def test_login_success(async_client_auth: AsyncClient):
-    """Test successful Firebase token login."""
-    response = await async_client_auth.post(
-        "/api/v1/auth/login",
-        json={"id_token": "valid-firebase-id-token"},
+async def test_update_setup_progress(
+    async_client: AsyncClient, test_user: User
+) -> None:
+    response = await async_client.put(
+        "/api/v1/auth/users/me/setup-progress",
+        json={"setup_completed": True},
     )
 
     assert response.status_code == status.HTTP_200_OK
     body = response.json()
-    assert body["access_token"] == "test-access-token"
-    assert body["token_type"] == "bearer"
+    assert body["email"] == test_user.email
+    assert body["is_new_user"] is False
+    assert body["current_setup_step"] == 0
+    stored = await User.get(test_user.id)
+    assert stored is not None
+    assert stored.is_new_user is False
+    assert stored.current_setup_step == 0
 
 
 @pytest.mark.asyncio
-async def test_login_invalid_token(async_client_auth: AsyncClient, mock_auth_service):
-    """Test login with invalid Firebase token."""
-    mock_auth_service.login_with_firebase = AsyncMock(
-        side_effect=HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication token",
-        )
-    )
-    fastapi_app.dependency_overrides[get_auth_service] = lambda: mock_auth_service
-
-    response = await async_client_auth.post(
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/v1/auth/register",
         "/api/v1/auth/login",
-        json={"id_token": "invalid-token"},
-    )
-
-    assert response.status_code == status.HTTP_401_UNAUTHORIZED
-
-
-@pytest.mark.asyncio
-async def test_login_missing_token(async_client: AsyncClient):
-    """Test login without id_token."""
-    response = await async_client.post("/api/v1/auth/login", json={})
-
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        "/api/v1/auth/forgot-password",
+        "/api/v1/auth/verify-email",
+        "/api/v1/auth/change-password",
+    ],
+)
+async def test_removed_auth_routes_are_absent(
+    async_client: AsyncClient, path: str
+) -> None:
+    response = await async_client.post(path, json={})
+    assert response.status_code == status.HTTP_404_NOT_FOUND

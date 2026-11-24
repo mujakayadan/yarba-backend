@@ -41,13 +41,12 @@ LEGAL_ACCEPTANCE = {
 
 
 @pytest.fixture
-def native_auth_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(settings.features, "enable_native_auth", True)
+def refresh_cookie_for_tests(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings.auth, "refresh_cookie_secure", False)
 
 
 @pytest.fixture
-def native_service_override(native_auth_enabled: None) -> NativeAuthService:
+def native_service_override(refresh_cookie_for_tests: None) -> NativeAuthService:
     service = NativeAuthService(resend_client=None)
     fastapi_app.dependency_overrides[get_native_auth_service] = lambda: service
     yield service
@@ -63,15 +62,6 @@ async def _register(client: AsyncClient, email: str = "native@example.com"):
             "legal_acceptance": LEGAL_ACCEPTANCE,
         },
     )
-
-
-@pytest.mark.asyncio
-async def test_native_routes_are_disabled_by_default(
-    async_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings.features, "enable_native_auth", False)
-    response = await _register(async_client)
-    assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
 @pytest.mark.asyncio
@@ -241,7 +231,7 @@ async def test_logout_and_logout_all_revoke_sessions(
 
 
 @pytest.mark.asyncio
-async def test_reset_token_is_hashed_single_use_and_supports_migration(
+async def test_reset_token_is_hashed_single_use_and_sets_native_password(
     beanie_db,
     test_user: User,
 ) -> None:
@@ -262,7 +252,7 @@ async def test_reset_token_is_hashed_single_use_and_supports_migration(
 
     user = await service.reset_password(raw, NEW_PASSWORD)
     assert user.password_hash is not None
-    assert user.auth_migration_state is AuthMigrationState.DUAL
+    assert user.auth_migration_state is AuthMigrationState.NATIVE
     identity = await AuthIdentity.find_one({"user_id": test_user.id})
     assert identity is not None
     assert identity.provider_email == "legacy.mixed@example.com"
@@ -295,24 +285,6 @@ async def test_password_reset_email_explains_request_and_expiration(
     assert "no changes have been made" in message["text"]
     assert "Reset your YARBA password" in message["html"]
     assert "background:#3F72AF" in message["html"]
-
-
-@pytest.mark.asyncio
-async def test_password_migration_email_uses_durable_request_link() -> None:
-    resend = AsyncMock(spec=ResendClient)
-    service = NativeAuthService(resend_client=resend)
-
-    await service.send_password_migration_invitation("legacy@example.com")
-
-    resend.send_email.assert_awaited_once()
-    message = resend.send_email.await_args.kwargs
-    assert message["to"] == "legacy@example.com"
-    assert message["subject"] == "Action required: set your YARBA password"
-    assert f"{settings.frontend_url.rstrip('/')}/forgot-password" in message["text"]
-    assert "This invitation does not expire" in message["text"]
-    assert "?token=" not in message["text"]
-    assert "github.com/mujakayadan/yarba-backend/commits/main" in message["text"]
-    assert "Set your YARBA password" in message["html"]
 
 
 @pytest.mark.asyncio

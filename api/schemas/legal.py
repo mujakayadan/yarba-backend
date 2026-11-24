@@ -20,7 +20,6 @@ class LegalAcceptanceRequest(BaseModel):
     minimum_age_confirmed: Literal[True]
     acceptance_surface: Literal[
         "password_registration",
-        "firebase_registration",
         "google_oauth",
         "apple_oauth",
         "settings_reacceptance",

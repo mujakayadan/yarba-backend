@@ -99,7 +99,7 @@ class AuthSettings(BaseSettings):
         extra="ignore",
     )
 
-    # JWT settings for API authentication after Firebase verification
+    # JWT settings for Yarba access tokens
     jwt_secret_key: SecretStr = Field(
         default=SecretStr("your-secret-key"),
         description="Secret key for JWT token generation",
@@ -113,7 +113,7 @@ class AuthSettings(BaseSettings):
     jwt_access_token_expire_minutes: int = Field(
         default=1440,  # Set to 24 hours (1440 minutes) for debug purposes
         gt=0,
-        description="Legacy Firebase access token expiration time in minutes",
+        description="Default JWT access token lifetime in minutes",
         validation_alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES",
     )
     jwt_native_access_token_expire_minutes: int = Field(
@@ -260,73 +260,6 @@ class AuthSettings(BaseSettings):
         validation_alias="PASSWORD_RESET_PATH",
     )
 
-    # Firebase settings
-    firebase_api_key: str | None = Field(
-        default=None,
-        description="Firebase Web API key - required for REST API authentication",
-        validation_alias="FIREBASE_API_KEY",
-    )
-    firebase_type: str = Field(
-        default="service_account",
-        description="Firebase credential type",
-        validation_alias="FIREBASE_TYPE",
-    )
-    firebase_project_id: str = Field(
-        default="",
-        description="Firebase project ID",
-        validation_alias="FIREBASE_PROJECT_ID",
-    )
-    firebase_private_key_id: str = Field(
-        default="",
-        description="Firebase private key ID",
-        validation_alias="FIREBASE_PRIVATE_KEY_ID",
-    )
-    firebase_private_key: str | None = Field(
-        default=None,
-        description="Firebase private key",
-        validation_alias="FIREBASE_PRIVATE_KEY",
-    )
-    firebase_client_email: str = Field(
-        default="",
-        description="Firebase client email",
-        validation_alias="FIREBASE_CLIENT_EMAIL",
-    )
-    firebase_client_id: str = Field(
-        default="",
-        description="Firebase client ID",
-        validation_alias="FIREBASE_CLIENT_ID",
-    )
-    firebase_auth_uri: str = Field(
-        default="https://accounts.google.com/o/oauth2/auth",
-        description="Firebase auth URI",
-        validation_alias="FIREBASE_AUTH_URI",
-    )
-    firebase_token_uri: str = Field(
-        default="https://oauth2.googleapis.com/token",
-        description="Firebase token URI",
-        validation_alias="FIREBASE_TOKEN_URI",
-    )
-    firebase_auth_provider_x509_cert_url: str = Field(
-        default="https://www.googleapis.com/oauth2/v1/certs",
-        description="Firebase auth provider x509 cert URL",
-        validation_alias="FIREBASE_AUTH_PROVIDER_X509_CERT_URL",
-    )
-    firebase_client_x509_cert_url: str = Field(
-        default="",
-        description="Firebase client x509 cert URL",
-        validation_alias="FIREBASE_CLIENT_X509_CERT_URL",
-    )
-    firebase_universe_domain: str = Field(
-        default="googleapis.com",
-        description="Firebase universe domain",
-        validation_alias="FIREBASE_UNIVERSE_DOMAIN",
-    )
-    firebase_private_key_base64: str | None = Field(
-        default=None,
-        description="Firebase private key encoded in base64",
-        validation_alias="FIREBASE_PRIVATE_KEY_BASE64",
-    )
-
     @model_validator(mode="after")
     def validate_refresh_cookie_security(self) -> Self:
         """Require Secure cookies when SameSite=None permits cross-site use."""
@@ -342,70 +275,6 @@ class AuthSettings(BaseSettings):
                 "OAUTH_NONCE_COOKIE_NAME must differ from REFRESH_COOKIE_NAME"
             )
         return self
-
-    @model_validator(mode="after")
-    def decode_firebase_base64_key(self) -> Self:
-        """Decode base64 private key if present."""
-        if not self.firebase_private_key and self.firebase_private_key_base64:
-            try:
-                import base64
-                import logging
-
-                decoded_key = base64.b64decode(self.firebase_private_key_base64).decode(
-                    "utf-8"
-                )
-                self.firebase_private_key = decoded_key
-                logging.info("Successfully decoded Firebase private key from base64")
-            except Exception as e:
-                import logging
-
-                logging.error(f"Failed to decode base64 private key: {str(e)}")
-
-        if self.firebase_private_key and "\\n" in self.firebase_private_key:
-            self.firebase_private_key = self.firebase_private_key.replace("\\n", "\n")
-
-        return self
-
-    def get_firebase_credentials_dict(self) -> dict[str, Any]:
-        """Get Firebase credentials as a dictionary for firebase-admin.
-
-        Uses credentials directly from environment variables.
-        Returns an empty dict if required fields are missing.
-        """
-        # Check for required fields with more robust empty string check
-        if (
-            not self.firebase_project_id
-            or not self.firebase_private_key
-            or not self.firebase_client_email
-        ):
-            from config.logging_config import get_logger
-
-            logger = get_logger(__name__)
-            logger.warning(
-                "Missing required Firebase credentials in environment variables"
-            )
-            logger.warning(f"project_id present: {bool(self.firebase_project_id)}")
-            logger.warning(f"private_key present: {bool(self.firebase_private_key)}")
-            logger.warning(f"client_email present: {bool(self.firebase_client_email)}")
-            return {}
-
-        # Create credentials dictionary with all fields
-        credentials_dict = {
-            "type": self.firebase_type,
-            "project_id": self.firebase_project_id,
-            "private_key_id": self.firebase_private_key_id,
-            "private_key": self.firebase_private_key,
-            "client_email": self.firebase_client_email,
-            "client_id": self.firebase_client_id,
-            "auth_uri": self.firebase_auth_uri,
-            "token_uri": self.firebase_token_uri,
-            "auth_provider_x509_cert_url": self.firebase_auth_provider_x509_cert_url,
-            "client_x509_cert_url": self.firebase_client_x509_cert_url,
-            "universe_domain": self.firebase_universe_domain,
-        }
-
-        # Filter out empty values
-        return {k: v for k, v in credentials_dict.items() if v}
 
     @field_validator("api_base_url")
     def validate_api_base_url(cls, v: str) -> str:
@@ -934,16 +803,6 @@ class FeatureSettings(BaseSettings):
         env_prefix="FEATURE_",
     )
 
-    enable_firebase_auth: bool = Field(
-        default=True,
-        description="Keep the existing Firebase authentication flow enabled",
-        validation_alias="ENABLE_FIREBASE_AUTH",
-    )
-    enable_native_auth: bool = Field(
-        default=False,
-        description="Enable native password and provider authentication flows",
-        validation_alias="ENABLE_NATIVE_AUTH",
-    )
     enable_email_to_resume: bool = Field(
         default=False,
         description="Enable email-to-resume via Resend inbound webhook",

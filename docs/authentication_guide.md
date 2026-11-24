@@ -1,564 +1,119 @@
 # YARBA Authentication Guide
 
-YARBA is transitioning from Firebase-only authentication to backend-owned
-password, Google, Apple, access-token, and rotating refresh-session flows.
-Firebase remains available as a compatibility path during the staged rollout.
-For deployment order, identity reconciliation, flags, rollback, and Firebase
-shutdown criteria, follow the
-[Firebase retirement runbook](firebase_retirement_runbook.md).
+YARBA authenticates with backend-owned passwords and direct Google and Apple
+sign-in. Protected API routes accept a Yarba access JWT or an agent personal
+access token. Refresh sessions stay in an HttpOnly cookie.
 
-## Current authentication architecture
+## Password routes
 
-Two paths coexist while native authentication is feature-gated:
+All password routes live under `/api/v1/auth/password`.
 
-1. **Compatibility Firebase path**: Existing Firebase routes verify Firebase ID
-   tokens and issue Yarba API JWTs.
-2. **Native password path**: Backend password routes issue a 15-minute Yarba
-   access JWT and an HttpOnly rotating refresh cookie.
-3. **Direct OAuth path**: Google and Apple ID tokens are verified directly
-   against provider JWKS after a backend-issued, cookie-bound nonce exchange.
-4. **Identity mapping**: `AuthIdentity` links stable provider subjects to the
-   immutable Mongo user ID. Email is never used to auto-link accounts.
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | `/register` | Create an account and set a refresh cookie |
+| POST | `/login` | Sign in with email and password |
+| POST | `/refresh` | Rotate the refresh cookie and issue a new access token |
+| POST | `/logout` | Revoke the current refresh session |
+| POST | `/logout-all` | Revoke every refresh session for the user |
+| POST | `/forgot-password` | Send a single-use reset link when the account can receive one |
+| POST | `/reset-password` | Consume a reset token and set a password |
+| POST | `/request-verification` | Send a single-use email verification link |
+| POST | `/confirm-verification` | Consume a verification token |
+| POST | `/change-password` | Change the current password and revoke refresh sessions |
+| POST | `/deactivate` | Deactivate the signed-in account |
 
-The Firebase examples below document the legacy compatibility path and should
-not be used as the design source for new native integrations.
+Registration and login return a short-lived access token in the JSON body
+(`access_token_expires_in` is 900 seconds by default) and set the refresh
+cookie. The refresh token is not included in the response body.
 
-## Legacy Firebase implementation guide
+```http
+POST /api/v1/auth/password/register
+Content-Type: application/json
 
-### JWT Token Storage
-
-Store the JWT token securely. Recommended approaches:
-
-1. **HTTP-only Cookies**: The most secure option (if supported by your API)
-2. **localStorage**: Only if cookies aren't possible
-3. **Memory Store**: More secure than localStorage but tokens will be lost on page refresh
-
-Example implementation using localStorage:
-
-```typescript
-// Auth utilities
-const TOKEN_KEY = 'auth_token';
-
-// Store token
-const storeToken = (token: string): void => {
-  localStorage.setItem(TOKEN_KEY, token);
-};
-
-// Retrieve token
-const getToken = (): string | null => {
-  return localStorage.getItem(TOKEN_KEY);
-};
-
-// Remove token on logout
-const removeToken = (): void => {
-  localStorage.removeItem(TOKEN_KEY);
-};
-
-// Check if user is authenticated
-const isAuthenticated = (): boolean => {
-  const token = getToken();
-  return !!token; // Returns true if token exists
-};
-```
-
-### Firebase Setup
-
-1. Add Firebase to your web application:
-
-```typescript
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-
-// Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
-  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.REACT_APP_FIREBASE_APP_ID
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-```
-
-### API Authentication Requests
-
-#### Registration with Firebase
-
-```typescript
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { auth } from "../firebase";
-
-interface RegistrationData {
-  email: string;
-  password: string;
-  full_name: string;
-  username?: string;
+{
+  "email": "user@example.com",
+  "password": "YourStrongPassword123",
+  "legal_acceptance": {
+    "terms_version": "2026-08-19",
+    "acceptable_use_version": "2026-08-19",
+    "privacy_version": "2026-08-19",
+    "ai_data_use_version": "2026-08-19",
+    "terms_accepted": true,
+    "acceptable_use_accepted": true,
+    "privacy_acknowledged": true,
+    "ai_data_use_acknowledged": true,
+    "minimum_age_confirmed": true,
+    "acceptance_surface": "password_registration"
+  }
 }
-
-const register = async (data: RegistrationData): Promise<any> => {
-  try {
-    // 1. Create user with Firebase
-    const userCredential = await createUserWithEmailAndPassword(
-      auth,
-      data.email,
-      data.password
-    );
-
-    // 2. Update user profile with full name
-    await updateProfile(userCredential.user, {
-      displayName: data.full_name
-    });
-
-    // 3. Get ID token
-    const idToken = await userCredential.user.getIdToken();
-
-    // 4. Register with backend
-    const response = await fetch('/api/v1/auth/register', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        email: data.email,
-        password: data.password,
-        full_name: data.full_name,
-        username: data.username
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Registration failed');
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Registration error:', error);
-    throw error;
-  }
-};
 ```
 
-#### Login with Firebase
+Send later password and OAuth calls with `credentials: "include"` so the
+browser stores and returns the refresh cookie. The cookie name, path, and
+SameSite policy come from `REFRESH_COOKIE_*`. The cookie path is
+`/api/v1/auth/password`.
 
-```typescript
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../firebase";
+Forgot-password and request-verification always return the same message. They
+do not reveal whether an account exists.
 
-interface LoginData {
-  email: string;
-  password: string;
-}
+## OAuth nonce and exchange
 
-interface LoginResponse {
-  user: {
-    id: string;
-    email: string;
-    username: string;
-    email_verified: boolean;
-    is_active: boolean;
-    is_superuser: boolean;
-    auth_provider: string;
-  };
-  access_token: string;
-  token_type: string;
-}
+Google and Apple routes live under `/api/v1/auth/oauth`.
 
-const login = async (data: LoginData): Promise<LoginResponse> => {
-  try {
-    // 1. Sign in with Firebase
-    const userCredential = await signInWithEmailAndPassword(
-      auth,
-      data.email,
-      data.password
-    );
+1. `POST /nonce/google` or `POST /nonce/apple` returns a raw nonce once and
+   sets a signed HttpOnly nonce cookie on `/api/v1/auth/oauth`.
+2. The first-party client puts that nonce into the provider SDK request.
+   Google receives the raw nonce. Apple receives `SHA-256(raw nonce)` as
+   lowercase hex.
+3. `POST /google` or `POST /apple` sends the provider ID token. The API
+   consumes the nonce cookie, verifies the token against the provider JWKS,
+   and sets the refresh cookie.
 
-    // 2. Get the Firebase ID token
-    const idToken = await userCredential.user.getIdToken();
+First-time provider sign-in requires `legal_acceptance` with
+`acceptance_surface` set to `google_oauth` or `apple_oauth`. An email that
+already belongs to another account is not linked automatically.
 
-    // 3. Exchange Firebase token for API token
-    const response = await fetch('/api/v1/auth/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ id_token: idToken }),
-    });
+Configure at least one audience for each provider you enable:
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Login failed');
-    }
-
-    const result = await response.json();
-
-    // 4. Store the API token for future requests
-    storeToken(result.access_token);
-
-    return result;
-  } catch (error) {
-    console.error('Login error:', error);
-    throw error;
-  }
-};
+```text
+OAUTH_GOOGLE_WEB_AUDIENCES=
+OAUTH_GOOGLE_IOS_AUDIENCES=
+OAUTH_GOOGLE_ANDROID_AUDIENCES=
+OAUTH_APPLE_AUDIENCES=
 ```
 
-#### Password Change
+## Calling protected routes
 
-```typescript
-import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
-import { auth } from "../firebase";
+Send the access token as a bearer token:
 
-interface ChangePasswordData {
-  currentPassword: string;
-  newPassword: string;
-}
-
-const changePassword = async (data: ChangePasswordData): Promise<any> => {
-  try {
-    const currentUser = auth.currentUser;
-    if (!currentUser || !currentUser.email) {
-      throw new Error('No authenticated user found');
-    }
-
-    // 1. Re-authenticate the user
-    const credential = EmailAuthProvider.credential(
-      currentUser.email,
-      data.currentPassword
-    );
-
-    await reauthenticateWithCredential(currentUser, credential);
-
-    // 2. Change the password in Firebase
-    await updatePassword(currentUser, data.newPassword);
-
-    // Success
-    return { message: 'Password changed successfully' };
-  } catch (error) {
-    console.error('Password change error:', error);
-    throw error;
-  }
-};
+```http
+GET /api/v1/auth/me
+Authorization: Bearer <access_token>
 ```
 
-#### Authenticated Requests
+`GET /api/v1/auth/me` returns the signed-in user. `PUT /api/v1/auth/users/me/setup-progress`
+updates onboarding progress.
 
-Create a utility function for making authenticated API requests:
+When the access token expires, call `POST /api/v1/auth/password/refresh` with
+the refresh cookie. A 401 from a protected route means the access token is
+missing, invalid, or expired.
 
-```typescript
-const apiRequest = async (
-  url: string,
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
-  body?: any
-): Promise<any> => {
-  const token = getToken();
+Agent scripts use a personal access token (`Authorization: Bearer yarba_pat_...`)
+instead of a user JWT. PAT scope checks live in `require_scopes`.
 
-  if (!token) {
-    throw new Error('No authentication token found');
-  }
+## Swagger UI
 
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`,
-  };
+1. Register or log in through `/api/v1/auth/password/register` or
+   `/api/v1/auth/password/login`.
+2. Copy `access_token` from the response.
+3. In Swagger UI, choose **Authorize** and paste the token as a Bearer value.
 
-  const config: RequestInit = {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  };
+## Errors
 
-  try {
-    const response = await fetch(url, config);
+- **401 Unauthorized**: missing, invalid, or expired access token, or bad password
+- **403 Forbidden**: the account is inactive, or a personal access token lacks a scope
+- **409 Conflict**: registration or provider sign-in cannot use that email
+- **422 Unprocessable Entity**: the request body failed validation
 
-    // Handle 401 Unauthorized - Token might be expired
-    if (response.status === 401) {
-      // Remove the invalid token
-      removeToken();
-
-      // Redirect to login
-      window.location.href = '/login';
-
-      throw new Error('Session expired. Please login again.');
-    }
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'API request failed');
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error(`API error (${method} ${url}):`, error);
-    throw error;
-  }
-};
-```
-
-### User Context
-
-Implement a user context to provide authentication state throughout the application:
-
-```tsx
-import React, { createContext, useContext, useEffect, useState } from 'react';
-
-interface User {
-  id: string;
-  username: string;
-  email: string;
-  is_active: boolean;
-  is_superuser: boolean;
-}
-
-interface AuthContextType {
-  user: User | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  login: (username: string, password: string) => Promise<void>;
-  logout: () => void;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-
-  const fetchCurrentUser = async (): Promise<void> => {
-    if (!getToken()) {
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      const userData = await apiRequest('/api/v1/auth/me');
-      setUser(userData);
-    } catch (error) {
-      console.error('Failed to fetch user data:', error);
-      removeToken();
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchCurrentUser();
-  }, []);
-
-  const loginHandler = async (username: string, password: string): Promise<void> => {
-    setIsLoading(true);
-    try {
-      await login({ username, password });
-      await fetchCurrentUser();
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const logoutHandler = (): void => {
-    removeToken();
-    setUser(null);
-  };
-
-  const value = {
-    user,
-    isAuthenticated: !!user,
-    isLoading,
-    login: loginHandler,
-    logout: logoutHandler,
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
-
-export const useAuth = (): AuthContextType => {
-  const context = useContext(AuthContext);
-
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-
-  return context;
-};
-```
-
-### Protected Routes
-
-Create a wrapper component for routes that require authentication:
-
-```tsx
-import React from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from './auth-context';
-
-interface ProtectedRouteProps {
-  children: React.ReactNode;
-}
-
-export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { isAuthenticated, isLoading } = useAuth();
-  const location = useLocation();
-
-  if (isLoading) {
-    return <div>Loading...</div>;
-  }
-
-  if (!isAuthenticated) {
-    // Redirect to login page but save the location they were trying to access
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-
-  return <>{children}</>;
-};
-```
-
-### Usage in Routes
-
-```tsx
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { AuthProvider } from './auth-context';
-import { ProtectedRoute } from './protected-route';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Dashboard from './pages/Dashboard';
-
-const App: React.FC = () => {
-  return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            }
-          />
-          {/* Other protected routes */}
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
-  );
-};
-
-export default App;
-```
-
-## Security Considerations
-
-1. **Token Expiration**: The default token expiration is 30 minutes. Implement a refresh token mechanism for longer sessions.
-
-2. **HTTPS**: Always use HTTPS in production to prevent token interception.
-
-3. **XSS Protection**: Be careful when handling tokens in JavaScript, especially if using localStorage.
-
-4. **CSRF Protection**: If using cookie-based authentication, implement CSRF protection.
-
-5. **Logout**: Always clear the token on logout.
-
-6. **Error Handling**: Never expose sensitive information in error messages.
-
-7. **Validation**: Validate user input on the client side before sending to the server.
-
-## Testing Authentication
-
-To test authentication in development:
-
-1. **Registration**: Create a test user account
-2. **Login**: Verify token is received and stored
-3. **Protected Routes**: Ensure they redirect to login when not authenticated
-4. **Token Expiration**: Test behavior when token expires
-5. **Logout**: Verify token is removed and user is redirected
-
-## Using Swagger UI with Firebase Authentication
-
-Swagger UI requires a Firebase ID token for authentication. There are two ways to get this token:
-
-### Option 1: Use the Swagger Login Endpoint (Development Only)
-
-The API provides a development-only endpoint that simplifies getting an ID token:
-
-1. In Swagger UI, find the `/auth/swagger-login` endpoint
-2. Provide your email and password
-3. Execute the request
-4. Copy the returned `id_token` value
-5. Use this token with the `/auth/login` endpoint to get your JWT token
-
-### Option 2: Get the ID Token from a Browser
-
-For a more permanent solution:
-
-1. Create an HTML file with this code:
-
-```html
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Firebase Token Generator</title>
-</head>
-<body>
-  <h2>Get Firebase ID Token</h2>
-  <div>
-    <input id="email" placeholder="Email" /><br>
-    <input id="password" type="password" placeholder="Password" /><br>
-    <button onclick="login()">Get Token</button><br>
-    <textarea id="token" rows="10" cols="50"></textarea>
-  </div>
-
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.5.0/firebase-app.js";
-    import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.5.0/firebase-auth.js";
-
-    // Your Firebase config - replace with your actual config
-    const firebaseConfig = {
-      apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_PROJECT.firebaseapp.com",
-      projectId: "YOUR_PROJECT_ID",
-      storageBucket: "YOUR_PROJECT.storageBucket.com",
-      messagingSenderId: "YOUR_messagingSenderId",
-      appId: "YOUR_appId"
-    };
-
-    // Initialize Firebase
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-
-    window.login = async function() {
-      try {
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
-
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        const idToken = await userCredential.user.getIdToken();
-
-        document.getElementById('token').value = idToken;
-      } catch (error) {
-        console.error("Error:", error);
-        document.getElementById('token').value = "Error: " + error.message;
-      }
-    };
-  </script>
-</body>
-</html>
-```
-
-2. Open this file in a browser
-3. Enter your Firebase email and password
-4. Click "Get Token" to retrieve your ID token
-5. Use this token with the `/auth/login` endpoint in Swagger UI
-
-## Common Authentication Errors
-
-- **401 Unauthorized**: Invalid or expired token
-- **403 Forbidden**: Valid token but insufficient permissions
-- **422 Unprocessable Entity**: Invalid request data format
-
-Handle these errors appropriately in your UI to provide a good user experience.
+Password rules: 8–64 characters with at least one uppercase letter, one
+lowercase letter, and one number.

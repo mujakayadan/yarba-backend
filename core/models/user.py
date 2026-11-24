@@ -27,20 +27,15 @@ class User(Document):
         description="Tracks the current setup step (1-indexed); 0 means setup is complete.",
     )
 
-    # Firebase remains populated for existing Firebase users, while native-only
-    # accounts can omit it during the dual-auth rollout.
     firebase_uid: Annotated[str | None, Indexed()] = None
-
-    # Firebase supports multiple authentication providers
     auth_provider: str = Field(
-        default="firebase.password",
-        description="Authentication provider used through Firebase. Examples: "
-        "firebase.password, firebase.google, firebase.facebook, firebase.twitter, etc.",
+        default="password",
+        description=(
+            "Sign-in provider for the account, such as password, google, or apple."
+        ),
     )
-
-    # Transition-safe native authentication fields. These remain optional so legacy
-    # Firebase records load without a data backfill.
     password_hash: str | None = Field(default=None, repr=False)
+    # Documents that omit this field load as FIREBASE_ONLY. New accounts are NATIVE.
     auth_migration_state: AuthMigrationState = AuthMigrationState.FIREBASE_ONLY
     last_login: datetime | None = None
     moderation_strike_count: int = 0
