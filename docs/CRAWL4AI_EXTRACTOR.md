@@ -57,10 +57,10 @@ The extractor uses a comprehensive JSON schema that defines CSS selectors for ea
         {
             "name": "job_title",
             "selector": "h1, .job-title, .jobTitle, [data-testid='job-title']",
-            "type": "text",
+            "type": "text"
         },
         # ... more fields
-    ],
+    ]
 }
 ```
 
@@ -100,15 +100,9 @@ For certain job boards known to work well with schema-based extraction, the Craw
 ```python
 # These domains will use Crawl4AI extractor first
 crawl4ai_preferred_domains = [
-    "greenhouse.io",
-    "lever.co",
-    "workday.com",
-    "smartrecruiters.com",
-    "bamboohr.com",
-    "jobvite.com",
-    "indeed.com",
-    "glassdoor.com",
-    "monster.com",
+    "greenhouse.io", "lever.co", "workday.com",
+    "smartrecruiters.com", "bamboohr.com", "jobvite.com",
+    "indeed.com", "glassdoor.com", "monster.com"
 ]
 ```
 
@@ -146,7 +140,6 @@ Robust error handling ensures the system gracefully degrades:
 ```python
 from core.job_extractor.extractors.crawl4ai_extractor import Crawl4AIExtractor
 
-
 async def extract_job():
     extractor = Crawl4AIExtractor(headless=True, fast_mode=True)
     result = await extractor.scrape_job_posting("https://jobs.lever.co/company/job-id")
@@ -161,7 +154,6 @@ async def extract_job():
 ```python
 from core.job_extractor.extractor_manager import ExtractorManager
 
-
 async def extract_with_manager():
     manager = ExtractorManager(use_crawl4ai=True)
     result = await manager.extract("https://boards.greenhouse.io/company/jobs/123")
@@ -172,7 +164,6 @@ async def extract_with_manager():
 
 ```python
 from core.job_extractor.extract_job import JobExtractor
-
 
 async def extract_high_level():
     extractor = JobExtractor()  # Uses ExtractorManager internally
@@ -186,13 +177,13 @@ async def extract_high_level():
 
 ```python
 manager = ExtractorManager(
-    headless=True,  # Run browser in headless mode
-    fast_mode=True,  # Use faster timeouts
-    use_crawl4ai=True,  # Enable Crawl4AI extractor
-    crawl4ai_domains=[  # Custom preferred domains
+    headless=True,           # Run browser in headless mode
+    fast_mode=True,          # Use faster timeouts
+    use_crawl4ai=True,       # Enable Crawl4AI extractor
+    crawl4ai_domains=[       # Custom preferred domains
         "custom-job-board.com",
-        "another-board.com",
-    ],
+        "another-board.com"
+    ]
 )
 ```
 
@@ -200,8 +191,8 @@ manager = ExtractorManager(
 
 ```python
 extractor = Crawl4AIExtractor(
-    headless=True,  # Browser headless mode
-    fast_mode=True,  # Fast extraction timeouts
+    headless=True,           # Browser headless mode
+    fast_mode=True          # Fast extraction timeouts
 )
 ```
 
@@ -284,8 +275,8 @@ python test_crawl4ai_extractor.py
 
 2. **Inspect Extraction Metadata**
    ```python
-   if result.extraction_metadata.get("structured_data"):
-       print(json.dumps(result.extraction_metadata["structured_data"], indent=2))
+   if result.extraction_metadata.get('structured_data'):
+       print(json.dumps(result.extraction_metadata['structured_data'], indent=2))
    ```
 
 3. **Test with Different Modes**
